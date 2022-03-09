@@ -1,3 +1,5 @@
+package com.jpage4500.devicemanager.utils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,7 +12,7 @@ import java.util.List;
 
 import javax.swing.*;
 
-class MyDragDropListener implements DropTargetListener {
+public class MyDragDropListener implements DropTargetListener {
     private static final Logger log = LoggerFactory.getLogger(MyDragDropListener.class);
     private JTable table;
 
