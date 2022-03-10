@@ -7,13 +7,12 @@ function serviceCall() {
     END=$2
     REGEX='^[0-9+]+$'
 
-    while [ $START -le $END ]
-    do
+    while [ $START -le $END ]; do
         VAL=$(adb -s $ADB_DEVICE shell "service call iphonesubinfo $START | cut -c 52-66 | tr -d '.[:space:]'")
         # make sure value is a valid number
         if [[ ${#VAL} -ge 10 ]] && [[ $VAL =~ $REGEX ]]; then
             echo $VAL
-            break;
+            break
         fi
         #echo "ignoring $START - val:$VAL, len:${#VAL}"
         let START=($START + 1)
@@ -23,7 +22,7 @@ function serviceCall() {
 
 function getProp() {
     PROP=$1
-    adb shell getprop $PROP
+    adb -s $ADB_DEVICE shell getprop $PROP
 }
 
 IMEI=$(serviceCall 1 5)

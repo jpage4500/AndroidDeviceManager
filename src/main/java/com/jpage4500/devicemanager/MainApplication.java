@@ -6,6 +6,7 @@ import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.utils.MyDragDropListener;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
 
 import org.slf4j.Logger;
@@ -22,8 +23,6 @@ import java.util.prefs.Preferences;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
-
-import static javax.swing.JOptionPane.YES_OPTION;
 
 class MainApplication {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
@@ -151,6 +150,7 @@ class MainApplication {
                     log.debug("mouseClicked: RIGHT-CLICK:{}", row);
                 } else if (e.getClickCount() == 2) {
                     log.debug("mouseClicked: DOUBLE-CLICK:{}", row);
+                    handleMirrorCommand();
                 }
             }
         });
@@ -165,32 +165,76 @@ class MainApplication {
         screenshotItem.addActionListener(actionEvent -> handleScreenshotCommand());
         popupMenu.add(screenshotItem);
 
-        JMenuItem serverItem = new JMenuItem("Set Server...");
-        serverItem.addActionListener(actionEvent -> handleSetServerCommand());
+        JMenuItem serverItem = new JMenuItem("Custom Field 1...");
+        serverItem.addActionListener(actionEvent -> handleSetCustom1Command());
         popupMenu.add(serverItem);
 
-        JMenuItem notesItem = new JMenuItem("Set Notes...");
-        notesItem.addActionListener(actionEvent -> handleSetNotesCommand());
+        JMenuItem notesItem = new JMenuItem("Custom Field 2...");
+        notesItem.addActionListener(actionEvent -> handleSetCustom2Command());
         popupMenu.add(notesItem);
 
         table.setComponentPopupMenu(popupMenu);
     }
 
-    private void handleSetNotesCommand() {
+    private void handleSetCustom1Command() {
+        int row = table.getSelectedRow();
+        if (row == -1) return;
+        Device device = model.getDeviceAtRow(row);
+
+        String result = (String) JOptionPane.showInputDialog(frame,
+            "Enter Custom Note",
+            "Custom Note",
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            null,
+            device.custom1);
+
+        if (TextUtils.notEmpty(result)) {
+            device.custom1 = result;
+            model.updateDevice(device);
+        }
     }
 
-    private void handleSetServerCommand() {
+    private void handleSetCustom2Command() {
+        int row = table.getSelectedRow();
+        if (row == -1) return;
+        Device device = model.getDeviceAtRow(row);
 
+        String result = (String) JOptionPane.showInputDialog(frame,
+            "Enter Custom Note",
+            "Custom Note",
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            null,
+            device.custom2);
+
+        if (TextUtils.notEmpty(result)) {
+            device.custom2 = result;
+            model.updateDevice(device);
+        }
     }
 
     private void handleScreenshotCommand() {
-
+        int[] selectedRows = table.getSelectedRows();
+        if (selectedRows.length > 1) {
+            // prompt to open multiple devices at once
+            int rc = JOptionPane.showConfirmDialog(frame,
+                "Take screenshot of " + selectedRows.length + " devices?",
+                "Screenshot",
+                JOptionPane.YES_NO_OPTION
+            );
+            if (rc != JOptionPane.YES_OPTION) return;
+        }
+        for (int selectedRow : selectedRows) {
+            Device device = model.getDeviceAtRow(selectedRow);
+            DeviceManager.getInstance().captureScreenshot(device);
+        }
     }
 
     private void handleMirrorCommand() {
         int[] selectedRows = table.getSelectedRows();
         if (selectedRows.length > 1) {
-            // TODO: prompt to open multiple devices at once
+            // prompt to open multiple devices at once
             int rc = JOptionPane.showConfirmDialog(frame,
                 "Mirror " + selectedRows.length + " devices?",
                 "Mirror Device",
@@ -202,7 +246,6 @@ class MainApplication {
             Device device = model.getDeviceAtRow(selectedRow);
             DeviceManager.getInstance().mirrorDevice(device);
         }
-
     }
 
     private void setupToolbar(JPanel panel) {

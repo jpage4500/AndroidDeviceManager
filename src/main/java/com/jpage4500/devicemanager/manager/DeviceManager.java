@@ -86,6 +86,13 @@ public class DeviceManager {
         });
     }
 
+    public void captureScreenshot(Device device) {
+        commandExecutorService.submit(() -> {
+            runScript("screenshot.sh", device.serial);
+            log.debug("captureScreenshot: DONE");
+        });
+    }
+
     public void handleExit() {
         List<Process> processCopyList = new ArrayList<>();
         synchronized (processList) {
