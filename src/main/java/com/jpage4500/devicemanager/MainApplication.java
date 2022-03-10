@@ -110,7 +110,6 @@ class MainApplication {
         setupToolbar(panel);
 
         frame.setContentPane(panel);
-        //frame.pack();
         frame.setVisible(true);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
