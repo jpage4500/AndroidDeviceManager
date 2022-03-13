@@ -1,5 +1,7 @@
 package com.jpage4500.devicemanager.utils;
 
+import com.jpage4500.devicemanager.ui.CustomTable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,14 +12,21 @@ import java.awt.dnd.*;
 import java.io.File;
 import java.util.List;
 
-import javax.swing.*;
-
 public class MyDragDropListener implements DropTargetListener {
     private static final Logger log = LoggerFactory.getLogger(MyDragDropListener.class);
-    private JTable table;
+    private CustomTable table;
+    private DragDropListener listener;
 
-    public MyDragDropListener(JTable table) {
+    private Color defaultRowColor;
+    private Color dragRowColor = new Color(243, 126, 126);
+
+    public interface DragDropListener {
+        void onFileDropped(List<File> fileList);
+    }
+
+    public MyDragDropListener(CustomTable table, DragDropListener listener) {
         this.table = table;
+        this.listener = listener;
     }
 
     @Override
@@ -38,11 +47,7 @@ public class MyDragDropListener implements DropTargetListener {
                 if (flavor.isFlavorJavaFileListType()) {
                     // Get all of the dropped files
                     List<File> files = (List<File>) transferable.getTransferData(flavor);
-                    // Loop them through
-                    for (File file : files) {
-                        // Print out the file path
-                        log.debug("drop: {}", file.getPath());
-                    }
+                    listener.onFileDropped(files);
                 }
             } catch (Exception e) {
                 // Print out the error stack
@@ -51,24 +56,46 @@ public class MyDragDropListener implements DropTargetListener {
         }
         // Inform that the drop is complete
         event.dropComplete(true);
+        showDragExit();
+    }
 
-        table.setBackground(Color.WHITE);
+    private void showDragExit() {
+        if (defaultRowColor != null) {
+            table.setSelectionBackground(defaultRowColor);
+            table.repaint();
+        }
+        table.setCursor(Cursor.getDefaultCursor());
+    }
+
+    private void showDragEnter() {
+        if (defaultRowColor == null) {
+            defaultRowColor = table.getSelectionBackground();
+        }
+        table.setSelectionBackground(dragRowColor);
+        table.repaint();
+        table.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     }
 
     @Override
     public void dragEnter(DropTargetDragEvent event) {
-        table.setBackground(Color.LIGHT_GRAY);
-        log.debug("dragEnter:");
     }
 
     @Override
     public void dragExit(DropTargetEvent event) {
-        table.setBackground(Color.WHITE);
         log.debug("dragExit: ");
+        showDragExit();
     }
 
     @Override
     public void dragOver(DropTargetDragEvent event) {
+        Point p = event.getLocation();
+        int row = table.rowAtPoint(p);
+        // if dragging over a selected row, change color of ALL selected rows
+        if (table.isRowSelected(row)) {
+            showDragEnter();
+        } else {
+            showDragExit();
+        }
     }
 
     @Override

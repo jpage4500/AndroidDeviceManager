@@ -21,7 +21,8 @@ public class DeviceTableModel extends AbstractTableModel {
         PHONE,
         IMEI,
         CUSTOM1,
-        CUSTOM2
+        CUSTOM2,
+        STATUS,
     }
 
     public DeviceTableModel() {
@@ -29,10 +30,8 @@ public class DeviceTableModel extends AbstractTableModel {
     }
 
     public void setDeviceList(List<Device> deviceList) {
-        if (this.deviceList.equals(deviceList)) {
-            log.debug("setDeviceList: SAME");
-            return;
-        }
+        // TODO: this checks only that the same devices are in the list (serialNumber)
+        if (this.deviceList.equals(deviceList)) return;
         this.deviceList.clear();
         this.deviceList.addAll(deviceList);
 
@@ -47,9 +46,9 @@ public class DeviceTableModel extends AbstractTableModel {
     }
 
     public void updateDevice(Device device) {
+        if (device == null) return;
         int row = deviceList.indexOf(device);
         if (row >= 0) {
-            log.debug("updateDevice: updated row:{}", row);
             fireTableRowsUpdated(row, row);
         }
     }
@@ -67,8 +66,11 @@ public class DeviceTableModel extends AbstractTableModel {
     }
 
     public Object getValueAt(int row, int col) {
+        Columns[] columns = Columns.values();
+        if (row >= deviceList.size() || col >= columns.length) return null;
+
         Device device = deviceList.get(row);
-        Columns colType = Columns.values()[col];
+        Columns colType = columns[col];
         switch (colType) {
             case SERIAL:
                 return device.serial;
@@ -82,6 +84,8 @@ public class DeviceTableModel extends AbstractTableModel {
                 return device.custom1;
             case CUSTOM2:
                 return device.custom2;
+            case STATUS:
+                return device.status;
             default:
                 log.debug("getValueAt: ERROR: {}", colType);
                 return "";

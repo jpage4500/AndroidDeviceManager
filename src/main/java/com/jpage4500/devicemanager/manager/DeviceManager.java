@@ -4,23 +4,16 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
@@ -34,6 +27,8 @@ public class DeviceManager {
     private final ScheduledExecutorService listExecutorService;
     private final ExecutorService detailsExecutorService;
     private final ExecutorService commandExecutorService;
+
+    private ScheduledFuture<?> listDevicesFuture;
 
     public static DeviceManager getInstance() {
         if (instance == null) {
@@ -58,38 +53,95 @@ public class DeviceManager {
         copyResourcesToFiles();
     }
 
-    public interface DeviceListUpdatedListener {
+    public interface DeviceListener {
+        // device list was refreshed
         void handleDevicesUpdated(List<Device> deviceList);
 
+        // single device was updated
         void handleDeviceUpdated(Device device);
     }
 
     /**
-     * starts a scheduled task to list devices every [10] seconds
+     * starts a scheduled task to list devices every [X] seconds
+     *
+     * @param pollingInterval polling interval in seconds
      */
-    public void listDevices(DeviceListUpdatedListener listener) {
-        listExecutorService.scheduleWithFixedDelay(() -> {
+    public void startDevicePolling(DeviceListener listener, long pollingInterval) {
+        stopDevicePolling();
+        listDevicesFuture = listExecutorService.scheduleWithFixedDelay(() -> {
             listDevicesInternal(listener);
-        }, 0, 10, TimeUnit.SECONDS);
+        }, 0, pollingInterval, TimeUnit.SECONDS);
     }
 
-    private void getDeviceDetails(Device device, DeviceListUpdatedListener listener) {
+    public void stopDevicePolling() {
+        if (listDevicesFuture != null && !listDevicesFuture.isCancelled()) {
+            listDevicesFuture.cancel(true);
+        }
+    }
+
+    private void getDeviceDetails(Device device, DeviceListener listener) {
         detailsExecutorService.submit(() -> {
             getDeviceDetailsInternal(device, listener);
         });
     }
 
-    public void mirrorDevice(Device device) {
+    public void mirrorDevice(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
-            runScript("mirror.sh", device.serial);
+            device.status = "mirring...";
+            listener.handleDeviceUpdated(device);
+            String name = device.serial;
+            if (device.phone != null) name += ": " + device.phone;
+            else if (device.model != null) name += ": " + device.model;
+            runScript("mirror.sh", device.serial, name);
             log.debug("mirrorDevice: DONE");
+            device.status = null;
+            listener.handleDeviceUpdated(device);
         });
     }
 
-    public void captureScreenshot(Device device) {
+    public void captureScreenshot(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
+            device.status = "screenshot...";
+            listener.handleDeviceUpdated(device);
             runScript("screenshot.sh", device.serial);
+            device.status = null;
+            listener.handleDeviceUpdated(device);
             log.debug("captureScreenshot: DONE");
+        });
+    }
+
+    public void setProperty(Device device, String key, String value) {
+        if (value == null) value = "";
+        String safeValue = value.replaceAll(" ", "~");
+        commandExecutorService.submit(() -> {
+            runScript("set-property.sh", device.serial, key, safeValue);
+            log.debug("setProperty: {}, key:{}, value:{}, DONE", device.serial, key, safeValue);
+        });
+    }
+
+    public void installApp(Device device, File file, DeviceListener listener) {
+        commandExecutorService.submit(() -> {
+            String path = file.getAbsolutePath();
+            device.status = "installing...";
+            listener.handleDeviceUpdated(device);
+            List<String> resultList = runScript("install-apk.sh", device.serial, path);
+            log.debug("installApp: RESULTS: {}", GsonHelper.toJson(resultList));
+            device.status = null;
+            listener.handleDeviceUpdated(device);
+            log.debug("installApp: {}, {}, DONE", device.serial, path);
+        });
+    }
+
+    public void copyFile(Device device, File file, DeviceListener listener) {
+        commandExecutorService.submit(() -> {
+            String path = file.getAbsolutePath();
+            device.status = "copying...";
+            listener.handleDeviceUpdated(device);
+            List<String> resultList = runScript("copy-file.sh", device.serial, path);
+            log.debug("copyFile: RESULTS: {}", GsonHelper.toJson(resultList));
+            device.status = null;
+            listener.handleDeviceUpdated(device);
+            log.debug("copyFile: {}, {}, DONE", device.serial, path);
         });
     }
 
@@ -107,7 +159,7 @@ public class DeviceManager {
         }
     }
 
-    private void listDevicesInternal(DeviceListUpdatedListener listener) {
+    private void listDevicesInternal(DeviceListener listener) {
         List<String> results = runScript("device-list.sh");
         if (results == null) {
             listener.handleDevicesUpdated(null);
@@ -196,7 +248,9 @@ public class DeviceManager {
         return null;
     }
 
-    private void getDeviceDetailsInternal(Device device, DeviceListUpdatedListener listener) {
+    private void getDeviceDetailsInternal(Device device, DeviceListener listener) {
+        device.status = "details...";
+        listener.handleDeviceUpdated(device);
         List<String> results = runScript("device-details.sh", device.serial);
         if (results != null) {
             boolean isUpdated = false;
@@ -219,44 +273,71 @@ public class DeviceManager {
                         isUpdated = true;
                         break;
                     case "custom1":
-                        device.custom1 = val;
+                        device.custom1 = val.replaceAll("~", " ");
                         isUpdated = true;
                         break;
                     case "custom2":
-                        device.custom2 = val;
+                        device.custom2 = val.replaceAll("~", " ");
                         isUpdated = true;
                         break;
                 }
             }
 
-            if (isUpdated) {
-                listener.handleDeviceUpdated(device);
-            }
+            device.status = null;
+            listener.handleDeviceUpdated(device);
         }
         device.hasFetchedDetails = true;
     }
 
+    /**
+     * 1-time copy of all resources/scripts/*.sh files to temp folder and make them executable
+     */
     private void copyResourcesToFiles() {
         try {
-            URL url = getClass().getResource("/scripts");
-            Path path = Paths.get(url.toURI());
-            Files.walk(path, 1).forEach(p -> {
-                String filename = p.toString();
-                if (filename.endsWith(".sh")) {
-                    copyResourceToFile(p);
+            File file = new File(getClass().getProtectionDomain().getCodeSource().getLocation().toURI());
+            if (file.getName().endsWith(".jar")) {
+                // running via JAR file
+                log.debug("copyResourcesToFiles: JAR: {}", file);
+                JarFile jarFile = new JarFile(file);
+                Enumeration<JarEntry> entries = jarFile.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry jarEntry = entries.nextElement();
+                    String name = jarEntry.getName();
+                    if (name.endsWith(".sh")) {
+                        int pos = name.indexOf("scripts/");
+                        if (pos >= 0) {
+                            name = name.substring(pos + "scripts/".length());
+                            copyResourceToFile(name, jarFile.getInputStream(jarEntry));
+                        }
+                    }
                 }
-            });
+            } else {
+                // running via IntelliJ IDE
+                URL url = getClass().getResource("/scripts");
+                Path path = Paths.get(url.toURI());
+                Files.walk(path, 1).forEach(p -> {
+                    String filename = p.toString();
+                    if (filename.endsWith(".sh")) {
+                        try {
+                            String name = p.toFile().getName();
+                            InputStream inputStream = Files.newInputStream(p);
+                            copyResourceToFile(name, inputStream);
+                        } catch (IOException e) {
+                            log.debug("copyResourcesToFiles: IOException:{}", e.getMessage());
+                        }
+                    }
+                });
+
+            }
         } catch (Exception e) {
-            log.error("copyResourcesToFiles: {}", e.getMessage());
+            log.error("copyResourcesToFiles: Exception:", e);
         }
     }
 
-    private void copyResourceToFile(Path path) {
-        String name = path.toFile().getName();
+    private void copyResourceToFile(String name, InputStream is) {
         File tempFile = new File(tempFolder, name);
         log.debug("copyResource: {} to {}", name, tempFile.getAbsolutePath());
         try {
-            InputStream is = getClass().getResourceAsStream("/scripts/" + name);
             BufferedReader r = new BufferedReader(new InputStreamReader(is));
             StringBuilder sb = new StringBuilder();
             for (String line; (line = r.readLine()) != null; ) {
@@ -265,16 +346,16 @@ public class DeviceManager {
             r.close();
             is.close();
 
-            Files.write(tempFile.toPath(), sb.toString().getBytes(), StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+            Files.write(tempFile.toPath(), sb.toString().getBytes(), StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
 
             tempFile.setExecutable(true);
         } catch (Exception e) {
-            log.error("copyResource: Exception:{}", e.getMessage());
+            log.error("copyResource: Exception:", e);
         }
     }
 
     private List<String> runScript(String scriptName, String... args) {
-        log.debug("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
+        log.trace("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
         File tempFile = new File(tempFolder, scriptName);
         if (!tempFile.exists()) {
             log.error("runScript: script doesn't exist! {}", tempFile.getAbsolutePath());
@@ -294,26 +375,40 @@ public class DeviceManager {
             synchronized (processList) {
                 processList.add(process);
             }
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line;
-            List<String> resultList = new ArrayList<>();
-            while ((line = reader.readLine()) != null) {
-                if (line.isEmpty()) continue;
-                log.debug("runScript: {}", line);
-                resultList.add(line);
-            }
-            reader.close();
             int exitVal = process.waitFor();
             if (exitVal != 0) {
                 log.error("runScript: error:{}", exitVal);
             }
+            List<String> resultList = readInputStream(process.getInputStream());
+            //if (resultList.size() > 0) log.error("runScript: RESULTS: {}", GsonHelper.toJson(resultList));
+            List<String> errorList = readInputStream(process.getErrorStream());
+            if (errorList.size() > 0) log.error("runScript: ERROR: {}", GsonHelper.toJson(errorList));
             synchronized (processList) {
                 processList.remove(process);
             }
             return resultList;
         } catch (Exception e) {
-            log.error("runScript: {}", e.getMessage());
+            log.error("runScript: Exception: {}", e.getMessage());
         }
         return null;
+    }
+
+    private List<String> readInputStream(InputStream inputStream) {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+        String line;
+        List<String> resultList = new ArrayList<>();
+        try {
+            while (true) {
+                line = reader.readLine();
+                if (line == null) break;
+                else if (line.isEmpty()) continue;
+                //log.debug("runScript: {}", line);
+                resultList.add(line);
+            }
+            reader.close();
+        } catch (IOException e) {
+            log.error("readInputStream: Exception: {}", e.getMessage());
+        }
+        return resultList;
     }
 }

@@ -2,6 +2,9 @@
 
 ADB_DEVICE=$1
 
+cd "$(/usr/bin/dirname $0)"
+source ./env-vars.sh
+
 function takeScreenShot() {
     NOW=$(date +"%Y%m%d-%H%M%p")
     # find unused filename
@@ -14,13 +17,13 @@ function takeScreenShot() {
 
     echo "saving to $FILENAME.."
 
-    adb -s $ADB_DEVICE shell screencap -p /sdcard/screen.png
-    adb -s $ADB_DEVICE pull /sdcard/screen.png $FILENAME
-    adb -s $ADB_DEVICE shell rm /sdcard/screen.png
+    ${ADB} -s "$ADB_DEVICE" shell screencap -p /sdcard/screen.png
+    ${ADB} -s "$ADB_DEVICE" pull /sdcard/screen.png "$FILENAME"
+    ${ADB} -s "$ADB_DEVICE" shell rm /sdcard/screen.png
 
     # open in background
     # open -g $FILENAME
-    open $FILENAME
+    open "$FILENAME"
 }
 
 #########################################################

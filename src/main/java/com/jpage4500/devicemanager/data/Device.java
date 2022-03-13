@@ -11,6 +11,10 @@ public class Device {
     public String custom1;
     public String custom2;
 
+    // to show device status (viewing, copying, installing, etc)
+    public String status;
+
+    // only fetch device detail (IMEI, phone, etc) once -- shouldn't change
     public boolean hasFetchedDetails;
 
     @Override
@@ -18,11 +22,11 @@ public class Device {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Device device = (Device) o;
-        return Objects.equals(serial, device.serial) && Objects.equals(model, device.model) && Objects.equals(phone, device.phone) && Objects.equals(imei, device.imei);
+        return Objects.equals(serial, device.serial);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(serial, model, phone, imei);
+        return Objects.hash(serial);
     }
 }

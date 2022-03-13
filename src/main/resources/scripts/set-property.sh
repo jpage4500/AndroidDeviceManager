@@ -2,19 +2,11 @@
 
 ADB_DEVICE=$1
 PROP=$2
+VALUE=$3
 
-adb shell setprop
+cd "$(/usr/bin/dirname $0)"
+source ./env-vars.sh
 
-function getProp() {
-    PROP=$1
-}
+${ADB} -s ${ADB_DEVICE} shell setprop ${PROP} ${VALUE}
 
-IMEI=$(serviceCall 1 5)
-PHONE=$(serviceCall 15 20)
-
-echo "device: $ADB_DEVICE"
-echo "phone: $PHONE"
-echo "imei: $IMEI"
-echo "carrier: $(getProp gsm.sim.operator.alpha)"
-echo "custom1: $(getProp debug.dm.custom1)"
-echo "custom2: $(getProp debug.dm.custom2)"
+echo "set ${PROP} ${VALUE} on device ${ADB_DEVICE}"

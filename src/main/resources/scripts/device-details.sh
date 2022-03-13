@@ -2,13 +2,16 @@
 
 ADB_DEVICE=$1
 
+cd "$(/usr/bin/dirname $0)"
+source ./env-vars.sh
+
 function serviceCall() {
     START=$1
     END=$2
     REGEX='^[0-9+]+$'
 
     while [ $START -le $END ]; do
-        VAL=$(adb -s $ADB_DEVICE shell "service call iphonesubinfo $START | cut -c 52-66 | tr -d '.[:space:]'")
+        VAL=$(${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo $START | cut -c 52-66 | tr -d '.[:space:]'")
         # make sure value is a valid number
         if [[ ${#VAL} -ge 10 ]] && [[ $VAL =~ $REGEX ]]; then
             echo $VAL
@@ -22,7 +25,7 @@ function serviceCall() {
 
 function getProp() {
     PROP=$1
-    adb -s $ADB_DEVICE shell getprop $PROP
+    ${ADB} -s $ADB_DEVICE shell getprop $PROP
 }
 
 IMEI=$(serviceCall 1 5)
