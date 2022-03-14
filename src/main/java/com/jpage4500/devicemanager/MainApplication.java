@@ -13,6 +13,8 @@ import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
 
+import net.coobird.thumbnailator.Thumbnails;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,8 +115,6 @@ class MainApplication implements DeviceManager.DeviceListener {
         scrollPane.setBackground(Color.RED);
         panel.add(scrollPane, BorderLayout.CENTER);
 
-        emptyView = new EmptyView();
-
         // setup toolbar
         setupToolbar(panel);
 
@@ -122,7 +122,10 @@ class MainApplication implements DeviceManager.DeviceListener {
         frame.setVisible(true);
 
         JRootPane rootPane = SwingUtilities.getRootPane(scrollPane);
+        emptyView = new EmptyView();
         rootPane.setGlassPane(emptyView);
+        emptyView.setOpaque(false);
+        emptyView.setVisible(true);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.debug("initializeUI: EXIT");
@@ -160,6 +163,10 @@ class MainApplication implements DeviceManager.DeviceListener {
         screenshotItem.addActionListener(actionEvent -> handleScreenshotCommand());
         popupMenu.add(screenshotItem);
 
+        JMenuItem restartDevice = new JMenuItem("Restart Device");
+        restartDevice.addActionListener(actionEvent -> handleRestartCommand());
+        popupMenu.add(restartDevice);
+
         JMenuItem serverItem = new JMenuItem("Custom Field 1...");
         serverItem.addActionListener(actionEvent -> handleSetCustom1Command());
         popupMenu.add(serverItem);
@@ -169,6 +176,7 @@ class MainApplication implements DeviceManager.DeviceListener {
         popupMenu.add(notesItem);
 
         table.setComponentPopupMenu(popupMenu);
+        table.requestFocus();
     }
 
     private void handleFilesDropped(List<File> fileList) {
@@ -314,9 +322,12 @@ class MainApplication implements DeviceManager.DeviceListener {
         createButton(toolbar, "icon_scrcpy.png", "Mirror", actionEvent -> handleMirrorCommand());
         createButton(toolbar, "icon_screenshot.png", "Screenshot", actionEvent -> handleScreenshotCommand());
         createButton(toolbar, "icon_install.png", "Install", actionEvent -> handleInstallCommand());
+        createButton(toolbar, "icon_restart.png", "Restart", actionEvent -> handleRestartCommand());
+
+        toolbar.add(Box.createHorizontalGlue());
 
         HintTextField textField = new HintTextField(HINT_FILTER_DEVICES);
-        textField.setMaximumSize(new Dimension(300, 40));
+        textField.setMaximumSize(new Dimension(350, 40));
         textField.getDocument().addDocumentListener(
             new DocumentListener() {
                 @Override
@@ -336,6 +347,25 @@ class MainApplication implements DeviceManager.DeviceListener {
         toolbar.add(textField);
 
         panel.add(toolbar, BorderLayout.NORTH);
+    }
+
+    private void handleRestartCommand() {
+        int[] selectedRows = table.getSelectedRows();
+        if (selectedRows.length == 0) {
+            JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+            return;
+        }
+
+        // prompt to install/copy
+        int rc = JOptionPane.showConfirmDialog(frame,
+            "Restart " + selectedRows.length + " device(s)?",
+            "Restart devices?", JOptionPane.YES_NO_OPTION);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        for (int selectedRow : selectedRows) {
+            Device device = model.getDeviceAtRow(selectedRow);
+            DeviceManager.getInstance().restartDevice(device, this);
+        }
     }
 
     private void filterDevices(String text) {
@@ -365,13 +395,13 @@ class MainApplication implements DeviceManager.DeviceListener {
     private void createButton(JToolBar toolbar, String imageName, String tooltip, ActionListener listener) {
         Image icon;
         try {
-            Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
-            if (image == null) {
+            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(40, 40).asBufferedImage();
+            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
+            if (icon == null) {
                 log.error("createButton: image not found! {}", imageName);
                 return;
             }
-            icon = image.getScaledInstance(40, 40, Image.SCALE_DEFAULT);
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.debug("createButton: Exception:{}", e.getMessage());
             return;
         }
@@ -388,7 +418,7 @@ class MainApplication implements DeviceManager.DeviceListener {
         if (deviceList != null) {
             model.setDeviceList(deviceList);
 
-            //emptyView.setVisible(deviceList.size() == 0);
+            emptyView.setVisible(deviceList.size() == 0);
         }
     }
 

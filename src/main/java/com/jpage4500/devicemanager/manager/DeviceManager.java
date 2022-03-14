@@ -145,6 +145,17 @@ public class DeviceManager {
         });
     }
 
+    public void restartDevice(Device device, DeviceListener listener) {
+        commandExecutorService.submit(() -> {
+            device.status = "restarting...";
+            listener.handleDeviceUpdated(device);
+            runScript("restart.sh", device.serial);
+            log.debug("restartDevice: DONE");
+            device.status = null;
+            listener.handleDeviceUpdated(device);
+        });
+    }
+
     public void handleExit() {
         List<Process> processCopyList = new ArrayList<>();
         synchronized (processList) {
@@ -168,6 +179,7 @@ public class DeviceManager {
         List<Device> resultList = new ArrayList<>();
         // List of devices attached
         // 04QAX0NRLM             device usb:34603008X product:bonito model:Pixel_3a_XL device:bonito transport_id:3
+        // 192.168.0.28:35031     offline product:x1quex model:SM_G981U1 device:x1q transport_id:7
         for (String result : results) {
             if (result.length() == 0 || result.startsWith("List")) continue;
 
@@ -175,15 +187,17 @@ public class DeviceManager {
             if (deviceArr.length <= 1) continue;
             // TODO: check possible values for serialNumber including wireless
             String serialNumber = deviceArr[0];
-
             Device device = new Device();
             device.serial = serialNumber;
+
             resultList.add(device);
 
             // get any other values returned
             for (String keyVal : deviceArr) {
                 if (keyVal.startsWith("model:")) {
                     device.model = keyVal.substring("model:".length());
+                } else if (TextUtils.equalsIgnoreCase(keyVal, "offline")) {
+                    device.status = "offline";
                 }
             }
         }
