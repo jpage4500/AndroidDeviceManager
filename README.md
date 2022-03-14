@@ -16,11 +16,13 @@ Java desktop app to manage many connected Android devices
 - [scrcpy](https://github.com/Genymobile/scrcpy) installed (for remote control)
  
 ## Screenshots ##
-- ![](resources/screenshot-devices.jpg)
-- ![](resources/screenshot-popup.png)
-- ![](resources/screenshot-empty.png)
+![](resources/screenshot-devices.jpg)
+![](resources/screenshot-popup.jpg)
+![](resources/screenshot-empty.png)
 
 ---
 Tested with 46 Android devices connected to 1 Macbook laptop (using multiple 16-port hubs)
 
 ## Upcoming Features ##
+- status bar (# of devices)
+- run user-defined adb commands

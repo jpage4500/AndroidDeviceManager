@@ -156,6 +156,17 @@ public class DeviceManager {
         });
     }
 
+    public void runCustomCommand(Device device, String customCommand, DeviceListener listener) {
+        commandExecutorService.submit(() -> {
+            device.status = "running...";
+            listener.handleDeviceUpdated(device);
+            List<String> resultList = runScript("custom-command.sh", device.serial, customCommand);
+            log.debug("runCustomCommand: DONE: {}", GsonHelper.toJson(resultList));
+            device.status = null;
+            listener.handleDeviceUpdated(device);
+        });
+    }
+
     public void handleExit() {
         List<Process> processCopyList = new ArrayList<>();
         synchronized (processList) {

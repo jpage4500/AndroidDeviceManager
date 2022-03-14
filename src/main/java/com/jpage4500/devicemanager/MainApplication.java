@@ -5,10 +5,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.ui.CustomFrame;
-import com.jpage4500.devicemanager.ui.CustomTable;
-import com.jpage4500.devicemanager.ui.EmptyView;
-import com.jpage4500.devicemanager.ui.HintTextField;
+import com.jpage4500.devicemanager.ui.*;
 import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
@@ -22,14 +19,16 @@ import java.awt.*;
 import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.File;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.prefs.Preferences;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 
@@ -37,12 +36,14 @@ class MainApplication implements DeviceManager.DeviceListener {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
+    private static final String PREF_CUSTOM_COMMAND1 = "PREF_CUSTOM_COMMAND1";
 
     private JPanel panel;
     private CustomTable table;
     private CustomFrame frame;
     private DeviceTableModel model;
     private EmptyView emptyView;
+    private StatusBar statusBar;
 
     public MainApplication() {
         setupLogging();
@@ -81,6 +82,7 @@ class MainApplication implements DeviceManager.DeviceListener {
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
 
+        // set docker app icon (mac)
         final Taskbar taskbar = Taskbar.getTaskbar();
         try {
             Image image = ImageIO.read(getClass().getResource("/images/logo.png"));
@@ -117,6 +119,10 @@ class MainApplication implements DeviceManager.DeviceListener {
 
         // setup toolbar
         setupToolbar(panel);
+
+        // statusbar
+        statusBar = new StatusBar();
+        panel.add(statusBar, BorderLayout.SOUTH);
 
         frame.setContentPane(panel);
         frame.setVisible(true);
@@ -176,13 +182,27 @@ class MainApplication implements DeviceManager.DeviceListener {
         popupMenu.add(notesItem);
 
         table.setComponentPopupMenu(popupMenu);
+
+        table.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent listSelectionEvent) {
+                if (!listSelectionEvent.getValueIsAdjusting()) {
+                    int selectedRowCount = table.getSelectedRowCount();
+                    if (selectedRowCount > 0) {
+                        statusBar.setRightLabel("selected: " + selectedRowCount);
+                    } else {
+                        statusBar.setRightLabel(null);
+                    }
+                }
+            }
+        });
         table.requestFocus();
     }
 
     private void handleFilesDropped(List<File> fileList) {
         int[] selectedRows = table.getSelectedRows();
         if (selectedRows.length == 0) {
-            JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+            showSelectDevicesDialog();
             return;
         }
 
@@ -283,7 +303,7 @@ class MainApplication implements DeviceManager.DeviceListener {
     private void handleScreenshotCommand() {
         int[] selectedRows = table.getSelectedRows();
         if (selectedRows.length == 0) {
-            JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+            showSelectDevicesDialog();
             return;
         } else if (selectedRows.length > 1) {
             // prompt to open multiple devices at once
@@ -299,7 +319,7 @@ class MainApplication implements DeviceManager.DeviceListener {
     private void handleMirrorCommand() {
         int[] selectedRows = table.getSelectedRows();
         if (selectedRows.length == 0) {
-            JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+            showSelectDevicesDialog();
             return;
         } else if (selectedRows.length > 1) {
             // prompt to open multiple devices at once
@@ -319,10 +339,11 @@ class MainApplication implements DeviceManager.DeviceListener {
     private void setupToolbar(JPanel panel) {
         JToolBar toolbar = new JToolBar("Applications");
 
-        createButton(toolbar, "icon_scrcpy.png", "Mirror", actionEvent -> handleMirrorCommand());
+        createButton(toolbar, "icon_scrcpy.png", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
         createButton(toolbar, "icon_screenshot.png", "Screenshot", actionEvent -> handleScreenshotCommand());
-        createButton(toolbar, "icon_install.png", "Install", actionEvent -> handleInstallCommand());
-        createButton(toolbar, "icon_restart.png", "Restart", actionEvent -> handleRestartCommand());
+        createButton(toolbar, "icon_install.png", "Install / Copy file", actionEvent -> handleInstallCommand());
+        createButton(toolbar, "icon_restart.png", "Restart Device", actionEvent -> handleRestartCommand());
+        createButton(toolbar, "icon_custom.png", "Custom adb command", actionEvent -> handleCustomCommand());
 
         toolbar.add(Box.createHorizontalGlue());
 
@@ -349,10 +370,35 @@ class MainApplication implements DeviceManager.DeviceListener {
         panel.add(toolbar, BorderLayout.NORTH);
     }
 
+    private void handleCustomCommand() {
+        int[] selectedRows = table.getSelectedRows();
+        if (selectedRows.length == 0) {
+            showSelectDevicesDialog();
+            return;
+        }
+        Preferences preferences = Preferences.userRoot();
+        String customCommand = preferences.get(PREF_CUSTOM_COMMAND1, null);
+        String result = (String) JOptionPane.showInputDialog(frame,
+            "Enter custom adb command to run on selected devices\n\nNOTE: do not include 'adb' in the command",
+            "Custom adb command",
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            null,
+            customCommand);
+
+        if (TextUtils.notEmpty(result)) {
+            preferences.put(PREF_CUSTOM_COMMAND1, result);
+            for (int selectedRow : selectedRows) {
+                Device device = model.getDeviceAtRow(selectedRow);
+                DeviceManager.getInstance().runCustomCommand(device, result, this);
+            }
+        }
+    }
+
     private void handleRestartCommand() {
         int[] selectedRows = table.getSelectedRows();
         if (selectedRows.length == 0) {
-            JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+            showSelectDevicesDialog();
             return;
         }
 
@@ -368,6 +414,10 @@ class MainApplication implements DeviceManager.DeviceListener {
         }
     }
 
+    private void showSelectDevicesDialog() {
+        JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+    }
+
     private void filterDevices(String text) {
         final TableRowSorter<TableModel> sorter = new TableRowSorter<>(table.getModel());
         table.setRowSorter(sorter);
@@ -381,7 +431,7 @@ class MainApplication implements DeviceManager.DeviceListener {
     private void handleInstallCommand() {
         int[] selectedRows = table.getSelectedRows();
         if (selectedRows.length == 0) {
-            JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+            showSelectDevicesDialog();
             return;
         }
         FileDialog dialog = new FileDialog(frame, "Select File to Install/Copy to selected devices");
@@ -418,7 +468,9 @@ class MainApplication implements DeviceManager.DeviceListener {
         if (deviceList != null) {
             model.setDeviceList(deviceList);
 
-            emptyView.setVisible(deviceList.size() == 0);
+            int deviceCount = deviceList.size();
+            statusBar.setLeftLabel("connected: " + deviceCount);
+            emptyView.setVisible(deviceCount == 0);
         }
     }
 
