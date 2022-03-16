@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.viewmodel;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.utils.TextUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,14 +31,16 @@ public class DeviceTableModel extends AbstractTableModel {
     }
 
     public void setDeviceList(List<Device> deviceList) {
-        // TODO: this checks only that the same devices are in the list (serialNumber)
-        if (this.deviceList.equals(deviceList)) return;
         this.deviceList.clear();
         this.deviceList.addAll(deviceList);
 
         fireTableDataChanged();
     }
 
+    /**
+     * get device for given row
+     * NOTE: make sure you use table.convertRowIndexToModel() first
+     */
     public Device getDeviceAtRow(int row) {
         if (deviceList.size() > row) {
             return deviceList.get(row);
@@ -45,11 +48,14 @@ public class DeviceTableModel extends AbstractTableModel {
         return null;
     }
 
-    public void updateDevice(Device device) {
+    public void updateRowForDevice(Device device) {
         if (device == null) return;
-        int row = deviceList.indexOf(device);
-        if (row >= 0) {
-            fireTableRowsUpdated(row, row);
+        for (int row = 0; row < deviceList.size(); row++) {
+            Device d = deviceList.get(row);
+            if (TextUtils.equals(d.serial, device.serial)) {
+                fireTableRowsUpdated(row, row);
+                break;
+            }
         }
     }
 

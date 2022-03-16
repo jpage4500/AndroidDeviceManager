@@ -6,6 +6,7 @@ import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.ui.*;
+import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
@@ -19,6 +20,7 @@ import java.awt.*;
 import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.prefs.Preferences;
@@ -27,8 +29,6 @@ import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 
@@ -36,7 +36,7 @@ class MainApplication implements DeviceManager.DeviceListener {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
-    private static final String PREF_CUSTOM_COMMAND1 = "PREF_CUSTOM_COMMAND1";
+    private static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
 
     private JPanel panel;
     private CustomTable table;
@@ -66,7 +66,7 @@ class MainApplication implements DeviceManager.DeviceListener {
         // tag prefix allows for easy filtering: ie: 'adb logcat | grep PM_'
         //logger.setTagPrefix("DM");
         // set log level that application should log at (and higher)
-        logger.setDebugLevel(Log.DEBUG);
+        logger.setDebugLevel(Log.VERBOSE);
         logger.setMainThreadId(Thread.currentThread().getId());
         // send all logs to EventLogger as well
         //logger.setLogListener(EventLogger.getInstance());
@@ -154,11 +154,34 @@ class MainApplication implements DeviceManager.DeviceListener {
                         table.changeSelection(row, column, false, false);
                     }
                 } else if (e.getClickCount() == 2) {
-                    handleMirrorCommand();
+                    // double-click
+                    if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
+                        handleSetProperty(1);
+                    } else if (column == DeviceTableModel.Columns.CUSTOM2.ordinal()) {
+                        handleSetProperty(2);
+                    } else {
+                        handleMirrorCommand();
+                    }
                 }
             }
         });
 
+        setupPopupMenu();
+
+        table.getSelectionModel().addListSelectionListener(listSelectionEvent -> {
+            if (!listSelectionEvent.getValueIsAdjusting()) {
+                int selectedRowCount = table.getSelectedRowCount();
+                if (selectedRowCount > 0) {
+                    statusBar.setRightLabel("selected: " + selectedRowCount);
+                } else {
+                    statusBar.setRightLabel(null);
+                }
+            }
+        });
+        table.requestFocus();
+    }
+
+    private void setupPopupMenu() {
         JPopupMenu popupMenu = new JPopupMenu();
 
         JMenuItem mirrorItem = new JMenuItem("Mirror Device");
@@ -173,35 +196,39 @@ class MainApplication implements DeviceManager.DeviceListener {
         restartDevice.addActionListener(actionEvent -> handleRestartCommand());
         popupMenu.add(restartDevice);
 
+        JMenuItem termItem = new JMenuItem("Open Terminal");
+        termItem.addActionListener(actionEvent -> handleTermCommand());
+        popupMenu.add(termItem);
+
         JMenuItem serverItem = new JMenuItem("Custom Field 1...");
-        serverItem.addActionListener(actionEvent -> handleSetCustom1Command());
+        serverItem.addActionListener(actionEvent -> handleSetProperty(1));
         popupMenu.add(serverItem);
 
         JMenuItem notesItem = new JMenuItem("Custom Field 2...");
-        notesItem.addActionListener(actionEvent -> handleSetCustom2Command());
+        notesItem.addActionListener(actionEvent -> handleSetProperty(2));
         popupMenu.add(notesItem);
 
         table.setComponentPopupMenu(popupMenu);
+    }
 
-        table.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
-            @Override
-            public void valueChanged(ListSelectionEvent listSelectionEvent) {
-                if (!listSelectionEvent.getValueIsAdjusting()) {
-                    int selectedRowCount = table.getSelectedRowCount();
-                    if (selectedRowCount > 0) {
-                        statusBar.setRightLabel("selected: " + selectedRowCount);
-                    } else {
-                        statusBar.setRightLabel(null);
-                    }
-                }
-            }
-        });
-        table.requestFocus();
+    private void handleTermCommand() {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.size() == 0) {
+            showSelectDevicesDialog();
+            return;
+        } else if (selectedDeviceList.size() > 1) {
+            // prompt to open multiple devices at once
+            int rc = JOptionPane.showConfirmDialog(frame, "Open Terminal for " + selectedDeviceList.size() + " devices?", "Open Terminal", JOptionPane.YES_NO_OPTION);
+            if (rc != JOptionPane.YES_OPTION) return;
+        }
+        for (Device device : selectedDeviceList) {
+            DeviceManager.getInstance().openTerminal(device, this);
+        }
     }
 
     private void handleFilesDropped(List<File> fileList) {
-        int[] selectedRows = table.getSelectedRows();
-        if (selectedRows.length == 0) {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.size() == 0) {
             showSelectDevicesDialog();
             return;
         }
@@ -221,14 +248,13 @@ class MainApplication implements DeviceManager.DeviceListener {
         String title = isApk ? "Install App" : "Copy File";
         String msg = isApk ? "Install " : "Copy ";
         msg += name.toString();
-        msg += " to " + selectedRows.length + " device(s)?";
+        msg += " to " + selectedDeviceList.size() + " device(s)?";
 
         // prompt to install/copy
         int rc = JOptionPane.showConfirmDialog(frame, msg, title, JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
-        for (int selectedRow : selectedRows) {
-            Device device = model.getDeviceAtRow(selectedRow);
+        for (Device device : selectedDeviceList) {
             for (File file : fileList) {
                 String filename = file.getName();
                 if (filename.endsWith(".apk")) {
@@ -240,110 +266,102 @@ class MainApplication implements DeviceManager.DeviceListener {
         }
     }
 
-    private void handleSetCustom1Command() {
-        int[] selectedRows = table.getSelectedRows();
+    /**
+     * set device property
+     * uses "debug.dm.custom[number]" for key and prompts user for value
+     */
+    private void handleSetProperty(int number) {
+        List<Device> selectedDeviceList = getSelectedDevices();
         String customValue = "";
         String message = "";
-        if (selectedRows.length == 1) {
-            Device device = model.getDeviceAtRow(0);
-            customValue = device.custom1;
+        if (selectedDeviceList.size() == 1) {
+            Device device = selectedDeviceList.get(0);
+            if (number == 1) customValue = device.custom1;
+            else if (number == 2) customValue = device.custom2;
             message = "Enter Custom Note";
         } else {
-            message = "Enter Custom Note for " + selectedRows.length + " devices";
+            message = "Enter Custom Note for " + selectedDeviceList.size() + " devices";
         }
 
         String result = (String) JOptionPane.showInputDialog(frame,
             message,
-            "Custom Note",
+            "Custom Note (" + number + ")",
             JOptionPane.QUESTION_MESSAGE,
             null,
             null,
             customValue);
+        // allow empty input to go through (clear current value)
+        if (result == null) return;
 
-        if (TextUtils.notEmpty(result)) {
-            for (int selectedRow : selectedRows) {
-                Device device = model.getDeviceAtRow(selectedRow);
-                DeviceManager.getInstance().setProperty(device, "debug.dm.custom1", result);
-                device.custom1 = result;
-                model.updateDevice(device);
-            }
-        }
-    }
-
-    private void handleSetCustom2Command() {
-        int[] selectedRows = table.getSelectedRows();
-        String customValue = "";
-        String message = "";
-        if (selectedRows.length == 1) {
-            Device device = model.getDeviceAtRow(0);
-            customValue = device.custom2;
-            message = "Enter Custom Note";
-        } else {
-            message = "Enter Custom Note for " + selectedRows.length + " devices";
-        }
-
-        String result = (String) JOptionPane.showInputDialog(frame,
-            message,
-            "Custom Note",
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            null,
-            customValue);
-
-        if (TextUtils.notEmpty(result)) {
-            for (int selectedRow : selectedRows) {
-                Device device = model.getDeviceAtRow(selectedRow);
-                DeviceManager.getInstance().setProperty(device, "debug.dm.custom2", result);
-                device.custom2 = result;
-                model.updateDevice(device);
-            }
+        for (Device device : selectedDeviceList) {
+            String prop = "debug.dm.custom" + number;
+            DeviceManager.getInstance().setProperty(device, prop, result);
+            if (number == 1) device.custom1 = result;
+            else if (number == 2) device.custom2 = result;
+            model.updateRowForDevice(device);
         }
     }
 
     private void handleScreenshotCommand() {
-        int[] selectedRows = table.getSelectedRows();
-        if (selectedRows.length == 0) {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.size() == 0) {
             showSelectDevicesDialog();
             return;
-        } else if (selectedRows.length > 1) {
+        } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(frame, "Take screenshot of " + selectedRows.length + " devices?", "Screenshot", JOptionPane.YES_NO_OPTION);
+            int rc = JOptionPane.showConfirmDialog(frame, "Take screenshot of " + selectedDeviceList.size() + " devices?", "Screenshot", JOptionPane.YES_NO_OPTION);
             if (rc != JOptionPane.YES_OPTION) return;
         }
-        for (int selectedRow : selectedRows) {
-            Device device = model.getDeviceAtRow(selectedRow);
+        for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().captureScreenshot(device, this);
         }
     }
 
     private void handleMirrorCommand() {
-        int[] selectedRows = table.getSelectedRows();
-        if (selectedRows.length == 0) {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.size() == 0) {
             showSelectDevicesDialog();
             return;
-        } else if (selectedRows.length > 1) {
+        } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
             int rc = JOptionPane.showConfirmDialog(frame,
-                "Mirror " + selectedRows.length + " devices?",
+                "Mirror " + selectedDeviceList.size() + " devices?",
                 "Mirror Device",
                 JOptionPane.YES_NO_OPTION
             );
             if (rc != JOptionPane.YES_OPTION) return;
         }
-        for (int selectedRow : selectedRows) {
-            Device device = model.getDeviceAtRow(selectedRow);
+        for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().mirrorDevice(device, this);
         }
     }
 
+    private List<Device> getSelectedDevices() {
+        List<Device> selectedDeviceList = new ArrayList<>();
+        int[] selectedRows = table.getSelectedRows();
+        for (int selectedRow : selectedRows) {
+            // convert view row to data row (in case user changed sort order)
+            int dataRow = table.convertRowIndexToModel(selectedRow);
+            Device device = model.getDeviceAtRow(dataRow);
+            if (device != null) selectedDeviceList.add(device);
+        }
+        return selectedDeviceList;
+    }
+
     private void setupToolbar(JPanel panel) {
         JToolBar toolbar = new JToolBar("Applications");
+        toolbar.setRollover(true);
 
+        createButton(toolbar, "icon_refresh.png", "Refresh Device List", actionEvent -> handleRefreshCommand());
+        createButton(toolbar, "icon_power.png", "Restart Device", actionEvent -> handleRestartCommand());
+        toolbar.addSeparator();
         createButton(toolbar, "icon_scrcpy.png", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
         createButton(toolbar, "icon_screenshot.png", "Screenshot", actionEvent -> handleScreenshotCommand());
+        toolbar.addSeparator();
         createButton(toolbar, "icon_install.png", "Install / Copy file", actionEvent -> handleInstallCommand());
-        createButton(toolbar, "icon_restart.png", "Restart Device", actionEvent -> handleRestartCommand());
-        createButton(toolbar, "icon_custom.png", "Custom adb command", actionEvent -> handleCustomCommand());
+        createButton(toolbar, "icon_terminal.png", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
+        //createButton(toolbar, "icon_variable.png", "Set Property", actionEvent -> handleSetPropertyCommand());
+        createButton(toolbar, "icon_custom.png", "Run custom adb command", actionEvent -> handleRunCustomCommand());
 
         toolbar.add(Box.createHorizontalGlue());
 
@@ -370,46 +388,63 @@ class MainApplication implements DeviceManager.DeviceListener {
         panel.add(toolbar, BorderLayout.NORTH);
     }
 
-    private void handleCustomCommand() {
-        int[] selectedRows = table.getSelectedRows();
-        if (selectedRows.length == 0) {
+    private void handleSetPropertyCommand() {
+
+    }
+
+    private void handleRefreshCommand() {
+        // TODO: probably a better way to force a refresh
+        DeviceManager.getInstance().stopDevicePolling();
+        DeviceManager.getInstance().startDevicePolling(MainApplication.this, 10);
+    }
+
+    private void handleRunCustomCommand() {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.size() == 0) {
             showSelectDevicesDialog();
             return;
         }
         Preferences preferences = Preferences.userRoot();
-        String customCommand = preferences.get(PREF_CUSTOM_COMMAND1, null);
-        String result = (String) JOptionPane.showInputDialog(frame,
-            "Enter custom adb command to run on selected devices\n\nNOTE: do not include 'adb' in the command",
-            "Custom adb command",
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            null,
-            customCommand);
+        String customCommands = preferences.get(PREF_CUSTOM_COMMAND_LIST, null);
+        List<String> customList = GsonHelper.stringToList(customCommands, String.class);
 
-        if (TextUtils.notEmpty(result)) {
-            preferences.put(PREF_CUSTOM_COMMAND1, result);
-            for (int selectedRow : selectedRows) {
-                Device device = model.getDeviceAtRow(selectedRow);
-                DeviceManager.getInstance().runCustomCommand(device, result, this);
-            }
+        JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
+        comboBox.setEditable(true);
+        JOptionPane.showMessageDialog(frame, comboBox, "Custom adb command", JOptionPane.QUESTION_MESSAGE);
+        String selectedItem = comboBox.getSelectedItem().toString();
+        if (TextUtils.isEmpty(selectedItem)) return;
+        // remove "adb " from commands
+        if (selectedItem.startsWith("adb ")) {
+            selectedItem = selectedItem.substring("adb ".length());
+        }
+        // add or replace selected item
+        customList.remove(selectedItem);
+        customList.add(selectedItem);
+        // only save last 10 entries
+        if (customList.size() > 10) {
+            customList = customList.subList(customList.size() - 10, customList.size());
+        }
+        preferences.put(PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customList));
+        log.debug("handleRunCustomCommand: {}", selectedItem);
+        for (Device device : selectedDeviceList) {
+            DeviceManager.getInstance().runCustomCommand(device, selectedItem, this);
         }
     }
 
     private void handleRestartCommand() {
-        int[] selectedRows = table.getSelectedRows();
-        if (selectedRows.length == 0) {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.size() == 0) {
             showSelectDevicesDialog();
             return;
         }
 
         // prompt to install/copy
         int rc = JOptionPane.showConfirmDialog(frame,
-            "Restart " + selectedRows.length + " device(s)?",
+            "Restart " + selectedDeviceList.size() + " device(s)?",
             "Restart devices?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
-        for (int selectedRow : selectedRows) {
-            Device device = model.getDeviceAtRow(selectedRow);
+        for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().restartDevice(device, this);
         }
     }
@@ -429,8 +464,8 @@ class MainApplication implements DeviceManager.DeviceListener {
     }
 
     private void handleInstallCommand() {
-        int[] selectedRows = table.getSelectedRows();
-        if (selectedRows.length == 0) {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.size() == 0) {
             showSelectDevicesDialog();
             return;
         }
@@ -476,7 +511,7 @@ class MainApplication implements DeviceManager.DeviceListener {
 
     @Override
     public void handleDeviceUpdated(Device device) {
-        model.updateDevice(device);
+        model.updateRowForDevice(device);
     }
 
 }

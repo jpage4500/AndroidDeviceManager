@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.awt.event.MouseEvent;
 
 import javax.swing.*;
 import javax.swing.table.TableCellRenderer;
@@ -38,6 +39,22 @@ public class CustomTable extends JTable {
             c.setBackground(color);
         }
         return c;
+    }
+
+    @Override
+    public String getToolTipText(MouseEvent e) {
+        // only show tooltip if value doesn't fit in column width
+        String toolTipText = null;
+        Point p = e.getPoint();
+        int col = columnAtPoint(p);
+        int row = rowAtPoint(p);
+        Rectangle bounds = getCellRect(row, col, false);
+        Component comp = prepareRenderer(getCellRenderer(row, col), row, col);
+        if (comp.getPreferredSize().width > bounds.width) {
+            Object value = getValueAt(row, col);
+            toolTipText = value.toString();
+        }
+        return toolTipText;
     }
 
     static class ColumnDetails {

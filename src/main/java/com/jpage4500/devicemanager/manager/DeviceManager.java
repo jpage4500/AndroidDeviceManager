@@ -15,6 +15,8 @@ import java.util.concurrent.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
+import javax.swing.*;
+
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
 
@@ -162,6 +164,17 @@ public class DeviceManager {
             listener.handleDeviceUpdated(device);
             List<String> resultList = runScript("custom-command.sh", device.serial, customCommand);
             log.debug("runCustomCommand: DONE: {}", GsonHelper.toJson(resultList));
+            device.status = GsonHelper.toJson(resultList);
+            listener.handleDeviceUpdated(device);
+        });
+    }
+
+    public void openTerminal(Device device, DeviceListener listener) {
+        commandExecutorService.submit(() -> {
+            device.status = "terminal...";
+            listener.handleDeviceUpdated(device);
+            List<String> resultList = runScript("terminal.sh", device.serial);
+            log.debug("openTerminal: DONE: {}", GsonHelper.toJson(resultList));
             device.status = null;
             listener.handleDeviceUpdated(device);
         });
@@ -191,6 +204,7 @@ public class DeviceManager {
         // List of devices attached
         // 04QAX0NRLM             device usb:34603008X product:bonito model:Pixel_3a_XL device:bonito transport_id:3
         // 192.168.0.28:35031     offline product:x1quex model:SM_G981U1 device:x1q transport_id:7
+        // 5858444a4e483498       unauthorized usb:34603008X transport_id:3
         for (String result : results) {
             if (result.length() == 0 || result.startsWith("List")) continue;
 
@@ -204,11 +218,16 @@ public class DeviceManager {
             resultList.add(device);
 
             // get any other values returned
+            device.isOnline = true;
             for (String keyVal : deviceArr) {
                 if (keyVal.startsWith("model:")) {
                     device.model = keyVal.substring("model:".length());
                 } else if (TextUtils.equalsIgnoreCase(keyVal, "offline")) {
                     device.status = "offline";
+                    device.isOnline = false;
+                } else if (TextUtils.equalsIgnoreCase(keyVal, "unauthorized")) {
+                    device.status = "unauthorized";
+                    device.isOnline = false;
                 }
             }
         }
@@ -222,7 +241,12 @@ public class DeviceManager {
                 for (Device device : deviceList) {
                     if (TextUtils.equals(resultDevice.serial, device.serial)) {
                         isFound = true;
-                        // TODO: update device? should contain the same details (nothing new found in 'adb devices -l')
+                        // check if anything has changed.. if so, update resultDevice
+                        // NOTE: "adb devices -l" only returns a few fields (serial, model, online status)
+                        if (resultDevice.isOnline != device.isOnline) {
+                            device.isOnline = resultDevice.isOnline;
+                            isChanged = true;
+                        }
                     }
                 }
                 if (!isFound) {
@@ -256,7 +280,7 @@ public class DeviceManager {
 
         // kick off device details request if necessary
         for (Device device : deviceList) {
-            if (!device.hasFetchedDetails) {
+            if (device.isOnline && !device.hasFetchedDetails) {
                 getDeviceDetails(device, listener);
             }
         }
@@ -383,7 +407,7 @@ public class DeviceManager {
         log.trace("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
         File tempFile = new File(tempFolder, scriptName);
         if (!tempFile.exists()) {
-            log.error("runScript: script doesn't exist! {}", tempFile.getAbsolutePath());
+            log.error("runScript: script doesn't exist! {}", tempFile.getAbsoluteFile());
             return null;
         }
 
@@ -407,9 +431,12 @@ public class DeviceManager {
             List<String> resultList = readInputStream(process.getInputStream());
             //if (resultList.size() > 0) log.error("runScript: RESULTS: {}", GsonHelper.toJson(resultList));
             List<String> errorList = readInputStream(process.getErrorStream());
-            if (errorList.size() > 0) log.error("runScript: ERROR: {}", GsonHelper.toJson(errorList));
             synchronized (processList) {
                 processList.remove(process);
+            }
+            if (errorList.size() > 0) {
+                log.error("runScript: ERROR: {}", GsonHelper.toJson(errorList));
+                return errorList;
             }
             return resultList;
         } catch (Exception e) {
