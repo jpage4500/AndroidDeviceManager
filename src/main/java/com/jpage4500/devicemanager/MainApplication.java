@@ -23,6 +23,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.prefs.Preferences;
 
 import javax.imageio.ImageIO;
@@ -32,18 +33,18 @@ import javax.swing.event.DocumentListener;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 
-class MainApplication implements DeviceManager.DeviceListener {
+public class MainApplication implements DeviceManager.DeviceListener {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
     private static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
 
-    private JPanel panel;
-    private CustomTable table;
-    private CustomFrame frame;
-    private DeviceTableModel model;
-    private EmptyView emptyView;
-    private StatusBar statusBar;
+    public JPanel panel;
+    public CustomTable table;
+    public CustomFrame frame;
+    public DeviceTableModel model;
+    public EmptyView emptyView;
+    public StatusBar statusBar;
 
     public MainApplication() {
         setupLogging();
@@ -111,6 +112,10 @@ class MainApplication implements DeviceManager.DeviceListener {
 
         table = new CustomTable();
         model = new DeviceTableModel();
+
+        List<String> appList = SettingsScreen.getCustomApps();
+        model.setAppList(appList);
+
         table.setModel(model);
 
         JScrollPane scrollPane = new JScrollPane(table);
@@ -127,7 +132,7 @@ class MainApplication implements DeviceManager.DeviceListener {
         frame.setContentPane(panel);
         frame.setVisible(true);
 
-        JRootPane rootPane = SwingUtilities.getRootPane(scrollPane);
+        JRootPane rootPane = SwingUtilities.getRootPane(table);
         emptyView = new EmptyView();
         rootPane.setGlassPane(emptyView);
         emptyView.setOpaque(false);
@@ -352,7 +357,6 @@ class MainApplication implements DeviceManager.DeviceListener {
         JToolBar toolbar = new JToolBar("Applications");
         toolbar.setRollover(true);
 
-        createButton(toolbar, "icon_refresh.png", "Refresh Device List", actionEvent -> handleRefreshCommand());
         createButton(toolbar, "icon_power.png", "Restart Device", actionEvent -> handleRestartCommand());
         toolbar.addSeparator();
         createButton(toolbar, "icon_scrcpy.png", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
@@ -366,7 +370,9 @@ class MainApplication implements DeviceManager.DeviceListener {
         toolbar.add(Box.createHorizontalGlue());
 
         HintTextField textField = new HintTextField(HINT_FILTER_DEVICES);
-        textField.setMaximumSize(new Dimension(350, 40));
+        textField.setPreferredSize(new Dimension(150, 40));
+        textField.setMinimumSize(new Dimension(10, 40));
+        textField.setMaximumSize(new Dimension(200, 40));
         textField.getDocument().addDocumentListener(
             new DocumentListener() {
                 @Override
@@ -384,12 +390,16 @@ class MainApplication implements DeviceManager.DeviceListener {
                 }
             });
         toolbar.add(textField);
+//        toolbar.add(Box.createHorizontalGlue());
+
+        createButton(toolbar, "icon_refresh.png", "Refresh Device List", actionEvent -> handleRefreshCommand());
+        createButton(toolbar, "icon_settings.png", "Settings", actionEvent -> handleSettingsClicked());
 
         panel.add(toolbar, BorderLayout.NORTH);
     }
 
-    private void handleSetPropertyCommand() {
-
+    private void handleSettingsClicked() {
+        SettingsScreen.showSettings(this);
     }
 
     private void handleRefreshCommand() {
@@ -410,7 +420,8 @@ class MainApplication implements DeviceManager.DeviceListener {
 
         JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
         comboBox.setEditable(true);
-        JOptionPane.showMessageDialog(frame, comboBox, "Custom adb command", JOptionPane.QUESTION_MESSAGE);
+        int rc = JOptionPane.showOptionDialog(frame, comboBox, "Custom adb command", -1, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        if (rc != JOptionPane.YES_OPTION) return;
         String selectedItem = comboBox.getSelectedItem().toString();
         if (TextUtils.isEmpty(selectedItem)) return;
         // remove "adb " from commands

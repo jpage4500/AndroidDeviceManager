@@ -28,6 +28,13 @@ function getProp() {
     ${ADB} -s $ADB_DEVICE shell getprop $PROP
 }
 
+function getAppVersion() {
+    PACKAGE=$1
+    NAME=$(${ADB} -s $ADB_DEVICE shell dumpsys package $PACKAGE | grep versionName | sed 's/    versionName=//')
+    CODE=$(${ADB} -s $ADB_DEVICE shell dumpsys package $PACKAGE | grep versionCode | sed 's/    versionCode=//' | sed 's/ .*//')
+    echo "$NAME $CODE"
+}
+
 IMEI=$(serviceCall 1 5)
 PHONE=$(serviceCall 15 20)
 
@@ -37,3 +44,9 @@ echo "imei: $IMEI"
 echo "carrier: $(getProp gsm.sim.operator.alpha)"
 echo "custom1: $(getProp debug.dm.custom1)"
 echo "custom2: $(getProp debug.dm.custom2)"
+
+# loop through all other arguments (app package name's)
+for APP_NAME in "${@:2}"
+do
+    echo "$APP_NAME: $(getAppVersion $APP_NAME)"
+done

@@ -38,10 +38,11 @@ public class EmptyView extends JComponent {
         int h = getHeight();
         int imageW = emptyImage.getWidth(null);
         int imageH = emptyImage.getHeight(null);
-        if (imageW > w || imageH > h) return;
-
         int x = w / 2 - (imageW / 2);
         int y = h / 2 - (imageH / 2);
+        if (imageW > w || imageH > h || y + 30 + imageH > h) return;
+
+        y += 30;
         g.drawImage(emptyImage, x, y, null);
 
         y += imageH;

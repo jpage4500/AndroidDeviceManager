@@ -1,6 +1,8 @@
 package com.jpage4500.devicemanager.manager;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 
@@ -14,8 +16,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-
-import javax.swing.*;
+import java.util.prefs.Preferences;
 
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
@@ -81,9 +82,9 @@ public class DeviceManager {
         }
     }
 
-    private void getDeviceDetails(Device device, DeviceListener listener) {
+    private void getDeviceDetails(Device device, List<String> appList, DeviceListener listener) {
         detailsExecutorService.submit(() -> {
-            getDeviceDetailsInternal(device, listener);
+            getDeviceDetailsInternal(device, appList, listener);
         });
     }
 
@@ -181,9 +182,9 @@ public class DeviceManager {
     }
 
     public void handleExit() {
-        List<Process> processCopyList = new ArrayList<>();
+        List<Process> processCopyList;
         synchronized (processList) {
-            processCopyList.addAll(processList);
+            processCopyList = new ArrayList<>(processList);
         }
 
         for (Process process : processCopyList) {
@@ -278,10 +279,14 @@ public class DeviceManager {
             listener.handleDevicesUpdated(deviceList);
         }
 
+        List<String> appList = null;
         // kick off device details request if necessary
         for (Device device : deviceList) {
             if (device.isOnline && !device.hasFetchedDetails) {
-                getDeviceDetails(device, listener);
+                if (appList == null) {
+                    appList = SettingsScreen.getCustomApps();
+                }
+                getDeviceDetails(device, appList, listener);
             }
         }
     }
@@ -297,37 +302,42 @@ public class DeviceManager {
         return null;
     }
 
-    private void getDeviceDetailsInternal(Device device, DeviceListener listener) {
+    private void getDeviceDetailsInternal(Device device, List<String> appList, DeviceListener listener) {
         device.status = "details...";
         listener.handleDeviceUpdated(device);
-        List<String> results = runScript("device-details.sh", device.serial);
+        List<String> args = new ArrayList<>();
+        args.add(device.serial);
+        args.addAll(appList);
+        List<String> results = runScript("device-details.sh", args.toArray(new String[]{}));
         if (results != null) {
-            boolean isUpdated = false;
             for (String line : results) {
                 String[] lineArr = line.split(": ");
                 if (lineArr.length <= 1) continue;
-                String key = lineArr[0];
-                String val = lineArr[1];
+                String key = lineArr[0].trim();
+                String val = lineArr[1].trim();
                 switch (key) {
                     case "phone":
                         device.phone = val;
-                        isUpdated = true;
                         break;
                     case "imei":
                         device.imei = val;
-                        isUpdated = true;
                         break;
                     case "carrier":
                         device.carrier = val;
-                        isUpdated = true;
                         break;
                     case "custom1":
                         device.custom1 = val.replaceAll("~", " ");
-                        isUpdated = true;
                         break;
                     case "custom2":
                         device.custom2 = val.replaceAll("~", " ");
-                        isUpdated = true;
+                        break;
+                    default:
+                        // check custom app list
+                        if (appList.contains(key)) {
+                            log.debug("getDeviceDetailsInternal: GOT:{} = {}", key, val);
+                            if (device.customAppList == null) device.customAppList = new HashMap<>();
+                            device.customAppList.put(key, val);
+                        }
                         break;
                 }
             }
@@ -424,12 +434,18 @@ public class DeviceManager {
             synchronized (processList) {
                 processList.add(process);
             }
-            int exitVal = process.waitFor();
-            if (exitVal != 0) {
-                log.error("runScript: error:{}", exitVal);
+            while (process.isAlive()) {
+                boolean isExited = process.waitFor(1, TimeUnit.SECONDS);
+                if (isExited) {
+                    int exitValue = process.exitValue();
+                    if (exitValue != 0) {
+                        log.error("runScript: error:{}", exitValue);
+                    }
+                    break;
+                }
             }
             List<String> resultList = readInputStream(process.getInputStream());
-            //if (resultList.size() > 0) log.error("runScript: RESULTS: {}", GsonHelper.toJson(resultList));
+            if (resultList.size() > 0 && log.isTraceEnabled()) log.trace("runScript: RESULTS: {}", GsonHelper.toJson(resultList));
             List<String> errorList = readInputStream(process.getErrorStream());
             synchronized (processList) {
                 processList.remove(process);
