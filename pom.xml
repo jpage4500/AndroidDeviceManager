@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.jpage</groupId>
-    <artifactId>manage-devices</artifactId>
+    <artifactId>AndroidDeviceManager</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <packaging>jar</packaging>
@@ -39,11 +39,37 @@
     </dependencies>
 
     <build>
-        <resources>
-            <resource>
-                <targetPath>scripts</targetPath>
-            </resource>
-        </resources>
+<!--        <resources>-->
+<!--            <resource>-->
+<!--                <targetPath>scripts</targetPath>-->
+<!--            </resource>-->
+<!--        </resources>-->
+        <plugins>
+            <plugin>
+                <groupId>de.perdian.maven.plugins</groupId>
+                <artifactId>macosappbundler-maven-plugin</artifactId>
+                <version>1.17.0</version>
+                <configuration>
+                    <plist>
+                        <CFBundleIconFile>resources/device-manager.icns</CFBundleIconFile>
+                        <JVMMainClassName>com.jpage4500.devicemanager.MainApplication</JVMMainClassName>
+                        <CFBundleDisplayName>Android Device Manager</CFBundleDisplayName>
+                        <CFBundleDevelopmentRegion>English</CFBundleDevelopmentRegion>
+                    </plist>
+                    <jdk>
+                        <include>true</include>
+                    </jdk>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>bundle</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
 
 </project>
