@@ -17,7 +17,6 @@ public class CustomTable extends JTable {
     private static final Logger log = LoggerFactory.getLogger(CustomTable.class);
 
     public CustomTable() {
-        setRowHeight(30);
         //setOpaque(false);
         setAutoCreateRowSorter(true);
         getTableHeader().setBackground(new Color(197, 197, 197));

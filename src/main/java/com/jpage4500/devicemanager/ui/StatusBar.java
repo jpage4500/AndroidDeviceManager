@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -48,6 +50,37 @@ public class StatusBar extends JPanel {
 
     public void setRightLabel(String text) {
         rightLabel.setText(text);
+    }
+
+    public interface ClickListener {
+        void onClicked();
+    }
+
+    public void setLeftLabelListener(ClickListener listener) {
+        leftLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                listener.onClicked();
+            }
+        });
+    }
+
+    public void setCenterLabelListener(ClickListener listener) {
+        centerLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                listener.onClicked();
+            }
+        });
+    }
+
+    public void setRightLabelListener(ClickListener listener) {
+        rightLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                listener.onClicked();
+            }
+        });
     }
 
 }

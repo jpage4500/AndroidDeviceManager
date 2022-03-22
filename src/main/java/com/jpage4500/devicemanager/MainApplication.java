@@ -2,14 +2,17 @@ package com.jpage4500.devicemanager;
 
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.ui.*;
+import com.jpage4500.devicemanager.utils.ColumnsAutoSizer;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
+import com.jpage4500.devicemanager.viewmodel.LogsTableModel;
 
 import net.coobird.thumbnailator.Thumbnails;
 
@@ -19,11 +22,13 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.dnd.DropTarget;
 import java.awt.event.*;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.prefs.Preferences;
 
 import javax.imageio.ImageIO;
@@ -48,7 +53,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
     public MainApplication() {
         setupLogging();
-        log.debug("MainApplication: APP START: {} ({})", Build.versionName, Build.versionCode);
+        log.debug("MainApplication: APP START: {}", Build.versionName);
 
         SwingUtilities.invokeLater(this::initializeUI);
     }
@@ -71,9 +76,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
         logger.setDebugLevel(Log.VERBOSE);
         logger.setMainThreadId(Thread.currentThread().getId());
         logger.setLogToFile(true);
-        logger.setFileLogLevel(Log.DEBUG);
-        // send all logs to EventLogger as well
-        //logger.setLogListener(EventLogger.getInstance());
+        logger.setFileLogLevel(Log.INFO);
     }
 
     private void initializeUI() {
@@ -121,6 +124,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
         table.setModel(model);
 
+        model.addTableModelListener(e -> ColumnsAutoSizer.sizeColumnsToFit(table));
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.setBackground(Color.RED);
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -130,7 +134,8 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
         // statusbar
         statusBar = new StatusBar();
-        statusBar.setLeftLabel("Version " + Build.versionName + " (" + Build.versionCode + ")");
+        statusBar.setLeftLabel("Version " + Build.versionName);
+        statusBar.setLeftLabelListener(this::handleVersionClicked);
         panel.add(statusBar, BorderLayout.SOUTH);
 
         frame.setContentPane(panel);
@@ -527,6 +532,57 @@ public class MainApplication implements DeviceManager.DeviceListener {
     @Override
     public void handleDeviceUpdated(Device device) {
         model.updateRowForDevice(device);
+    }
+
+    private void handleVersionClicked() {
+        // show logs
+        JFrame frame = new JFrame("Logs");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout());
+        CustomTable table = new CustomTable();
+        table.setRowHeight(30);
+        LogsTableModel model = new LogsTableModel();
+        table.setModel(model);
+        model.addTableModelListener(e -> ColumnsAutoSizer.sizeColumnsToFit(table));
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        frame.setContentPane(panel);
+        frame.pack();
+        frame.setVisible(true);
+
+        new Thread(() -> {
+            log.debug("handleVersionClicked: loading...");
+            AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
+            File logsFile = logger.getFileLog();
+            List<LogEntry> logEntryList = new ArrayList<>();
+            try {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(logsFile)));
+                for (int numLines = 0; ; numLines++) {
+                    String line = reader.readLine();
+                    if (line == null) break;
+
+                    String[] lineArr = line.split(": ", 4);
+                    if (lineArr.length < 4) {
+                        log.debug("handleVersionClicked: invalid line: {}", line);
+                        continue;
+                    }
+                    LogEntry entry = new LogEntry();
+                    entry.date = lineArr[0];
+                    entry.thread = lineArr[1];
+                    entry.level = lineArr[2];
+                    entry.message = lineArr[3];
+                    logEntryList.add(entry);
+                }
+                reader.close();
+            } catch (Exception e) {
+                log.error("handleVersionClicked: Exception:{}", e.getMessage());
+            }
+            log.debug("handleVersionClicked: DONE loading {} logs", logEntryList.size());
+            model.setLogsList(logEntryList);
+        }).start();
     }
 
 }
