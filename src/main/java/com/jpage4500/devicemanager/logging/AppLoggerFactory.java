@@ -2,10 +2,13 @@ package com.jpage4500.devicemanager.logging;
 
 import org.slf4j.ILoggerFactory;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * An implementation of {@link ILoggerFactory} which always returns {@link AppLogger} instances.
@@ -20,15 +23,16 @@ public class AppLoggerFactory implements ILoggerFactory {
     // if set, output will show "MAIN" instead of main thread ID
     private long mainThreadId;
 
+    private boolean logToFile;
+    private int fileLogLevel = Log.DEBUG;
+    private File fileLog;
+    private long maxFileSize = (1000000); // 1 Meg;
+    private ExecutorService fileExecutorService;
+
     private final ConcurrentHashMap<String, AppLogger> nameToLogMap = new ConcurrentHashMap<>();
 
     private final SimpleDateFormat sdf = new SimpleDateFormat("MM/dd HH:mm:ss", Locale.US);
 
-    private LogListener logListener;
-
-    public interface LogListener {
-        void onLogEvent(final int logLevel, final String className, final String message);
-    }
 
     /**
      * set a short prefix string to the TAG field
@@ -80,6 +84,20 @@ public class AppLoggerFactory implements ILoggerFactory {
 
     public String getReplaceNewlinesWith() {
         return replaceNewlinesWith;
+    }
+
+    /**
+     * @param logToFile true to log to a file
+     */
+    public void setLogToFile(boolean logToFile) {
+        this.logToFile = logToFile;
+    }
+
+    /**
+     * @param fileLogLevel level to log to file (default = INFO+)
+     */
+    public void setFileLogLevel(int fileLogLevel) {
+        this.fileLogLevel = fileLogLevel;
     }
 
     @Override
@@ -142,14 +160,6 @@ public class AppLoggerFactory implements ILoggerFactory {
         return this.logLevel <= logLevel;
     }
 
-    public void setLogListener(LogListener listener) {
-        this.logListener = listener;
-    }
-
-    public LogListener getLogListener() {
-        return logListener;
-    }
-
     public SimpleDateFormat getDateFormat() {
         return sdf;
     }
@@ -160,5 +170,27 @@ public class AppLoggerFactory implements ILoggerFactory {
 
     public void setMainThreadId(long mainThreadId) {
         this.mainThreadId = mainThreadId;
+    }
+
+    public boolean shouldLogToFile(int logLevel) {
+        return (logToFile && fileLogLevel <= logLevel);
+    }
+
+    public File getFileLog() {
+        if (fileLog == null) {
+            fileLog = new File("device.log");
+        }
+        return fileLog;
+    }
+
+    public ExecutorService getFileExecutorService() {
+        if (fileExecutorService == null) {
+            fileExecutorService = Executors.newSingleThreadExecutor();
+        }
+        return fileExecutorService;
+    }
+
+    public long getMaxFileSize() {
+        return maxFileSize;
     }
 }

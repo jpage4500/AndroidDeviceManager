@@ -1,9 +1,13 @@
 package com.jpage4500.devicemanager.logging;
 
+import com.jpage4500.devicemanager.utils.FileUtils;
+
 import org.slf4j.helpers.FormattingTuple;
 import org.slf4j.helpers.MarkerIgnoringBase;
 import org.slf4j.helpers.MessageFormatter;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.UnknownHostException;
@@ -229,7 +233,6 @@ public class AppLogger extends MarkerIgnoringBase {
     /**
      * handle everything log() method:
      * - logs to file if enabled
-     * - logs LONG output to multiple lines if enabled
      */
     private void log(int logLevel, String message, Throwable tr) {
         if (tr != null) {
@@ -243,36 +246,42 @@ public class AppLogger extends MarkerIgnoringBase {
         }
 
         // date
-        System.out.print(appLoggerFactory.getDateFormat().format(new Date()));
+        String dateFormat = appLoggerFactory.getDateFormat().format(new Date());
+        System.out.print(dateFormat);
         System.out.print(": ");
 
         // thread
-        Thread thread = Thread.currentThread();
-        long threadId = thread.getId();
-        if (appLoggerFactory.getMainThreadId() == threadId) {
+        long threadId = Thread.currentThread().getId();
+        boolean isMainThread = appLoggerFactory.getMainThreadId() == threadId;
+        if (isMainThread) {
             System.out.print("[UI]: ");
         } else {
             System.out.print("[" + threadId + "]: ");
         }
 
         // log level
+        char levelChar;
         switch (logLevel) {
             case Log.VERBOSE:
-                System.out.print('V');
+                levelChar = 'V';
                 break;
             case Log.DEBUG:
-                System.out.print('D');
+                levelChar = 'D';
                 break;
             case Log.INFO:
-                System.out.print('I');
+                levelChar = 'I';
                 break;
             case Log.WARN:
-                System.out.print('W');
+                levelChar = 'W';
                 break;
             case Log.ERROR:
-                System.out.print('E');
+                levelChar = 'E';
+                break;
+            default:
+                levelChar = '?';
                 break;
         }
+        System.out.print(levelChar);
         System.out.print(": ");
 
         // class name
@@ -282,11 +291,40 @@ public class AppLogger extends MarkerIgnoringBase {
         // message
         System.out.println(message);
 
-        // allow logging to a file or server
-        AppLoggerFactory.LogListener logListener = appLoggerFactory.getLogListener();
-        if (logListener != null) {
-            // send entire (original) message
-            logListener.onLogEvent(logLevel, fullName, message);
+        // log to file (if enabled)
+        if (appLoggerFactory.shouldLogToFile(logLevel)) {
+            String finalMessage = message;
+            // log to file in a separate thread
+            appLoggerFactory.getFileExecutorService().submit(() -> {
+                File saveFile = appLoggerFactory.getFileLog();
+                try {
+                    FileWriter writer = new FileWriter(saveFile, true);
+                    writer.write(dateFormat);
+                    writer.write(": ");
+                    if (isMainThread) {
+                        writer.write("[UI]: ");
+                    } else {
+                        writer.write("[" + threadId + "]: ");
+                    }
+                    writer.write(levelChar);
+                    writer.write(": ");
+                    writer.write(name);
+                    writer.write(": ");
+                    writer.write(finalMessage);
+                    writer.write('\n');
+
+                    writer.flush();
+                    writer.close();
+
+                    // check if file size too large and truncate
+                    if (saveFile.length() > appLoggerFactory.getMaxFileSize()) {
+                        FileUtils.truncateFile(saveFile);
+                    }
+                } catch (Exception e) {
+                    // do not use log.xx methods to avoid recursion
+                    System.out.println("Exception: " + e.getMessage());
+                }
+            });
         }
     }
 

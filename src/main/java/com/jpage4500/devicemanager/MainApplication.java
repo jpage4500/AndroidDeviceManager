@@ -48,6 +48,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
     public MainApplication() {
         setupLogging();
+        log.debug("MainApplication: APP START: {} ({})", Build.versionName, Build.versionCode);
 
         SwingUtilities.invokeLater(this::initializeUI);
     }
@@ -69,6 +70,8 @@ public class MainApplication implements DeviceManager.DeviceListener {
         // set log level that application should log at (and higher)
         logger.setDebugLevel(Log.VERBOSE);
         logger.setMainThreadId(Thread.currentThread().getId());
+        logger.setLogToFile(true);
+        logger.setFileLogLevel(Log.DEBUG);
         // send all logs to EventLogger as well
         //logger.setLogListener(EventLogger.getInstance());
     }
@@ -127,6 +130,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
         // statusbar
         statusBar = new StatusBar();
+        statusBar.setLeftLabel("Version " + Build.versionName + " (" + Build.versionCode + ")");
         panel.add(statusBar, BorderLayout.SOUTH);
 
         frame.setContentPane(panel);
@@ -515,7 +519,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
             model.setDeviceList(deviceList);
 
             int deviceCount = deviceList.size();
-            statusBar.setLeftLabel("connected: " + deviceCount);
+            statusBar.setRightLabel("connected: " + deviceCount);
             emptyView.setVisible(deviceCount == 0);
         }
     }

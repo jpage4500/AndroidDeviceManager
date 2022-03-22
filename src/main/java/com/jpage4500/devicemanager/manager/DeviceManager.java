@@ -1,6 +1,5 @@
 package com.jpage4500.devicemanager.manager;
 
-import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
@@ -16,7 +15,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.prefs.Preferences;
 
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
@@ -95,7 +93,7 @@ public class DeviceManager {
             String name = device.serial;
             if (device.phone != null) name += ": " + device.phone;
             else if (device.model != null) name += ": " + device.model;
-            runScript("mirror.sh", device.serial, name);
+            runScript("mirror.sh", true, device.serial, name);
             log.debug("mirrorDevice: DONE");
             device.status = null;
             listener.handleDeviceUpdated(device);
@@ -174,7 +172,7 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             device.status = "terminal...";
             listener.handleDeviceUpdated(device);
-            List<String> resultList = runScript("terminal.sh", device.serial);
+            List<String> resultList = runScript("terminal.sh", true, device.serial);
             log.debug("openTerminal: DONE: {}", GsonHelper.toJson(resultList));
             device.status = null;
             listener.handleDeviceUpdated(device);
@@ -414,6 +412,10 @@ public class DeviceManager {
     }
 
     private List<String> runScript(String scriptName, String... args) {
+        return runScript(scriptName, false, args);
+    }
+
+    private List<String> runScript(String scriptName, boolean isLongRunning, String... args) {
         log.trace("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
         File tempFile = new File(tempFolder, scriptName);
         if (!tempFile.exists()) {
@@ -434,16 +436,24 @@ public class DeviceManager {
             synchronized (processList) {
                 processList.add(process);
             }
-            while (process.isAlive()) {
-                boolean isExited = process.waitFor(1, TimeUnit.SECONDS);
+
+            int exitValue = 0;
+            if (isLongRunning) {
+                // wait until process exits
+                exitValue = process.waitFor();
+            } else {
+                // only allow up to X seconds for process to finish
+                boolean isExited = process.waitFor(30, TimeUnit.SECONDS);
                 if (isExited) {
-                    int exitValue = process.exitValue();
-                    if (exitValue != 0) {
-                        log.error("runScript: error:{}", exitValue);
-                    }
-                    break;
+                    exitValue = process.exitValue();
+                } else {
+                    log.error("runScript: NOT FINISHED: {}, args:{}", scriptName, GsonHelper.toJson(args));
                 }
             }
+            if (exitValue != 0) {
+                log.error("runScript: error:{}", exitValue);
+            }
+
             List<String> resultList = readInputStream(process.getInputStream());
             if (resultList.size() > 0 && log.isTraceEnabled()) log.trace("runScript: RESULTS: {}", GsonHelper.toJson(resultList));
             List<String> errorList = readInputStream(process.getErrorStream());
