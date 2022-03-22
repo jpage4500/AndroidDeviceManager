@@ -8,3 +8,6 @@
 !.idea/externalDependencies.xml
 
 target
+
+device.log
+src/main/java/com/jpage4500/devicemanager/Build.java
