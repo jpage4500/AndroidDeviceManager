@@ -36,6 +36,12 @@
             <artifactId>thumbnailator</artifactId>
             <version>0.4.17</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/com.miglayout/miglayout -->
+        <dependency>
+            <groupId>com.miglayout</groupId>
+            <artifactId>miglayout</artifactId>
+            <version>3.7.4</version>
+        </dependency>
     </dependencies>
 
     <build>

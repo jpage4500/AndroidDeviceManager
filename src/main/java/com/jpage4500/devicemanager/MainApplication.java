@@ -42,7 +42,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
-    private static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
+    public static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
 
     public JPanel panel;
     public CustomTable table;
@@ -50,6 +50,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
     public DeviceTableModel model;
     public EmptyView emptyView;
     public StatusBar statusBar;
+    public JToolBar toolbar;
 
     public MainApplication() {
         setupLogging();
@@ -124,13 +125,15 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
         table.setModel(model);
 
-        model.addTableModelListener(e -> ColumnsAutoSizer.sizeColumnsToFit(table));
+        // TODO: find way to auto-size columns and also remember user sizes
+        //model.addTableModelListener(e -> ColumnsAutoSizer.sizeColumnsToFit(table));
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.setBackground(Color.RED);
         panel.add(scrollPane, BorderLayout.CENTER);
 
         // setup toolbar
-        setupToolbar(panel);
+        setupToolbar();
+        panel.add(toolbar, BorderLayout.NORTH);
 
         // statusbar
         statusBar = new StatusBar();
@@ -362,19 +365,28 @@ public class MainApplication implements DeviceManager.DeviceListener {
         return selectedDeviceList;
     }
 
-    private void setupToolbar(JPanel panel) {
-        JToolBar toolbar = new JToolBar("Applications");
-        toolbar.setRollover(true);
+    private void setupToolbar() {
+        if (toolbar == null) {
+            toolbar = new JToolBar("Applications");
+            toolbar.setRollover(true);
+        } else {
+            toolbar.removeAll();
+        }
 
-        createButton(toolbar, "icon_power.png", "Restart Device", actionEvent -> handleRestartCommand());
+        createButton(toolbar, "icon_power.png", "Restart", "Restart Device", actionEvent -> handleRestartCommand());
         toolbar.addSeparator();
-        createButton(toolbar, "icon_scrcpy.png", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
-        createButton(toolbar, "icon_screenshot.png", "Screenshot", actionEvent -> handleScreenshotCommand());
+        createButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
+        createButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
         toolbar.addSeparator();
-        createButton(toolbar, "icon_install.png", "Install / Copy file", actionEvent -> handleInstallCommand());
-        createButton(toolbar, "icon_terminal.png", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
+        createButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
+        createButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
         //createButton(toolbar, "icon_variable.png", "Set Property", actionEvent -> handleSetPropertyCommand());
-        createButton(toolbar, "icon_custom.png", "Run custom adb command", actionEvent -> handleRunCustomCommand());
+
+        // create custom action buttons
+        createButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
+
+        // TODO: add the 'add custom' button
+        // createButton(toolbar, "icon_add.png", "add custom", "Run custom adb command", actionEvent -> handleAddCustomCommand());
 
         toolbar.add(Box.createHorizontalGlue());
 
@@ -401,10 +413,8 @@ public class MainApplication implements DeviceManager.DeviceListener {
         toolbar.add(textField);
 //        toolbar.add(Box.createHorizontalGlue());
 
-        createButton(toolbar, "icon_refresh.png", "Refresh Device List", actionEvent -> handleRefreshCommand());
-        createButton(toolbar, "icon_settings.png", "Settings", actionEvent -> handleSettingsClicked());
-
-        panel.add(toolbar, BorderLayout.NORTH);
+        createButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> handleRefreshCommand());
+        createButton(toolbar, "icon_settings.png", "Settings", "Settings", actionEvent -> handleSettingsClicked());
     }
 
     private void handleSettingsClicked() {
@@ -437,12 +447,13 @@ public class MainApplication implements DeviceManager.DeviceListener {
         if (selectedItem.startsWith("adb ")) {
             selectedItem = selectedItem.substring("adb ".length());
         }
-        // add or replace selected item
+        // remove from list
         customList.remove(selectedItem);
-        customList.add(selectedItem);
+        // add to top of list
+        customList.add(0, selectedItem);
         // only save last 10 entries
         if (customList.size() > 10) {
-            customList = customList.subList(customList.size() - 10, customList.size());
+            customList = customList.subList(0, 10);
         }
         preferences.put(PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customList));
         log.debug("handleRunCustomCommand: {}", selectedItem);
@@ -497,9 +508,10 @@ public class MainApplication implements DeviceManager.DeviceListener {
         handleFilesDropped(Arrays.asList(fileArr));
     }
 
-    private void createButton(JToolBar toolbar, String imageName, String tooltip, ActionListener listener) {
+    private void createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
         Image icon;
         try {
+            // library offers MUCH better image scaling than ImageIO
             icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(40, 40).asBufferedImage();
             //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
             if (icon == null) {
@@ -511,7 +523,10 @@ public class MainApplication implements DeviceManager.DeviceListener {
             return;
         }
         JButton button = new JButton(new ImageIcon(icon));
-        button.setToolTipText(tooltip);
+        if (label != null) button.setText(label);
+
+        button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
+        if (tooltip != null) button.setToolTipText(tooltip);
         button.setVerticalTextPosition(SwingConstants.BOTTOM);
         button.setHorizontalTextPosition(SwingConstants.CENTER);
         button.addActionListener(listener);
