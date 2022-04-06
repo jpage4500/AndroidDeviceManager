@@ -42,8 +42,8 @@ echo "device: $ADB_DEVICE"
 echo "phone: $PHONE"
 echo "imei: $IMEI"
 echo "carrier: $(getProp gsm.sim.operator.alpha)"
-echo "custom1: $(getProp debug.dm.custom1)"
-echo "custom2: $(getProp debug.dm.custom2)"
+echo "custom1: $(getProp persist.dm.custom1)"
+echo "custom2: $(getProp persist.dm.custom2)"
 
 # loop through all other arguments (app package name's)
 for APP_NAME in "${@:2}"

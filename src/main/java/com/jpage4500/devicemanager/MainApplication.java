@@ -285,7 +285,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
     /**
      * set device property
-     * uses "debug.dm.custom[number]" for key and prompts user for value
+     * uses "persist.dm.custom[number]" for key and prompts user for value
      */
     private void handleSetProperty(int number) {
         List<Device> selectedDeviceList = getSelectedDevices();
@@ -311,7 +311,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
         if (result == null) return;
 
         for (Device device : selectedDeviceList) {
-            String prop = "debug.dm.custom" + number;
+            String prop = "persist.dm.custom" + number;
             DeviceManager.getInstance().setProperty(device, prop, result);
             if (number == 1) device.custom1 = result;
             else if (number == 2) device.custom2 = result;
