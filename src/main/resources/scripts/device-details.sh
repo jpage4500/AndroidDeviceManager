@@ -37,13 +37,15 @@ function getAppVersion() {
 
 IMEI=$(serviceCall 1 5)
 PHONE=$(serviceCall 15 20)
+CUSTOM1=$(get-property.sh $ADB_DEVICE custom1)
+CUSTOM2=$(get-property.sh $ADB_DEVICE custom2)
 
 echo "device: $ADB_DEVICE"
 echo "phone: $PHONE"
 echo "imei: $IMEI"
 echo "carrier: $(getProp gsm.sim.operator.alpha)"
-echo "custom1: $(getProp persist.dm.custom1)"
-echo "custom2: $(getProp persist.dm.custom2)"
+echo "custom1: $CUSTOM1"
+echo "custom2: $CUSTOM2"
 
 # loop through all other arguments (app package name's)
 for APP_NAME in "${@:2}"

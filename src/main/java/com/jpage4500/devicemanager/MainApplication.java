@@ -20,6 +20,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.BufferedReader;
@@ -201,6 +203,10 @@ public class MainApplication implements DeviceManager.DeviceListener {
     private void setupPopupMenu() {
         JPopupMenu popupMenu = new JPopupMenu();
 
+        JMenuItem copyItem = new JMenuItem("Copy to Clipboard");
+        copyItem.addActionListener(actionEvent -> handleCopyClipboardCommand());
+        popupMenu.add(copyItem);
+
         JMenuItem mirrorItem = new JMenuItem("Mirror Device");
         mirrorItem.addActionListener(actionEvent -> handleMirrorCommand());
         popupMenu.add(mirrorItem);
@@ -226,6 +232,20 @@ public class MainApplication implements DeviceManager.DeviceListener {
         popupMenu.add(notesItem);
 
         table.setComponentPopupMenu(popupMenu);
+    }
+
+    private void handleCopyClipboardCommand() {
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.size() == 0) {
+            showSelectDevicesDialog();
+            return;
+        }
+
+        String deviceStr = GsonHelper.toJson(selectedDeviceList);
+        StringSelection stringSelection = new StringSelection(deviceStr);
+        clipboard.setContents(stringSelection, null);
     }
 
     private void handleTermCommand() {
@@ -311,7 +331,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
         if (result == null) return;
 
         for (Device device : selectedDeviceList) {
-            String prop = "persist.dm.custom" + number;
+            String prop = "custom" + number;
             DeviceManager.getInstance().setProperty(device, prop, result);
             if (number == 1) device.custom1 = result;
             else if (number == 2) device.custom2 = result;
