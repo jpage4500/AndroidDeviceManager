@@ -26,6 +26,7 @@ public class DeviceTableModel extends AbstractTableModel {
         CUSTOM1,
         CUSTOM2,
         STATUS,
+        ;
     }
 
     public DeviceTableModel() {

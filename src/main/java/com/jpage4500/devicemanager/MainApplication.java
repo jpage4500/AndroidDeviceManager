@@ -54,6 +54,8 @@ public class MainApplication implements DeviceManager.DeviceListener {
     public StatusBar statusBar;
     public JToolBar toolbar;
 
+    public int selectedColumn = -1;
+
     public MainApplication() {
         setupLogging();
         log.debug("MainApplication: APP START: {}", Build.versionName);
@@ -172,7 +174,9 @@ public class MainApplication implements DeviceManager.DeviceListener {
                     if (!table.isRowSelected(row)) {
                         table.changeSelection(row, column, false, false);
                     }
+                    selectedColumn = column;
                 } else if (e.getClickCount() == 2) {
+                    selectedColumn = -1;
                     // double-click
                     if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
                         handleSetProperty(1);
@@ -203,7 +207,11 @@ public class MainApplication implements DeviceManager.DeviceListener {
     private void setupPopupMenu() {
         JPopupMenu popupMenu = new JPopupMenu();
 
-        JMenuItem copyItem = new JMenuItem("Copy to Clipboard");
+        JMenuItem copyFieldItem = new JMenuItem("Copy Field to Clipboard");
+        copyFieldItem.addActionListener(actionEvent -> handleCopyClipboardFieldCommand());
+        popupMenu.add(copyFieldItem);
+
+        JMenuItem copyItem = new JMenuItem("Copy Line to Clipboard");
         copyItem.addActionListener(actionEvent -> handleCopyClipboardCommand());
         popupMenu.add(copyItem);
 
@@ -234,6 +242,62 @@ public class MainApplication implements DeviceManager.DeviceListener {
         table.setComponentPopupMenu(popupMenu);
     }
 
+    private void handleCopyClipboardFieldCommand() {
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.size() == 0) {
+            showSelectDevicesDialog();
+            return;
+        }
+
+        DeviceTableModel.Columns column = null;
+        if (selectedColumn >= 0 && selectedColumn < DeviceTableModel.Columns.values().length) {
+            column = DeviceTableModel.Columns.values()[selectedColumn];
+        }
+        if (column == null) return;
+
+        StringBuilder sb = new StringBuilder();
+        for (Device device : selectedDeviceList) {
+            if (sb.length() > 0) sb.append("\n");
+            sb.append(getDeviceField(device, column));
+        }
+        StringSelection stringSelection = new StringSelection(sb.toString());
+        clipboard.setContents(stringSelection, null);
+    }
+
+    private String getDeviceField(Device device, DeviceTableModel.Columns column) {
+        String val;
+        switch (column) {
+            case SERIAL:
+                val = device.serial;
+                break;
+            case MODEL:
+                val = device.model;
+                break;
+            case PHONE:
+                val = device.phone;
+                break;
+            case IMEI:
+                val = device.imei;
+                break;
+            case CUSTOM1:
+                val = device.custom1;
+                break;
+            case CUSTOM2:
+                val = device.custom2;
+                break;
+            case STATUS:
+                val = device.status;
+                break;
+            default:
+                val = "INVALID_COL:" + column.name();
+                break;
+        }
+        if (TextUtils.isEmpty(val)) return "";
+        else return val;
+    }
+
     private void handleCopyClipboardCommand() {
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 
@@ -243,8 +307,17 @@ public class MainApplication implements DeviceManager.DeviceListener {
             return;
         }
 
-        String deviceStr = GsonHelper.toJson(selectedDeviceList);
-        StringSelection stringSelection = new StringSelection(deviceStr);
+        DeviceTableModel.Columns[] columns = DeviceTableModel.Columns.values();
+        StringBuilder sb = new StringBuilder();
+        for (Device device : selectedDeviceList) {
+            if (sb.length() > 0) sb.append("\n");
+            for (int i = 0; i < columns.length; i++) {
+                DeviceTableModel.Columns column = columns[i];
+                if (i > 0) sb.append(", ");
+                sb.append(getDeviceField(device, column));
+            }
+        }
+        StringSelection stringSelection = new StringSelection(sb.toString());
         clipboard.setContents(stringSelection, null);
     }
 
