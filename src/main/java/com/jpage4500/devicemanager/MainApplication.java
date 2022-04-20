@@ -173,7 +173,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
                 } else if (e.getClickCount() == 2) {
                     selectedColumn = -1;
                     // double-click
-                    handleMirrorCommand(true);
+                    handleMirrorCommand(false);
                 }
             }
         });

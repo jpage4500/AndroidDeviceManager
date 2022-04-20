@@ -1,6 +1,5 @@
 package com.jpage4500.devicemanager.manager;
 
-import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
@@ -16,7 +15,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.stream.Stream;
 
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
@@ -138,8 +136,7 @@ public class DeviceManager {
             String path = file.getAbsolutePath();
             device.status = "installing...";
             listener.handleDeviceUpdated(device);
-            List<String> resultList = runScript(SCRIPT_INSTALL_APK, device.serial, path);
-            log.debug("installApp: RESULTS: {}", GsonHelper.toJson(resultList));
+            runScript(SCRIPT_INSTALL_APK, device.serial, path);
             device.status = null;
             listener.handleDeviceUpdated(device);
             log.debug("installApp: {}, {}, DONE", device.serial, path);
@@ -151,8 +148,7 @@ public class DeviceManager {
             String path = file.getAbsolutePath();
             device.status = "copying...";
             listener.handleDeviceUpdated(device);
-            List<String> resultList = runScript(SCRIPT_COPY_FILE, device.serial, path);
-            log.debug("copyFile: RESULTS: {}", GsonHelper.toJson(resultList));
+            runScript(SCRIPT_COPY_FILE, device.serial, path);
             device.status = null;
             listener.handleDeviceUpdated(device);
             log.debug("copyFile: {}, {}, DONE", device.serial, path);
@@ -175,7 +171,6 @@ public class DeviceManager {
             device.status = "running...";
             listener.handleDeviceUpdated(device);
             List<String> resultList = runScript(SCRIPT_CUSTOM_COMMAND, device.serial, customCommand);
-            log.debug("runCustomCommand: DONE: {}", GsonHelper.toJson(resultList));
             device.status = GsonHelper.toJson(resultList);
             listener.handleDeviceUpdated(device);
         });
@@ -185,8 +180,7 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             device.status = "terminal...";
             listener.handleDeviceUpdated(device);
-            List<String> resultList = runScript(SCRIPT_TERMINAL, true, true, device.serial);
-            log.debug("openTerminal: DONE: {}", GsonHelper.toJson(resultList));
+            runScript(SCRIPT_TERMINAL, true, true, device.serial);
             device.status = null;
             listener.handleDeviceUpdated(device);
         });
