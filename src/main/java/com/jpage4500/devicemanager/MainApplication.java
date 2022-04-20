@@ -193,15 +193,21 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
         table.getSelectionModel().addListSelectionListener(listSelectionEvent -> {
             if (!listSelectionEvent.getValueIsAdjusting()) {
-                int selectedRowCount = table.getSelectedRowCount();
-                if (selectedRowCount > 0) {
-                    statusBar.setRightLabel("selected: " + selectedRowCount);
-                } else {
-                    statusBar.setRightLabel(null);
-                }
+                updateSelectedLabel();
             }
         });
         table.requestFocus();
+    }
+
+    private void updateSelectedLabel() {
+        int selectedRowCount = table.getSelectedRowCount();
+        int rowCount = table.getRowCount();
+        if (selectedRowCount > 0) {
+            statusBar.setRightLabel("selected: " + selectedRowCount + " / " + rowCount);
+        } else {
+            statusBar.setRightLabel("total: " + rowCount);
+        }
+        emptyView.setVisible(rowCount == 0);
     }
 
     private void setupPopupMenu() {
@@ -630,11 +636,8 @@ public class MainApplication implements DeviceManager.DeviceListener {
     public void handleDevicesUpdated(List<Device> deviceList) {
         if (deviceList != null) {
             model.setDeviceList(deviceList);
-
-            int deviceCount = deviceList.size();
-            statusBar.setRightLabel("connected: " + deviceCount);
-            emptyView.setVisible(deviceCount == 0);
-        }
+            updateSelectedLabel();
+         }
     }
 
     @Override
