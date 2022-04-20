@@ -420,7 +420,12 @@ public class DeviceManager {
         File tempFile = new File(tempFolder, scriptName);
         if (!tempFile.exists()) {
             log.error("runScript: script doesn't exist! {}", tempFile.getAbsoluteFile());
-            return null;
+            // try re-creating the files again
+            copyResourcesToFiles();
+            if (!tempFile.exists()) {
+                log.error("runScript: script STILL doesn't exist! {}", tempFile.getAbsoluteFile());
+                return null;
+            }
         }
 
         try {
