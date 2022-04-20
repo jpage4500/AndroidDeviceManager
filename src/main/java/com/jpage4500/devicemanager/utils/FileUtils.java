@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.text.DecimalFormat;
 
 public class FileUtils {
     private static final Logger log = LoggerFactory.getLogger(FileUtils.class);
@@ -55,5 +56,18 @@ public class FileUtils {
             log.error("truncateFile: Exception: file:{}, {}", file, e.getMessage());
         }
     }
+
+    private static final String[] SIZE_UNITS = new String[]{"b", "k", "M", "GB", "TB"};
+    private static final DecimalFormat sizeDisplayFormat = new DecimalFormat("#,##0.#");
+
+    /**
+     * return string description of number of bytes (45k, 320b, 1.1M)
+     */
+    public static String bytesToDisplayString(long sizeInBytes) {
+        if (sizeInBytes <= 0) return String.valueOf(sizeInBytes);
+        int digitGroups = (int) (Math.log10(sizeInBytes) / Math.log10(1024));
+        return sizeDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + "" + SIZE_UNITS[digitGroups];
+    }
+
 
 }

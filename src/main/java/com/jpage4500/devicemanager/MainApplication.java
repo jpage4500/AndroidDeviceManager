@@ -2,17 +2,15 @@ package com.jpage4500.devicemanager;
 
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.ui.*;
-import com.jpage4500.devicemanager.utils.ColumnsAutoSizer;
+import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
-import com.jpage4500.devicemanager.viewmodel.LogsTableModel;
 
 import net.coobird.thumbnailator.Thumbnails;
 
@@ -24,10 +22,8 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.*;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -65,8 +61,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "Device Manager");
-
-        MainApplication app = new MainApplication();
+        new MainApplication();
     }
 
     /**
@@ -81,7 +76,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
         logger.setDebugLevel(Log.VERBOSE);
         logger.setMainThreadId(Thread.currentThread().getId());
         logger.setLogToFile(true);
-        logger.setFileLogLevel(Log.INFO);
+        logger.setFileLogLevel(Log.DEBUG);
     }
 
     private void initializeUI() {
@@ -141,9 +136,9 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
         // statusbar
         statusBar = new StatusBar();
-        statusBar.setLeftLabel("Version " + Build.versionName);
         statusBar.setLeftLabelListener(this::handleVersionClicked);
         panel.add(statusBar, BorderLayout.SOUTH);
+        updateVersionLabel();
 
         frame.setContentPane(panel);
         frame.setVisible(true);
@@ -178,13 +173,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
                 } else if (e.getClickCount() == 2) {
                     selectedColumn = -1;
                     // double-click
-                    if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
-                        handleSetProperty(1);
-                    } else if (column == DeviceTableModel.Columns.CUSTOM2.ordinal()) {
-                        handleSetProperty(2);
-                    } else {
-                        handleMirrorCommand();
-                    }
+                    handleMirrorCommand(true);
                 }
             }
         });
@@ -210,6 +199,15 @@ public class MainApplication implements DeviceManager.DeviceListener {
         emptyView.setVisible(rowCount == 0);
     }
 
+    private void updateVersionLabel() {
+        long totalMemory = Runtime.getRuntime().totalMemory();
+        long freeMemory = Runtime.getRuntime().freeMemory();
+        long usedMemory = totalMemory - freeMemory;
+        String memUsage = FileUtils.bytesToDisplayString(usedMemory);
+
+        statusBar.setLeftLabel(Build.versionName + " / " + memUsage);
+    }
+
     private void setupPopupMenu() {
         JPopupMenu popupMenu = new JPopupMenu();
 
@@ -222,7 +220,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
         popupMenu.add(copyItem);
 
         JMenuItem mirrorItem = new JMenuItem("Mirror Device");
-        mirrorItem.addActionListener(actionEvent -> handleMirrorCommand());
+        mirrorItem.addActionListener(actionEvent -> handleMirrorCommand(false));
         popupMenu.add(mirrorItem);
 
         JMenuItem screenshotItem = new JMenuItem("Capture Screenshot");
@@ -237,11 +235,11 @@ public class MainApplication implements DeviceManager.DeviceListener {
         termItem.addActionListener(actionEvent -> handleTermCommand());
         popupMenu.add(termItem);
 
-        JMenuItem serverItem = new JMenuItem("Custom Field 1...");
+        JMenuItem serverItem = new JMenuItem("Edit Custom Field 1...");
         serverItem.addActionListener(actionEvent -> handleSetProperty(1));
         popupMenu.add(serverItem);
 
-        JMenuItem notesItem = new JMenuItem("Custom Field 2...");
+        JMenuItem notesItem = new JMenuItem("Edit Custom Field 2...");
         notesItem.addActionListener(actionEvent -> handleSetProperty(2));
         popupMenu.add(notesItem);
 
@@ -433,7 +431,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
         }
     }
 
-    private void handleMirrorCommand() {
+    private void handleMirrorCommand(boolean showPrompt) {
         List<Device> selectedDeviceList = getSelectedDevices();
         if (selectedDeviceList.size() == 0) {
             showSelectDevicesDialog();
@@ -446,7 +444,16 @@ public class MainApplication implements DeviceManager.DeviceListener {
                 JOptionPane.YES_NO_OPTION
             );
             if (rc != JOptionPane.YES_OPTION) return;
+        } else if (showPrompt) {
+            Device device = selectedDeviceList.get(0);
+            int rc = JOptionPane.showConfirmDialog(frame,
+                "Mirror " + device.serial + "?",
+                "Mirror Device",
+                JOptionPane.YES_NO_OPTION
+            );
+            if (rc != JOptionPane.YES_OPTION) return;
         }
+
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().mirrorDevice(device, this);
         }
@@ -474,7 +481,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
         createButton(toolbar, "icon_power.png", "Restart", "Restart Device", actionEvent -> handleRestartCommand());
         toolbar.addSeparator();
-        createButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
+        createButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand(false));
         createButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
         toolbar.addSeparator();
         createButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
@@ -521,9 +528,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
     }
 
     private void handleRefreshCommand() {
-        // TODO: probably a better way to force a refresh
-        DeviceManager.getInstance().stopDevicePolling();
-        DeviceManager.getInstance().startDevicePolling(MainApplication.this, 10);
+        DeviceManager.getInstance().refreshDevices(this);
     }
 
     private void handleRunCustomCommand() {
@@ -637,7 +642,8 @@ public class MainApplication implements DeviceManager.DeviceListener {
         if (deviceList != null) {
             model.setDeviceList(deviceList);
             updateSelectedLabel();
-         }
+        }
+        updateVersionLabel();
     }
 
     @Override
@@ -647,53 +653,17 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
     private void handleVersionClicked() {
         // show logs
-        JFrame frame = new JFrame("Logs");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        JPanel panel = new JPanel();
-        panel.setLayout(new BorderLayout());
-        CustomTable table = new CustomTable();
-        table.setRowHeight(30);
-        LogsTableModel model = new LogsTableModel();
-        table.setModel(model);
-        model.addTableModelListener(e -> ColumnsAutoSizer.sizeColumnsToFit(table));
+        AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
+        File logsFile = logger.getFileLog();
 
-        JScrollPane scrollPane = new JScrollPane(table);
-        panel.add(scrollPane, BorderLayout.CENTER);
+        Desktop desktop = Desktop.getDesktop();
+        if (!desktop.isSupported(Desktop.Action.EDIT)) return;
 
-        frame.setContentPane(panel);
-        frame.pack();
-        frame.setVisible(true);
-
-        new Thread(() -> {
-            log.debug("handleVersionClicked: loading...");
-            AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
-            File logsFile = logger.getFileLog();
-            List<LogEntry> logEntryList = new ArrayList<>();
-            try {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(logsFile)));
-                for (int numLines = 0; ; numLines++) {
-                    String line = reader.readLine();
-                    if (line == null) break;
-
-                    String[] lineArr = line.split(": ", 4);
-                    if (lineArr.length < 4) {
-                        log.debug("handleVersionClicked: invalid line: {}", line);
-                        continue;
-                    }
-                    LogEntry entry = new LogEntry();
-                    entry.date = lineArr[0];
-                    entry.thread = lineArr[1];
-                    entry.level = lineArr[2];
-                    entry.message = lineArr[3];
-                    logEntryList.add(entry);
-                }
-                reader.close();
-            } catch (Exception e) {
-                log.error("handleVersionClicked: Exception:{}", e.getMessage());
-            }
-            log.debug("handleVersionClicked: DONE loading {} logs", logEntryList.size());
-            model.setLogsList(logEntryList);
-        }).start();
+        try {
+            desktop.edit(logsFile);
+        } catch (IOException e) {
+            log.error("handleVersionClicked: IOException: {}, {}", logsFile.getAbsolutePath(), e.getMessage());
+        }
     }
 
 }
