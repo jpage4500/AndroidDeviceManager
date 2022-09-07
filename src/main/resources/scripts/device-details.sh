@@ -44,6 +44,8 @@ echo "device: $ADB_DEVICE"
 echo "phone: $PHONE"
 echo "imei: $IMEI"
 echo "carrier: $(getProp gsm.sim.operator.alpha)"
+echo "release: $(getProp ro.build.version.release)"
+echo "sdk: $(getProp ro.build.version.sdk)"
 echo "custom1: $CUSTOM1"
 echo "custom2: $CUSTOM2"
 

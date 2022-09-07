@@ -173,7 +173,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
                 } else if (e.getClickCount() == 2) {
                     selectedColumn = -1;
                     // double-click
-                    handleMirrorCommand(false);
+                    handleMirrorCommand();
                 }
             }
         });
@@ -220,7 +220,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
         popupMenu.add(copyItem);
 
         JMenuItem mirrorItem = new JMenuItem("Mirror Device");
-        mirrorItem.addActionListener(actionEvent -> handleMirrorCommand(false));
+        mirrorItem.addActionListener(actionEvent -> handleMirrorCommand());
         popupMenu.add(mirrorItem);
 
         JMenuItem screenshotItem = new JMenuItem("Capture Screenshot");
@@ -431,7 +431,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
         }
     }
 
-    private void handleMirrorCommand(boolean showPrompt) {
+    private void handleMirrorCommand() {
         List<Device> selectedDeviceList = getSelectedDevices();
         if (selectedDeviceList.size() == 0) {
             showSelectDevicesDialog();
@@ -444,7 +444,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
                 JOptionPane.YES_NO_OPTION
             );
             if (rc != JOptionPane.YES_OPTION) return;
-        } else if (showPrompt) {
+        } else if (false) {
             Device device = selectedDeviceList.get(0);
             int rc = JOptionPane.showConfirmDialog(frame,
                 "Mirror " + device.serial + "?",
@@ -481,7 +481,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
         createButton(toolbar, "icon_power.png", "Restart", "Restart Device", actionEvent -> handleRestartCommand());
         toolbar.addSeparator();
-        createButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand(false));
+        createButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
         createButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
         toolbar.addSeparator();
         createButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
@@ -493,6 +493,8 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
         // TODO: add the 'add custom' button
         // createButton(toolbar, "icon_add.png", "add custom", "Run custom adb command", actionEvent -> handleAddCustomCommand());
+
+        loadCustomScripts(toolbar);
 
         toolbar.add(Box.createHorizontalGlue());
 
@@ -523,12 +525,48 @@ public class MainApplication implements DeviceManager.DeviceListener {
         createButton(toolbar, "icon_settings.png", "Settings", "Settings", actionEvent -> handleSettingsClicked());
     }
 
+    private void loadCustomScripts(JToolBar toolbar) {
+        String path = System.getProperty("user.home");
+        File folder = new File(path, ".device_manager");
+        if (!folder.exists()) {
+            boolean ok = folder.mkdir();
+            log.debug("loadCustomScripts: creating folder: {}, {}", ok, folder.getAbsolutePath());
+        } else {
+            File[] files = folder.listFiles();
+            if (files == null) return;
+            for (File file : files) {
+                String name = file.getName();
+                if (!TextUtils.endsWith(name, ".sh")) return;
+                String label = name.substring(0, ".sh".length());
+                createButton(toolbar, "icon_script.png", label, name, actionEvent -> runCustomScript(file));
+            }
+        }
+    }
+
+    private void runCustomScript(File file) {
+        log.debug("runCustomScript: run:{}", file.getAbsolutePath());
+
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.size() == 0) {
+            showSelectDevicesDialog();
+            return;
+        } else if (selectedDeviceList.size() > 1) {
+            // prompt to open multiple devices at once
+            int rc = JOptionPane.showConfirmDialog(frame, "Run script: " + file.getName() + " on selected devices?", "Run Script?", JOptionPane.YES_NO_OPTION);
+            if (rc != JOptionPane.YES_OPTION) return;
+        }
+        for (Device device : selectedDeviceList) {
+            DeviceManager.getInstance().runUserScript(device, file, this);
+        }
+    }
+
     private void handleSettingsClicked() {
         SettingsScreen.showSettings(this);
     }
 
     private void handleRefreshCommand() {
         DeviceManager.getInstance().refreshDevices(this);
+        setupToolbar();
     }
 
     private void handleRunCustomCommand() {

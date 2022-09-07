@@ -122,6 +122,17 @@ public class DeviceManager {
         });
     }
 
+    public void runUserScript(Device device, File file, DeviceListener listener) {
+        commandExecutorService.submit(() -> {
+            device.status = "runUserScript...";
+            listener.handleDeviceUpdated(device);
+            runScript(file, false, true, device.serial, tempFolder);
+            device.status = null;
+            listener.handleDeviceUpdated(device);
+            log.debug("runUserScript: DONE");
+        });
+    }
+
     public void setProperty(Device device, String key, String value) {
         if (value == null) value = "";
         String safeValue = value.replaceAll(" ", "~");
@@ -343,6 +354,12 @@ public class DeviceManager {
                     case "carrier":
                         device.carrier = val;
                         break;
+                    case "release":
+                        device.release = val;
+                        break;
+                    case "sdk":
+                        device.sdk = val;
+                        break;
                     case "custom1":
                         device.custom1 = val.replaceAll("~", " ");
                         break;
@@ -432,11 +449,11 @@ public class DeviceManager {
         }
     }
 
-    private List<String> runScript(String scriptName, String... args) {
+    public List<String> runScript(String scriptName, String... args) {
         return runScript(scriptName, false, true, args);
     }
 
-    private List<String> runScript(String scriptName, boolean isLongRunning, boolean logResults, String... args) {
+    public List<String> runScript(String scriptName, boolean isLongRunning, boolean logResults, String... args) {
         if (logResults) log.trace("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
         File tempFile = new File(tempFolder, scriptName);
         if (!tempFile.exists()) {
@@ -448,10 +465,13 @@ public class DeviceManager {
                 return null;
             }
         }
+        return runScript(tempFile, isLongRunning, logResults, args);
+    }
 
+    public List<String> runScript(File script, boolean isLongRunning, boolean logResults, String... args) {
         try {
             List<String> commandList = new ArrayList<>();
-            commandList.add(tempFile.getAbsolutePath());
+            commandList.add(script.getAbsolutePath());
             if (args != null) {
                 commandList.addAll(Arrays.asList(args));
             }
@@ -473,7 +493,7 @@ public class DeviceManager {
                 if (isExited) {
                     exitValue = process.exitValue();
                 } else {
-                    log.error("runScript: NOT FINISHED: {}, args:{}", scriptName, GsonHelper.toJson(args));
+                    log.error("runScript: NOT FINISHED: {}, args:{}", script.getAbsolutePath(), GsonHelper.toJson(args));
                 }
             }
             if (exitValue != 0) {

@@ -8,6 +8,8 @@ public class Device {
     public String phone;
     public String imei;
     public String carrier;
+    public String release;
+    public String sdk;
     public String custom1;
     public String custom2;
 
