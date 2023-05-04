@@ -11,4 +11,4 @@ source ./env-vars.sh
 # --always-on-top
 # --encoder ['OMX.qcom.video.encoder.avc', 'c2.android.avc.encoder', 'OMX.google.h264.encoder']
 
-scrcpy -s "$ADB_DEVICE" -p $RANDOM --window-title "$DEVICE_NAME" --show-touches --stay-awake --encoder 'c2.android.avc.encoder'
+scrcpy -s "$ADB_DEVICE" -p $RANDOM --window-title "$DEVICE_NAME" --show-touches --stay-awake
