@@ -35,8 +35,15 @@ function getAppVersion() {
     echo "$NAME $CODE"
 }
 
+function getFreeSpace() {
+    # get available/free space in readable format
+    #${ADB} -s $ADB_DEVICE shell df -H | grep '^/dev/fuse' | sed 's/  */ /g' | cut -d ' ' -f 4
+    ${ADB} -s $ADB_DEVICE shell df -H | tail -1 | sed 's/  */ /g' | cut -d ' ' -f 4
+}
+
 IMEI=$(serviceCall 1 5)
 PHONE=$(serviceCall 15 20)
+FREE_SPACE=$(getFreeSpace)
 CUSTOM1=$(get-property.sh $ADB_DEVICE custom1)
 CUSTOM2=$(get-property.sh $ADB_DEVICE custom2)
 
@@ -46,6 +53,7 @@ echo "imei: $IMEI"
 echo "carrier: $(getProp gsm.sim.operator.alpha)"
 echo "release: $(getProp ro.build.version.release)"
 echo "sdk: $(getProp ro.build.version.sdk)"
+echo "free: ${FREE_SPACE}"
 echo "custom1: $CUSTOM1"
 echo "custom2: $CUSTOM2"
 

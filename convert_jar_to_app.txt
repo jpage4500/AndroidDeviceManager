@@ -1,0 +1,64 @@
+[To create a Mac app from the jar file]
+
+- install jar2app from https://github.com/wvdschel/jar2app
+  > download & extract
+  > make some changes to JavaAppLauncher script (add below the Oracle JRE section)
+
+```
+    # add Oracle JRE if available
+    if [ -x "${oracle_jre_plugin}" ] ; then
+        allJVMs+=("$oracle_jre_version:$oracle_jre_plugin")
+    fi
+
+    AS="/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java"
+    AS_VERSION=$(get_java_version_from_cmd "${AS}")
+
+    # add Android Studio JRE if available
+    if [ -x "${AS}" ] ; then
+        allJVMs+=("$AS_VERSION:$AS")
+    fi
+
+    ASP="/Applications/Android Studio Preview.app/Contents/jbr/Contents/Home/bin/java"
+    ASP_VERSION=$(get_java_version_from_cmd "${ASP}")
+
+    # add Android Studio Preview JRE if available
+    if [ -x "${ASP}" ] ; then
+        allJVMs+=("$ASP_VERSION:$ASP")
+    fi
+```
+
+  > run "sudo install.sh /usr/local/bin" (otherwise it'll try to install in /usr/bin which is protected)
+
+- convert jar to app
+  > jar2app AndroidDeviceManager.jar
+
+--------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------
+
+[To handle .apk files (ie: double-click on apk opens device manager)]
+
+- edit AndroidDeviceManager/Contents/Info.plist
+
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>apk</string>
+            </array>
+            <key>CFBundleTypeIconFile</key>
+            <string>ApkIcon</string>
+            <key>CFBundleTypeName</key>
+            <string>apk</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Default</string>
+            <key>LSTypeIsPackage</key>
+            <integer>1</integer>
+        </dict>
+    </array>
+    
+
+- NOTE: the old solution doesn't work anymore.. 
+  > https://stackoverflow.com/questions/1575190/double-click-document-file-in-mac-os-x-to-open-java-application

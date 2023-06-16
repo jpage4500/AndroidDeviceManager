@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.viewmodel;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 
 import org.slf4j.Logger;
@@ -23,6 +24,7 @@ public class DeviceTableModel extends AbstractTableModel {
         MODEL,
         PHONE,
         IMEI,
+        FREE,
         CUSTOM1,
         CUSTOM2,
         STATUS,
@@ -115,6 +117,18 @@ public class DeviceTableModel extends AbstractTableModel {
                     return device.phone;
                 case IMEI:
                     return device.imei;
+                case FREE: {
+                    return device.freeSpace;
+                    //if (device.freeSpace != null) {
+                    //    try {
+                    //        long freeSpace = Long.parseLong(device.freeSpace);
+                    //        return FileUtils.bytesToDisplayString(freeSpace * 1024);
+                    //    } catch (Exception e) {
+                    //        log.debug("getValueAt: Exception: {}: {}", device.freeSpace, e.getMessage());
+                    //    }
+                    //    return null;
+                    //}
+                }
                 case CUSTOM1:
                     return device.custom1;
                 case CUSTOM2:

@@ -10,6 +10,7 @@ public class Device {
     public String carrier;
     public String release;
     public String sdk;
+    public String freeSpace;
     public String custom1;
     public String custom2;
 

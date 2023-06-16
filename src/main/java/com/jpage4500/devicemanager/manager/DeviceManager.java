@@ -360,6 +360,9 @@ public class DeviceManager {
                     case "sdk":
                         device.sdk = val;
                         break;
+                    case "free":
+                        device.freeSpace = val;
+                        break;
                     case "custom1":
                         device.custom1 = val.replaceAll("~", " ");
                         break;
