@@ -160,18 +160,28 @@ public class MainApplication implements DeviceManager.DeviceListener {
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
+                // single click
                 Point point = e.getPoint();
                 int row = table.rowAtPoint(point);
                 int column = table.columnAtPoint(point);
                 if (SwingUtilities.isRightMouseButton(e)) {
+                    // right-click
                     if (!table.isRowSelected(row)) {
                         table.changeSelection(row, column, false, false);
                     }
                     selectedColumn = column;
                 } else if (e.getClickCount() == 2) {
-                    selectedColumn = -1;
                     // double-click
-                    handleMirrorCommand();
+                    selectedColumn = -1;
+                    if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
+                        // edit custom 1 field
+                        handleSetProperty(1);
+                    } else if (column == DeviceTableModel.Columns.CUSTOM2.ordinal()) {
+                        // edit custom 1 field
+                        handleSetProperty(2);
+                    } else {
+                        handleMirrorCommand();
+                    }
                 }
             }
         });
