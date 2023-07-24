@@ -434,7 +434,7 @@ public class DeviceManager {
 
     private void copyResourceToFile(String name, InputStream is) {
         File tempFile = new File(tempFolder, name);
-        log.trace("copyResource: {} to {}", name, tempFile.getAbsolutePath());
+        //log.trace("copyResource: {} to {}", name, tempFile.getAbsolutePath());
         try {
             BufferedReader r = new BufferedReader(new InputStreamReader(is));
             StringBuilder sb = new StringBuilder();
@@ -457,7 +457,7 @@ public class DeviceManager {
     }
 
     public List<String> runScript(String scriptName, boolean isLongRunning, boolean logResults, String... args) {
-        if (logResults) log.trace("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
+        //if (logResults) log.trace("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
         File tempFile = new File(tempFolder, scriptName);
         if (!tempFile.exists()) {
             log.error("runScript: script doesn't exist! {}", tempFile.getAbsoluteFile());

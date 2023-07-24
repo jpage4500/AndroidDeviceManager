@@ -82,17 +82,20 @@ public class MyDragDropListener implements DropTargetListener {
 
     @Override
     public void dragExit(DropTargetEvent event) {
-        log.debug("dragExit: ");
         showDragExit();
     }
 
     @Override
     public void dragOver(DropTargetDragEvent event) {
         Point p = event.getLocation();
+        int numSelected = table.getSelectedRowCount();
         int row = table.rowAtPoint(p);
         // if dragging over a selected row, change color of ALL selected rows
         if (table.isRowSelected(row)) {
             showDragEnter();
+        } else if (numSelected < 2) {
+            // select rows as user drags over them
+            table.changeSelection(row, 0, true, false);
         } else {
             showDragExit();
         }

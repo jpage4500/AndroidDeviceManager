@@ -104,13 +104,11 @@ public class MainApplication implements DeviceManager.DeviceListener {
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowActivated(WindowEvent e) {
-                log.trace("windowActivated: ");
                 DeviceManager.getInstance().startDevicePolling(MainApplication.this, 10);
             }
 
             @Override
             public void windowDeactivated(WindowEvent e) {
-                log.trace("windowDeactivated: ");
                 DeviceManager.getInstance().stopDevicePolling();
             }
         });
@@ -566,7 +564,6 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
     private void handleRefreshCommand() {
         DeviceManager.getInstance().refreshDevices(this);
-        setupToolbar();
     }
 
     private void handleRunCustomCommand() {
