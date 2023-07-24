@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager;
 
+import com.apple.eawt.Application;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
@@ -20,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
+import java.awt.desktop.SystemEventListener;
 import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.File;
@@ -52,6 +54,19 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
     public int selectedColumn = -1;
 
+    /** Stores FILE_OPEN event paths temporarily until application has started. */
+    public static final List<String> cachedFileOpenEvents = new ArrayList<>();
+
+    static {
+        if (java.awt.Desktop.getDesktop().isSupported(Desktop.Action.APP_OPEN_FILE)) {
+            Desktop.getDesktop().setOpenFileHandler(event -> {
+                for (File file : event.getFiles()) {
+                    cachedFileOpenEvents.add(file.getAbsolutePath());
+                }
+            });
+        }
+    }
+
     public MainApplication() {
         setupLogging();
         log.debug("MainApplication: APP START: {}", Build.versionName);
@@ -61,6 +76,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "Device Manager");
+        registerFileHandler();
         new MainApplication();
     }
 
@@ -97,6 +113,8 @@ public class MainApplication implements DeviceManager.DeviceListener {
         } catch (final Exception e) {
             log.error("Exception: {}", e.getMessage());
         }
+
+        registerFileHandler();
 
         frame = new CustomFrame("Device Manager");
         panel = new JPanel();
@@ -186,6 +204,42 @@ public class MainApplication implements DeviceManager.DeviceListener {
             }
         });
         table.requestFocus();
+    }
+
+    private static void registerFileHandler() {
+        //First, check for if we are on OS X so that it doesn't execute on
+        //other platforms. Note that we are using contains() because it was
+        //called Mac OS X before 10.8 and simply OS X afterwards
+        String os = System.getProperty("os.name");
+        log.debug("MainApplication: OS:{}", os);
+        //if (os.equalsIgnoreCase("Mac OS X")) {
+        Desktop desktop = Desktop.getDesktop();
+        desktop.addAppEventListener(new SystemEventListener() {
+
+            @Override
+            public int hashCode() {
+                return super.hashCode();
+            }
+        });
+        desktop.setOpenURIHandler(openURIEvent -> {
+            log.debug("setOpenURIHandler: open: {}", GsonHelper.toJson(openURIEvent.getURI()));
+        });
+        desktop.setOpenFileHandler(openFilesEvent -> {
+            log.debug("setOpenFileHandler: open: {}", GsonHelper.toJson(openFilesEvent.getFiles()));
+        });
+        desktop.setAboutHandler(aboutEvent -> {
+            log.debug("main: ABOUT..");
+        });
+        log.debug("main: registered d:{}", desktop);
+//        Application a = Application.getApplication();
+//        log.debug("MainApplication: registering.. {}", a);
+//        a.setOpenFileHandler(openFilesEvent -> {
+//            log.debug("MainApplication: {}", GsonHelper.toJson(openFilesEvent.getFiles()));
+//        });
+//        a.setAboutHandler(aboutEvent -> {
+//            log.debug("MainApplication: ABOUT..");
+//        });
+        //}
     }
 
     private void updateSelectedLabel() {
@@ -535,6 +589,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
             File[] files = folder.listFiles();
             if (files == null) return;
             for (File file : files) {
+                log.debug("loadCustomScripts: loading: {}", file);
                 String name = file.getName();
                 if (!TextUtils.endsWith(name, ".sh")) return;
                 String label = name.substring(0, ".sh".length());
