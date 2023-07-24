@@ -26,7 +26,7 @@ public class AppLoggerFactory implements ILoggerFactory {
     private boolean logToFile;
     private int fileLogLevel = Log.DEBUG;
     private File fileLog;
-    private long maxFileSize = (1000000); // 1 Meg;
+    private final long maxFileSize = (1000000); // 1 Meg;
     private ExecutorService fileExecutorService;
 
     private final ConcurrentHashMap<String, AppLogger> nameToLogMap = new ConcurrentHashMap<>();
