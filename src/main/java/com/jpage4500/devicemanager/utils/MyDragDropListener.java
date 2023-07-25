@@ -95,7 +95,7 @@ public class MyDragDropListener implements DropTargetListener {
             showDragEnter();
         } else if (numSelected < 2) {
             // select rows as user drags over them
-            table.changeSelection(row, 0, true, false);
+            table.changeSelection(row, 0, false, false);
         } else {
             showDragExit();
         }
