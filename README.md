@@ -16,15 +16,35 @@ Java desktop app to manage many connected Android devices
 - Start an **adb shell** session with selected devices
 - **View version** of user-defined list of apps
 
-## Requirements ##
-- java to run this app
-- adb must be installed
-- [scrcpy](https://github.com/Genymobile/scrcpy) installed to remote control devices
-- Mac OS needed but could be modified to support other platforms
+## Why? ##
 
-## Usage ##
-- download the latest release and unzip to a folder. There should be 2 files: AndroidDeviceManager.jar and run-device-manager.sh
-- run `./run-device-manager.sh`
+Surprisingly there’s not a lot of existing software that does this. Here’s what I found:
+
+- **AndroidTool** - [https://github.com/mortenjust/androidtool-mac](https://github.com/Genymobile/scrcpy)
+  - PROS: Great UI!!
+  - CONS: 6+ years old; doesn’t handle many connected devices very well; crashes frequently
+
+## Requirements
+
+- A **Mac** (the app can be modified to run on Windows but right now it relies on several bash/shell scripts)
+- **Brew** (homebrew - a package manager for the mac)
+  - `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+- A recent Java Runtime Environment (**JRE**)
+  - install a JDK version 17
+  - `brew install openjdk@17`
+  - create a symlink to the JDK in the /Library/Java/JavaVirtualMachines folder, which is necessary for the app to run
+  - `sudo ln -sfn /usr/local/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk`
+  - test out the JRE by running this command: `/usr/libexec/java_home`. It should return a result and not 'no java environment found'
+- **scrcpy** - mirror a connected Android device ([https://github.com/Genymobile/scrcpy](https://github.com/Genymobile/scrcpy))
+  - `brew install scrcpy`
+
+## Installation
+
+- Download the latest release from here: [https://github.com/jpage4500/AndroidDeviceManager/releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
+  - The file you want should look like this: `AndroidDeviceManager.app.zip`
+  - unzip/double-click on the file to extract `AndroidDeviceManager.app`
+- move `AndroidDeviceManager.app` to the `/Applications` folder on your Mac
+
 
 ## Screenshots ##
 ![](resources/screenshot-mirror.jpg)
