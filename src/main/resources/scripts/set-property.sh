@@ -17,7 +17,7 @@ source ./env-vars.sh
 
 # get properties file from device
 rm "$LOCAL_FILE" >/dev/null 2>&1
-adb -s "$ADB_DEVICE" pull /sdcard/$FILENAME "$LOCAL_FILE" >/dev/null
+${ADB} -s "$ADB_DEVICE" pull /sdcard/$FILENAME "$LOCAL_FILE" >/dev/null
 if [ ! $? -eq 0 ]; then
     echo "FILE NOT FOUND: $FILENAME" 1>&2
     # create new file
@@ -34,6 +34,6 @@ fi
 echo "$PROP=$VALUE" >>"$LOCAL_FILE"
 
 # push file back to device
-adb -s "$ADB_DEVICE" push "$LOCAL_FILE" /sdcard/$FILENAME >/dev/null
+${ADB} -s "$ADB_DEVICE" push "$LOCAL_FILE" /sdcard/$FILENAME >/dev/null
 
 echo "set ${PROP} ${VALUE} on device ${ADB_DEVICE}"

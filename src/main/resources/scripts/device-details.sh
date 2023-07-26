@@ -44,8 +44,8 @@ function getFreeSpace() {
 IMEI=$(serviceCall 1 5)
 PHONE=$(serviceCall 15 20)
 FREE_SPACE=$(getFreeSpace)
-CUSTOM1=$(get-property.sh $ADB_DEVICE custom1)
-CUSTOM2=$(get-property.sh $ADB_DEVICE custom2)
+CUSTOM1=$(./get-property.sh $ADB_DEVICE custom1)
+CUSTOM2=$(./get-property.sh $ADB_DEVICE custom2)
 
 echo "device: $ADB_DEVICE"
 echo "phone: $PHONE"

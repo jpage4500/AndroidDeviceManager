@@ -30,6 +30,11 @@ public class DeviceManager {
     private static final String SCRIPT_SCREENSHOT = "screenshot.sh";
     private static final String SCRIPT_MIRROR = "mirror.sh";
 
+    // how often to poll (adb devices -l)
+    private static final int POLLING_INTERVAL_SECS = 10;
+    // how often to do a full refresh of connected devices
+    private static final long FULL_REFRESH_MS = TimeUnit.MINUTES.toMillis(10);
+
     private static volatile DeviceManager instance;
 
     private final List<Device> deviceList;
@@ -41,6 +46,8 @@ public class DeviceManager {
     private final ExecutorService commandExecutorService;
 
     private ScheduledFuture<?> listDevicesFuture;
+
+    private long lastRefreshMs;
 
     public static DeviceManager getInstance() {
         if (instance == null) {
@@ -212,6 +219,8 @@ public class DeviceManager {
     }
 
     private void listDevicesInternal(DeviceListener listener) {
+        boolean isFullRefreshNeeded = System.currentTimeMillis() - lastRefreshMs > FULL_REFRESH_MS;
+        lastRefreshMs = System.currentTimeMillis();
         List<String> results = runScript(SCRIPT_DEVICE_LIST, false, true);
         if (results == null) {
             listener.handleDevicesUpdated(null);
@@ -289,20 +298,20 @@ public class DeviceManager {
                     isChanged = true;
                 }
             }
-        }
 
-        if (isChanged) {
-            listener.handleDevicesUpdated(deviceList);
-        }
+            if (isChanged) {
+                listener.handleDevicesUpdated(deviceList);
+            }
 
-        List<String> appList = null;
-        // kick off device details request if necessary
-        for (Device device : deviceList) {
-            if (device.isOnline && !device.hasFetchedDetails) {
-                if (appList == null) {
-                    appList = SettingsScreen.getCustomApps();
+            List<String> appList = null;
+            // kick off device details request if necessary
+            for (Device device : deviceList) {
+                if (device.isOnline && (isFullRefreshNeeded || !device.hasFetchedDetails)) {
+                    if (appList == null) {
+                        appList = SettingsScreen.getCustomApps();
+                    }
+                    getDeviceDetails(device, appList, listener);
                 }
-                getDeviceDetails(device, appList, listener);
             }
         }
     }
@@ -328,7 +337,7 @@ public class DeviceManager {
             }
         }
 
-        startDevicePolling(listener, 10);
+        startDevicePolling(listener, POLLING_INTERVAL_SECS);
     }
 
     private void getDeviceDetailsInternal(Device device, List<String> appList, DeviceListener listener) {
@@ -517,7 +526,7 @@ public class DeviceManager {
             }
             return resultList;
         } catch (Exception e) {
-            log.error("runScript: Exception: {}", e.getMessage());
+            log.error("runScript: Exception: {}:{}, script:{}", e.getClass().getSimpleName(), e.getMessage(), script.getAbsolutePath());
         }
         return null;
     }

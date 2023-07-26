@@ -8,4 +8,4 @@ source ./env-vars.sh
 echo "############################################################"
 echo "Device: $ADB_DEVICE"
 echo "############################################################"
-"$ADB" -s "$ADB_DEVICE" shell
+${ADB} -s "$ADB_DEVICE" shell

@@ -54,13 +54,20 @@ public class MainApplication implements DeviceManager.DeviceListener {
 
     public MainApplication() {
         setupLogging();
-        log.debug("MainApplication: APP START: {}", Build.versionName);
+        Runtime.Version version = Runtime.version();
+        log.debug("MainApplication: APP START: {}, java:{}", Build.versionName, version);
 
         SwingUtilities.invokeLater(this::initializeUI);
     }
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "Device Manager");
+
+        String os = System.getProperty("os.name");
+        // required to run scripts when packaged as an app
+        if (TextUtils.containsIgnoreCase(os, "Mac")) {
+            System.setProperty("jdk.lang.Process.launchMechanism", "FORK");
+        }
         new MainApplication();
     }
 
@@ -373,7 +380,10 @@ public class MainApplication implements DeviceManager.DeviceListener {
         msg += " to " + selectedDeviceList.size() + " device(s)?";
 
         // prompt to install/copy
-        int rc = JOptionPane.showConfirmDialog(frame, msg, title, JOptionPane.YES_NO_OPTION);
+        // NOTE: using JDialog.setAlwaysOnTap to bring app to foreground on drag and drop operations
+        final JDialog dialog = new JDialog();
+        dialog.setAlwaysOnTop(true);
+        int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (Device device : selectedDeviceList) {

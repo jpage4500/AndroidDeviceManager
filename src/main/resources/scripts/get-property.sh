@@ -15,7 +15,7 @@ source ./env-vars.sh
 #${ADB} -s $ADB_DEVICE shell getprop $PROP
 
 rm "$LOCAL_FILE" >/dev/null 2>&1
-adb -s "$ADB_DEVICE" pull /sdcard/$FILENAME "$LOCAL_FILE" >/dev/null
+${ADB} -s "$ADB_DEVICE" pull /sdcard/$FILENAME "$LOCAL_FILE" >/dev/null
 if [ ! $? -eq 0 ]; then
     # echo "FILE NOT FOUND: $FILENAME" 1>&2
     echo ""
