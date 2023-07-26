@@ -16,27 +16,31 @@
     </properties>
 
     <dependencies>
+        <!-- flat icons -->
         <dependency>
             <groupId>com.formdev</groupId>
             <artifactId>flatlaf</artifactId>
             <version>2.6</version>
         </dependency>
+        <!-- logging to file -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.7.36</version>
         </dependency>
+        <!-- GSON serializer -->
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
             <version>2.10</version>
         </dependency>
+        <!-- better image scaling -->
         <dependency>
             <groupId>net.coobird</groupId>
             <artifactId>thumbnailator</artifactId>
             <version>0.4.17</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/com.miglayout/miglayout -->
+        <!-- flexible layouts - https://mvnrepository.com/artifact/com.miglayout/miglayout -->
         <dependency>
             <groupId>com.miglayout</groupId>
             <artifactId>miglayout</artifactId>
@@ -45,11 +49,6 @@
     </dependencies>
 
     <build>
-        <!--        <resources>-->
-        <!--            <resource>-->
-        <!--                <targetPath>scripts</targetPath>-->
-        <!--            </resource>-->
-        <!--        </resources>-->
         <plugins>
             <!-- create native MacOS app from jar -->
             <plugin>
@@ -67,8 +66,9 @@
                         </CFBundleTypeExtensions>
                     </plist>
                     <jdk>
-                        <include>true</include>
-                        <location>/Applications/Android Studio.app/Contents/jre/Contents/Home</location>
+                        <!-- set to true to package entire JRE (NOTE: resulting app won't be compatible with both arm and x86 macs)-->
+                        <include>false</include>
+                        <!--<location>/Applications/Android Studio Preview.app/Contents/jbr/Contents/Home</location>-->
                     </jdk>
                 </configuration>
                 <executions>
@@ -122,8 +122,5 @@
                 </configuration>
             </plugin>
         </plugins>
-
-
     </build>
-
 </project>
