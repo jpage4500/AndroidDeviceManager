@@ -8,7 +8,7 @@ Java desktop app to manage many connected Android devices
 - Populates device **phone number, free space, IMEI, carrier** (when available)
 - **Remote control** selected devices (requires [scrcpy](https://github.com/Genymobile/scrcpy))
 - Capture **screenshots** of selected devices
-- **Drag and drop a apk** to **install** on selected devices
+- **Drag and drop an apk** to **install** on selected devices
 - **Drag and drop a file** to **copy** to selected devices
 - **Restart** selected devices
 - Run **user-defined adb commands**
@@ -52,5 +52,12 @@ Surprisingly there’s not a lot of existing software that does this. Here’s w
 ![](resources/screenshot-copy.jpg)
 ![](resources/screenshot-rightclick.jpg)
 
+## Use Cases ##
+
+We want to manage a lot of Android devices and had previously used MDM (mobile device management) software such as **AirDroid** and **ScaleFusion**. These tools aren't free ($$) but more importantly trying to remote control/view an Android device was often a very slow and choppy experience.
+
+So, instead we took a different approach. Instead of running MDM software on every individual Android device, we connected all of the devices to a single macbook laptop using multiple 16-port USB hubs. The Macbook is running [Splashtop](https://www.splashtop.com/) remote control software. I can now remote login and using Android Device Manager control all of the devices with very little to no lag.
+
 ---
-Tested with 45 Android devices connected to 1 Macbook laptop (using multiple 16-port hubs)
+
+Tested with 45 Android devices connected to 1 Macbook laptop (using multiple 16-port USB hubs)
