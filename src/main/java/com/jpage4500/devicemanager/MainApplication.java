@@ -300,6 +300,9 @@ public class MainApplication implements DeviceManager.DeviceListener {
             case IMEI:
                 val = device.imei;
                 break;
+            case FREE:
+                val = device.freeSpace;
+                break;
             case CUSTOM1:
                 val = device.custom1;
                 break;
@@ -310,7 +313,7 @@ public class MainApplication implements DeviceManager.DeviceListener {
                 val = device.status;
                 break;
             default:
-                val = "INVALID_COL:" + column.name();
+                val = column.name();
                 break;
         }
         if (TextUtils.isEmpty(val)) return "";

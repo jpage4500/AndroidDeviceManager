@@ -1,7 +1,6 @@
 package com.jpage4500.devicemanager.viewmodel;
 
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 
 import org.slf4j.Logger;
