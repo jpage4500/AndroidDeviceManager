@@ -74,11 +74,16 @@ public class ExploreView {
             }
         });
         frame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
-
-        table = new CustomTable();
+        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                table.persist();
+            }
+        });
+        table = new CustomTable("browse");
         model = new ExploreTableModel();
         table.setModel(model);
-        table.setDefaultRenderer(Icon.class, new IconRenderer());
+        table.setDefaultRenderer(DeviceFile.class, new DeviceFileRenderer());
 
         refreshFiles();
 

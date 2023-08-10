@@ -22,9 +22,6 @@ public class ExploreTableModel extends AbstractTableModel {
     private final List<DeviceFile> fileList;
     private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm");
 
-    private final Icon folderIcon;
-    private final Icon fileIcon;
-
     public enum Columns {
         ICON,
         NAME,
@@ -35,9 +32,6 @@ public class ExploreTableModel extends AbstractTableModel {
 
     public ExploreTableModel() {
         fileList = new ArrayList<>();
-
-        folderIcon = getIcon("icon_folder.png");
-        fileIcon = getIcon("icon_file.png");
     }
 
     public void setFileList(List<DeviceFile> fileList) {
@@ -45,18 +39,6 @@ public class ExploreTableModel extends AbstractTableModel {
         this.fileList.addAll(fileList);
 
         fireTableDataChanged();
-    }
-
-    private ImageIcon getIcon(String imageName) {
-        Image icon = null;
-        try {
-            // library offers MUCH better image scaling than ImageIO
-            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(20, 20).asBufferedImage();
-            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
-        } catch (Exception e) {
-            log.debug("createButton: Exception:{}", e.getMessage());
-        }
-        return new ImageIcon(icon);
     }
 
     /**
@@ -76,7 +58,7 @@ public class ExploreTableModel extends AbstractTableModel {
 
     @Override
     public Class<?> getColumnClass(int columnIndex) {
-        if (columnIndex == ExploreTableModel.Columns.ICON.ordinal()) return Icon.class;
+        if (columnIndex == Columns.ICON.ordinal()) return DeviceFile.class;
         return String.class;
     }
 
@@ -104,8 +86,7 @@ public class ExploreTableModel extends AbstractTableModel {
             Columns colType = columns[col];
             switch (colType) {
                 case ICON:
-                    if (deviceFile.isDir || deviceFile.isLink) return folderIcon;
-                    else return fileIcon;
+                    return deviceFile;
                 case NAME:
                     return deviceFile.name;
                 case SIZE:
@@ -114,9 +95,9 @@ public class ExploreTableModel extends AbstractTableModel {
                     if (deviceFile.date != null) {
                         return dateFormat.format(deviceFile.date);
                     }
+                    break;
                 default:
-                    //log.debug("getValueAt: ERROR: {}", colType);
-                    return "";
+                    log.error("getValueAt: ERROR: {}", colType);
             }
         }
         return null;

@@ -293,7 +293,6 @@ public class DeviceManager {
             if (listener != null) listener.handleFiles(fileList);
 
             device.status = null;
-            log.debug("listFiles: DONE: path:{}, files:{}", finalPath, fileList.size());
         });
     }
 

@@ -90,7 +90,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
         });
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        table = new CustomTable();
+        table = new CustomTable("devices");
         model = new DeviceTableModel();
 
         List<String> appList = SettingsScreen.getCustomApps();
