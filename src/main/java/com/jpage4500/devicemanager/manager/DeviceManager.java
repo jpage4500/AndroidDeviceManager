@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
@@ -11,6 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.jar.JarEntry;
@@ -29,6 +32,7 @@ public class DeviceManager {
     private static final String SCRIPT_SET_PROPERTY = "set-property.sh";
     private static final String SCRIPT_SCREENSHOT = "screenshot.sh";
     private static final String SCRIPT_MIRROR = "mirror.sh";
+    private static final String SCRIPT_LIST_FILES = "list-files.sh";
 
     // how often to poll (adb devices -l)
     private static final int POLLING_INTERVAL_SECS = 10;
@@ -153,10 +157,10 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             String path = file.getAbsolutePath();
             device.status = "installing...";
-            listener.handleDeviceUpdated(device);
+            if (listener != null) listener.handleDeviceUpdated(device);
             runScript(SCRIPT_INSTALL_APK, device.serial, path);
             device.status = null;
-            listener.handleDeviceUpdated(device);
+            if (listener != null) listener.handleDeviceUpdated(device);
             log.debug("installApp: {}, {}, DONE", device.serial, path);
         });
     }
@@ -165,10 +169,10 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             String path = file.getAbsolutePath();
             device.status = "copying...";
-            listener.handleDeviceUpdated(device);
+            if (listener != null) listener.handleDeviceUpdated(device);
             runScript(SCRIPT_COPY_FILE, device.serial, path);
             device.status = null;
-            listener.handleDeviceUpdated(device);
+            if (listener != null) listener.handleDeviceUpdated(device);
             log.debug("copyFile: {}, {}, DONE", device.serial, path);
         });
     }
@@ -201,6 +205,95 @@ public class DeviceManager {
             runScript(SCRIPT_TERMINAL, true, true, device.serial);
             device.status = null;
             listener.handleDeviceUpdated(device);
+        });
+    }
+
+    public interface DeviceFileListener {
+        void handleFiles(List<DeviceFile> fileList);
+    }
+
+    public void listFiles(Device device, String path, DeviceFileListener listener) {
+        if (TextUtils.notEmpty(path) && !TextUtils.endsWith(path, "/")) {
+            path += "/";
+        }
+        String finalPath = path;
+        commandExecutorService.submit(() -> {
+            device.status = "list files...";
+            List<String> resultList = runScript(SCRIPT_LIST_FILES, device.serial, finalPath);
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm");
+            List<DeviceFile> fileList = new ArrayList<>();
+            for (String result : resultList) {
+                DeviceFile file = new DeviceFile();
+                Calendar calendar = Calendar.getInstance();
+                // handle "Permission denied"
+                if (TextUtils.containsIgnoreCase(result, "Permission denied")) {
+                    file.name = "Permission denied: " + finalPath;
+                    fileList.add(file);
+                    break;
+                }
+
+                String[] resultArr = result.split("\\s+");
+                //log.debug("listFiles: RESULT:{}", GsonHelper.toJson(resultArr));
+                if (resultArr.length < 8) {
+                    //log.trace("listFiles: invalid result: {}", result);
+
+                    continue;
+                }
+
+                // -- permissions (0) --
+                String permissions = resultArr[0];
+                if (permissions.startsWith("d")) {
+                    file.isDir = true;
+                } else if (permissions.startsWith("l")) {
+                    file.isLink = true;
+                }
+
+                // -- file size (4) --
+                String sizeStr = resultArr[4];
+                if (TextUtils.equalsIgnoreCase(sizeStr, "?")) continue;
+                file.size = TextUtils.getNumberLong(sizeStr, 0);
+
+                // -- file name (7+) --
+                StringBuilder name = new StringBuilder();
+                for (int pos = 7; pos < resultArr.length; pos++) {
+                    if (name.length() > 0) name.append(" ");
+                    name.append(resultArr[pos]);
+                }
+                if (file.isLink) {
+                    // remove "-> XYZ" from name
+                    int linkPos = name.indexOf(" ->");
+                    if (linkPos > 0) {
+                        name.delete(linkPos, name.length());
+                    }
+                }
+                if (TextUtils.equalsAny(name, true, ".", "..")) continue;
+                file.name = name.toString();
+
+                // -- date (5): "2023-06-12" --
+                String dateStr = resultArr[5];
+                // -- time (6): "19:00" --
+                String timeStr = resultArr[6];
+
+                try {
+                    file.date = dateFormat.parse(dateStr + " " + timeStr);
+                } catch (ParseException e) {
+                    log.debug("listFiles: Exception: date:{}", dateStr + " " + timeStr);
+                }
+
+                fileList.add(file);
+            }
+
+            // always add ".." to every result as long as starting path isn't ""
+            if (TextUtils.notEmpty(finalPath)) {
+                DeviceFile upFile = new DeviceFile();
+                upFile.name = "..";
+                upFile.isDir = true;
+                fileList.add(0, upFile);
+            }
+            if (listener != null) listener.handleFiles(fileList);
+
+            device.status = null;
+            log.debug("listFiles: DONE: path:{}, files:{}", finalPath, fileList.size());
         });
     }
 
@@ -509,7 +602,7 @@ public class DeviceManager {
                 }
             }
             if (exitValue != 0) {
-                log.error("runScript: error:{}", exitValue);
+                log.error("runScript: ERROR:{}, {}, args:{}", exitValue, script.getAbsolutePath(), GsonHelper.toJson(args));
             }
 
             List<String> resultList = readInputStream(process.getInputStream());

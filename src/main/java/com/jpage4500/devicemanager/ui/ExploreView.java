@@ -1,0 +1,333 @@
+package com.jpage4500.devicemanager.ui;
+
+import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.DeviceFile;
+import com.jpage4500.devicemanager.logging.AppLoggerFactory;
+import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.utils.MyDragDropListener;
+import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.viewmodel.ExploreTableModel;
+
+import net.coobird.thumbnailator.Thumbnails;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.awt.*;
+import java.awt.dnd.DropTarget;
+import java.awt.event.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.TableModel;
+import javax.swing.table.TableRowSorter;
+
+/**
+ * create and manage device view
+ */
+public class ExploreView {
+    private static final Logger log = LoggerFactory.getLogger(ExploreView.class);
+
+    private static final String HINT_FILTER_DEVICES = "Filter files...";
+
+    public CustomTable table;
+    public ExploreTableModel model;
+
+    public CustomFrame frame;
+    public JPanel panel;
+    public EmptyView emptyView;
+    public StatusBar statusBar;
+    public JToolBar toolbar;
+
+    public int selectedColumn = -1;
+
+    private Device selectedDevice;
+    private String selectedPath = "/sdcard";
+
+    public ExploreView() {
+        initalizeUi();
+    }
+
+    public void setDevice(Device selectedDevice) {
+        this.selectedDevice = selectedDevice;
+        frame.setTitle(selectedDevice.getDisplayName());
+        refreshFiles();
+    }
+
+    private void initalizeUi() {
+        frame = new CustomFrame("Browse");
+        panel = new JPanel();
+        panel.setLayout(new BorderLayout());
+        frame.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowActivated(WindowEvent e) {
+                refreshFiles();
+            }
+
+            @Override
+            public void windowDeactivated(WindowEvent e) {
+            }
+        });
+        frame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+
+        table = new CustomTable();
+        model = new ExploreTableModel();
+        table.setModel(model);
+
+        refreshFiles();
+
+        // TODO: find way to auto-size columns and also remember user sizes
+        //model.addTableModelListener(e -> ColumnsAutoSizer.sizeColumnsToFit(table));
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBackground(Color.RED);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // setup toolbar
+        setupToolbar();
+        panel.add(toolbar, BorderLayout.NORTH);
+
+        // statusbar
+        statusBar = new StatusBar();
+        statusBar.setLeftLabelListener(this::handleVersionClicked);
+        panel.add(statusBar, BorderLayout.SOUTH);
+
+        frame.setContentPane(panel);
+        frame.setVisible(true);
+
+        JRootPane rootPane = SwingUtilities.getRootPane(table);
+        emptyView = new EmptyView("No Files");
+        rootPane.setGlassPane(emptyView);
+        emptyView.setOpaque(false);
+        emptyView.setVisible(true);
+
+        // support drag and drop of files
+        MyDragDropListener dragDropListener = new MyDragDropListener(table, this::handleFilesDropped);
+        new DropTarget(table, dragDropListener);
+
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                // single click
+                Point point = e.getPoint();
+                int row = table.rowAtPoint(point);
+                int column = table.columnAtPoint(point);
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    // right-click
+                    if (!table.isRowSelected(row)) {
+                        table.changeSelection(row, column, false, false);
+                    }
+                    selectedColumn = column;
+                } else if (e.getClickCount() == 2) {
+                    // double-click
+                    selectedColumn = -1;
+                    DeviceFile deviceFile = model.getDeviceFileAtRow(row);
+                    if (deviceFile.isDir) {
+                        if (TextUtils.equalsIgnoreCase(deviceFile.name, "..")) {
+                            log.debug("mouseClicked: UP: {}", selectedPath);
+                            int pos = selectedPath.lastIndexOf('/');
+                            if (pos > 0) {
+                                selectedPath = selectedPath.substring(0, pos);
+                            } else if (pos == 0) {
+                                // root folder
+                                selectedPath = "";
+                            }
+                        } else {
+                            // append selected folder to current path
+                            selectedPath += "/" + deviceFile.name;
+                        }
+                        refreshFiles();
+                    }
+                }
+            }
+        });
+
+        setupPopupMenu();
+
+        table.getSelectionModel().addListSelectionListener(listSelectionEvent -> {
+            if (!listSelectionEvent.getValueIsAdjusting()) {
+                refreshUi();
+            }
+        });
+        table.requestFocus();
+    }
+
+    private void refreshFiles() {
+        if (selectedDevice == null) return;
+        DeviceManager.getInstance().listFiles(selectedDevice, selectedPath, fileList -> {
+            model.setFileList(fileList);
+            refreshUi();
+        });
+    }
+
+    private void refreshUi() {
+        // file path
+        statusBar.setLeftLabel(selectedPath);
+
+        // selected row(s)
+        int selectedRowCount = table.getSelectedRowCount();
+        int rowCount = table.getRowCount();
+        if (selectedRowCount > 0) {
+            statusBar.setRightLabel("selected: " + selectedRowCount + " / " + rowCount);
+        } else {
+            statusBar.setRightLabel("total: " + rowCount);
+        }
+        emptyView.setVisible(rowCount == 0);
+    }
+
+    private void setupPopupMenu() {
+        JPopupMenu popupMenu = new JPopupMenu();
+
+        table.setComponentPopupMenu(popupMenu);
+    }
+
+    private String getDeviceField(DeviceFile deviceFile, ExploreTableModel.Columns column) {
+        String val;
+        switch (column) {
+            case NAME:
+                val = deviceFile.name;
+                break;
+            case SIZE:
+                val = String.valueOf(deviceFile.size);
+                break;
+            case DATE:
+                val = String.valueOf(deviceFile.date);
+                break;
+            default:
+                val = column.name();
+                break;
+        }
+        if (TextUtils.isEmpty(val)) return "";
+        else return val;
+    }
+
+    private void handleFilesDropped(List<File> fileList) {
+        boolean isApk = false;
+        StringBuilder name = new StringBuilder();
+        for (File file : fileList) {
+            if (name.length() > 0) name.append(", ");
+            String filename = file.getName();
+            name.append(filename);
+            if (filename.endsWith(".apk")) {
+                isApk = true;
+                break;
+            }
+        }
+
+        String title = isApk ? "Install App" : "Copy File";
+        String msg = isApk ? "Install " : "Copy ";
+        msg += name.toString();
+        msg += "?";
+
+        // prompt to install/copy
+        // NOTE: using JDialog.setAlwaysOnTap to bring app to foreground on drag and drop operations
+        final JDialog dialog = new JDialog();
+        dialog.setAlwaysOnTop(true);
+        int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        for (File file : fileList) {
+            String filename = file.getName();
+            if (filename.endsWith(".apk")) {
+                DeviceManager.getInstance().installApp(selectedDevice, file, null);
+            } else {
+                DeviceManager.getInstance().copyFile(selectedDevice, file, null);
+            }
+        }
+    }
+
+    private void setupToolbar() {
+        if (toolbar == null) {
+            toolbar = new JToolBar("Applications");
+            toolbar.setRollover(true);
+        } else {
+            toolbar.removeAll();
+        }
+
+        toolbar.add(Box.createHorizontalGlue());
+
+        HintTextField textField = new HintTextField(HINT_FILTER_DEVICES);
+        textField.setPreferredSize(new Dimension(150, 40));
+        textField.setMinimumSize(new Dimension(10, 40));
+        textField.setMaximumSize(new Dimension(200, 40));
+        textField.getDocument().addDocumentListener(
+            new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent documentEvent) {
+                    filterDevices(textField.getText());
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent documentEvent) {
+                    filterDevices(textField.getText());
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent documentEvent) {
+                }
+            });
+        toolbar.add(textField);
+//        toolbar.add(Box.createHorizontalGlue());
+
+    }
+
+    private void showSelectDevicesDialog() {
+        JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+    }
+
+    private void filterDevices(String text) {
+        final TableRowSorter<TableModel> sorter = new TableRowSorter<>(table.getModel());
+        table.setRowSorter(sorter);
+        if (text.length() > 0 && !TextUtils.equals(text, HINT_FILTER_DEVICES)) {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
+        } else {
+            sorter.setRowFilter(null);
+        }
+    }
+
+
+    private void createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
+        Image icon;
+        try {
+            // library offers MUCH better image scaling than ImageIO
+            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(40, 40).asBufferedImage();
+            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
+            if (icon == null) {
+                log.error("createButton: image not found! {}", imageName);
+                return;
+            }
+        } catch (Exception e) {
+            log.debug("createButton: Exception:{}", e.getMessage());
+            return;
+        }
+        JButton button = new JButton(new ImageIcon(icon));
+        if (label != null) button.setText(label);
+
+        button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
+        if (tooltip != null) button.setToolTipText(tooltip);
+        button.setVerticalTextPosition(SwingConstants.BOTTOM);
+        button.setHorizontalTextPosition(SwingConstants.CENTER);
+        button.addActionListener(listener);
+        toolbar.add(button);
+    }
+
+
+    private void handleVersionClicked() {
+        // show logs
+        AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
+        File logsFile = logger.getFileLog();
+
+        Desktop desktop = Desktop.getDesktop();
+        if (!desktop.isSupported(Desktop.Action.EDIT)) return;
+
+        try {
+            desktop.edit(logsFile);
+        } catch (IOException e) {
+            log.error("handleVersionClicked: IOException: {}, {}", logsFile.getAbsolutePath(), e.getMessage());
+        }
+    }
+
+}

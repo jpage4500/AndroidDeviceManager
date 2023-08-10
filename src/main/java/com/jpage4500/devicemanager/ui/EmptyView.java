@@ -18,8 +18,8 @@ public class EmptyView extends JComponent {
     private Image emptyImage;
     private String emptyText;
 
-    public EmptyView() {
-        emptyText = "No Android Devices!";
+    public EmptyView(String emptyText) {
+        this.emptyText = emptyText;
     }
 
     @Override

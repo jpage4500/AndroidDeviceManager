@@ -61,7 +61,7 @@ public class CustomFrame extends JFrame {
         int w = prefs.getInt(FRAME_W, 500);
         int h = prefs.getInt(FRAME_H, 300);
 
-        log.debug("restoreFrame: x:{}, y:{}, w:{}, h:{}", x, y, w, h);
+        //log.debug("restoreFrame: x:{}, y:{}, w:{}, h:{}", x, y, w, h);
         setLocation(x, y);
         setSize(w, h);
     }

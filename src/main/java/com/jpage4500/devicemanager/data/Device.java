@@ -26,4 +26,18 @@ public class Device {
 
     // only fetch device detail (IMEI, phone, etc) once -- shouldn't change
     public boolean hasFetchedDetails;
+
+    public String getDisplayName() {
+        StringBuilder sb = new StringBuilder();
+        if (serial != null) sb.append(serial);
+        if (model != null) {
+            if (sb.length() > 0) sb.append(" ");
+            sb.append(model);
+        }
+        if (phone != null) {
+            if (sb.length() > 0) sb.append(" ");
+            sb.append(phone);
+        }
+        return sb.toString();
+    }
 }

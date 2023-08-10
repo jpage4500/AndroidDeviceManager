@@ -1,13 +1,16 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.MainApplication;
+import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
 
 import net.miginfocom.swing.MigLayout;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -20,15 +23,17 @@ public class SettingsScreen extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(SettingsScreen.class);
     public static final String PREF_CUSTOM_APPS = "PREF_CUSTOM_APPS";
 
-    private MainApplication app;
+    private Component frame;
+    private DeviceTableModel tableModel;
 
-    public static int showSettings(MainApplication app) {
-        SettingsScreen settingsScreen = new SettingsScreen(app);
-        return JOptionPane.showOptionDialog(app.frame, settingsScreen, "Settings", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+    public static int showSettings(Component frame, DeviceTableModel tableModel) {
+        SettingsScreen settingsScreen = new SettingsScreen(frame, tableModel);
+        return JOptionPane.showOptionDialog(frame, settingsScreen, "Settings", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
     }
 
-    public SettingsScreen(MainApplication app) {
-        this.app = app;
+    public SettingsScreen(Component frame, DeviceTableModel tableModel) {
+        this.frame = frame;
+        this.tableModel = tableModel;
         setLayout(new MigLayout());
         // custom apps
         add(new JLabel("Custom Apps:"));
@@ -60,7 +65,7 @@ public class SettingsScreen extends JPanel {
 
         Preferences preferences = Preferences.userRoot();
         preferences.put(PREF_CUSTOM_APPS, GsonHelper.toJson(resultList));
-        app.model.setAppList(resultList);
+        tableModel.setAppList(resultList);
     }
 
     /**
@@ -74,11 +79,11 @@ public class SettingsScreen extends JPanel {
 
     private void showCommands() {
         Preferences preferences = Preferences.userRoot();
-        String customCommands = preferences.get(MainApplication.PREF_CUSTOM_COMMAND_LIST, null);
+        String customCommands = preferences.get(DeviceView.PREF_CUSTOM_COMMAND_LIST, null);
         List<String> customList = GsonHelper.stringToList(customCommands, String.class);
         List<String> resultList = showEditField("Enter custom adb commands", "Enter adb custom command - 1 per line", customList);
         if (resultList == null) return;
-        preferences.put(MainApplication.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(resultList));
+        preferences.put(DeviceView.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(resultList));
     }
 
     private List<String> showEditField(String title, String message, List<String> stringList) {
@@ -96,7 +101,7 @@ public class SettingsScreen extends JPanel {
         JScrollPane scroll = new JScrollPane(inputField);
         panel.add(scroll, "grow, span, wrap");
 
-        int rc = JOptionPane.showOptionDialog(app.frame, panel, title, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        int rc = JOptionPane.showOptionDialog(frame, panel, title, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return null;
 
         String results = inputField.getText();
