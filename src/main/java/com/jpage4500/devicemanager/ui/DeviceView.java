@@ -73,7 +73,8 @@ public class DeviceView implements DeviceManager.DeviceListener {
     }
 
     private void initalizeUi() {
-        frame = new CustomFrame("Device Manager");
+        frame = new CustomFrame("main");
+        frame.setTitle("Device Manager");
         panel = new JPanel();
         panel.setLayout(new BorderLayout());
         frame.addWindowListener(new WindowAdapter() {
@@ -642,7 +643,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
 
     private void handleBrowseCommand() {
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }

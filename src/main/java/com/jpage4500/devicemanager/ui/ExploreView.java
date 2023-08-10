@@ -56,10 +56,11 @@ public class ExploreView {
         this.selectedDevice = selectedDevice;
         frame.setTitle(selectedDevice.getDisplayName());
         refreshFiles();
+        frame.setVisible(true);
     }
 
     private void initalizeUi() {
-        frame = new CustomFrame("Browse");
+        frame = new CustomFrame("browse");
         panel = new JPanel();
         panel.setLayout(new BorderLayout());
         frame.addWindowListener(new WindowAdapter() {
@@ -77,6 +78,7 @@ public class ExploreView {
         table = new CustomTable();
         model = new ExploreTableModel();
         table.setModel(model);
+        table.setDefaultRenderer(Icon.class, new IconRenderer());
 
         refreshFiles();
 
@@ -288,6 +290,17 @@ public class ExploreView {
         }
     }
 
+    private Image getIcon(String imageName) {
+        Image icon = null;
+        try {
+            // library offers MUCH better image scaling than ImageIO
+            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(40, 40).asBufferedImage();
+            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
+        } catch (Exception e) {
+            log.debug("createButton: Exception:{}", e.getMessage());
+        }
+        return icon;
+    }
 
     private void createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
         Image icon;
@@ -313,7 +326,6 @@ public class ExploreView {
         button.addActionListener(listener);
         toolbar.add(button);
     }
-
 
     private void handleVersionClicked() {
         // show logs

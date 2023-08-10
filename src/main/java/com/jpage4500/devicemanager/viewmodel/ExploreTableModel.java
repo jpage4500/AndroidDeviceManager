@@ -3,9 +3,12 @@ package com.jpage4500.devicemanager.viewmodel;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.utils.FileUtils;
 
+import net.coobird.thumbnailator.Thumbnails;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.*;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,8 +22,8 @@ public class ExploreTableModel extends AbstractTableModel {
     private final List<DeviceFile> fileList;
     private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm");
 
-    private Icon folderIcon = new ImageIcon("icon_folder.png");
-    private Icon fileIcon = new ImageIcon("icon_file.png");
+    private final Icon folderIcon;
+    private final Icon fileIcon;
 
     public enum Columns {
         ICON,
@@ -32,6 +35,9 @@ public class ExploreTableModel extends AbstractTableModel {
 
     public ExploreTableModel() {
         fileList = new ArrayList<>();
+
+        folderIcon = getIcon("icon_folder.png");
+        fileIcon = getIcon("icon_file.png");
     }
 
     public void setFileList(List<DeviceFile> fileList) {
@@ -39,6 +45,18 @@ public class ExploreTableModel extends AbstractTableModel {
         this.fileList.addAll(fileList);
 
         fireTableDataChanged();
+    }
+
+    private ImageIcon getIcon(String imageName) {
+        Image icon = null;
+        try {
+            // library offers MUCH better image scaling than ImageIO
+            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(20, 20).asBufferedImage();
+            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
+        } catch (Exception e) {
+            log.debug("createButton: Exception:{}", e.getMessage());
+        }
+        return new ImageIcon(icon);
     }
 
     /**
@@ -66,6 +84,7 @@ public class ExploreTableModel extends AbstractTableModel {
         Columns[] columns = Columns.values();
         if (i < columns.length) {
             Columns colType = columns[i];
+            if (colType == Columns.ICON) return null;
             return colType.name();
         }
         return null;
@@ -96,7 +115,7 @@ public class ExploreTableModel extends AbstractTableModel {
                         return dateFormat.format(deviceFile.date);
                     }
                 default:
-                    log.debug("getValueAt: ERROR: {}", colType);
+                    //log.debug("getValueAt: ERROR: {}", colType);
                     return "";
             }
         }
