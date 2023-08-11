@@ -18,7 +18,10 @@ import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.prefs.Preferences;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -32,6 +35,7 @@ import javax.swing.table.TableRowSorter;
 public class ExploreView {
     private static final Logger log = LoggerFactory.getLogger(ExploreView.class);
 
+    public static final String PREF_DOWNLOAD_FOLDER = "PREF_DOWNLOAD_FOLDER";
     private static final String HINT_FILTER_DEVICES = "Filter files...";
 
     public CustomTable table;
@@ -112,7 +116,7 @@ public class ExploreView {
         emptyView.setVisible(true);
 
         // support drag and drop of files
-        MyDragDropListener dragDropListener = new MyDragDropListener(table, this::handleFilesDropped);
+        MyDragDropListener dragDropListener = new MyDragDropListener(table, false, this::handleFilesDropped);
         new DropTarget(table, dragDropListener);
 
         table.addMouseListener(new MouseAdapter() {
@@ -147,6 +151,8 @@ public class ExploreView {
                             selectedPath += "/" + deviceFile.name;
                         }
                         refreshFiles();
+                    } else {
+                        handleDownload();
                     }
                 }
             }
@@ -227,6 +233,7 @@ public class ExploreView {
         String title = isApk ? "Install App" : "Copy File";
         String msg = isApk ? "Install " : "Copy ";
         msg += name.toString();
+        msg += " to " + selectedPath;
         msg += "?";
 
         // prompt to install/copy
@@ -241,7 +248,7 @@ public class ExploreView {
             if (filename.endsWith(".apk")) {
                 DeviceManager.getInstance().installApp(selectedDevice, file, null);
             } else {
-                DeviceManager.getInstance().copyFile(selectedDevice, file, null);
+                DeviceManager.getInstance().copyFile(selectedDevice, file, selectedPath + "/", null);
             }
         }
     }
@@ -253,6 +260,9 @@ public class ExploreView {
         } else {
             toolbar.removeAll();
         }
+
+        createButton(toolbar, "icon_download.png", "Download", "Download Files", actionEvent -> handleDownload());
+        // toolbar.addSeparator();
 
         toolbar.add(Box.createHorizontalGlue());
 
@@ -279,10 +289,47 @@ public class ExploreView {
         toolbar.add(textField);
 //        toolbar.add(Box.createHorizontalGlue());
 
+        createButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshUi());
+
+    }
+
+    private void handleDownload() {
+        List<DeviceFile> selectedFileList = getSelectedFiles();
+        if (selectedFileList.isEmpty()) {
+            showSelectDevicesDialog();
+            return;
+        }
+
+        // prompt to install/copy
+        int rc = JOptionPane.showConfirmDialog(frame,
+            "Download " + selectedFileList.size() + " files(s)?",
+            "Download Files?", JOptionPane.YES_NO_OPTION);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        Preferences preferences = Preferences.userRoot();
+        String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, "~/Downloads");
+        for (DeviceFile file : selectedFileList) {
+            String fullPath = selectedPath + "/" + file.name;
+            DeviceManager.getInstance().downloadFile(selectedDevice, selectedPath, file.name, downloadFolder, isSuccess -> {
+
+            });
+        }
+    }
+
+    private List<DeviceFile> getSelectedFiles() {
+        List<DeviceFile> selectedDeviceList = new ArrayList<>();
+        int[] selectedRows = table.getSelectedRows();
+        for (int selectedRow : selectedRows) {
+            // convert view row to data row (in case user changed sort order)
+            int dataRow = table.convertRowIndexToModel(selectedRow);
+            DeviceFile deviceFile = model.getDeviceFileAtRow(dataRow);
+            if (deviceFile != null) selectedDeviceList.add(deviceFile);
+        }
+        return selectedDeviceList;
     }
 
     private void showSelectDevicesDialog() {
-        JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+        JOptionPane.showConfirmDialog(frame, "Select 1 or more files to use this feature", "No files selected", JOptionPane.DEFAULT_OPTION);
     }
 
     private void filterDevices(String text) {

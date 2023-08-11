@@ -33,6 +33,7 @@ public class DeviceManager {
     private static final String SCRIPT_SCREENSHOT = "screenshot.sh";
     private static final String SCRIPT_MIRROR = "mirror.sh";
     private static final String SCRIPT_LIST_FILES = "list-files.sh";
+    private static final String SCRIPT_DOWNLOAD_FILE = "download-file.sh";
 
     // how often to poll (adb devices -l)
     private static final int POLLING_INTERVAL_SECS = 10;
@@ -165,7 +166,7 @@ public class DeviceManager {
         });
     }
 
-    public void copyFile(Device device, File file, DeviceListener listener) {
+    public void copyFile(Device device, File file, String dest, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             String path = file.getAbsolutePath();
             device.status = "copying...";
@@ -227,7 +228,7 @@ public class DeviceManager {
                 Calendar calendar = Calendar.getInstance();
                 // handle "Permission denied"
                 if (TextUtils.containsIgnoreCase(result, "Permission denied")) {
-                    file.name = "Permission denied: " + finalPath;
+                    file.name = "Permission denied";
                     fileList.add(file);
                     break;
                 }
@@ -246,6 +247,8 @@ public class DeviceManager {
                     file.isDir = true;
                 } else if (permissions.startsWith("l")) {
                     file.isLink = true;
+                    // TODO: not every link is also a folder
+                    file.isDir = true;
                 }
 
                 // -- file size (4) --
@@ -294,6 +297,21 @@ public class DeviceManager {
 
             device.status = null;
         });
+    }
+
+    public interface DownloadListener {
+        void downloadComplete(boolean isSuccess);
+    }
+
+    public void downloadFile(Device device, String srcPath, String srcName, String dest, DownloadListener listener) {
+        commandExecutorService.submit(() -> {
+            device.status = "downloading...";
+            List<String> resultList = runScript(SCRIPT_DOWNLOAD_FILE, device.serial, srcPath, srcName, dest);
+            // TODO
+            if (listener != null) listener.downloadComplete(true);
+            device.status = null;
+        });
+
     }
 
     public void handleExit() {

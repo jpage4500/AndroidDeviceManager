@@ -62,7 +62,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
     public void handleDevicesUpdated(List<Device> deviceList) {
         if (deviceList != null) {
             model.setDeviceList(deviceList);
-            updateSelectedLabel();
+            refreshUi();
         }
         updateVersionLabel();
     }
@@ -124,13 +124,13 @@ public class DeviceView implements DeviceManager.DeviceListener {
         emptyView.setVisible(true);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            log.debug("initializeUI: EXIT");
+            //log.debug("initializeUI: EXIT");
             table.persist();
             DeviceManager.getInstance().handleExit();
         }));
 
         // support drag and drop of files
-        MyDragDropListener dragDropListener = new MyDragDropListener(table, this::handleFilesDropped);
+        MyDragDropListener dragDropListener = new MyDragDropListener(table, true, this::handleFilesDropped);
         new DropTarget(table, dragDropListener);
 
         table.addMouseListener(new MouseAdapter() {
@@ -166,13 +166,13 @@ public class DeviceView implements DeviceManager.DeviceListener {
 
         table.getSelectionModel().addListSelectionListener(listSelectionEvent -> {
             if (!listSelectionEvent.getValueIsAdjusting()) {
-                updateSelectedLabel();
+                refreshUi();
             }
         });
         table.requestFocus();
     }
 
-    private void updateSelectedLabel() {
+    private void refreshUi() {
         int selectedRowCount = table.getSelectedRowCount();
         int rowCount = table.getRowCount();
         if (selectedRowCount > 0) {
@@ -364,7 +364,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
                 if (filename.endsWith(".apk")) {
                     DeviceManager.getInstance().installApp(device, file, this);
                 } else {
-                    DeviceManager.getInstance().copyFile(device, file, this);
+                    DeviceManager.getInstance().copyFile(device, file, "/sdcard/Downloads/", this);
                 }
             }
         }
@@ -597,7 +597,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
 
     private void handleRestartCommand() {
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }

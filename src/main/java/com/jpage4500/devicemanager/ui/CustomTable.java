@@ -81,7 +81,7 @@ public class CustomTable extends JTable {
         String detailsStr = prefs.get(prefKey + "-details", null);
         if (detailsStr == null) return;
         List<ColumnDetails> detailsList = GsonHelper.stringToList(detailsStr, ColumnDetails.class);
-        log.debug("restore: {}", GsonHelper.toJson(detailsList));
+        //log.debug("restore: {}", GsonHelper.toJson(detailsList));
 
         TableColumnModel columnModel = getColumnModel();
         if (detailsList.size() != columnModel.getColumnCount()) {
@@ -97,7 +97,7 @@ public class CustomTable extends JTable {
         for (int i = 0; i < detailsList.size(); i++) {
             ColumnDetails details = detailsList.get(i);
             if (details.modelPos != details.userPos) {
-                log.debug("restore: move:{} to:{}", details.modelPos, details.userPos);
+                //log.debug("restore: move:{} to:{}", details.modelPos, details.userPos);
                 columnModel.moveColumn(details.modelPos, details.userPos);
             }
         }
@@ -119,6 +119,6 @@ public class CustomTable extends JTable {
 
         Preferences prefs = Preferences.userRoot();
         prefs.put(prefKey + "-details", GsonHelper.toJson(detailList));
-        log.debug("persist: {}", GsonHelper.toJson(detailList));
+        //log.debug("persist: {}", GsonHelper.toJson(detailList));
     }
 }

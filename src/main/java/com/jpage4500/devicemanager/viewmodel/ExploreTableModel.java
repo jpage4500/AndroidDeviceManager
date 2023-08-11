@@ -20,7 +20,7 @@ public class ExploreTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(ExploreTableModel.class);
 
     private final List<DeviceFile> fileList;
-    private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm");
+    private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd h:mm aa");
 
     public enum Columns {
         ICON,
@@ -90,7 +90,10 @@ public class ExploreTableModel extends AbstractTableModel {
                 case NAME:
                     return deviceFile.name;
                 case SIZE:
-                    return FileUtils.bytesToDisplayString(deviceFile.size);
+                    if (deviceFile.size > 0) {
+                        return FileUtils.bytesToDisplayString(deviceFile.size);
+                    }
+                    break;
                 case DATE:
                     if (deviceFile.date != null) {
                         return dateFormat.format(deviceFile.date);

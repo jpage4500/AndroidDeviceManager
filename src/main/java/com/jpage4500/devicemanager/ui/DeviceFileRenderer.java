@@ -23,7 +23,7 @@ public class DeviceFileRenderer extends JLabel implements TableCellRenderer {
     public DeviceFileRenderer() {
         setOpaque(true);
 
-        Border margin = new EmptyBorder(0,10,0,0); //top 0, left 10 , bottom 0, right 0
+        Border margin = new EmptyBorder(0, 10, 0, 0); //top 0, left 10 , bottom 0, right 0
         setBorder(margin);
 
         folderIcon = getIcon("icon_folder.png");
@@ -34,7 +34,7 @@ public class DeviceFileRenderer extends JLabel implements TableCellRenderer {
         DeviceFile deviceFile = (DeviceFile) object;
         //setText(deviceFile.name);
 
-        if (deviceFile.isDir || deviceFile.isLink) setIcon(folderIcon);
+        if (deviceFile.isDir) setIcon(folderIcon);
         else setIcon(fileIcon);
 
         if (isSelected) {
