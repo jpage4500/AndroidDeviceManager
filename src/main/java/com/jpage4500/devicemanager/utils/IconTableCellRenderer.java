@@ -1,4 +1,4 @@
-package com.jpage4500.devicemanager.ui;
+package com.jpage4500.devicemanager.utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

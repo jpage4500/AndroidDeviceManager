@@ -1,6 +1,6 @@
 package com.jpage4500.devicemanager.utils;
 
-import com.jpage4500.devicemanager.ui.CustomTable;
+import com.jpage4500.devicemanager.ui.views.CustomTable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

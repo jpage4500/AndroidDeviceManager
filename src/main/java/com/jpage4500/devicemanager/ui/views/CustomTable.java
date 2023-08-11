@@ -1,4 +1,4 @@
-package com.jpage4500.devicemanager.ui;
+package com.jpage4500.devicemanager.ui.views;
 
 import com.jpage4500.devicemanager.utils.GsonHelper;
 

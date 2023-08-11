@@ -1,6 +1,4 @@
-package com.jpage4500.devicemanager.ui;
-
-import com.jpage4500.devicemanager.utils.GsonHelper;
+package com.jpage4500.devicemanager.ui.views;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

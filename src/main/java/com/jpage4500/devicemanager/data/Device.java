@@ -31,11 +31,11 @@ public class Device {
         StringBuilder sb = new StringBuilder();
         if (serial != null) sb.append(serial);
         if (model != null) {
-            if (sb.length() > 0) sb.append(" ");
+            if (sb.length() > 0) sb.append(" - ");
             sb.append(model);
         }
         if (phone != null) {
-            if (sb.length() > 0) sb.append(" ");
+            if (sb.length() > 0) sb.append(" - ");
             sb.append(phone);
         }
         return sb.toString();

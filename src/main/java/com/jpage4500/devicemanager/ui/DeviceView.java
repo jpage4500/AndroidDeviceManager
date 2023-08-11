@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.Build;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.ui.views.*;
 import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.MyDragDropListener;
@@ -636,13 +637,15 @@ public class DeviceView implements DeviceManager.DeviceListener {
     }
 
     private void showSelectDevicesDialog() {
-        JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+        if (model.getRowCount() > 0) {
+            JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+        }
     }
 
     private void filterDevices(String text) {
         final TableRowSorter<TableModel> sorter = new TableRowSorter<>(table.getModel());
         table.setRowSorter(sorter);
-        if (text.length() > 0 && !TextUtils.equals(text, HINT_FILTER_DEVICES)) {
+        if (!text.isEmpty() && !TextUtils.equals(text, HINT_FILTER_DEVICES)) {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
         } else {
             sorter.setRowFilter(null);
