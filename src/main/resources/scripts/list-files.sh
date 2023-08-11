@@ -11,7 +11,7 @@ source ./env-vars.sh
 #    exit 1
 #fi
 
-echo "LISTING: ${FOLDER}"
+#echo "LISTING: ${FOLDER}"
 
 ${ADB} -s $ADB_DEVICE shell "ls -al ${FOLDER}"
 

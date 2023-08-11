@@ -38,6 +38,8 @@ public class ExploreView {
     public static final String PREF_DOWNLOAD_FOLDER = "PREF_DOWNLOAD_FOLDER";
     private static final String HINT_FILTER_DEVICES = "Filter files...";
 
+    private JFrame deviceFrame;
+
     public CustomTable table;
     public ExploreTableModel model;
 
@@ -52,7 +54,8 @@ public class ExploreView {
     private Device selectedDevice;
     private String selectedPath = "/sdcard";
 
-    public ExploreView() {
+    public ExploreView(JFrame deviceFrame) {
+        this.deviceFrame = deviceFrame;
         initalizeUi();
     }
 
@@ -60,6 +63,10 @@ public class ExploreView {
         this.selectedDevice = selectedDevice;
         frame.setTitle(selectedDevice.getDisplayName());
         refreshFiles();
+        show();
+    }
+
+    public void show() {
         frame.setVisible(true);
     }
 
@@ -87,12 +94,55 @@ public class ExploreView {
         table = new CustomTable("browse");
         model = new ExploreTableModel();
         table.setModel(model);
-        table.setDefaultRenderer(DeviceFile.class, new DeviceFileRenderer());
+        table.setDefaultRenderer(DeviceFile.class, new IconTableCellRenderer());
+
+        // -- CMD+W = close window --
+        Action closeAction = new AbstractAction("Close Window") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                log.debug("actionPerformed: CLOSE");
+                frame.setVisible(false);
+                frame.dispose();
+            }
+        };
+        int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+        KeyStroke closeKey = KeyStroke.getKeyStroke(KeyEvent.VK_W, mask);
+        closeAction.putValue(Action.ACCELERATOR_KEY, closeKey);
+
+        // -- CMD+~ = show devices --
+        Action switchAction = new AbstractAction("Show Devices") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                deviceFrame.toFront();
+            }
+        };
+        KeyStroke switchKey = KeyStroke.getKeyStroke(KeyEvent.VK_1, mask);
+        switchAction.putValue(Action.ACCELERATOR_KEY, switchKey);
+
+        JMenuBar menubar = new JMenuBar();
+        JMenu menu = new JMenu("Window");
+        JMenuItem closeItem = new JMenuItem("Close");
+        closeItem.setAction(closeAction);
+        menu.add(closeItem);
+        JMenuItem switchItem = new JMenuItem("Show Devices");
+        switchItem.setAction(switchAction);
+        menu.add(switchItem);
+        menubar.add(menu);
+        frame.setJMenuBar(menubar);
+
+        InputMap inputMap = table.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionMap actionMap = table.getActionMap();
+
+        // -- CMD + DELETE = delete selected files --
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_BACK_SPACE, InputEvent.META_MASK), "delete");
+        actionMap.put("delete", new AbstractAction() {
+            public void actionPerformed(ActionEvent evt) {
+                handleDelete();
+            }
+        });
 
         refreshFiles();
 
-        // TODO: find way to auto-size columns and also remember user sizes
-        //model.addTableModelListener(e -> ColumnsAutoSizer.sizeColumnsToFit(table));
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.setBackground(Color.RED);
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -136,7 +186,7 @@ public class ExploreView {
                     // double-click
                     selectedColumn = -1;
                     DeviceFile deviceFile = model.getDeviceFileAtRow(row);
-                    if (deviceFile.isDir) {
+                    if (deviceFile.isDir || deviceFile.isLink) {
                         if (TextUtils.equalsIgnoreCase(deviceFile.name, "..")) {
                             log.debug("mouseClicked: UP: {}", selectedPath);
                             int pos = selectedPath.lastIndexOf('/');
@@ -193,6 +243,14 @@ public class ExploreView {
 
     private void setupPopupMenu() {
         JPopupMenu popupMenu = new JPopupMenu();
+
+        JMenuItem downloadItem = new JMenuItem("Download");
+        downloadItem.addActionListener(actionEvent -> handleDownload());
+        popupMenu.add(downloadItem);
+
+        JMenuItem deleteItem = new JMenuItem("Delete");
+        deleteItem.addActionListener(actionEvent -> handleDelete());
+        popupMenu.add(deleteItem);
 
         table.setComponentPopupMenu(popupMenu);
     }
@@ -262,7 +320,8 @@ public class ExploreView {
         }
 
         createButton(toolbar, "icon_download.png", "Download", "Download Files", actionEvent -> handleDownload());
-        // toolbar.addSeparator();
+        toolbar.addSeparator();
+        createButton(toolbar, "icon_delete.png", "Delete", "Delete Files", actionEvent -> handleDelete());
 
         toolbar.add(Box.createHorizontalGlue());
 
@@ -309,9 +368,43 @@ public class ExploreView {
         Preferences preferences = Preferences.userRoot();
         String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, "~/Downloads");
         for (DeviceFile file : selectedFileList) {
-            String fullPath = selectedPath + "/" + file.name;
             DeviceManager.getInstance().downloadFile(selectedDevice, selectedPath, file.name, downloadFolder, isSuccess -> {
+                // TODO
+            });
+        }
+    }
 
+    private void handleDelete() {
+        List<DeviceFile> selectedFileList = getSelectedFiles();
+        if (selectedFileList.isEmpty()) {
+            showSelectDevicesDialog();
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
+            DeviceFile file = iterator.next();
+            if (file.isDir || file.isLink) {
+                iterator.remove();
+            } else {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(file.name);
+            }
+        }
+
+        if (selectedFileList.isEmpty()) {
+            JOptionPane.showConfirmDialog(frame, "Unable to delete folders at the time", "No files selected", JOptionPane.DEFAULT_OPTION);
+            return;
+        }
+
+        int rc = JOptionPane.showConfirmDialog(frame,
+            "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
+            "Delete Files?", JOptionPane.YES_NO_OPTION);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        for (DeviceFile file : selectedFileList) {
+            DeviceManager.getInstance().deleteFile(selectedDevice, selectedPath, file.name, isSuccess -> {
+                // TODO
             });
         }
     }

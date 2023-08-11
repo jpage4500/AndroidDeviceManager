@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.viewmodel;
 
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.utils.FileUtils;
+import com.jpage4500.devicemanager.utils.TextUtils;
 
 import net.coobird.thumbnailator.Thumbnails;
 
@@ -19,8 +20,13 @@ import javax.swing.table.AbstractTableModel;
 public class ExploreTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(ExploreTableModel.class);
 
+    private final Icon folderUpIcon;
+    private final Icon folderIcon;
+    private final Icon fileIcon;
+    private final Icon linkIcon;
+
     private final List<DeviceFile> fileList;
-    private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd h:mm aa");
+    private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd h:mm aa");
 
     public enum Columns {
         ICON,
@@ -32,6 +38,10 @@ public class ExploreTableModel extends AbstractTableModel {
 
     public ExploreTableModel() {
         fileList = new ArrayList<>();
+        folderUpIcon = getIcon("icon_folder_up.png");
+        folderIcon = getIcon("icon_folder.png");
+        fileIcon = getIcon("icon_file.png");
+        linkIcon = getIcon("icon_link.png");
     }
 
     public void setFileList(List<DeviceFile> fileList) {
@@ -86,7 +96,11 @@ public class ExploreTableModel extends AbstractTableModel {
             Columns colType = columns[col];
             switch (colType) {
                 case ICON:
-                    return deviceFile;
+                    if (deviceFile.isDir) {
+                        if (TextUtils.equals(deviceFile.name, "..")) return folderUpIcon;
+                        else return folderIcon;
+                    } else if (deviceFile.isLink) return linkIcon;
+                    else return fileIcon;
                 case NAME:
                     return deviceFile.name;
                 case SIZE:
@@ -106,4 +120,16 @@ public class ExploreTableModel extends AbstractTableModel {
         return null;
     }
 
+    private ImageIcon getIcon(String imageName) {
+        Image icon = null;
+        try {
+            // library offers MUCH better image scaling than ImageIO
+            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(20, 20).asBufferedImage();
+            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
+        } catch (Exception e) {
+            log.error("getIcon: Exception:{}", e.getMessage());
+        }
+        if (icon != null) return new ImageIcon(icon);
+        else return null;
+    }
 }

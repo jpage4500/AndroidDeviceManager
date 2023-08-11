@@ -90,6 +90,25 @@ public class DeviceView implements DeviceManager.DeviceListener {
         });
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
+        // -- CMD+~ = show devices --
+        Action switchAction = new AbstractAction("Show Explorer") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleBrowseCommand();
+            }
+        };
+        int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+        KeyStroke switchKey = KeyStroke.getKeyStroke(KeyEvent.VK_2, mask);
+        switchAction.putValue(Action.ACCELERATOR_KEY, switchKey);
+
+        JMenuBar menubar = new JMenuBar();
+        JMenu menu = new JMenu("Window");
+        JMenuItem switchItem = new JMenuItem("Show Explorer");
+        switchItem.setAction(switchAction);
+        menu.add(switchItem);
+        menubar.add(menu);
+        frame.setJMenuBar(menubar);
+
         table = new CustomTable("devices");
         model = new DeviceTableModel();
 
@@ -98,8 +117,6 @@ public class DeviceView implements DeviceManager.DeviceListener {
 
         table.setModel(model);
 
-        // TODO: find way to auto-size columns and also remember user sizes
-        //model.addTableModelListener(e -> ColumnsAutoSizer.sizeColumnsToFit(table));
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.setBackground(Color.RED);
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -458,6 +475,11 @@ public class DeviceView implements DeviceManager.DeviceListener {
             Device device = model.getDeviceAtRow(dataRow);
             if (device != null) selectedDeviceList.add(device);
         }
+        // if only 1 device exists - just use it
+        if (selectedDeviceList.isEmpty() && model.getRowCount() == 1) {
+            Device device = model.getDeviceAtRow(0);
+            selectedDeviceList.add(device);
+        }
         return selectedDeviceList;
     }
 
@@ -650,7 +672,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
         Device selectedDevice = selectedDeviceList.get(0);
 
         if (exploreView == null) {
-            exploreView = new ExploreView();
+            exploreView = new ExploreView(frame);
         }
         exploreView.setDevice(selectedDevice);
     }

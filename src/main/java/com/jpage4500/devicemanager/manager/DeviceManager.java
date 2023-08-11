@@ -34,6 +34,7 @@ public class DeviceManager {
     private static final String SCRIPT_MIRROR = "mirror.sh";
     private static final String SCRIPT_LIST_FILES = "list-files.sh";
     private static final String SCRIPT_DOWNLOAD_FILE = "download-file.sh";
+    private static final String SCRIPT_DELETE_FILE = "delete-file.sh";
 
     // how often to poll (adb devices -l)
     private static final int POLLING_INTERVAL_SECS = 10;
@@ -220,26 +221,24 @@ public class DeviceManager {
         String finalPath = path;
         commandExecutorService.submit(() -> {
             device.status = "list files...";
-            List<String> resultList = runScript(SCRIPT_LIST_FILES, device.serial, finalPath);
+            List<String> resultList = runScript(SCRIPT_LIST_FILES, false, false, device.serial, finalPath);
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm");
             List<DeviceFile> fileList = new ArrayList<>();
             for (String result : resultList) {
                 DeviceFile file = new DeviceFile();
-                Calendar calendar = Calendar.getInstance();
-                // handle "Permission denied"
+                // handle errors such as: "Permission denied", "Not a directory"
                 if (TextUtils.containsIgnoreCase(result, "Permission denied")) {
                     file.name = "Permission denied";
+                    fileList.add(file);
+                    break;
+                } else if (TextUtils.containsIgnoreCase(result, "Not a directory")) {
+                    file.name = "Not a directory";
                     fileList.add(file);
                     break;
                 }
 
                 String[] resultArr = result.split("\\s+");
-                //log.debug("listFiles: RESULT:{}", GsonHelper.toJson(resultArr));
-                if (resultArr.length < 8) {
-                    //log.trace("listFiles: invalid result: {}", result);
-
-                    continue;
-                }
+                if (resultArr.length < 8) continue;
 
                 // -- permissions (0) --
                 String permissions = resultArr[0];
@@ -247,8 +246,6 @@ public class DeviceManager {
                     file.isDir = true;
                 } else if (permissions.startsWith("l")) {
                     file.isLink = true;
-                    // TODO: not every link is also a folder
-                    file.isDir = true;
                 }
 
                 // -- file size (4) --
@@ -299,19 +296,28 @@ public class DeviceManager {
         });
     }
 
-    public interface DownloadListener {
-        void downloadComplete(boolean isSuccess);
+    public interface TaskListener {
+        void onTaskComplete(boolean isSuccess);
     }
 
-    public void downloadFile(Device device, String srcPath, String srcName, String dest, DownloadListener listener) {
+    public void downloadFile(Device device, String srcPath, String srcName, String dest, TaskListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "downloading...";
             List<String> resultList = runScript(SCRIPT_DOWNLOAD_FILE, device.serial, srcPath, srcName, dest);
             // TODO
-            if (listener != null) listener.downloadComplete(true);
+            if (listener != null) listener.onTaskComplete(true);
             device.status = null;
         });
+    }
 
+    public void deleteFile(Device device, String srcPath, String srcName, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            device.status = "deleting...";
+            List<String> resultList = runScript(SCRIPT_DELETE_FILE, device.serial, srcPath, srcName);
+            // TODO
+            if (listener != null) listener.onTaskComplete(true);
+            device.status = null;
+        });
     }
 
     public void handleExit() {
@@ -331,7 +337,7 @@ public class DeviceManager {
     private void listDevicesInternal(DeviceListener listener) {
         boolean isFullRefreshNeeded = System.currentTimeMillis() - lastRefreshMs > FULL_REFRESH_MS;
         lastRefreshMs = System.currentTimeMillis();
-        List<String> results = runScript(SCRIPT_DEVICE_LIST, false, true);
+        List<String> results = runScript(SCRIPT_DEVICE_LIST, false, false);
         if (results == null) {
             listener.handleDevicesUpdated(null);
             return;
