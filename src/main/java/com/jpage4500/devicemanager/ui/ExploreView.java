@@ -5,6 +5,7 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.ui.views.*;
+import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.IconTableCellRenderer;
 import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
@@ -16,6 +17,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.File;
@@ -38,6 +41,7 @@ public class ExploreView {
     private static final Logger log = LoggerFactory.getLogger(ExploreView.class);
 
     public static final String PREF_DOWNLOAD_FOLDER = "PREF_DOWNLOAD_FOLDER";
+    public static final String PREF_GO_TO_FOLDER_LIST = "PREF_GO_TO_FOLDER_LIST";
     private static final String HINT_FILTER_DEVICES = "Filter files...";
 
     private JFrame deviceFrame;
@@ -55,6 +59,7 @@ public class ExploreView {
 
     private Device selectedDevice;
     private String selectedPath = "/sdcard";
+    private List<String> prevPathList = new ArrayList<>();
 
     public ExploreView(JFrame deviceFrame) {
         this.deviceFrame = deviceFrame;
@@ -143,6 +148,14 @@ public class ExploreView {
             }
         });
 
+        // -- CMD + G = open folder --
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.META_MASK), "goto");
+        actionMap.put("goto", new AbstractAction() {
+            public void actionPerformed(ActionEvent evt) {
+                handleGoToFolder();
+            }
+        });
+
         refreshFiles();
 
         JScrollPane scrollPane = new JScrollPane(table);
@@ -155,7 +168,7 @@ public class ExploreView {
 
         // statusbar
         statusBar = new StatusBar();
-        statusBar.setLeftLabelListener(this::handleVersionClicked);
+        statusBar.setLeftLabelListener(this::handleGoToFolder);
         panel.add(statusBar, BorderLayout.SOUTH);
 
         frame.setContentPane(panel);
@@ -193,14 +206,14 @@ public class ExploreView {
                             log.debug("mouseClicked: UP: {}", selectedPath);
                             int pos = selectedPath.lastIndexOf('/');
                             if (pos > 0) {
-                                selectedPath = selectedPath.substring(0, pos);
+                                setPath(selectedPath.substring(0, pos));
                             } else if (pos == 0) {
                                 // root folder
-                                selectedPath = "";
+                                setPath("");
                             }
                         } else {
                             // append selected folder to current path
-                            selectedPath += "/" + deviceFile.name;
+                            setPath(selectedPath + "/" + deviceFile.name);
                         }
                         refreshFiles();
                     } else {
@@ -218,6 +231,15 @@ public class ExploreView {
             }
         });
         table.requestFocus();
+    }
+
+    private void setPath(String path) {
+        prevPathList.add(path);
+        if (prevPathList.size() > 10) {
+            prevPathList.remove(0);
+        }
+
+        selectedPath = path;
     }
 
     private void refreshFiles() {
@@ -253,6 +275,14 @@ public class ExploreView {
         JMenuItem deleteItem = new JMenuItem("Delete");
         deleteItem.addActionListener(actionEvent -> handleDelete());
         popupMenu.add(deleteItem);
+
+        JMenuItem copyNameItem = new JMenuItem("Copy Name");
+        copyNameItem.addActionListener(actionEvent -> handleCopyName());
+        popupMenu.add(copyNameItem);
+
+        JMenuItem copyPathItem = new JMenuItem("Copy Path");
+        copyPathItem.addActionListener(actionEvent -> handleCopyPath());
+        popupMenu.add(copyPathItem);
 
         table.setComponentPopupMenu(popupMenu);
     }
@@ -321,6 +351,7 @@ public class ExploreView {
             toolbar.removeAll();
         }
 
+        createButton(toolbar, "icon_open_folder.png", "Go To..", "Open Folder", actionEvent -> handleGoToFolder());
         createButton(toolbar, "icon_download.png", "Download", "Download Files", actionEvent -> handleDownload());
         toolbar.addSeparator();
         createButton(toolbar, "icon_delete.png", "Delete", "Delete Files", actionEvent -> handleDelete());
@@ -386,17 +417,8 @@ public class ExploreView {
         StringBuilder sb = new StringBuilder();
         for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
             DeviceFile file = iterator.next();
-            if (file.isDir || file.isLink) {
-                iterator.remove();
-            } else {
-                if (sb.length() > 0) sb.append(", ");
-                sb.append(file.name);
-            }
-        }
-
-        if (selectedFileList.isEmpty()) {
-            JOptionPane.showConfirmDialog(frame, "Unable to delete folders at the time", "No files selected", JOptionPane.DEFAULT_OPTION);
-            return;
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(file.name);
         }
 
         int rc = JOptionPane.showConfirmDialog(frame,
@@ -406,9 +428,72 @@ public class ExploreView {
 
         for (DeviceFile file : selectedFileList) {
             DeviceManager.getInstance().deleteFile(selectedDevice, selectedPath, file.name, isSuccess -> {
-                // TODO
+                refreshFiles();
             });
         }
+    }
+
+    private void handleGoToFolder() {
+        Preferences preferences = Preferences.userRoot();
+        String folders = preferences.get(PREF_GO_TO_FOLDER_LIST, null);
+        List<String> customList = GsonHelper.stringToList(folders, String.class);
+
+        JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
+        comboBox.setEditable(true);
+        int rc = JOptionPane.showOptionDialog(frame, comboBox, "Go to folder", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        if (rc != JOptionPane.YES_OPTION) return;
+        String selectedItem = comboBox.getSelectedItem().toString();
+        if (TextUtils.isEmpty(selectedItem)) return;
+        // remove from list
+        customList.remove(selectedItem);
+        // add to top of list
+        customList.add(0, selectedItem);
+        // only save last 10 entries
+        if (customList.size() > 10) {
+            customList = customList.subList(0, 10);
+        }
+        preferences.put(PREF_GO_TO_FOLDER_LIST, GsonHelper.toJson(customList));
+        log.debug("handleGoToFolder: {}", selectedItem);
+        setPath(selectedItem);
+        refreshFiles();
+    }
+
+    private void handleCopyPath() {
+        List<DeviceFile> selectedFileList = getSelectedFiles();
+        if (selectedFileList.isEmpty()) {
+            showSelectDevicesDialog();
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
+            DeviceFile file = iterator.next();
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(selectedPath + "/" + file.name);
+        }
+
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        StringSelection stringSelection = new StringSelection(sb.toString());
+        clipboard.setContents(stringSelection, null);
+    }
+
+    private void handleCopyName() {
+        List<DeviceFile> selectedFileList = getSelectedFiles();
+        if (selectedFileList.isEmpty()) {
+            showSelectDevicesDialog();
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
+            DeviceFile file = iterator.next();
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(file.name);
+        }
+
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        StringSelection stringSelection = new StringSelection(sb.toString());
+        clipboard.setContents(stringSelection, null);
     }
 
     private List<DeviceFile> getSelectedFiles() {
@@ -472,21 +557,6 @@ public class ExploreView {
         button.setHorizontalTextPosition(SwingConstants.CENTER);
         button.addActionListener(listener);
         toolbar.add(button);
-    }
-
-    private void handleVersionClicked() {
-        // show logs
-        AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
-        File logsFile = logger.getFileLog();
-
-        Desktop desktop = Desktop.getDesktop();
-        if (!desktop.isSupported(Desktop.Action.EDIT)) return;
-
-        try {
-            desktop.edit(logsFile);
-        } catch (IOException e) {
-            log.error("handleVersionClicked: IOException: {}, {}", logsFile.getAbsolutePath(), e.getMessage());
-        }
     }
 
 }
