@@ -10,6 +10,9 @@ Java desktop app to manage many connected Android devices
 - Capture **screenshots** of selected devices
 - **Drag and drop an apk** to **install** on selected devices
 - **Drag and drop a file** to **copy** to selected devices
+- File Explorer / Browse filesystem of device
+  - download and view folders/files
+  - delete folders/files
 - **Restart** selected devices
 - Run **user-defined adb commands**
 - Set and display custom properties on each device (ie: label each device using device properties)
@@ -49,8 +52,8 @@ Surprisingly there’s not a lot of existing software that does this. Here’s w
 ## Screenshots ##
 ![](resources/screenshot-mirror.jpg)
 ![](resources/screenshot-install.jpg)
-![](resources/screenshot-copy.jpg)
 ![](resources/screenshot-rightclick.jpg)
+![](resources/browse1.jpg)
 
 ## Use Cases ##
 

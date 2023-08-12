@@ -1,4 +1,4 @@
-package com.jpage4500.devicemanager.ui;
+package com.jpage4500.devicemanager.ui.views;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,8 +18,8 @@ public class EmptyView extends JComponent {
     private Image emptyImage;
     private String emptyText;
 
-    public EmptyView() {
-        emptyText = "No Android Devices!";
+    public EmptyView(String emptyText) {
+        this.emptyText = emptyText;
     }
 
     @Override

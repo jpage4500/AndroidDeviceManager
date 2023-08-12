@@ -281,6 +281,14 @@ public class TextUtils {
         return defValue;
     }
 
+    public static long getNumberLong(String text, long defValue) {
+        try {
+            return Long.parseLong(text);
+        } catch (Exception ignored) {
+        }
+        return defValue;
+    }
+
     public static float getNumberFloat(String text, float defValue) {
         try {
             return Float.parseFloat(text);

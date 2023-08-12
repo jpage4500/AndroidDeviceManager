@@ -1,4 +1,4 @@
-package com.jpage4500.devicemanager.ui;
+package com.jpage4500.devicemanager.ui.views;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,12 +21,15 @@ public class CustomFrame extends JFrame {
     private static final String FRAME_W = "frame-w";
     private static final String FRAME_H = "frame-h";
 
+    private String prefKey;
+
     public CustomFrame() throws HeadlessException {
         init();
     }
 
-    public CustomFrame(String title) throws HeadlessException {
-        super(title);
+    public CustomFrame(String prefKey) throws HeadlessException {
+        super("");
+        this.prefKey = prefKey;
         init();
     }
 
@@ -48,20 +51,20 @@ public class CustomFrame extends JFrame {
 
     private void saveFrameSize() {
         Preferences prefs = Preferences.userRoot();
-        prefs.putInt(FRAME_X, getX());
-        prefs.putInt(FRAME_Y, getY());
-        prefs.putInt(FRAME_W, getWidth());
-        prefs.putInt(FRAME_H, getHeight());
+        prefs.putInt(prefKey + "-" + FRAME_X, getX());
+        prefs.putInt(prefKey + "-" + FRAME_Y, getY());
+        prefs.putInt(prefKey + "-" + FRAME_W, getWidth());
+        prefs.putInt(prefKey + "-" + FRAME_H, getHeight());
     }
 
     private void restoreFrame() {
         Preferences prefs = Preferences.userRoot();
-        int x = prefs.getInt(FRAME_X, 200);
-        int y = prefs.getInt(FRAME_Y, 200);
-        int w = prefs.getInt(FRAME_W, 500);
-        int h = prefs.getInt(FRAME_H, 300);
+        int x = prefs.getInt(prefKey + "-" + FRAME_X, 200);
+        int y = prefs.getInt(prefKey + "-" + FRAME_Y, 200);
+        int w = prefs.getInt(prefKey + "-" + FRAME_W, 500);
+        int h = prefs.getInt(prefKey + "-" + FRAME_H, 300);
 
-        log.debug("restoreFrame: x:{}, y:{}, w:{}, h:{}", x, y, w, h);
+        //log.debug("restoreFrame: x:{}, y:{}, w:{}, h:{}", x, y, w, h);
         setLocation(x, y);
         setSize(w, h);
     }

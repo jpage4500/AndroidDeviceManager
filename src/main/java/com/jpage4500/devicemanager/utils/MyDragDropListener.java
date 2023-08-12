@@ -1,6 +1,6 @@
 package com.jpage4500.devicemanager.utils;
 
-import com.jpage4500.devicemanager.ui.CustomTable;
+import com.jpage4500.devicemanager.ui.views.CustomTable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,21 +12,32 @@ import java.awt.dnd.*;
 import java.io.File;
 import java.util.List;
 
+import javax.swing.*;
+import javax.swing.border.Border;
+
 public class MyDragDropListener implements DropTargetListener {
     private static final Logger log = LoggerFactory.getLogger(MyDragDropListener.class);
     private CustomTable table;
+    private boolean isRowDrop;
     private DragDropListener listener;
 
     private Color defaultRowColor;
     private Color dragRowColor = new Color(243, 126, 126);
+    private Border selectedBorder;
+    private Border defaultBorder;
 
     public interface DragDropListener {
         void onFileDropped(List<File> fileList);
     }
 
-    public MyDragDropListener(CustomTable table, DragDropListener listener) {
+    public MyDragDropListener(CustomTable table, boolean isRowDrop, DragDropListener listener) {
         this.table = table;
+        this.isRowDrop = isRowDrop;
         this.listener = listener;
+
+        if (!isRowDrop) {
+            defaultBorder = table.getBorder();
+        }
     }
 
     @Override
@@ -59,23 +70,6 @@ public class MyDragDropListener implements DropTargetListener {
         showDragExit();
     }
 
-    private void showDragExit() {
-        if (defaultRowColor != null) {
-            table.setSelectionBackground(defaultRowColor);
-            table.repaint();
-        }
-        table.setCursor(Cursor.getDefaultCursor());
-    }
-
-    private void showDragEnter() {
-        if (defaultRowColor == null) {
-            defaultRowColor = table.getSelectionBackground();
-        }
-        table.setSelectionBackground(dragRowColor);
-        table.repaint();
-        table.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    }
-
     @Override
     public void dragEnter(DropTargetDragEvent event) {
     }
@@ -87,22 +81,54 @@ public class MyDragDropListener implements DropTargetListener {
 
     @Override
     public void dragOver(DropTargetDragEvent event) {
-        Point p = event.getLocation();
-        int numSelected = table.getSelectedRowCount();
-        int row = table.rowAtPoint(p);
-        // if dragging over a selected row, change color of ALL selected rows
-        if (table.isRowSelected(row)) {
-            showDragEnter();
-        } else if (numSelected < 2) {
-            // select rows as user drags over them
-            table.changeSelection(row, 0, false, false);
+        if (isRowDrop) {
+            Point p = event.getLocation();
+            int numSelected = table.getSelectedRowCount();
+            int row = table.rowAtPoint(p);
+            // if dragging over a selected row, change color of ALL selected rows
+            if (table.isRowSelected(row)) {
+                showDragEnter();
+            } else if (numSelected < 2) {
+                // select rows as user drags over them
+                table.changeSelection(row, 0, false, false);
+            } else {
+                showDragExit();
+            }
         } else {
-            showDragExit();
+            if (selectedBorder == null) {
+                selectedBorder = BorderFactory.createMatteBorder(2, 2, 2, 2, Color.BLUE);
+            }
+            table.setBorder(selectedBorder);
+            showDragEnter();
         }
     }
 
     @Override
     public void dropActionChanged(DropTargetDragEvent event) {
     }
+
+    private void showDragExit() {
+        if (isRowDrop) {
+            if (defaultRowColor != null) {
+                table.setSelectionBackground(defaultRowColor);
+                table.repaint();
+            }
+        } else {
+            table.setBorder(defaultBorder);
+        }
+        table.setCursor(Cursor.getDefaultCursor());
+    }
+
+    private void showDragEnter() {
+        if (isRowDrop) {
+            if (defaultRowColor == null) {
+                defaultRowColor = table.getSelectionBackground();
+            }
+            table.setSelectionBackground(dragRowColor);
+            table.repaint();
+        }
+        table.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    }
+
 
 }
