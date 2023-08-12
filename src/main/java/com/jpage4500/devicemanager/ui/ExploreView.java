@@ -417,7 +417,7 @@ public class ExploreView {
         StringBuilder sb = new StringBuilder();
         for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
             DeviceFile file = iterator.next();
-            if (sb.length() > 0) sb.append(", ");
+            if (sb.length() > 0) sb.append('\n');
             sb.append(file.name);
         }
 
