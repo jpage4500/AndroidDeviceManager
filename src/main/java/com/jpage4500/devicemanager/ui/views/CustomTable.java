@@ -55,6 +55,7 @@ public class CustomTable extends JTable {
 
     @Override
     public String getToolTipText(MouseEvent e) {
+        if (prefKey == null) return null;
         // only show tooltip if value doesn't fit in column width
         String toolTipText = null;
         Point p = e.getPoint();
@@ -77,6 +78,7 @@ public class CustomTable extends JTable {
     }
 
     public void restore() {
+        if (prefKey == null) return;
         Preferences prefs = Preferences.userRoot();
         String detailsStr = prefs.get(prefKey + "-details", null);
         if (detailsStr == null) return;
@@ -104,6 +106,8 @@ public class CustomTable extends JTable {
     }
 
     public void persist() {
+        if (prefKey == null) return;
+
         Enumeration<TableColumn> columns = getColumnModel().getColumns();
         Iterator<TableColumn> iter = columns.asIterator();
         List<ColumnDetails> detailList = new ArrayList<>();

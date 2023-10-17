@@ -54,6 +54,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
     public int selectedColumn = -1;
 
     private ExploreView exploreView;
+    private LogsView logsView;
 
     public DeviceView() {
         initalizeUi();
@@ -91,7 +92,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
         });
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // -- CMD+~ = show devices --
+        // -- CMD+2 = show devices --
         Action switchAction = new AbstractAction("Show Explorer") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -102,10 +103,20 @@ public class DeviceView implements DeviceManager.DeviceListener {
         KeyStroke switchKey = KeyStroke.getKeyStroke(KeyEvent.VK_2, mask);
         switchAction.putValue(Action.ACCELERATOR_KEY, switchKey);
 
+        // -- CMD+3 = show log window --
+        Action logAction = new AbstractAction("Show Log View") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleLogsCommand();
+            }
+        };
+        KeyStroke logKey = KeyStroke.getKeyStroke(KeyEvent.VK_3, mask);
+        logAction.putValue(Action.ACCELERATOR_KEY, logKey);
+
         JMenuBar menubar = new JMenuBar();
         JMenu menu = new JMenu("Window");
         JMenuItem switchItem = new JMenuItem("Show Explorer");
-        switchItem.setAction(switchAction);
+        switchItem.setAction(logAction);
         menu.add(switchItem);
         menubar.add(menu);
         frame.setJMenuBar(menubar);
@@ -498,6 +509,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
         createButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
         toolbar.addSeparator();
         createButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
+        createButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
         createButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
         createButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
         toolbar.addSeparator();
@@ -678,6 +690,20 @@ public class DeviceView implements DeviceManager.DeviceListener {
             exploreView = new ExploreView(frame);
         }
         exploreView.setDevice(selectedDevice);
+    }
+
+    private void handleLogsCommand() {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.isEmpty()) {
+            showSelectDevicesDialog();
+            return;
+        }
+        Device selectedDevice = selectedDeviceList.get(0);
+
+        if (logsView == null) {
+            logsView = new LogsView(frame);
+        }
+        logsView.setDevice(selectedDevice);
     }
 
     private void createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {

@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
+import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
@@ -35,6 +36,7 @@ public class DeviceManager {
     private static final String SCRIPT_LIST_FILES = "list-files.sh";
     private static final String SCRIPT_DOWNLOAD_FILE = "download-file.sh";
     private static final String SCRIPT_DELETE_FILE = "delete-file.sh";
+    private static final String SCRIPT_START_LOGGING = "start-logging.sh";
 
     // how often to poll (adb devices -l)
     private static final int POLLING_INTERVAL_SECS = 10;
@@ -52,6 +54,7 @@ public class DeviceManager {
     private final ExecutorService commandExecutorService;
 
     private ScheduledFuture<?> listDevicesFuture;
+    private Process logProcess;
 
     private long lastRefreshMs;
 
@@ -320,6 +323,70 @@ public class DeviceManager {
         });
     }
 
+    public interface DeviceLogListener {
+        void handleLogEntries(List<LogEntry> logEntryList);
+
+        void handleLogEntry(LogEntry logEntry);
+    }
+
+    public void stopLogging(Device device) {
+        log.debug("stopLogging: ");
+        if (logProcess != null && logProcess.isAlive()) {
+            logProcess.destroy();
+        }
+    }
+
+    public void startLogging(Device device, DeviceLogListener listener) {
+        commandExecutorService.submit(() -> {
+            log.debug("startLogging: ");
+
+            // 10-16 11:34:17.824
+            SimpleDateFormat inputFormat = new SimpleDateFormat("MM-dd HH:mm:ss");
+            // display format
+            SimpleDateFormat outputFormat = new SimpleDateFormat("MM-dd HH:mm:ss");
+
+            try {
+                List<String> commandList = new ArrayList<>();
+                File tempFile = getScriptFile(SCRIPT_START_LOGGING);
+                commandList.add(tempFile.getAbsolutePath());
+                commandList.add(device.serial);
+
+                ProcessBuilder processBuilder = new ProcessBuilder();
+                processBuilder.command(commandList);
+                logProcess = processBuilder.start();
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(logProcess.getInputStream()));
+                String line;
+                List<LogEntry> logList = new ArrayList<>();
+                long lastUpdateMs = System.currentTimeMillis();
+                try {
+                    while (true) {
+                        line = reader.readLine();
+                        if (line == null) break;
+                        else if (line.isEmpty()) continue;
+                        LogEntry logEntry = new LogEntry(line, inputFormat, outputFormat);
+                        logList.add(logEntry);
+
+                        // only update every X ms
+                        if (System.currentTimeMillis() - lastUpdateMs >= 100) {
+                            // update
+                            listener.handleLogEntries(logList);
+                            logList.clear();
+                            lastUpdateMs = System.currentTimeMillis();
+                        }
+                    }
+                    reader.close();
+                } catch (IOException e) {
+                    log.error("startLogging: Exception: {}", e.getMessage());
+                }
+            } catch (Exception e) {
+                log.error("startLogging: Exception: {}:{}", e.getClass().getSimpleName(), e.getMessage());
+                log.error("startLogging", e);
+            }
+            log.debug("startLogging: DONE");
+        });
+    }
+
     public void handleExit() {
         List<Process> processCopyList;
         synchronized (processList) {
@@ -577,12 +644,7 @@ public class DeviceManager {
         }
     }
 
-    public List<String> runScript(String scriptName, String... args) {
-        return runScript(scriptName, false, true, args);
-    }
-
-    public List<String> runScript(String scriptName, boolean isLongRunning, boolean logResults, String... args) {
-        //if (logResults) log.trace("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
+    public File getScriptFile(String scriptName) {
         File tempFile = new File(tempFolder, scriptName);
         if (!tempFile.exists()) {
             log.error("runScript: script doesn't exist! {}", tempFile.getAbsoluteFile());
@@ -593,6 +655,16 @@ public class DeviceManager {
                 return null;
             }
         }
+        return tempFile;
+    }
+
+    public List<String> runScript(String scriptName, String... args) {
+        return runScript(scriptName, false, true, args);
+    }
+
+    public List<String> runScript(String scriptName, boolean isLongRunning, boolean logResults, String... args) {
+        //if (logResults) log.trace("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
+        File tempFile = getScriptFile(scriptName);
         return runScript(tempFile, isLongRunning, logResults, args);
     }
 
