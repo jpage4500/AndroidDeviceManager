@@ -35,9 +35,14 @@ Surprisingly there’s not a lot of existing software that does this. Here’s w
 - A recent Java Runtime Environment (**JRE**)
   - install a JDK version 17
   - `brew install openjdk@17`
-  - create a symlink to the JDK in the /Library/Java/JavaVirtualMachines folder, which is necessary for the app to run
+  - create a symlink to the JDK in the /Library/Java/JavaVirtualMachines folder, which is necessary for the app to run (NOTE: the exact command to run should be printed out by the brew install command above)
   - `sudo ln -sfn /usr/local/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk`
   - test out the JRE by running this command: `/usr/libexec/java_home`. It should return a result and not 'no java environment found'
+- **adb tools** (adb tools for connecting to devices)
+  - install using brew
+  - `brew cask install android-platform-tools`
+  - add 'adb' to PATH environment variable to make sure ADM can locate adb. This usually involves opening up ~/.profile and adding something along the lines of:
+  - `export PATH="/opt/homebrew/bin:$PATH"`
 - **scrcpy** - mirror a connected Android device ([https://github.com/Genymobile/scrcpy](https://github.com/Genymobile/scrcpy))
   - `brew install scrcpy`
 
