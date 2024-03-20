@@ -13,5 +13,13 @@ source ./env-vars.sh
 
 #echo "LISTING: ${FOLDER}"
 
-${ADB} -s $ADB_DEVICE shell "ls -al ${FOLDER}"
+${ADB} -s "$ADB_DEVICE" shell "ls -al ${FOLDER}"
+# ${ADB} -s "$ADB_DEVICE" shell "su -c ls -al ${FOLDER}"
+
+#if [ $? == 1 ]; then
+#  # check if root exists on device
+#  echo "PERMISSION DENIED!"
+#  ${ADB} -s "$ADB_DEVICE" shell "su -c ls -al ${FOLDER}"
+#fi
+
 

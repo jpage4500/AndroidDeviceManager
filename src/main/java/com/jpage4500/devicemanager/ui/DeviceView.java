@@ -43,6 +43,9 @@ public class DeviceView implements DeviceManager.DeviceListener {
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
     public static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
 
+    // TODO: for testing logging
+    private static final boolean TEST_LOGGING = false;
+
     public JPanel panel;
     public CustomTable table;
     public CustomFrame frame;
@@ -54,6 +57,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
     public int selectedColumn = -1;
 
     private ExploreView exploreView;
+    private LogsView logsView;
 
     public DeviceView() {
         initalizeUi();
@@ -91,7 +95,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
         });
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // -- CMD+~ = show devices --
+        // -- CMD+2 = show devices --
         Action switchAction = new AbstractAction("Show Explorer") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -105,7 +109,20 @@ public class DeviceView implements DeviceManager.DeviceListener {
         JMenuBar menubar = new JMenuBar();
         JMenu menu = new JMenu("Window");
         JMenuItem switchItem = new JMenuItem("Show Explorer");
-        switchItem.setAction(switchAction);
+
+        if (TEST_LOGGING) {
+            // -- CMD+3 = show log window --
+            Action logAction = new AbstractAction("Show Log View") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    handleLogsCommand();
+                }
+            };
+            KeyStroke logKey = KeyStroke.getKeyStroke(KeyEvent.VK_3, mask);
+            logAction.putValue(Action.ACCELERATOR_KEY, logKey);
+            switchItem.setAction(logAction);
+        }
+
         menu.add(switchItem);
         menubar.add(menu);
         frame.setJMenuBar(menubar);
@@ -406,12 +423,12 @@ public class DeviceView implements DeviceManager.DeviceListener {
         }
 
         String result = (String) JOptionPane.showInputDialog(frame,
-            message,
-            "Custom Note (" + number + ")",
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            null,
-            customValue);
+                message,
+                "Custom Note (" + number + ")",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                null,
+                customValue);
         // allow empty input to go through (clear current value)
         if (result == null) return;
 
@@ -447,17 +464,17 @@ public class DeviceView implements DeviceManager.DeviceListener {
         } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
             int rc = JOptionPane.showConfirmDialog(frame,
-                "Mirror " + selectedDeviceList.size() + " devices?",
-                "Mirror Device",
-                JOptionPane.YES_NO_OPTION
+                    "Mirror " + selectedDeviceList.size() + " devices?",
+                    "Mirror Device",
+                    JOptionPane.YES_NO_OPTION
             );
             if (rc != JOptionPane.YES_OPTION) return;
         } else if (false) {
             Device device = selectedDeviceList.get(0);
             int rc = JOptionPane.showConfirmDialog(frame,
-                "Mirror " + device.serial + "?",
-                "Mirror Device",
-                JOptionPane.YES_NO_OPTION
+                    "Mirror " + device.serial + "?",
+                    "Mirror Device",
+                    JOptionPane.YES_NO_OPTION
             );
             if (rc != JOptionPane.YES_OPTION) return;
         }
@@ -498,6 +515,9 @@ public class DeviceView implements DeviceManager.DeviceListener {
         createButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
         toolbar.addSeparator();
         createButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
+        if (TEST_LOGGING) {
+            createButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+        }
         createButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
         createButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
         toolbar.addSeparator();
@@ -518,21 +538,21 @@ public class DeviceView implements DeviceManager.DeviceListener {
         textField.setMinimumSize(new Dimension(10, 40));
         textField.setMaximumSize(new Dimension(200, 40));
         textField.getDocument().addDocumentListener(
-            new DocumentListener() {
-                @Override
-                public void insertUpdate(DocumentEvent documentEvent) {
-                    filterDevices(textField.getText());
-                }
+                new DocumentListener() {
+                    @Override
+                    public void insertUpdate(DocumentEvent documentEvent) {
+                        filterDevices(textField.getText());
+                    }
 
-                @Override
-                public void removeUpdate(DocumentEvent documentEvent) {
-                    filterDevices(textField.getText());
-                }
+                    @Override
+                    public void removeUpdate(DocumentEvent documentEvent) {
+                        filterDevices(textField.getText());
+                    }
 
-                @Override
-                public void changedUpdate(DocumentEvent documentEvent) {
-                }
-            });
+                    @Override
+                    public void changedUpdate(DocumentEvent documentEvent) {
+                    }
+                });
         toolbar.add(textField);
 //        toolbar.add(Box.createHorizontalGlue());
 
@@ -627,8 +647,8 @@ public class DeviceView implements DeviceManager.DeviceListener {
 
         // prompt to install/copy
         int rc = JOptionPane.showConfirmDialog(frame,
-            "Restart " + selectedDeviceList.size() + " device(s)?",
-            "Restart devices?", JOptionPane.YES_NO_OPTION);
+                "Restart " + selectedDeviceList.size() + " device(s)?",
+                "Restart devices?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (Device device : selectedDeviceList) {
@@ -680,6 +700,20 @@ public class DeviceView implements DeviceManager.DeviceListener {
         exploreView.setDevice(selectedDevice);
     }
 
+    private void handleLogsCommand() {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.isEmpty()) {
+            showSelectDevicesDialog();
+            return;
+        }
+        Device selectedDevice = selectedDeviceList.get(0);
+
+        if (logsView == null) {
+            logsView = new LogsView(frame);
+        }
+        logsView.setDevice(selectedDevice);
+    }
+
     private void createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
         Image icon;
         try {
@@ -710,15 +744,20 @@ public class DeviceView implements DeviceManager.DeviceListener {
         // show logs
         AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
         File logsFile = logger.getFileLog();
-
-        Desktop desktop = Desktop.getDesktop();
-        if (!desktop.isSupported(Desktop.Action.EDIT)) return;
-
         try {
-            desktop.edit(logsFile);
-        } catch (IOException e) {
-            log.error("handleVersionClicked: IOException: {}, {}", logsFile.getAbsolutePath(), e.getMessage());
+            Desktop desktop = Desktop.getDesktop();
+            if (desktop.isSupported(Desktop.Action.EDIT)) {
+                desktop.edit(logsFile);
+                return;
+            } else if (desktop.isSupported(Desktop.Action.OPEN)) {
+                desktop.open(logsFile);
+                return;
+            }
+        } catch (Exception e) {
+            log.error("handleVersionClicked: Exception: {}, {}", logsFile.getAbsolutePath(), e.getMessage());
         }
+        // open failed
+        JOptionPane.showConfirmDialog(frame, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
     }
 
 }

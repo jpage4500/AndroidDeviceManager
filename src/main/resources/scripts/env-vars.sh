@@ -5,9 +5,13 @@ export ADB=$(command -v adb)
 # if ADB isn't set, find and set it
 if [[ ${ADB} == "" ]]; then
     # try a few known paths to adb
-    export ADB=$HOME/Library/Android/sdk/platform-tools/adb
-    if [ ! -f $ADB ]; then
+    if [ -f "$HOME/Library/Android/sdk/platform-tools/adb" ]; then
+        export ADB=$HOME/Library/Android/sdk/platform-tools/adb
+    elif [ -f "/opt/homebrew/bin/adb" ]; then
+        export ADB=/opt/homebrew/bin/adb
+    else
         echo "ADB not found!" 1>&2;
+        exit 1
     fi
 fi
 
