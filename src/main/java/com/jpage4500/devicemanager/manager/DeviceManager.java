@@ -555,6 +555,9 @@ public class DeviceManager {
                     case "free":
                         device.freeSpace = val;
                         break;
+                    case "model":
+                        device.model = val;
+                        break;
                     case "custom1":
                         device.custom1 = val.replaceAll("~", " ");
                         break;

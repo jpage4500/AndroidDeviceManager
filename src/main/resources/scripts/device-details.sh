@@ -23,8 +23,17 @@ function serviceCall() {
     # echo "service:$ARG = $VAL"
 }
 
-function printPhoneNumber() {
+function getPhoneNumber() {
     ${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo 15" | cut -c 50-66 | tr -d '.[:space:]' | tr -d -c 0-9
+}
+
+function getImei() {
+    var=$(serviceCall 1 5)
+    if [[ "$var" == "" ]]; then
+        # alternate way to get IMEI
+        var=$(getProp debug.app.imei)
+    fi
+    echo $var
 }
 
 function getProp() {
@@ -41,12 +50,11 @@ function getAppVersion() {
 
 function getFreeSpace() {
     # get available/free space in readable format
-    #${ADB} -s $ADB_DEVICE shell df -H | grep '^/dev/fuse' | sed 's/  */ /g' | cut -d ' ' -f 4
     ${ADB} -s $ADB_DEVICE shell df -H | tail -1 | sed 's/  */ /g' | cut -d ' ' -f 4
 }
 
-IMEI=$(serviceCall 1 5)
-PHONE=$(printPhoneNumber)
+IMEI=$(getImei)
+PHONE=$(getPhoneNumber)
 FREE_SPACE=$(getFreeSpace)
 CUSTOM1=$(./get-property.sh $ADB_DEVICE custom1)
 CUSTOM2=$(./get-property.sh $ADB_DEVICE custom2)
@@ -56,6 +64,7 @@ echo "phone: $PHONE"
 echo "imei: $IMEI"
 echo "carrier: $(getProp gsm.sim.operator.alpha)"
 echo "release: $(getProp ro.build.version.release)"
+echo "model: $(getProp ro.product.model)"
 echo "sdk: $(getProp ro.build.version.sdk)"
 echo "free: ${FREE_SPACE}"
 echo "custom1: $CUSTOM1"
