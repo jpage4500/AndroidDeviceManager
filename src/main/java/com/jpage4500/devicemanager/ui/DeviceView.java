@@ -43,6 +43,9 @@ public class DeviceView implements DeviceManager.DeviceListener {
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
     public static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
 
+    // TODO: for testing logging
+    private static final boolean TEST_LOGGING = false;
+
     public JPanel panel;
     public CustomTable table;
     public CustomFrame frame;
@@ -103,20 +106,23 @@ public class DeviceView implements DeviceManager.DeviceListener {
         KeyStroke switchKey = KeyStroke.getKeyStroke(KeyEvent.VK_2, mask);
         switchAction.putValue(Action.ACCELERATOR_KEY, switchKey);
 
-        // -- CMD+3 = show log window --
-        Action logAction = new AbstractAction("Show Log View") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                handleLogsCommand();
-            }
-        };
-        KeyStroke logKey = KeyStroke.getKeyStroke(KeyEvent.VK_3, mask);
-        logAction.putValue(Action.ACCELERATOR_KEY, logKey);
-
         JMenuBar menubar = new JMenuBar();
         JMenu menu = new JMenu("Window");
         JMenuItem switchItem = new JMenuItem("Show Explorer");
-        switchItem.setAction(logAction);
+
+        if (TEST_LOGGING) {
+            // -- CMD+3 = show log window --
+            Action logAction = new AbstractAction("Show Log View") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    handleLogsCommand();
+                }
+            };
+            KeyStroke logKey = KeyStroke.getKeyStroke(KeyEvent.VK_3, mask);
+            logAction.putValue(Action.ACCELERATOR_KEY, logKey);
+            switchItem.setAction(logAction);
+        }
+
         menu.add(switchItem);
         menubar.add(menu);
         frame.setJMenuBar(menubar);
@@ -509,7 +515,9 @@ public class DeviceView implements DeviceManager.DeviceListener {
         createButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
         toolbar.addSeparator();
         createButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
-        createButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+        if (TEST_LOGGING) {
+            createButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+        }
         createButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
         createButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
         toolbar.addSeparator();

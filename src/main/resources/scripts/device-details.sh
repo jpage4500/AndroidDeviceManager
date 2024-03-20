@@ -23,6 +23,10 @@ function serviceCall() {
     # echo "service:$ARG = $VAL"
 }
 
+function printPhoneNumber() {
+    ${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo 15" | cut -c 50-66 | tr -d '.[:space:]' | tr -d -c 0-9
+}
+
 function getProp() {
     PROP=$1
     ${ADB} -s $ADB_DEVICE shell getprop $PROP
@@ -42,7 +46,7 @@ function getFreeSpace() {
 }
 
 IMEI=$(serviceCall 1 5)
-PHONE=$(serviceCall 15 20)
+PHONE=$(printPhoneNumber)
 FREE_SPACE=$(getFreeSpace)
 CUSTOM1=$(./get-property.sh $ADB_DEVICE custom1)
 CUSTOM2=$(./get-property.sh $ADB_DEVICE custom2)
