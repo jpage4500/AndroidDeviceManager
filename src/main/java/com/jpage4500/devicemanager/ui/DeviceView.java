@@ -423,12 +423,12 @@ public class DeviceView implements DeviceManager.DeviceListener {
         }
 
         String result = (String) JOptionPane.showInputDialog(frame,
-            message,
-            "Custom Note (" + number + ")",
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            null,
-            customValue);
+                message,
+                "Custom Note (" + number + ")",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                null,
+                customValue);
         // allow empty input to go through (clear current value)
         if (result == null) return;
 
@@ -464,17 +464,17 @@ public class DeviceView implements DeviceManager.DeviceListener {
         } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
             int rc = JOptionPane.showConfirmDialog(frame,
-                "Mirror " + selectedDeviceList.size() + " devices?",
-                "Mirror Device",
-                JOptionPane.YES_NO_OPTION
+                    "Mirror " + selectedDeviceList.size() + " devices?",
+                    "Mirror Device",
+                    JOptionPane.YES_NO_OPTION
             );
             if (rc != JOptionPane.YES_OPTION) return;
         } else if (false) {
             Device device = selectedDeviceList.get(0);
             int rc = JOptionPane.showConfirmDialog(frame,
-                "Mirror " + device.serial + "?",
-                "Mirror Device",
-                JOptionPane.YES_NO_OPTION
+                    "Mirror " + device.serial + "?",
+                    "Mirror Device",
+                    JOptionPane.YES_NO_OPTION
             );
             if (rc != JOptionPane.YES_OPTION) return;
         }
@@ -538,21 +538,21 @@ public class DeviceView implements DeviceManager.DeviceListener {
         textField.setMinimumSize(new Dimension(10, 40));
         textField.setMaximumSize(new Dimension(200, 40));
         textField.getDocument().addDocumentListener(
-            new DocumentListener() {
-                @Override
-                public void insertUpdate(DocumentEvent documentEvent) {
-                    filterDevices(textField.getText());
-                }
+                new DocumentListener() {
+                    @Override
+                    public void insertUpdate(DocumentEvent documentEvent) {
+                        filterDevices(textField.getText());
+                    }
 
-                @Override
-                public void removeUpdate(DocumentEvent documentEvent) {
-                    filterDevices(textField.getText());
-                }
+                    @Override
+                    public void removeUpdate(DocumentEvent documentEvent) {
+                        filterDevices(textField.getText());
+                    }
 
-                @Override
-                public void changedUpdate(DocumentEvent documentEvent) {
-                }
-            });
+                    @Override
+                    public void changedUpdate(DocumentEvent documentEvent) {
+                    }
+                });
         toolbar.add(textField);
 //        toolbar.add(Box.createHorizontalGlue());
 
@@ -647,8 +647,8 @@ public class DeviceView implements DeviceManager.DeviceListener {
 
         // prompt to install/copy
         int rc = JOptionPane.showConfirmDialog(frame,
-            "Restart " + selectedDeviceList.size() + " device(s)?",
-            "Restart devices?", JOptionPane.YES_NO_OPTION);
+                "Restart " + selectedDeviceList.size() + " device(s)?",
+                "Restart devices?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (Device device : selectedDeviceList) {
@@ -744,15 +744,20 @@ public class DeviceView implements DeviceManager.DeviceListener {
         // show logs
         AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
         File logsFile = logger.getFileLog();
-
-        Desktop desktop = Desktop.getDesktop();
-        if (!desktop.isSupported(Desktop.Action.EDIT)) return;
-
         try {
-            desktop.edit(logsFile);
-        } catch (IOException e) {
-            log.error("handleVersionClicked: IOException: {}, {}", logsFile.getAbsolutePath(), e.getMessage());
+            Desktop desktop = Desktop.getDesktop();
+            if (desktop.isSupported(Desktop.Action.EDIT)) {
+                desktop.edit(logsFile);
+                return;
+            } else if (desktop.isSupported(Desktop.Action.OPEN)) {
+                desktop.open(logsFile);
+                return;
+            }
+        } catch (Exception e) {
+            log.error("handleVersionClicked: Exception: {}, {}", logsFile.getAbsolutePath(), e.getMessage());
         }
+        // open failed
+        JOptionPane.showConfirmDialog(frame, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
     }
 
 }
