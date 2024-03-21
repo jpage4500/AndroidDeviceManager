@@ -1,5 +1,7 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.logging.AppLoggerFactory;
+import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
 
@@ -20,6 +22,7 @@ import javax.swing.*;
 public class SettingsScreen extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(SettingsScreen.class);
     public static final String PREF_CUSTOM_APPS = "PREF_CUSTOM_APPS";
+    public static final String PREF_DEBUG_MODE = "PREF_DEBUG_MODE";
 
     private Component frame;
     private DeviceTableModel tableModel;
@@ -32,7 +35,7 @@ public class SettingsScreen extends JPanel {
     public SettingsScreen(Component frame, DeviceTableModel tableModel) {
         this.frame = frame;
         this.tableModel = tableModel;
-        setLayout(new MigLayout());
+        setLayout(new MigLayout("", "[][]"));
         // custom apps
         add(new JLabel("Custom Apps:"));
         JButton appButton = new JButton("EDIT");
@@ -64,7 +67,25 @@ public class SettingsScreen extends JPanel {
                 showDownloadLocation();
             }
         });
-        add(appButton);
+        add(appButton, "wrap");
+
+        add(new JSeparator(), "growx, spanx, wrap");
+
+        Preferences preferences = Preferences.userRoot();
+        boolean isDebugMode = preferences.getBoolean(PREF_DEBUG_MODE, false);
+        JCheckBox debugCheckbox = new JCheckBox("Debug Mode");
+        debugCheckbox.setHorizontalTextPosition(SwingConstants.LEFT);
+        debugCheckbox.setSelected(isDebugMode);
+        debugCheckbox.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                boolean updatedValue = debugCheckbox.isSelected();
+                preferences.putBoolean(PREF_DEBUG_MODE, updatedValue);
+                AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
+                logger.setFileLogLevel(updatedValue ? Log.VERBOSE : Log.DEBUG);
+            }
+        });
+        add(debugCheckbox, "span 2, al right, wrap");
     }
 
     private void showAppsSettings() {

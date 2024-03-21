@@ -178,7 +178,7 @@ public class AppLoggerFactory implements ILoggerFactory {
 
     public File getFileLog() {
         if (fileLog == null) {
-            fileLog = new File("device.log");
+            fileLog = new File("device_manager_log.txt");
         }
         return fileLog;
     }

@@ -49,7 +49,7 @@
     </dependencies>
 
     <build>
-        <finalName>AndroidDeviceManager-${git.total.commit.count}</finalName>
+        <finalName>AndroidDeviceManager-1.0.${git.total.commit.count}</finalName>
         <plugins>
             <!-- create native MacOS app from jar -->
             <plugin>

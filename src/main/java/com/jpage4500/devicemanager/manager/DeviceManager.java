@@ -604,8 +604,9 @@ public class DeviceManager {
                         }
                     }
                 }
-                log.debug("copyResourcesToFiles: {}, JAR: {}", numScripts, file);
+                log.trace("copyResourcesToFiles: {}, JAR: {}, tmp:{}", numScripts, file, tempFolder);
             } else {
+                log.trace("copyResourcesToFiles: IDE: {}, tmp:{}", file, tempFolder);
                 // running via IntelliJ IDE
                 URL url = getClass().getResource("/scripts");
                 Path path = Paths.get(url.toURI());

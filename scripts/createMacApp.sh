@@ -1,19 +1,24 @@
 #!/bin/bash
 
-APP=AndroidDeviceManager.app
+APP=AndroidDeviceManager
+COMMITS=$(git rev-list HEAD --count)
 
 cd "$(dirname $0)"
 cd ..
 
-rm -rf target/$APP.zip target/$APP
+cd target
+rm -rf *.zip *.app *.jar
+cd ..
 
 # mvn clean
 mvn install
 
-if [ ! -d target/$APP ]; then
-    echo "target/$APP not found!"
+if [ ! -d target/$APP.app ]; then
+    echo "target/$APP.app not found!"
     exit 1
 fi
 
 cd target
-zip -r $APP.zip $APP
+
+zip -r $APP-1.0.$COMMITS.zip $APP.app
+
