@@ -15,7 +15,7 @@ function getPhoneNumber() {
 }
 
 function getImei() {
-    var=$(adb shell service call iphonesubinfo 1 s16 'com.android.shell' | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
+    var=$(${ADB} -s $ADB_DEVICE shell service call iphonesubinfo 1 s16 'com.android.shell' | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
     if [[ "$var" == "" ]]; then
         # alternate way to get IMEI
         var=$(getProp debug.app.imei)

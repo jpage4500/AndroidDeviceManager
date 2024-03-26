@@ -23,6 +23,7 @@ import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
+import java.security.Key;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -37,7 +38,7 @@ import javax.swing.table.TableRowSorter;
 /**
  * create and manage device view
  */
-public class DeviceView implements DeviceManager.DeviceListener {
+public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     private static final Logger log = LoggerFactory.getLogger(DeviceView.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
@@ -53,6 +54,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
     public EmptyView emptyView;
     public StatusBar statusBar;
     public JToolBar toolbar;
+    private HintTextField textField;
 
     public int selectedColumn = -1;
 
@@ -205,6 +207,8 @@ public class DeviceView implements DeviceManager.DeviceListener {
             }
         });
         table.requestFocus();
+
+        table.addKeyListener(this);
     }
 
     private void refreshUi() {
@@ -533,7 +537,7 @@ public class DeviceView implements DeviceManager.DeviceListener {
 
         toolbar.add(Box.createHorizontalGlue());
 
-        HintTextField textField = new HintTextField(HINT_FILTER_DEVICES);
+        textField = new HintTextField(HINT_FILTER_DEVICES);
         textField.setPreferredSize(new Dimension(150, 40));
         textField.setMinimumSize(new Dimension(10, 40));
         textField.setMaximumSize(new Dimension(200, 40));
@@ -739,7 +743,6 @@ public class DeviceView implements DeviceManager.DeviceListener {
         toolbar.add(button);
     }
 
-
     private void handleVersionClicked() {
         // show logs
         AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
@@ -760,4 +763,36 @@ public class DeviceView implements DeviceManager.DeviceListener {
         JOptionPane.showConfirmDialog(frame, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
     }
 
+    @Override
+    public void keyTyped(KeyEvent e) {
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
+        int keyCode = e.getKeyCode();
+        char keyChar = e.getKeyChar();
+        String text = textField.getText();
+        if (text.equalsIgnoreCase(HINT_FILTER_DEVICES)) text = "";
+        switch (keyCode) {
+            case KeyEvent.VK_DELETE:
+            case KeyEvent.VK_BACK_SPACE:
+                if (text.isEmpty()) return;
+                text = text.substring(0, text.length() - 1);
+                break;
+            case KeyEvent.VK_ESCAPE:
+                text = "";
+                break;
+            default:
+                if (Character.isLetterOrDigit(keyChar) || keyChar == KeyEvent.VK_PERIOD || keyChar == KeyEvent.VK_MINUS) {
+                    text += keyChar;
+                }
+                break;
+        }
+        if (text.isEmpty()) textField.setText(HINT_FILTER_DEVICES);
+        else textField.setText(text);
+    }
 }
