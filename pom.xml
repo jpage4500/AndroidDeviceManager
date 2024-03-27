@@ -6,7 +6,7 @@
 
     <groupId>com.jpage</groupId>
     <artifactId>AndroidDeviceManager</artifactId>
-    <version>1.0.45</version>
+    <version>1.0.BETA</version>
 
     <packaging>jar</packaging>
 
@@ -49,6 +49,7 @@
     </dependencies>
 
     <build>
+        <finalName>AndroidDeviceManager-1.0.${git.total.commit.count}</finalName>
         <plugins>
             <!-- create native MacOS app from jar -->
             <plugin>
@@ -120,6 +121,19 @@
                     <source>9</source>
                     <target>9</target>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>io.github.git-commit-id</groupId>
+                <artifactId>git-commit-id-maven-plugin</artifactId>
+                <version>5.0.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>revision</goal>
+                        </goals>
+                        <phase>initialize</phase>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -3,13 +3,16 @@ package com.jpage4500.devicemanager;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
+import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.ui.DeviceView;
+import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.TextUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.util.prefs.Preferences;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -50,7 +53,10 @@ public class MainApplication {
         logger.setDebugLevel(Log.VERBOSE);
         logger.setMainThreadId(Thread.currentThread().getId());
         logger.setLogToFile(true);
-        logger.setFileLogLevel(Log.DEBUG);
+
+        Preferences preferences = Preferences.userRoot();
+        boolean isDebugMode = preferences.getBoolean(SettingsScreen.PREF_DEBUG_MODE, false);
+        logger.setFileLogLevel(isDebugMode ? Log.VERBOSE : Log.DEBUG);
     }
 
     private void initializeUI() {

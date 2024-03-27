@@ -9,5 +9,7 @@
 
 target
 
+# ignore log or generated files
 device.log
+device_manager_log.txt
 src/main/java/com/jpage4500/devicemanager/Build.java

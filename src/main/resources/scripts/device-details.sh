@@ -5,30 +5,17 @@ ADB_DEVICE=$1
 cd "$(/usr/bin/dirname $0)"
 source ./env-vars.sh
 
-function serviceCall() {
-    START=$1
-    END=$2
-    REGEX='^[0-9+]+$'
-
-    while [ $START -le $END ]; do
-        VAL=$(${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo $START | cut -c 52-66 | tr -d '.[:space:]'")
-        # make sure value is a valid number
-        if [[ ${#VAL} -ge 10 ]] && [[ $VAL =~ $REGEX ]]; then
-            echo $VAL
-            break
-        fi
-        #echo "ignoring $START - val:$VAL, len:${#VAL}"
-        let START=($START + 1)
-    done
-    # echo "service:$ARG = $VAL"
-}
-
 function getPhoneNumber() {
-    ${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo 15" | cut -c 50-66 | tr -d '.[:space:]' | tr -d -c 0-9
+    var=$(${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo 15" | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
+    if [[ "$var" == "" ]]; then
+        # alternate way to get phone
+        var=$(getProp debug.app.phone)
+    fi
+    echo $var
 }
 
 function getImei() {
-    var=$(serviceCall 1 5)
+    var=$(${ADB} -s $ADB_DEVICE shell service call iphonesubinfo 1 s16 'com.android.shell' | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
     if [[ "$var" == "" ]]; then
         # alternate way to get IMEI
         var=$(getProp debug.app.imei)
