@@ -760,16 +760,13 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     @Override
     public void keyTyped(KeyEvent e) {
-    }
-
-    @Override
-    public void keyPressed(KeyEvent e) {
-    }
-
-    @Override
-    public void keyReleased(KeyEvent e) {
-        int keyCode = e.getKeyCode();
+        int keyCode = e.getExtendedKeyCode();
         char keyChar = e.getKeyChar();
+        // ignore any key press along with a modifier key (CTRL/OPTION/CMD) -- except SHIFT
+        int modifiers = e.getModifiersEx();
+        if (modifiers != 0 && !e.isShiftDown()) {
+            return;
+        }
         String text = textField.getText();
         if (text.equalsIgnoreCase(HINT_FILTER_DEVICES)) text = "";
         boolean isHandled = false;
@@ -795,5 +792,19 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             if (text.isEmpty()) textField.setText(HINT_FILTER_DEVICES);
             else textField.setText(text);
         }
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        char keyChar = e.getKeyChar();
+        if (e.isMetaDown()) {
+            // handle shortcut keys
+            if (TEST_LOGGING && keyChar == '1') handleLogsCommand();
+            else if (keyChar == '2') handleBrowseCommand();
+        }
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
     }
 }
