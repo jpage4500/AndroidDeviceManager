@@ -10,30 +10,25 @@ import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
-
 import net.coobird.thumbnailator.Thumbnails;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
-import java.awt.dnd.DropTarget;
-import java.awt.event.*;
-import java.io.File;
-import java.io.IOException;
-import java.security.Key;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.prefs.Preferences;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
+import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
+import java.awt.dnd.DropTarget;
+import java.awt.event.*;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.prefs.Preferences;
 
 /**
  * create and manage device view
@@ -777,22 +772,28 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         char keyChar = e.getKeyChar();
         String text = textField.getText();
         if (text.equalsIgnoreCase(HINT_FILTER_DEVICES)) text = "";
+        boolean isHandled = false;
         switch (keyCode) {
             case KeyEvent.VK_DELETE:
             case KeyEvent.VK_BACK_SPACE:
-                if (text.isEmpty()) return;
+                if (text.isEmpty()) break;
                 text = text.substring(0, text.length() - 1);
+                isHandled = true;
                 break;
             case KeyEvent.VK_ESCAPE:
                 text = "";
+                isHandled = true;
                 break;
             default:
                 if (Character.isLetterOrDigit(keyChar) || keyChar == KeyEvent.VK_PERIOD || keyChar == KeyEvent.VK_MINUS) {
                     text += keyChar;
+                    isHandled = true;
                 }
                 break;
         }
-        if (text.isEmpty()) textField.setText(HINT_FILTER_DEVICES);
-        else textField.setText(text);
+        if (isHandled) {
+            if (text.isEmpty()) textField.setText(HINT_FILTER_DEVICES);
+            else textField.setText(text);
+        }
     }
 }
