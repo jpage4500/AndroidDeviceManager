@@ -130,11 +130,7 @@ public class DeviceManager {
     public void captureScreenshot(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "screenshot...";
-            listener.handleDeviceUpdated(device);
-            ScriptResult result = runScript(SCRIPT_SCREENSHOT, device.serial);
-            if (result.isSuccess) device.status = null;
-            else device.status = GsonHelper.toJson(result.stdErr);
-            listener.handleDeviceUpdated(device);
+            runScript(device, SCRIPT_SCREENSHOT, listener, false, device.serial);
         });
     }
 
@@ -163,11 +159,7 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             String path = file.getAbsolutePath();
             device.status = "installing...";
-            if (listener != null) listener.handleDeviceUpdated(device);
-            ScriptResult result = runScript(SCRIPT_INSTALL_APK, device.serial, path);
-            if (result.isSuccess) device.status = GsonHelper.toJson(result.stdOut);
-            else device.status = GsonHelper.toJson(result.stdErr);
-            if (listener != null) listener.handleDeviceUpdated(device);
+            runScript(device, SCRIPT_INSTALL_APK, listener, true, path);
             log.debug("installApp: {}, {}, DONE", device.serial, path);
         });
     }
@@ -176,11 +168,7 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             String path = file.getAbsolutePath();
             device.status = "copying...";
-            if (listener != null) listener.handleDeviceUpdated(device);
-            ScriptResult result = runScript(SCRIPT_COPY_FILE, device.serial, path);
-            if (result.isSuccess) device.status = GsonHelper.toJson(result.stdOut);
-            else device.status = GsonHelper.toJson(result.stdErr);
-            if (listener != null) listener.handleDeviceUpdated(device);
+            runScript(device, SCRIPT_COPY_FILE, listener, true, path);
             log.debug("copyFile: {}, {}, DONE", device.serial, path);
         });
     }
@@ -188,11 +176,7 @@ public class DeviceManager {
     public void restartDevice(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "restarting...";
-            listener.handleDeviceUpdated(device);
-            ScriptResult result = runScript(SCRIPT_RESTART, device.serial);
-            log.debug("restartDevice: DONE");
-            if (result.isSuccess) device.status = GsonHelper.toJson(result.stdOut);
-            else device.status = GsonHelper.toJson(result.stdErr);
+            runScript(device, SCRIPT_RESTART, listener, true, device.serial);
             listener.handleDeviceUpdated(device);
         });
     }
@@ -200,22 +184,14 @@ public class DeviceManager {
     public void runCustomCommand(Device device, String customCommand, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "running...";
-            listener.handleDeviceUpdated(device);
-            ScriptResult result = runScript(SCRIPT_CUSTOM_COMMAND, device.serial, customCommand);
-            if (result.isSuccess) device.status = GsonHelper.toJson(result.stdOut);
-            else device.status = GsonHelper.toJson(result.stdErr);
-            listener.handleDeviceUpdated(device);
+            runScript(device, SCRIPT_CUSTOM_COMMAND, listener, true, device.serial);
         });
     }
 
     public void openTerminal(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "terminal...";
-            listener.handleDeviceUpdated(device);
-            ScriptResult result = runScript(SCRIPT_TERMINAL, true, true, device.serial);
-            if (result.isSuccess) device.status = GsonHelper.toJson(result.stdOut);
-            else device.status = GsonHelper.toJson(result.stdErr);
-            listener.handleDeviceUpdated(device);
+            runScript(device, SCRIPT_TERMINAL, listener, false, device.serial);
         });
     }
 
@@ -312,6 +288,7 @@ public class DeviceManager {
     public void downloadFile(Device device, String srcPath, String srcName, String dest, TaskListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "downloading...";
+            //runScript(device, SCRIPT_DOWNLOAD_FILE, listener, true, srcPath);
             ScriptResult result = runScript(SCRIPT_DOWNLOAD_FILE, device.serial, srcPath, srcName, dest);
             // TODO
             if (listener != null) listener.onTaskComplete(result.isSuccess);
@@ -668,7 +645,15 @@ public class DeviceManager {
         return tempFile;
     }
 
-    public class ScriptResult {
+    private void runScript(Device device, String script, DeviceListener listener, boolean showSuccess, String arg) {
+        if (listener != null) listener.handleDeviceUpdated(device);
+        ScriptResult result = runScript(script, device.serial, arg);
+        if (result.isSuccess) device.status = showSuccess ? GsonHelper.toJson(result.stdOut) : null;
+        else device.status = GsonHelper.toJson(result.stdErr);
+        if (listener != null) listener.handleDeviceUpdated(device);
+    }
+
+    public static class ScriptResult {
         boolean isSuccess;
         List<String> stdOut;
         List<String> stdErr;
