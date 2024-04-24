@@ -207,9 +207,15 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             device.status = "list files...";
             ScriptResult result = runScript(SCRIPT_LIST_FILES, false, false, device.serial, finalPath);
+            if (!result.isSuccess) {
+                listener.handleFiles(null);
+                device.status = "ERROR: " + GsonHelper.toJson(result.stdErr);
+                return;
+            }
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm");
             List<DeviceFile> fileList = new ArrayList<>();
             for (String line : result.stdOut) {
+                //log.trace(line);
                 DeviceFile file = new DeviceFile();
                 // handle errors such as: "Permission denied", "Not a directory"
                 if (TextUtils.containsIgnoreCase(line, "Permission denied")) {
@@ -226,6 +232,8 @@ public class DeviceManager {
                 if (resultArr.length < 8) continue;
 
                 // -- permissions (0) --
+                // drwxrwx--x = READ-ONLY
+                //
                 String permissions = resultArr[0];
                 if (permissions.startsWith("d")) {
                     file.isDir = true;
@@ -236,7 +244,9 @@ public class DeviceManager {
                 // -- file size (4) --
                 String sizeStr = resultArr[4];
                 if (TextUtils.equalsIgnoreCase(sizeStr, "?")) continue;
-                file.size = TextUtils.getNumberLong(sizeStr, 0);
+                if (!file.isDir) {
+                    file.size = TextUtils.getNumberLong(sizeStr, 0);
+                }
 
                 // -- file name (7+) --
                 StringBuilder name = new StringBuilder();
@@ -288,11 +298,9 @@ public class DeviceManager {
     public void downloadFile(Device device, String srcPath, String srcName, String dest, TaskListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "downloading...";
-            //runScript(device, SCRIPT_DOWNLOAD_FILE, listener, true, srcPath);
             ScriptResult result = runScript(SCRIPT_DOWNLOAD_FILE, device.serial, srcPath, srcName, dest);
-            // TODO
+            device.status = result.isSuccess ? null : "Download failed";
             if (listener != null) listener.onTaskComplete(result.isSuccess);
-            device.status = null;
         });
     }
 

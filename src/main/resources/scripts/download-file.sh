@@ -11,6 +11,3 @@ source ./env-vars.sh
 echo "downloading: ${SRC_PATH}/${SRC_NAME} to ${DEST}"
 
 ${ADB} -s "${ADB_DEVICE}" pull "${SRC_PATH}/${SRC_NAME}" "${DEST}"
-
-# open file in default viewer
-open "${DEST}/${SRC_NAME}"

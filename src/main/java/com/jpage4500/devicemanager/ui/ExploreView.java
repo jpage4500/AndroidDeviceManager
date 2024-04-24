@@ -21,6 +21,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -41,6 +42,7 @@ public class ExploreView {
     public static final String PREF_DOWNLOAD_FOLDER = "PREF_DOWNLOAD_FOLDER";
     public static final String PREF_GO_TO_FOLDER_LIST = "PREF_GO_TO_FOLDER_LIST";
     private static final String HINT_FILTER_DEVICES = "Filter files...";
+    public static final int MAX_PATH_SAVE = 10;
 
     private JFrame deviceFrame;
 
@@ -58,6 +60,7 @@ public class ExploreView {
     private Device selectedDevice;
     private String selectedPath = "/sdcard";
     private List<String> prevPathList = new ArrayList<>();
+    private String errorMessage;
 
     public ExploreView(JFrame deviceFrame) {
         this.deviceFrame = deviceFrame;
@@ -199,6 +202,7 @@ public class ExploreView {
                     // double-click
                     selectedColumn = -1;
                     DeviceFile deviceFile = model.getDeviceFileAtRow(row);
+                    log.trace("mouseClicked: DOUBLE-CLICK: " + GsonHelper.toJson(deviceFile));
                     if (deviceFile.isDir || deviceFile.isLink) {
                         if (TextUtils.equalsIgnoreCase(deviceFile.name, "..")) {
                             log.debug("mouseClicked: UP: {}", selectedPath);
@@ -233,7 +237,7 @@ public class ExploreView {
 
     private void setPath(String path) {
         prevPathList.add(path);
-        if (prevPathList.size() > 10) {
+        if (prevPathList.size() > MAX_PATH_SAVE) {
             prevPathList.remove(0);
         }
 
@@ -243,7 +247,21 @@ public class ExploreView {
     private void refreshFiles() {
         if (selectedDevice == null) return;
         DeviceManager.getInstance().listFiles(selectedDevice, selectedPath, fileList -> {
-            model.setFileList(fileList);
+            if (fileList == null) {
+                errorMessage = "permission denied - " + selectedPath;
+                // remove bad path
+                prevPathList.removeLast();
+                if (!prevPathList.isEmpty()) {
+                    // reset good path
+                    selectedPath = prevPathList.getLast();
+                } else {
+                    selectedPath = "";
+                }
+                log.trace("refreshFiles: selectedPath={}", selectedPath);
+            } else {
+                errorMessage = null;
+                model.setFileList(fileList);
+            }
             refreshUi();
         });
     }
@@ -251,6 +269,8 @@ public class ExploreView {
     private void refreshUi() {
         // file path
         statusBar.setLeftLabel(selectedPath);
+
+        statusBar.setCenterLabel(errorMessage);
 
         // selected row(s)
         int selectedRowCount = table.getSelectedRowCount();
@@ -361,21 +381,21 @@ public class ExploreView {
         textField.setMinimumSize(new Dimension(10, 40));
         textField.setMaximumSize(new Dimension(200, 40));
         textField.getDocument().addDocumentListener(
-            new DocumentListener() {
-                @Override
-                public void insertUpdate(DocumentEvent documentEvent) {
-                    filterDevices(textField.getText());
-                }
+                new DocumentListener() {
+                    @Override
+                    public void insertUpdate(DocumentEvent documentEvent) {
+                        filterDevices(textField.getText());
+                    }
 
-                @Override
-                public void removeUpdate(DocumentEvent documentEvent) {
-                    filterDevices(textField.getText());
-                }
+                    @Override
+                    public void removeUpdate(DocumentEvent documentEvent) {
+                        filterDevices(textField.getText());
+                    }
 
-                @Override
-                public void changedUpdate(DocumentEvent documentEvent) {
-                }
-            });
+                    @Override
+                    public void changedUpdate(DocumentEvent documentEvent) {
+                    }
+                });
         toolbar.add(textField);
 //        toolbar.add(Box.createHorizontalGlue());
 
@@ -392,15 +412,28 @@ public class ExploreView {
 
         // prompt to install/copy
         int rc = JOptionPane.showConfirmDialog(frame,
-            "Download " + selectedFileList.size() + " files(s)?",
-            "Download Files?", JOptionPane.YES_NO_OPTION);
+                "Download " + selectedFileList.size() + " files(s)?",
+                "Download Files?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         Preferences preferences = Preferences.userRoot();
         String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, "~/Downloads");
         for (DeviceFile file : selectedFileList) {
             DeviceManager.getInstance().downloadFile(selectedDevice, selectedPath, file.name, downloadFolder, isSuccess -> {
-                // TODO
+                if (isSuccess && selectedFileList.size() == 1) {
+                    File downloadedFile = new File(downloadFolder + "/" + file.name);
+                    if (downloadedFile.exists()) {
+                        int openRc = JOptionPane.showConfirmDialog(frame,
+                                "Open " + downloadedFile.getName() + "?",
+                                "Open File?", JOptionPane.YES_NO_OPTION);
+                        if (openRc != JOptionPane.YES_OPTION) return;
+                        try {
+                            Desktop.getDesktop().open(downloadedFile);
+                        } catch (IOException e) {
+                            log.error("handleDownload " + e.getMessage());
+                        }
+                    }
+                }
             });
         }
     }
@@ -420,8 +453,8 @@ public class ExploreView {
         }
 
         int rc = JOptionPane.showConfirmDialog(frame,
-            "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
-            "Delete Files?", JOptionPane.YES_NO_OPTION);
+                "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
+                "Delete Files?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (DeviceFile file : selectedFileList) {
