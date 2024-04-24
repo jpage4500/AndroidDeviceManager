@@ -120,9 +120,9 @@ public class DeviceManager {
             String name = device.serial;
             if (device.phone != null) name += ": " + device.phone;
             else if (device.model != null) name += ": " + device.model;
-            runScript(SCRIPT_MIRROR, true, true, device.serial, name);
-            log.debug("mirrorDevice: DONE");
-            device.status = null;
+            ScriptResult result = runScript(SCRIPT_MIRROR, true, true, device.serial, name);
+            if (result.isSuccess) device.status = null;
+            else device.status = GsonHelper.toJson(result.stdErr);
             listener.handleDeviceUpdated(device);
         });
     }
@@ -131,10 +131,10 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             device.status = "screenshot...";
             listener.handleDeviceUpdated(device);
-            runScript(SCRIPT_SCREENSHOT, device.serial);
-            device.status = null;
+            ScriptResult result = runScript(SCRIPT_SCREENSHOT, device.serial);
+            if (result.isSuccess) device.status = null;
+            else device.status = GsonHelper.toJson(result.stdErr);
             listener.handleDeviceUpdated(device);
-            log.debug("captureScreenshot: DONE");
         });
     }
 
@@ -142,8 +142,9 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             device.status = "runUserScript...";
             listener.handleDeviceUpdated(device);
-            runScript(file, false, true, device.serial, tempFolder);
-            device.status = null;
+            ScriptResult result = runScript(file, false, true, device.serial, tempFolder);
+            if (result.isSuccess) device.status = null;
+            else device.status = GsonHelper.toJson(result.stdErr);
             listener.handleDeviceUpdated(device);
             log.debug("runUserScript: DONE");
         });
@@ -163,8 +164,9 @@ public class DeviceManager {
             String path = file.getAbsolutePath();
             device.status = "installing...";
             if (listener != null) listener.handleDeviceUpdated(device);
-            runScript(SCRIPT_INSTALL_APK, device.serial, path);
-            device.status = null;
+            ScriptResult result = runScript(SCRIPT_INSTALL_APK, device.serial, path);
+            if (result.isSuccess) device.status = GsonHelper.toJson(result.stdOut);
+            else device.status = GsonHelper.toJson(result.stdErr);
             if (listener != null) listener.handleDeviceUpdated(device);
             log.debug("installApp: {}, {}, DONE", device.serial, path);
         });
@@ -175,8 +177,9 @@ public class DeviceManager {
             String path = file.getAbsolutePath();
             device.status = "copying...";
             if (listener != null) listener.handleDeviceUpdated(device);
-            runScript(SCRIPT_COPY_FILE, device.serial, path);
-            device.status = null;
+            ScriptResult result = runScript(SCRIPT_COPY_FILE, device.serial, path);
+            if (result.isSuccess) device.status = GsonHelper.toJson(result.stdOut);
+            else device.status = GsonHelper.toJson(result.stdErr);
             if (listener != null) listener.handleDeviceUpdated(device);
             log.debug("copyFile: {}, {}, DONE", device.serial, path);
         });
@@ -186,9 +189,10 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             device.status = "restarting...";
             listener.handleDeviceUpdated(device);
-            runScript(SCRIPT_RESTART, device.serial);
+            ScriptResult result = runScript(SCRIPT_RESTART, device.serial);
             log.debug("restartDevice: DONE");
-            device.status = null;
+            if (result.isSuccess) device.status = GsonHelper.toJson(result.stdOut);
+            else device.status = GsonHelper.toJson(result.stdErr);
             listener.handleDeviceUpdated(device);
         });
     }
@@ -197,8 +201,9 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             device.status = "running...";
             listener.handleDeviceUpdated(device);
-            List<String> resultList = runScript(SCRIPT_CUSTOM_COMMAND, device.serial, customCommand);
-            device.status = GsonHelper.toJson(resultList);
+            ScriptResult result = runScript(SCRIPT_CUSTOM_COMMAND, device.serial, customCommand);
+            if (result.isSuccess) device.status = GsonHelper.toJson(result.stdOut);
+            else device.status = GsonHelper.toJson(result.stdErr);
             listener.handleDeviceUpdated(device);
         });
     }
@@ -207,8 +212,9 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             device.status = "terminal...";
             listener.handleDeviceUpdated(device);
-            runScript(SCRIPT_TERMINAL, true, true, device.serial);
-            device.status = null;
+            ScriptResult result = runScript(SCRIPT_TERMINAL, true, true, device.serial);
+            if (result.isSuccess) device.status = GsonHelper.toJson(result.stdOut);
+            else device.status = GsonHelper.toJson(result.stdErr);
             listener.handleDeviceUpdated(device);
         });
     }
@@ -224,23 +230,23 @@ public class DeviceManager {
         String finalPath = path;
         commandExecutorService.submit(() -> {
             device.status = "list files...";
-            List<String> resultList = runScript(SCRIPT_LIST_FILES, false, false, device.serial, finalPath);
+            ScriptResult result = runScript(SCRIPT_LIST_FILES, false, false, device.serial, finalPath);
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm");
             List<DeviceFile> fileList = new ArrayList<>();
-            for (String result : resultList) {
+            for (String line : result.stdOut) {
                 DeviceFile file = new DeviceFile();
                 // handle errors such as: "Permission denied", "Not a directory"
-                if (TextUtils.containsIgnoreCase(result, "Permission denied")) {
+                if (TextUtils.containsIgnoreCase(line, "Permission denied")) {
                     file.name = "Permission denied";
                     fileList.add(file);
                     break;
-                } else if (TextUtils.containsIgnoreCase(result, "Not a directory")) {
+                } else if (TextUtils.containsIgnoreCase(line, "Not a directory")) {
                     file.name = "Not a directory";
                     fileList.add(file);
                     break;
                 }
 
-                String[] resultArr = result.split("\\s+");
+                String[] resultArr = line.split("\\s+");
                 if (resultArr.length < 8) continue;
 
                 // -- permissions (0) --
@@ -306,9 +312,9 @@ public class DeviceManager {
     public void downloadFile(Device device, String srcPath, String srcName, String dest, TaskListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "downloading...";
-            List<String> resultList = runScript(SCRIPT_DOWNLOAD_FILE, device.serial, srcPath, srcName, dest);
+            ScriptResult result = runScript(SCRIPT_DOWNLOAD_FILE, device.serial, srcPath, srcName, dest);
             // TODO
-            if (listener != null) listener.onTaskComplete(true);
+            if (listener != null) listener.onTaskComplete(result.isSuccess);
             device.status = null;
         });
     }
@@ -316,9 +322,9 @@ public class DeviceManager {
     public void deleteFile(Device device, String srcPath, String srcName, TaskListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "deleting...";
-            List<String> resultList = runScript(SCRIPT_DELETE_FILE, device.serial, srcPath, srcName);
+            ScriptResult result = runScript(SCRIPT_DELETE_FILE, device.serial, srcPath, srcName);
             // TODO
-            if (listener != null) listener.onTaskComplete(true);
+            if (listener != null) listener.onTaskComplete(result.isSuccess);
             device.status = null;
         });
     }
@@ -404,8 +410,8 @@ public class DeviceManager {
     private void listDevicesInternal(DeviceListener listener) {
         boolean isFullRefreshNeeded = System.currentTimeMillis() - lastRefreshMs > FULL_REFRESH_MS;
         lastRefreshMs = System.currentTimeMillis();
-        List<String> results = runScript(SCRIPT_DEVICE_LIST, false, false);
-        if (results == null) {
+        ScriptResult result = runScript(SCRIPT_DEVICE_LIST, false, false);
+        if (!result.isSuccess) {
             listener.handleDevicesUpdated(null);
             return;
         }
@@ -414,10 +420,10 @@ public class DeviceManager {
         // 04QAX0NRLM             device usb:34603008X product:bonito model:Pixel_3a_XL device:bonito transport_id:3
         // 192.168.0.28:35031     offline product:x1quex model:SM_G981U1 device:x1q transport_id:7
         // 5858444a4e483498       unauthorized usb:34603008X transport_id:3
-        for (String result : results) {
-            if (result.length() == 0 || result.startsWith("List")) continue;
+        for (String line : result.stdOut) {
+            if (line.length() == 0 || line.startsWith("List")) continue;
 
-            String[] deviceArr = result.split(" ");
+            String[] deviceArr = line.split(" ");
             if (deviceArr.length <= 1) continue;
             // TODO: check possible values for serialNumber including wireless
             String serialNumber = deviceArr[0];
@@ -529,9 +535,9 @@ public class DeviceManager {
         List<String> args = new ArrayList<>();
         args.add(device.serial);
         args.addAll(appList);
-        List<String> results = runScript(SCRIPT_DEVICE_DETAILS, args.toArray(new String[]{}));
-        if (results != null) {
-            for (String line : results) {
+        ScriptResult result = runScript(SCRIPT_DEVICE_DETAILS, args.toArray(new String[]{}));
+        if (result.isSuccess) {
+            for (String line : result.stdOut) {
                 String[] lineArr = line.split(": ");
                 if (lineArr.length <= 1) continue;
                 String key = lineArr[0].trim();
@@ -662,17 +668,24 @@ public class DeviceManager {
         return tempFile;
     }
 
-    public List<String> runScript(String scriptName, String... args) {
+    public class ScriptResult {
+        boolean isSuccess;
+        List<String> stdOut;
+        List<String> stdErr;
+    }
+
+    public ScriptResult runScript(String scriptName, String... args) {
         return runScript(scriptName, false, true, args);
     }
 
-    public List<String> runScript(String scriptName, boolean isLongRunning, boolean logResults, String... args) {
+    public ScriptResult runScript(String scriptName, boolean isLongRunning, boolean logResults, String... args) {
         //if (logResults) log.trace("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
         File tempFile = getScriptFile(scriptName);
         return runScript(tempFile, isLongRunning, logResults, args);
     }
 
-    public List<String> runScript(File script, boolean isLongRunning, boolean logResults, String... args) {
+    public ScriptResult runScript(File script, boolean isLongRunning, boolean logResults, String... args) {
+        ScriptResult result = new ScriptResult();
         try {
             List<String> commandList = new ArrayList<>();
             commandList.add(script.getAbsolutePath());
@@ -700,27 +713,29 @@ public class DeviceManager {
                     log.error("runScript: NOT FINISHED: {}, args:{}", script.getAbsolutePath(), GsonHelper.toJson(args));
                 }
             }
-            if (exitValue != 0) {
+            result.isSuccess = exitValue == 0;
+            if (!result.isSuccess) {
                 log.error("runScript: ERROR:{}, {}, args:{}", exitValue, script.getAbsolutePath(), GsonHelper.toJson(args));
             }
 
-            List<String> resultList = readInputStream(process.getInputStream());
-            if (resultList.size() > 0 && log.isTraceEnabled() && logResults) {
-                log.trace("runScript: RESULTS: {}", GsonHelper.toJson(resultList));
+            result.stdOut = readInputStream(process.getInputStream());
+            if (!result.stdOut.isEmpty() && log.isTraceEnabled() && logResults) {
+                log.trace("runScript: RESULTS: {}", GsonHelper.toJson(result.stdOut));
             }
-            List<String> errorList = readInputStream(process.getErrorStream());
+            result.stdErr = readInputStream(process.getErrorStream());
             synchronized (processList) {
                 processList.remove(process);
             }
-            if (errorList.size() > 0) {
-                log.error("runScript: ERROR: {}", GsonHelper.toJson(errorList));
-                return errorList;
+            if (!result.stdErr.isEmpty()) {
+                log.error("runScript: ERROR: {}", GsonHelper.toJson(result.stdErr));
             }
-            return resultList;
+            return result;
         } catch (Exception e) {
+            result.isSuccess = false;
+            result.stdErr = List.of("Exception: " + e.getMessage());
             log.error("runScript: Exception: {}:{}, script:{}", e.getClass().getSimpleName(), e.getMessage(), script.getAbsolutePath());
         }
-        return null;
+        return result;
     }
 
     private List<String> readInputStream(InputStream inputStream) {

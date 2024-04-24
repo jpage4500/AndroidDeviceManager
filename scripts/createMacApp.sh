@@ -22,3 +22,5 @@ cd target
 
 zip -r $APP-1.0.$COMMITS.zip $APP.app
 
+# copy to /Applications folder
+cp -r $APP.app /Applications

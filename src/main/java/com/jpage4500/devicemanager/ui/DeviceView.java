@@ -764,9 +764,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         char keyChar = e.getKeyChar();
         // ignore any key press along with a modifier key (CTRL/OPTION/CMD) -- except SHIFT
         int modifiers = e.getModifiersEx();
-        if (modifiers != 0 && !e.isShiftDown()) {
-            return;
-        }
+        if (modifiers != 0 && !e.isShiftDown()) return;
         String text = textField.getText();
         if (text.equalsIgnoreCase(HINT_FILTER_DEVICES)) text = "";
         boolean isHandled = false;
