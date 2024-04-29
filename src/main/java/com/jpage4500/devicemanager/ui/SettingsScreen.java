@@ -32,7 +32,7 @@ public class SettingsScreen extends JPanel {
 
     public static int showSettings(Component frame, DeviceTableModel tableModel) {
         SettingsScreen settingsScreen = new SettingsScreen(frame, tableModel);
-        return JOptionPane.showOptionDialog(frame, settingsScreen, "Settings", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        return JOptionPane.showOptionDialog(frame, settingsScreen, "Settings", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, null, null);
     }
 
     public SettingsScreen(Component frame, DeviceTableModel tableModel) {

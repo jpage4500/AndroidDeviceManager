@@ -40,4 +40,11 @@ public class Device {
         }
         return sb.toString();
     }
+
+    /**
+     * if device is connected via adb wireless
+     */
+    public boolean isWireless() {
+        return serial.indexOf(':') > 0;
+    }
 }

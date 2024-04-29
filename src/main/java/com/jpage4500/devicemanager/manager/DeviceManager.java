@@ -38,6 +38,7 @@ public class DeviceManager {
     private static final String SCRIPT_DELETE_FILE = "delete-file.sh";
     private static final String SCRIPT_START_LOGGING = "start-logging.sh";
     private static final String SCRIPT_CONNECT = "connect-device.sh";
+    private static final String SCRIPT_DISCONNECT = "disconnect-device.sh";
 
     // how often to poll (adb devices -l)
     private static final int POLLING_INTERVAL_SECS = 10;
@@ -318,6 +319,13 @@ public class DeviceManager {
     public void connectDevice(String ip, TaskListener listener) {
         commandExecutorService.submit(() -> {
             ScriptResult result = runScript(SCRIPT_CONNECT, ip);
+            if (listener != null) listener.onTaskComplete(result.isSuccess);
+        });
+    }
+
+    public void disconnectDevice(String ip, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            ScriptResult result = runScript(SCRIPT_DISCONNECT, ip);
             if (listener != null) listener.onTaskComplete(result.isSuccess);
         });
     }

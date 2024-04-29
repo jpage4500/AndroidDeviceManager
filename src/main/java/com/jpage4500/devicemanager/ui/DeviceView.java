@@ -11,15 +11,12 @@ import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
 import net.coobird.thumbnailator.Thumbnails;
-import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -44,7 +41,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     // TODO: for testing logging
     private static final boolean TEST_LOGGING = false;
-    public static final String PREF_RECENT_WIRELESS_DEVICES = "PREF_RECENT_WIRELESS_DEVICES";
 
     public JPanel panel;
     public CustomTable table;
@@ -81,17 +77,17 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     }
 
     private void checkWirelessDevice(Device device) {
-        if (device.serial.indexOf(':') < 0) return;
+        if (!device.isWireless()) return;
         log.trace("wireless device {}", GsonHelper.toJson(device));
         Preferences preferences = Preferences.userRoot();
-        String recentDeviceStr = preferences.get(PREF_RECENT_WIRELESS_DEVICES, null);
+        String recentDeviceStr = preferences.get(ConnectScreen.PREF_RECENT_WIRELESS_DEVICES, null);
         List<Device> recentDeviceList = GsonHelper.stringToList(recentDeviceStr, Device.class);
         for (Device recentDevice : recentDeviceList) {
             if (TextUtils.equals(recentDevice.serial, device.serial)) return;
         }
         // add device to recent list
         recentDeviceList.add(device);
-        preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(recentDeviceList));
+        preferences.put(ConnectScreen.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(recentDeviceList));
     }
 
     @Override
@@ -203,6 +199,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                         table.changeSelection(row, column, false, false);
                     }
                     selectedColumn = column;
+                    setupPopupMenu(row, e);
                 } else if (e.getClickCount() == 2) {
                     // double-click
                     selectedColumn = -1;
@@ -219,14 +216,9 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             }
         });
 
-        setupPopupMenu();
-
-        table.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
-            @Override
-            public void valueChanged(ListSelectionEvent e) {
-                if (e.getValueIsAdjusting()) return;
-                refreshUi();
-            }
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            refreshUi();
         });
         table.requestFocus();
 
@@ -258,7 +250,10 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         statusBar.setLeftLabel(Build.versionName + " / " + memUsage);
     }
 
-    private void setupPopupMenu() {
+    private void setupPopupMenu(int row, MouseEvent e) {
+        Device device = model.getDeviceAtRow(row);
+        if (device == null) return;
+
         JPopupMenu popupMenu = new JPopupMenu();
 
         JMenuItem copyFieldItem = new JMenuItem("Copy Field to Clipboard");
@@ -293,7 +288,14 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         notesItem.addActionListener(actionEvent -> handleSetProperty(2));
         popupMenu.add(notesItem);
 
-        table.setComponentPopupMenu(popupMenu);
+        if (device.isWireless()) {
+            JMenuItem disconnectItem = new JMenuItem("Disconnect " + device.model);
+            disconnectItem.addActionListener(actionEvent -> handleDisconnect(device));
+            popupMenu.add(disconnectItem);
+        }
+
+        popupMenu.show(e.getComponent(), e.getX(), e.getY());
+        //table.setComponentPopupMenu(popupMenu);
     }
 
     private void handleCopyClipboardFieldCommand() {
@@ -393,6 +395,12 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         }
     }
 
+    private void handleDisconnect(Device device) {
+        DeviceManager.getInstance().disconnectDevice(device.serial, isSuccess -> {
+            DeviceManager.getInstance().refreshDevices(this);
+        });
+    }
+
     private void handleFilesDropped(List<File> fileList) {
         List<Device> selectedDeviceList = getSelectedDevices();
         if (selectedDeviceList.size() == 0) {
@@ -488,68 +496,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     }
 
     private void handleConnectDevice() {
-        Preferences preferences = Preferences.userRoot();
-        String recentDeviceStr = preferences.get(PREF_RECENT_WIRELESS_DEVICES, null);
-        List<Device> recentDeviceList = GsonHelper.stringToList(recentDeviceStr, Device.class);
-        String lastIp = preferences.get("PREF_LAST_DEVICE_IP", "192.168.0.1");
-        String lastPort = preferences.get("PREF_LAST_DEVICE_PORT", "5555");
-
-        JPanel panel = new JPanel(new MigLayout());
-        panel.add(new JLabel("Recent Devices"), "span");
-
-        List<String> listData = new ArrayList<>();
-        for (Device device : recentDeviceList) {
-            listData.add(device.serial + " - " + device.model);
-        }
-        JList list = new JList(listData.toArray());
-        list.setVisibleRowCount(3);
-        JScrollPane scroll = new JScrollPane(list);
-        panel.add(scroll, "grow, span, wrap");
-
-        JTextField serverField = new JTextField(lastIp);
-        JTextField portField = new JTextField(lastPort);
-
-        list.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                int selectedIndex = list.getSelectedIndex();
-                Device selectedDevice = recentDeviceList.get(selectedIndex);
-                int pos = selectedDevice.serial.indexOf(':');
-                serverField.setText(selectedDevice.serial.substring(0, pos));
-                portField.setText(selectedDevice.serial.substring(pos + 1));
-            }
-        });
-
-        panel.add(new JLabel("IP"), "");
-        panel.add(serverField, "span 4, al right, wrap");
-
-        panel.add(new JLabel("Port"), "");
-        portField.addKeyListener(new KeyAdapter() {
-            public void keyTyped(KeyEvent e) {
-                char c = e.getKeyChar();
-                if (c == KeyEvent.VK_BACK_SPACE || c == KeyEvent.VK_DELETE) {
-                    // always allowed
-                    return;
-                }
-                int length = portField.getText().length();
-                if (length >= 5) {
-                    e.consume();
-                } else if (!(c >= '0' && c <= '9')) {
-                    e.consume();
-                }
-            }
-        });
-        panel.add(portField, "span 2, al right, wrap");
-
-        Object[] choices = {"Connect", "Cancel"};
-        int rc = JOptionPane.showOptionDialog(frame, panel, "Connect to device", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, choices, null);
-        if (rc != JOptionPane.YES_OPTION) return;
-
-        String ip = serverField.getText();
-        String port = portField.getText();
-        DeviceManager.getInstance().connectDevice(ip + ":" + port, isSuccess -> {
-            DeviceManager.getInstance().refreshDevices(this);
-        });
+        ConnectScreen.showConnectDialog(frame);
     }
 
     private void handleMirrorCommand() {
@@ -561,14 +508,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             // prompt to open multiple devices at once
             int rc = JOptionPane.showConfirmDialog(frame,
                     "Mirror " + selectedDeviceList.size() + " devices?",
-                    "Mirror Device",
-                    JOptionPane.YES_NO_OPTION
-            );
-            if (rc != JOptionPane.YES_OPTION) return;
-        } else if (false) {
-            Device device = selectedDeviceList.get(0);
-            int rc = JOptionPane.showConfirmDialog(frame,
-                    "Mirror " + device.serial + "?",
                     "Mirror Device",
                     JOptionPane.YES_NO_OPTION
             );
