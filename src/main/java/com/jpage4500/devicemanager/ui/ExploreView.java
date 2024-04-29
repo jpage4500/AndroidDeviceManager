@@ -410,17 +410,22 @@ public class ExploreView {
             return;
         }
 
+        boolean isSingleFile = selectedFileList.size() == 1;
+        String msg = isSingleFile ?
+                selectedFileList.getFirst().name :
+                selectedFileList.size() + " files(s)";
+
         // prompt to install/copy
         int rc = JOptionPane.showConfirmDialog(frame,
-                "Download " + selectedFileList.size() + " files(s)?",
-                "Download Files?", JOptionPane.YES_NO_OPTION);
+                "Download " + msg + "?",
+                "Download?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         Preferences preferences = Preferences.userRoot();
         String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, "~/Downloads");
         for (DeviceFile file : selectedFileList) {
             DeviceManager.getInstance().downloadFile(selectedDevice, selectedPath, file.name, downloadFolder, isSuccess -> {
-                if (isSuccess && selectedFileList.size() == 1) {
+                if (isSuccess && isSingleFile) {
                     File downloadedFile = new File(downloadFolder + "/" + file.name);
                     if (downloadedFile.exists()) {
                         int openRc = JOptionPane.showConfirmDialog(frame,

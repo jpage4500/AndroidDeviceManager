@@ -11,12 +11,15 @@ import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
 import net.coobird.thumbnailator.Thumbnails;
+import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -41,6 +44,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     // TODO: for testing logging
     private static final boolean TEST_LOGGING = false;
+    public static final String PREF_RECENT_WIRELESS_DEVICES = "PREF_RECENT_WIRELESS_DEVICES";
 
     public JPanel panel;
     public CustomTable table;
@@ -52,6 +56,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     private HintTextField textField;
 
     public int selectedColumn = -1;
+    private final List<JButton> deviceButtonList = new ArrayList<>();
 
     private ExploreView exploreView;
     private LogsView logsView;
@@ -64,9 +69,29 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     public void handleDevicesUpdated(List<Device> deviceList) {
         if (deviceList != null) {
             model.setDeviceList(deviceList);
+
+            // check if any devices are wireless
+            for (Device device : deviceList) {
+                checkWirelessDevice(device);
+            }
+
             refreshUi();
         }
         updateVersionLabel();
+    }
+
+    private void checkWirelessDevice(Device device) {
+        if (device.serial.indexOf(':') < 0) return;
+        log.trace("wireless device {}", GsonHelper.toJson(device));
+        Preferences preferences = Preferences.userRoot();
+        String recentDeviceStr = preferences.get(PREF_RECENT_WIRELESS_DEVICES, null);
+        List<Device> recentDeviceList = GsonHelper.stringToList(recentDeviceStr, Device.class);
+        for (Device recentDevice : recentDeviceList) {
+            if (TextUtils.equals(recentDevice.serial, device.serial)) return;
+        }
+        // add device to recent list
+        recentDeviceList.add(device);
+        preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(recentDeviceList));
     }
 
     @Override
@@ -196,8 +221,10 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
         setupPopupMenu();
 
-        table.getSelectionModel().addListSelectionListener(listSelectionEvent -> {
-            if (!listSelectionEvent.getValueIsAdjusting()) {
+        table.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                if (e.getValueIsAdjusting()) return;
                 refreshUi();
             }
         });
@@ -215,6 +242,11 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             statusBar.setRightLabel("total: " + rowCount);
         }
         emptyView.setVisible(rowCount == 0);
+
+        int numSelected = table.getSelectedRowCount();
+        for (JButton button : deviceButtonList) {
+            button.setEnabled(numSelected > 0);
+        }
     }
 
     private void updateVersionLabel() {
@@ -455,9 +487,74 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         }
     }
 
+    private void handleConnectDevice() {
+        Preferences preferences = Preferences.userRoot();
+        String recentDeviceStr = preferences.get(PREF_RECENT_WIRELESS_DEVICES, null);
+        List<Device> recentDeviceList = GsonHelper.stringToList(recentDeviceStr, Device.class);
+        String lastIp = preferences.get("PREF_LAST_DEVICE_IP", "192.168.0.1");
+        String lastPort = preferences.get("PREF_LAST_DEVICE_PORT", "5555");
+
+        JPanel panel = new JPanel(new MigLayout());
+        panel.add(new JLabel("Recent Devices"), "span");
+
+        List<String> listData = new ArrayList<>();
+        for (Device device : recentDeviceList) {
+            listData.add(device.serial + " - " + device.model);
+        }
+        JList list = new JList(listData.toArray());
+        list.setVisibleRowCount(3);
+        JScrollPane scroll = new JScrollPane(list);
+        panel.add(scroll, "grow, span, wrap");
+
+        JTextField serverField = new JTextField(lastIp);
+        JTextField portField = new JTextField(lastPort);
+
+        list.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int selectedIndex = list.getSelectedIndex();
+                Device selectedDevice = recentDeviceList.get(selectedIndex);
+                int pos = selectedDevice.serial.indexOf(':');
+                serverField.setText(selectedDevice.serial.substring(0, pos));
+                portField.setText(selectedDevice.serial.substring(pos + 1));
+            }
+        });
+
+        panel.add(new JLabel("IP"), "");
+        panel.add(serverField, "span 4, al right, wrap");
+
+        panel.add(new JLabel("Port"), "");
+        portField.addKeyListener(new KeyAdapter() {
+            public void keyTyped(KeyEvent e) {
+                char c = e.getKeyChar();
+                if (c == KeyEvent.VK_BACK_SPACE || c == KeyEvent.VK_DELETE) {
+                    // always allowed
+                    return;
+                }
+                int length = portField.getText().length();
+                if (length >= 5) {
+                    e.consume();
+                } else if (!(c >= '0' && c <= '9')) {
+                    e.consume();
+                }
+            }
+        });
+        panel.add(portField, "span 2, al right, wrap");
+
+        Object[] choices = {"Connect", "Cancel"};
+        int rc = JOptionPane.showOptionDialog(frame, panel, "Connect to device", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, choices, null);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        String ip = serverField.getText();
+        String port = portField.getText();
+        DeviceManager.getInstance().connectDevice(ip + ":" + port, isSuccess -> {
+            DeviceManager.getInstance().refreshDevices(this);
+        });
+    }
+
     private void handleMirrorCommand() {
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         } else if (selectedDeviceList.size() > 1) {
@@ -507,23 +604,37 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         } else {
             toolbar.removeAll();
         }
+        deviceButtonList.clear();
+        JButton button;
 
-        createButton(toolbar, "icon_power.png", "Restart", "Restart Device", actionEvent -> handleRestartCommand());
+        createButton(toolbar, "icon_add.png", "Connect", "Connect Device", actionEvent -> handleConnectDevice());
         toolbar.addSeparator();
-        createButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
-        createButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
+
+        button = createButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
+        deviceButtonList.add(button);
+
+        button = createButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
+        deviceButtonList.add(button);
         toolbar.addSeparator();
-        createButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
+
+        button = createButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
+        deviceButtonList.add(button);
+
         if (TEST_LOGGING) {
-            createButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+            button = createButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+            deviceButtonList.add(button);
         }
-        createButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
-        createButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
+        button = createButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
+        deviceButtonList.add(button);
+        button = createButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
+        deviceButtonList.add(button);
+
         toolbar.addSeparator();
         //createButton(toolbar, "icon_variable.png", "Set Property", actionEvent -> handleSetPropertyCommand());
 
         // create custom action buttons
-        createButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
+        button = createButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
+        deviceButtonList.add(button);
 
         // TODO: add the 'add custom' button
         // createButton(toolbar, "icon_add.png", "add custom", "Run custom adb command", actionEvent -> handleAddCustomCommand());
@@ -568,11 +679,25 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         } else {
             File[] files = folder.listFiles();
             if (files == null) return;
+            final JPopupMenu popup = new JPopupMenu();
+            int numScripts = 0;
             for (File file : files) {
                 String name = file.getName();
                 if (!TextUtils.endsWith(name, ".sh")) return;
-                String label = name.substring(0, ".sh".length());
-                createButton(toolbar, "icon_script.png", label, name, actionEvent -> runCustomScript(file));
+                numScripts++;
+                popup.add(new JMenuItem(new AbstractAction(name) {
+                    public void actionPerformed(ActionEvent e) {
+                        runCustomScript(file);
+                    }
+                }));
+            }
+            if (numScripts > 0) {
+                JButton button = createButton(toolbar, "icon_script.png", "Custom", "Custom Scripts", null);
+                button.addMouseListener(new MouseAdapter() {
+                    public void mousePressed(MouseEvent e) {
+                        popup.show(e.getComponent(), e.getX(), e.getY());
+                    }
+                });
             }
         }
     }
@@ -713,7 +838,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         logsView.setDevice(selectedDevice);
     }
 
-    private void createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
+    private JButton createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
         Image icon;
         try {
             // library offers MUCH better image scaling than ImageIO
@@ -721,11 +846,11 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
             if (icon == null) {
                 log.error("createButton: image not found! {}", imageName);
-                return;
+                return null;
             }
         } catch (Exception e) {
             log.debug("createButton: Exception:{}", e.getMessage());
-            return;
+            return null;
         }
         JButton button = new JButton(new ImageIcon(icon));
         if (label != null) button.setText(label);
@@ -736,6 +861,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         button.setHorizontalTextPosition(SwingConstants.CENTER);
         button.addActionListener(listener);
         toolbar.add(button);
+        return button;
     }
 
     private void handleVersionClicked() {

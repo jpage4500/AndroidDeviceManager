@@ -13,8 +13,11 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.font.TextAttribute;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.prefs.Preferences;
 
 import javax.swing.*;
@@ -86,6 +89,41 @@ public class SettingsScreen extends JPanel {
             }
         });
         add(debugCheckbox, "span 2, al right, wrap");
+
+        JLabel viewLogsLabel = new JLabel("View Logs");
+        viewLogsLabel.setForeground(Color.BLUE);
+        Font font = viewLogsLabel.getFont();
+        Map attributes = font.getAttributes();
+        attributes.put(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON);
+        viewLogsLabel.setFont(font.deriveFont(attributes));
+        viewLogsLabel.setHorizontalTextPosition(SwingConstants.LEFT);
+        viewLogsLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                viewLogs();
+            }
+        });
+        add(viewLogsLabel, "span 2, al right, wrap");
+    }
+
+    private void viewLogs() {
+        // show logs
+        AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
+        File logsFile = logger.getFileLog();
+        try {
+            Desktop desktop = Desktop.getDesktop();
+            if (desktop.isSupported(Desktop.Action.EDIT)) {
+                desktop.edit(logsFile);
+                return;
+            } else if (desktop.isSupported(Desktop.Action.OPEN)) {
+                desktop.open(logsFile);
+                return;
+            }
+        } catch (Exception e) {
+            log.error("handleVersionClicked: Exception: {}, {}", logsFile.getAbsolutePath(), e.getMessage());
+        }
+        // open failed
+        JOptionPane.showConfirmDialog(frame, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
     }
 
     private void showAppsSettings() {
