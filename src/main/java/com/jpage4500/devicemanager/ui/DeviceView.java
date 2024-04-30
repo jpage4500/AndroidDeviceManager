@@ -289,6 +289,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         popupMenu.add(notesItem);
 
         if (device.isWireless()) {
+            popupMenu.addSeparator();
             JMenuItem disconnectItem = new JMenuItem("Disconnect " + device.model);
             disconnectItem.addActionListener(actionEvent -> handleDisconnect(device));
             popupMenu.add(disconnectItem);
@@ -302,7 +303,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }
@@ -361,7 +362,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }
@@ -382,7 +383,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     private void handleTermCommand() {
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         } else if (selectedDeviceList.size() > 1) {
@@ -403,7 +404,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     private void handleFilesDropped(List<File> fileList) {
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }
@@ -451,7 +452,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     private void handleSetProperty(int number) {
         List<Device> selectedDeviceList = getSelectedDevices();
         String customValue = "";
-        String message = "";
+        String message;
         if (selectedDeviceList.size() == 1) {
             Device device = selectedDeviceList.get(0);
             if (number == 1) customValue = device.custom1;
@@ -482,7 +483,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     private void handleScreenshotCommand() {
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         } else if (selectedDeviceList.size() > 1) {
@@ -645,7 +646,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         log.debug("runCustomScript: run:{}", file.getAbsolutePath());
 
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         } else if (selectedDeviceList.size() > 1) {
@@ -668,7 +669,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     private void handleRunCustomCommand() {
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }
@@ -678,7 +679,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
         JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
         comboBox.setEditable(true);
-        int rc = JOptionPane.showOptionDialog(frame, comboBox, "Custom adb command", -1, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        int rc = JOptionPane.showOptionDialog(frame, comboBox, "Custom adb command", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return;
         String selectedItem = comboBox.getSelectedItem().toString();
         if (TextUtils.isEmpty(selectedItem)) return;
@@ -737,7 +738,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     private void handleInstallCommand() {
         List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.size() == 0) {
+        if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }

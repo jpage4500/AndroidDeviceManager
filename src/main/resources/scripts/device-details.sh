@@ -34,8 +34,9 @@ function getProp() {
 function getAppVersion() {
     PACKAGE=$1
     NAME=$(${ADB} -s $ADB_DEVICE shell dumpsys package $PACKAGE | grep versionName | sed 's/    versionName=//')
-    CODE=$(${ADB} -s $ADB_DEVICE shell dumpsys package $PACKAGE | grep versionCode | sed 's/    versionCode=//' | sed 's/ .*//')
-    echo "$NAME $CODE"
+    # CODE=$(${ADB} -s $ADB_DEVICE shell dumpsys package $PACKAGE | grep versionCode | sed 's/    versionCode=//' | sed 's/ .*//')
+    # echo "$NAME $CODE"
+    echo "$NAME"
 }
 
 function getFreeSpace() {
