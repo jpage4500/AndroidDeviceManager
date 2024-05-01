@@ -250,10 +250,10 @@ public class ExploreView {
             if (fileList == null) {
                 errorMessage = "permission denied - " + selectedPath;
                 // remove bad path
-                prevPathList.removeLast();
+                prevPathList.remove(prevPathList.size() - 1);
                 if (!prevPathList.isEmpty()) {
                     // reset good path
-                    selectedPath = prevPathList.getLast();
+                    selectedPath = prevPathList.get(prevPathList.size() - 1);
                 } else {
                     selectedPath = "";
                 }
@@ -412,7 +412,7 @@ public class ExploreView {
 
         boolean isSingleFile = selectedFileList.size() == 1;
         String msg = isSingleFile ?
-                selectedFileList.getFirst().name :
+                selectedFileList.get(0).name :
                 selectedFileList.size() + " files(s)";
 
         // prompt to install/copy
