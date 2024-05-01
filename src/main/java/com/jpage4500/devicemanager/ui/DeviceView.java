@@ -625,19 +625,24 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 String name = file.getName();
                 if (!TextUtils.endsWith(name, ".sh")) return;
                 numScripts++;
-                popup.add(new JMenuItem(new AbstractAction(name) {
-                    public void actionPerformed(ActionEvent e) {
-                        runCustomScript(file);
-                    }
-                }));
+                Image icon = loadImage("icon_script.png", 20, 20);
+                JMenuItem menuItem = new JMenuItem(name, new ImageIcon(icon));
+                menuItem.addActionListener(e -> {
+                    runCustomScript(file);
+                });
+                popup.add(menuItem);
             }
             if (numScripts > 0) {
-                JButton button = createButton(toolbar, "icon_script.png", "Custom", "Custom Scripts", null);
+                JButton button = createButton(toolbar, "icon_overflow.png", "Custom", "View custom scripts", null);
                 button.addMouseListener(new MouseAdapter() {
-                    public void mousePressed(MouseEvent e) {
-                        popup.show(e.getComponent(), e.getX(), e.getY());
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        if (SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 1) {
+                            popup.show(e.getComponent(), e.getX(), e.getY());
+                        }
                     }
                 });
+                deviceButtonList.add(button);
             }
         }
     }
@@ -778,20 +783,22 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         logsView.setDevice(selectedDevice);
     }
 
-    private JButton createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
-        Image icon;
+    private Image loadImage(String path, int w, int h) {
         try {
             // library offers MUCH better image scaling than ImageIO
-            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(40, 40).asBufferedImage();
+            Image icon = Thumbnails.of(getClass().getResource("/images/" + path)).size(w, h).asBufferedImage();
             //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
-            if (icon == null) {
-                log.error("createButton: image not found! {}", imageName);
-                return null;
-            }
+            if (icon != null) return icon;
+            log.error("createButton: image not found! {}", path);
         } catch (Exception e) {
-            log.debug("createButton: Exception:{}", e.getMessage());
-            return null;
+            log.error("createButton: Exception:{}", e.getMessage());
         }
+        return null;
+    }
+
+    private JButton createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
+        Image icon = loadImage(imageName, 40, 40);
+        if (icon == null) return null;
         JButton button = new JButton(new ImageIcon(icon));
         if (label != null) button.setText(label);
 
