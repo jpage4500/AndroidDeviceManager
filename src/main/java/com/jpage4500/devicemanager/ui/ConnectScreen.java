@@ -34,7 +34,7 @@ public class ConnectScreen extends JPanel {
     private JTextField serverField;
     private JTextField portField;
 
-    public static void showConnectDialog(Component frame) {
+    public static void showConnectDialog(Component frame, DeviceManager.TaskListener listener) {
         ConnectScreen screen = new ConnectScreen(frame);
         Object[] choices = {"Connect", "Cancel"};
         int rc = JOptionPane.showOptionDialog(frame, screen, "Connect to device", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, choices, null);
@@ -47,8 +47,7 @@ public class ConnectScreen extends JPanel {
         preferences.put(PREF_LAST_DEVICE_PORT, port);
 
         DeviceManager deviceManager = DeviceManager.getInstance();
-        deviceManager.connectDevice(ip + ":" + port, isSuccess -> {
-        });
+        deviceManager.connectDevice(ip + ":" + port, listener);
     }
 
     public ConnectScreen(Component frame) {

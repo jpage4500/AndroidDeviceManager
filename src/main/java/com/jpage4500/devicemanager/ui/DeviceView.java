@@ -396,12 +396,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         }
     }
 
-    private void handleDisconnect(Device device) {
-        DeviceManager.getInstance().disconnectDevice(device.serial, isSuccess -> {
-            DeviceManager.getInstance().refreshDevices(this);
-        });
-    }
-
     private void handleFilesDropped(List<File> fileList) {
         List<Device> selectedDeviceList = getSelectedDevices();
         if (selectedDeviceList.isEmpty()) {
@@ -497,7 +491,11 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     }
 
     private void handleConnectDevice() {
-        ConnectScreen.showConnectDialog(frame);
+        ConnectScreen.showConnectDialog(frame, this::refreshRetry);
+    }
+
+    private void handleDisconnect(Device device) {
+        DeviceManager.getInstance().disconnectDevice(device.serial, this::refreshRetry);
     }
 
     private void handleMirrorCommand() {
@@ -877,5 +875,20 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     @Override
     public void keyReleased(KeyEvent e) {
+    }
+
+    private void refreshRetry(boolean isSuccess) {
+        if (isSuccess) {
+            // refresh every few seconds to pick-up the new device
+            new Thread(() -> {
+                for (int i = 0; i < 3; i++) {
+                    handleRefreshCommand();
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException ignored) {
+                    }
+                }
+            }).start();
+        }
     }
 }
