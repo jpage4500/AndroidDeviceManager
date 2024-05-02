@@ -2,14 +2,14 @@ package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
+import com.jpage4500.devicemanager.ui.views.CheckBoxList;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
-
 import net.miginfocom.swing.MigLayout;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -20,12 +20,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.prefs.Preferences;
 
-import javax.swing.*;
-
 public class SettingsScreen extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(SettingsScreen.class);
     public static final String PREF_CUSTOM_APPS = "PREF_CUSTOM_APPS";
     public static final String PREF_DEBUG_MODE = "PREF_DEBUG_MODE";
+    public static final String PREF_HIDDEN_COLUMNS = "PREF_HIDDEN_COLUMNS";
 
     private Component frame;
     private DeviceTableModel tableModel;
@@ -39,6 +38,18 @@ public class SettingsScreen extends JPanel {
         this.frame = frame;
         this.tableModel = tableModel;
         setLayout(new MigLayout("", "[][]"));
+
+        // columns
+        add(new JLabel("Columns:"));
+        JButton colsButton = new JButton("EDIT");
+        colsButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                showColumns();
+            }
+        });
+        add(colsButton, "wrap");
+
         // custom apps
         add(new JLabel("Custom Apps:"));
         JButton appButton = new JButton("EDIT");
@@ -124,6 +135,35 @@ public class SettingsScreen extends JPanel {
         }
         // open failed
         JOptionPane.showConfirmDialog(frame, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
+    }
+
+    private void showColumns() {
+        Preferences preferences = Preferences.userRoot();
+        String hiddenColsStr = preferences.get(PREF_HIDDEN_COLUMNS, null);
+        List<String> hiddenColList = GsonHelper.stringToList(hiddenColsStr, String.class);
+
+        CheckBoxList checkBoxList = new CheckBoxList();
+        DeviceTableModel.Columns[] columnsArr = DeviceTableModel.Columns.values();
+        for (DeviceTableModel.Columns column : columnsArr) {
+            String colName = column.name();
+            boolean isHidden = hiddenColList.contains(colName);
+            checkBoxList.addItem(colName, !isHidden);
+        }
+
+        JPanel panel = new JPanel(new MigLayout());
+        panel.add(new JLabel("De-select columns to hide"), "span");
+
+        JScrollPane scroll = new JScrollPane(checkBoxList);
+        panel.add(scroll, "grow, span, wrap");
+
+        int rc = JOptionPane.showOptionDialog(frame, panel, "Visible Columns", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        // save columns that are NOT selected
+        List<String> selectedItems = checkBoxList.getUnSelectedItems();
+        log.debug("HIDDEN: {}", GsonHelper.toJson(selectedItems));
+        preferences.put(PREF_HIDDEN_COLUMNS, GsonHelper.toJson(selectedItems));
+        tableModel.setHiddenColumns(selectedItems);
     }
 
     private void showAppsSettings() {

@@ -20,17 +20,6 @@ public class ConnectScreen extends JPanel {
     public static final String PREF_LAST_DEVICE_IP = "PREF_LAST_DEVICE_IP";
     public static final String PREF_LAST_DEVICE_PORT = "PREF_LAST_DEVICE_PORT";
 
-    public static class AlternatingBackgroundColorRenderer extends DefaultListCellRenderer {
-        public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            if (isSelected) setBackground(Color.BLUE);
-            else if (index % 2 == 0) setBackground(Color.WHITE);
-            else setBackground(new Color(232, 232, 232));
-            setOpaque(true);
-            return this;
-        }
-    }
-
     private JTextField serverField;
     private JTextField portField;
 

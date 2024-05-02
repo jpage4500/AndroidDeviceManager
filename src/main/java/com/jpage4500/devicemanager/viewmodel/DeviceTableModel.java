@@ -2,21 +2,20 @@ package com.jpage4500.devicemanager.viewmodel;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.utils.TextUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.swing.table.AbstractTableModel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-
-import javax.swing.table.AbstractTableModel;
 
 public class DeviceTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(DeviceTableModel.class);
 
     private final List<Device> deviceList;
     private final List<String> appList;
+    private Columns[] visibleColumns;
 
     public enum Columns {
         SERIAL,
@@ -27,19 +26,36 @@ public class DeviceTableModel extends AbstractTableModel {
         CUSTOM1,
         CUSTOM2,
         STATUS,
-        ;
     }
 
     public DeviceTableModel() {
         deviceList = new ArrayList<>();
         appList = new ArrayList<>();
+        setHiddenColumns(null);
     }
 
     public void setDeviceList(List<Device> deviceList) {
         this.deviceList.clear();
         this.deviceList.addAll(deviceList);
-
         fireTableDataChanged();
+    }
+
+    public void setHiddenColumns(List<String> hiddenColumns) {
+        Columns[] columns = Columns.values();
+        int numColumns = columns.length;
+        int numHiddenColumns = hiddenColumns == null ? 0 : hiddenColumns.size();
+        if (numHiddenColumns > numColumns) return;
+        int numVisible = numColumns - numHiddenColumns;
+        visibleColumns = new Columns[numVisible];
+
+        int index = 0;
+        for (Columns column : columns) {
+            if (hiddenColumns == null || !hiddenColumns.contains(column.name())) {
+                visibleColumns[index] = column;
+                index++;
+            }
+        }
+        fireTableStructureChanged();
     }
 
     /**
@@ -76,21 +92,20 @@ public class DeviceTableModel extends AbstractTableModel {
     }
 
     public int getColumnCount() {
-        return Columns.values().length + appList.size();
+        return visibleColumns.length + appList.size();
     }
 
     public String getColumnName(int i) {
-        Columns[] columns = Columns.values();
-        if (i < columns.length) {
-            Columns colType = columns[i];
+        if (i < visibleColumns.length) {
+            Columns colType = visibleColumns[i];
             return colType.name();
         } else {
-            String appName = appList.get(i - columns.length);
+            String appName = appList.get(i - visibleColumns.length);
             String[] split = appName.split("\\.");
             if (split.length >= 1) {
                 return split[split.length - 1].toUpperCase(Locale.ROOT);
             } else {
-                return split[0];
+                return "?";
             }
         }
     }
@@ -104,9 +119,8 @@ public class DeviceTableModel extends AbstractTableModel {
         else if (col >= getColumnCount()) return null;
 
         Device device = deviceList.get(row);
-        Columns[] columns = Columns.values();
-        if (col < columns.length) {
-            Columns colType = columns[col];
+        if (col < visibleColumns.length) {
+            Columns colType = visibleColumns[col];
             switch (colType) {
                 case SERIAL:
                     return device.serial;
@@ -141,7 +155,7 @@ public class DeviceTableModel extends AbstractTableModel {
         } else {
             // custom app version
             if (device.customAppList != null) {
-                String appName = appList.get(col - columns.length);
+                String appName = appList.get(col - visibleColumns.length);
                 return device.customAppList.get(appName);
             } else {
                 return null;
