@@ -137,11 +137,14 @@ public class SettingsScreen extends JPanel {
         JOptionPane.showConfirmDialog(frame, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
     }
 
-    private void showColumns() {
+    public static List<String> getHiddenColumnList() {
         Preferences preferences = Preferences.userRoot();
         String hiddenColsStr = preferences.get(PREF_HIDDEN_COLUMNS, null);
-        List<String> hiddenColList = GsonHelper.stringToList(hiddenColsStr, String.class);
+        return GsonHelper.stringToList(hiddenColsStr, String.class);
+    }
 
+    private void showColumns() {
+        List<String> hiddenColList = getHiddenColumnList();
         CheckBoxList checkBoxList = new CheckBoxList();
         DeviceTableModel.Columns[] columnsArr = DeviceTableModel.Columns.values();
         for (DeviceTableModel.Columns column : columnsArr) {
@@ -162,6 +165,7 @@ public class SettingsScreen extends JPanel {
         // save columns that are NOT selected
         List<String> selectedItems = checkBoxList.getUnSelectedItems();
         log.debug("HIDDEN: {}", GsonHelper.toJson(selectedItems));
+        Preferences preferences = Preferences.userRoot();
         preferences.put(PREF_HIDDEN_COLUMNS, GsonHelper.toJson(selectedItems));
         tableModel.setHiddenColumns(selectedItems);
     }

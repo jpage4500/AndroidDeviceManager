@@ -148,8 +148,11 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         table = new CustomTable("devices");
         model = new DeviceTableModel();
 
+        // restore previous settings
         List<String> appList = SettingsScreen.getCustomApps();
         model.setAppList(appList);
+        List<String> hiddenColList = SettingsScreen.getHiddenColumnList();
+        model.setHiddenColumns(hiddenColList);
 
         table.setModel(model);
 

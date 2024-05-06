@@ -9,4 +9,5 @@ source ./env-vars.sh
 
 echo "deleting file: ${SRC_PATH}/${SRC_NAME}"
 
-${ADB} -s "${ADB_DEVICE}" shell "rm -rf ${SRC_PATH}/${SRC_NAME}"
+# need to escape quotes (https://android.stackexchange.com/a/85228)
+${ADB} -s "${ADB_DEVICE}" shell "rm -rf \"${SRC_PATH}/${SRC_NAME}\""
