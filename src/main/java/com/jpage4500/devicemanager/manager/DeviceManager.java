@@ -6,6 +6,7 @@ import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.Timer;
 
 import java.io.*;
 import java.net.URL;
@@ -319,6 +320,12 @@ public class DeviceManager {
     public void connectDevice(String ip, TaskListener listener) {
         commandExecutorService.submit(() -> {
             ScriptResult result = runScript(SCRIPT_CONNECT, ip);
+            // NOTE: exit code returns success even when device fails to connect
+            // "failed to connect to '192.168.0.175:5555': Operation timed out"
+            String resultStr = GsonHelper.toJson(result.stdOut);
+            if (TextUtils.containsAny(resultStr, true, "failed to connect", "timed out")) {
+                result.isSuccess = false;
+            }
             if (listener != null) listener.onTaskComplete(result.isSuccess);
         });
     }
@@ -422,7 +429,7 @@ public class DeviceManager {
         // 192.168.0.28:35031     offline product:x1quex model:SM_G981U1 device:x1q transport_id:7
         // 5858444a4e483498       unauthorized usb:34603008X transport_id:3
         for (String line : result.stdOut) {
-            if (line.length() == 0 || line.startsWith("List")) continue;
+            if (line.isEmpty() || line.startsWith("List")) continue;
 
             String[] deviceArr = line.split(" ");
             if (deviceArr.length <= 1) continue;
@@ -695,6 +702,7 @@ public class DeviceManager {
 
     public ScriptResult runScript(File script, boolean isLongRunning, boolean logResults, String... args) {
         ScriptResult result = new ScriptResult();
+        Timer timer = new Timer();
         try {
             List<String> commandList = new ArrayList<>();
             commandList.add(script.getAbsolutePath());
@@ -719,30 +727,30 @@ public class DeviceManager {
                 if (isExited) {
                     exitValue = process.exitValue();
                 } else {
-                    log.error("runScript: NOT FINISHED: {}, args:{}", script.getAbsolutePath(), GsonHelper.toJson(args));
+                    log.error("runScript: {}: NOT FINISHED: {}, args:{}", timer, script.getAbsolutePath(), GsonHelper.toJson(args));
                 }
             }
             result.isSuccess = exitValue == 0;
             if (!result.isSuccess) {
-                log.error("runScript: ERROR:{}, {}, args:{}", exitValue, script.getAbsolutePath(), GsonHelper.toJson(args));
+                log.error("runScript: {}: ERROR:{}, {}, args:{}", timer, exitValue, script.getAbsolutePath(), GsonHelper.toJson(args));
             }
 
             result.stdOut = readInputStream(process.getInputStream());
             if (!result.stdOut.isEmpty() && log.isTraceEnabled() && logResults) {
-                log.trace("runScript: RESULTS: {}", GsonHelper.toJson(result.stdOut));
+                log.trace("runScript: {}: RESULTS: {}", timer, GsonHelper.toJson(result.stdOut));
             }
             result.stdErr = readInputStream(process.getErrorStream());
             synchronized (processList) {
                 processList.remove(process);
             }
             if (!result.stdErr.isEmpty()) {
-                log.error("runScript: ERROR: {}", GsonHelper.toJson(result.stdErr));
+                log.error("runScript: {}: ERROR: {}", timer, GsonHelper.toJson(result.stdErr));
             }
             return result;
         } catch (Exception e) {
             result.isSuccess = false;
             result.stdErr = List.of("Exception: " + e.getMessage());
-            log.error("runScript: Exception: {}:{}, script:{}", e.getClass().getSimpleName(), e.getMessage(), script.getAbsolutePath());
+            log.error("runScript: {}: Exception: {}:{}, script:{}", timer, e.getClass().getSimpleName(), e.getMessage(), script.getAbsolutePath());
         }
         return result;
     }

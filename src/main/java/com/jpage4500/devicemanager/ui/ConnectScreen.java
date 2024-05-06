@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
@@ -55,6 +57,7 @@ public class ConnectScreen extends JPanel {
             listData.add(device.serial + " - " + device.model);
         }
         JList<String> list = new JList<>(listData.toArray(new String[0]));
+        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new AlternatingBackgroundColorRenderer());
         list.setVisibleRowCount(3);
         list.addFocusListener(new FocusAdapter() {
@@ -75,15 +78,13 @@ public class ConnectScreen extends JPanel {
         serverField.setHorizontalAlignment(SwingConstants.RIGHT);
         portField.setHorizontalAlignment(SwingConstants.RIGHT);
 
-        list.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                int selectedIndex = list.getSelectedIndex();
-                Device selectedDevice = recentDeviceList.get(selectedIndex);
-                int pos = selectedDevice.serial.indexOf(':');
-                serverField.setText(selectedDevice.serial.substring(0, pos));
-                portField.setText(selectedDevice.serial.substring(pos + 1));
-            }
+        list.addListSelectionListener(e -> {
+            int selectedIndex = list.getSelectedIndex();
+            if (selectedIndex == -1) return;
+            Device selectedDevice = recentDeviceList.get(selectedIndex);
+            int pos = selectedDevice.serial.indexOf(':');
+            serverField.setText(selectedDevice.serial.substring(0, pos));
+            portField.setText(selectedDevice.serial.substring(pos + 1));
         });
 
         add(new JLabel("IP"), "");

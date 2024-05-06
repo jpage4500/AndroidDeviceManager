@@ -27,6 +27,7 @@ import java.awt.event.*;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.prefs.Preferences;
 
@@ -53,6 +54,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     public int selectedColumn = -1;
     private final List<JButton> deviceButtonList = new ArrayList<>();
+    private final List<Device> wirelessDeviceList = new ArrayList<>();
 
     private ExploreView exploreView;
     private LogsView logsView;
@@ -76,23 +78,10 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         updateVersionLabel();
     }
 
-    private void checkWirelessDevice(Device device) {
-        if (!device.isWireless()) return;
-        log.trace("wireless device {}", GsonHelper.toJson(device));
-        Preferences preferences = Preferences.userRoot();
-        String recentDeviceStr = preferences.get(ConnectScreen.PREF_RECENT_WIRELESS_DEVICES, null);
-        List<Device> recentDeviceList = GsonHelper.stringToList(recentDeviceStr, Device.class);
-        for (Device recentDevice : recentDeviceList) {
-            if (TextUtils.equals(recentDevice.serial, device.serial)) return;
-        }
-        // add device to recent list
-        recentDeviceList.add(device);
-        preferences.put(ConnectScreen.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(recentDeviceList));
-    }
-
     @Override
     public void handleDeviceUpdated(Device device) {
         model.updateRowForDevice(device);
+        checkWirelessDevice(device);
     }
 
     private void initalizeUi() {
@@ -226,6 +215,12 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         table.requestFocus();
 
         table.addKeyListener(this);
+
+        // restore wireless device list
+        Preferences preferences = Preferences.userRoot();
+        String wirelessStr = preferences.get(ConnectScreen.PREF_RECENT_WIRELESS_DEVICES, null);
+        List<Device> wirelessList = GsonHelper.stringToList(wirelessStr, Device.class);
+        wirelessDeviceList.addAll(wirelessList);
     }
 
     private void refreshUi() {
@@ -494,11 +489,18 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     }
 
     private void handleConnectDevice() {
-        ConnectScreen.showConnectDialog(frame, this::refreshRetry);
+        ConnectScreen.showConnectDialog(frame, isSuccess -> {
+            log.debug("handleConnectDevice: {}", isSuccess);
+            if (isSuccess) refreshRetry();
+            else JOptionPane.showMessageDialog(frame, "Unable to connect!");
+        });
     }
 
     private void handleDisconnect(Device device) {
-        DeviceManager.getInstance().disconnectDevice(device.serial, this::refreshRetry);
+        DeviceManager.getInstance().disconnectDevice(device.serial, isSuccess -> {
+            if (isSuccess) refreshRetry();
+            else JOptionPane.showMessageDialog(frame, "Unable to disconnect!");
+        });
     }
 
     private void handleMirrorCommand() {
@@ -880,18 +882,49 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     public void keyReleased(KeyEvent e) {
     }
 
-    private void refreshRetry(boolean isSuccess) {
-        if (isSuccess) {
-            // refresh every few seconds to pick-up the new device
-            new Thread(() -> {
-                for (int i = 0; i < 3; i++) {
-                    handleRefreshCommand();
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException ignored) {
-                    }
+    private void refreshRetry() {
+        // refresh every few seconds to pick-up the new device
+        new Thread(() -> {
+            for (int i = 0; i < 3; i++) {
+                handleRefreshCommand();
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ignored) {
                 }
-            }).start();
-        }
+            }
+        }).start();
     }
+
+    /**
+     * if device is wireless (IP:PORT), remember it to quick connect to later
+     */
+    private void checkWirelessDevice(Device device) {
+        if (!device.hasFetchedDetails || !device.isWireless()) return;
+
+        for (Iterator<Device> iterator = wirelessDeviceList.iterator(); iterator.hasNext(); ) {
+            Device compareDevice = iterator.next();
+            if (TextUtils.equals(compareDevice.serial, device.serial)) {
+                if (TextUtils.equals(compareDevice.model, device.model)) {
+                    // already exists & is the same
+                    return;
+                } else {
+                    // model changed - remove and re-add to top of list
+                    iterator.remove();
+                }
+            }
+        }
+        if (log.isTraceEnabled()) log.trace("checkWireless: ADD: {}", GsonHelper.toJson(device));
+
+        Preferences preferences = Preferences.userRoot();
+        // add device to TOP of list
+        wirelessDeviceList.add(0, device);
+
+        // max 10 devices
+        if (wirelessDeviceList.size() > 10) {
+            wirelessDeviceList.remove(wirelessDeviceList.size() - 1);
+        }
+
+        preferences.put(ConnectScreen.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(wirelessDeviceList));
+    }
+
 }
