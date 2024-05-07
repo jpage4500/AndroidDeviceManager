@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -144,6 +145,11 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         model.setHiddenColumns(hiddenColList);
 
         table.setModel(model);
+
+        // right-align size column
+        DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer();
+        rightRenderer.setHorizontalAlignment(JLabel.RIGHT);
+        table.getColumnModel().getColumn(4).setCellRenderer(rightRenderer);
 
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.setBackground(Color.RED);
@@ -337,7 +343,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 val = device.imei;
                 break;
             case FREE:
-                val = device.freeSpace;
+                val = String.valueOf(device.freeSpace);
                 break;
             case CUSTOM1:
                 val = device.custom1;
@@ -899,7 +905,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
      * if device is wireless (IP:PORT), remember it to quick connect to later
      */
     private void checkWirelessDevice(Device device) {
-        if (!device.hasFetchedDetails || !device.isWireless()) return;
+        if (!device.isWireless()) return;
 
         for (Iterator<Device> iterator = wirelessDeviceList.iterator(); iterator.hasNext(); ) {
             Device compareDevice = iterator.next();
@@ -913,7 +919,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 }
             }
         }
-        if (log.isTraceEnabled()) log.trace("checkWireless: ADD: {}", GsonHelper.toJson(device));
+        log.trace("checkWireless: ADD: {}", GsonHelper.toJson(device));
 
         Preferences preferences = Preferences.userRoot();
         // add device to TOP of list

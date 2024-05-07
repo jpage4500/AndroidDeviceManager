@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.viewmodel;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.SizeData;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +45,7 @@ public class DeviceTableModel extends AbstractTableModel {
         Columns[] columns = Columns.values();
         int numColumns = columns.length;
         int numHiddenColumns = hiddenColumns == null ? 0 : hiddenColumns.size();
-        if (numHiddenColumns > numColumns) return;
+        if (numHiddenColumns > numColumns) numHiddenColumns = 0;
         int numVisible = numColumns - numHiddenColumns;
         visibleColumns = new Columns[numVisible];
 
@@ -95,6 +96,12 @@ public class DeviceTableModel extends AbstractTableModel {
         return visibleColumns.length + appList.size();
     }
 
+    @Override
+    public Class<?> getColumnClass(int columnIndex) {
+        if (columnIndex == Columns.FREE.ordinal()) return SizeData.class;
+        else return String.class;
+    }
+
     public String getColumnName(int i) {
         if (i < visibleColumns.length) {
             Columns colType = visibleColumns[i];
@@ -130,18 +137,8 @@ public class DeviceTableModel extends AbstractTableModel {
                     return device.phone;
                 case IMEI:
                     return device.imei;
-                case FREE: {
-                    return device.freeSpace;
-                    //if (device.freeSpace != null) {
-                    //    try {
-                    //        long freeSpace = Long.parseLong(device.freeSpace);
-                    //        return FileUtils.bytesToDisplayString(freeSpace * 1024);
-                    //    } catch (Exception e) {
-                    //        log.debug("getValueAt: Exception: {}: {}", device.freeSpace, e.getMessage());
-                    //    }
-                    //    return null;
-                    //}
-                }
+                case FREE:
+                    return new SizeData(device.freeSpace);
                 case CUSTOM1:
                     return device.custom1;
                 case CUSTOM2:

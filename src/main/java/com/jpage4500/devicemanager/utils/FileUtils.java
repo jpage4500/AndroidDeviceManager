@@ -57,7 +57,7 @@ public class FileUtils {
         }
     }
 
-    private static final String[] SIZE_UNITS = new String[]{"b", "k", "M", "GB", "TB"};
+    private static final String[] SIZE_UNITS = new String[]{"b", "k", "M", "G", "TB"};
     private static final DecimalFormat sizeDisplayFormat = new DecimalFormat("#,##0.#");
 
     /**

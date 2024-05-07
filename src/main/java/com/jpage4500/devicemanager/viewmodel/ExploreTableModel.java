@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.viewmodel;
 
 import com.jpage4500.devicemanager.data.DeviceFile;
+import com.jpage4500.devicemanager.data.SizeData;
 import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 
@@ -33,7 +34,6 @@ public class ExploreTableModel extends AbstractTableModel {
         NAME,
         SIZE,
         DATE,
-        ;
     }
 
     public ExploreTableModel() {
@@ -69,6 +69,7 @@ public class ExploreTableModel extends AbstractTableModel {
     @Override
     public Class<?> getColumnClass(int columnIndex) {
         if (columnIndex == Columns.ICON.ordinal()) return DeviceFile.class;
+        else if (columnIndex == Columns.SIZE.ordinal()) return SizeData.class;
         return String.class;
     }
 
@@ -104,10 +105,7 @@ public class ExploreTableModel extends AbstractTableModel {
                 case NAME:
                     return deviceFile.name;
                 case SIZE:
-                    if (deviceFile.size > 0) {
-                        return FileUtils.bytesToDisplayString(deviceFile.size);
-                    }
-                    break;
+                    return new SizeData(deviceFile.size);
                 case DATE:
                     if (deviceFile.date != null) {
                         return dateFormat.format(deviceFile.date);

@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
+import com.jpage4500.devicemanager.data.SizeData;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.ui.views.*;
 import com.jpage4500.devicemanager.utils.GsonHelper;
@@ -22,14 +23,14 @@ import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.*;
 import java.util.List;
 import java.util.prefs.Preferences;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 
@@ -103,6 +104,11 @@ public class ExploreView {
         model = new ExploreTableModel();
         table.setModel(model);
         table.setDefaultRenderer(DeviceFile.class, new IconTableCellRenderer());
+
+        // right-align size column
+        DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer();
+        rightRenderer.setHorizontalAlignment(JLabel.RIGHT);
+        table.getColumnModel().getColumn(2).setCellRenderer(rightRenderer);
 
         // -- CMD+W = close window --
         Action closeAction = new AbstractAction("Close Window") {

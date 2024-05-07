@@ -41,7 +41,8 @@ function getAppVersion() {
 
 function getFreeSpace() {
     # get available/free space in readable format
-    ${ADB} -s $ADB_DEVICE shell df -H | tail -1 | sed 's/  */ /g' | cut -d ' ' -f 4
+    # ${ADB} -s $ADB_DEVICE shell df -H | tail -1 | sed 's/  */ /g' | cut -d ' ' -f 4
+    ${ADB} -s $ADB_DEVICE shell df | tail -1 | sed 's/  */ /g' | cut -d ' ' -f 4
 }
 
 IMEI=$(getImei)

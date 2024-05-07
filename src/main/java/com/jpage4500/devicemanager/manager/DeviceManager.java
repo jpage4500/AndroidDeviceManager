@@ -248,7 +248,9 @@ public class DeviceManager {
                 String sizeStr = resultArr[4];
                 if (TextUtils.equalsIgnoreCase(sizeStr, "?")) continue;
                 if (!file.isDir) {
-                    file.size = TextUtils.getNumberLong(sizeStr, 0);
+                    long val = TextUtils.getNumberLong(sizeStr, 0);
+                    // don't show "0" length file sizes
+                    file.size = val > 0 ? val : null;
                 }
 
                 // -- file name (7+) --
@@ -567,7 +569,12 @@ public class DeviceManager {
                         device.sdk = val;
                         break;
                     case "free":
-                        device.freeSpace = val;
+                        try {
+                            // NOTE: df returns size in k -- convert to bytes
+                            device.freeSpace = Long.parseLong(val) * 1024;
+                        } catch (NumberFormatException e) {
+                            log.error("FREE: NFE: {}, {}", val, e.getMessage());
+                        }
                         break;
                     case "model":
                         device.model = val;
