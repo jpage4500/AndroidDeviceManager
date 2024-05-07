@@ -8,10 +8,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.prefs.Preferences;
@@ -88,7 +89,7 @@ public class ConnectScreen extends JPanel {
         });
 
         add(new JLabel("IP"), "");
-        add(serverField, "al right, wrap");
+        add(serverField, "al right, width 100:150, wrap");
 
         add(new JLabel("Port"), "");
         portField.addKeyListener(new KeyAdapter() {
@@ -106,7 +107,7 @@ public class ConnectScreen extends JPanel {
                 }
             }
         });
-        add(portField, "al right, wrap");
+        add(portField, "al right, width 100:150, wrap");
     }
 }
 

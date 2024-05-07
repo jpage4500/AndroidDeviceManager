@@ -268,6 +268,12 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         copyItem.addActionListener(actionEvent -> handleCopyClipboardCommand());
         popupMenu.add(copyItem);
 
+        popupMenu.addSeparator();
+
+        JMenuItem detailsItem = new JMenuItem("Device Details");
+        detailsItem.addActionListener(actionEvent -> handleDeviceDetails());
+        popupMenu.add(detailsItem);
+
         JMenuItem mirrorItem = new JMenuItem("Mirror Device");
         mirrorItem.addActionListener(actionEvent -> handleMirrorCommand());
         popupMenu.add(mirrorItem);
@@ -509,6 +515,27 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         });
     }
 
+    private void handleDeviceDetails() {
+        Device device = getFirstSelectedDevice();
+        if (device == null) return;
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("Serial: " + device.serial + '\n');
+        sb.append("Model: " + device.model + '\n');
+        if (device.phone != null) sb.append("Phone: " + device.phone + '\n');
+        if (device.imei != null) sb.append("IMEI: " + device.imei + '\n');
+        if (device.carrier != null) sb.append("Carrier: " + device.carrier + '\n');
+        if (device.release != null) sb.append("OS: " + device.release + '\n');
+        if (device.sdk != null) sb.append("SDK: " + device.sdk + '\n');
+        if (device.freeSpace != null) sb.append("Free Space: " + FileUtils.bytesToDisplayString(device.freeSpace) + '\n');
+        if (device.custom1 != null) sb.append("Custom1: " + device.custom1 + '\n');
+        if (device.custom2 != null) sb.append("Custom2: " + device.custom2 + '\n');
+        if (device.customPropertyList != null) sb.append("Custom Properties: " + GsonHelper.toJson(device.customPropertyList) + '\n');
+        if (device.customAppList != null) sb.append("Custom Apps: " + GsonHelper.toJson(device.customAppList) + '\n');
+
+        JOptionPane.showMessageDialog(frame, sb.toString());
+    }
+
     private void handleMirrorCommand() {
         List<Device> selectedDeviceList = getSelectedDevices();
         if (selectedDeviceList.isEmpty()) {
@@ -527,6 +554,12 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().mirrorDevice(device, this);
         }
+    }
+
+    private Device getFirstSelectedDevice() {
+        List<Device> selectedDevices = getSelectedDevices();
+        if (!selectedDevices.isEmpty()) return selectedDevices.get(0);
+        else return null;
     }
 
     private List<Device> getSelectedDevices() {
@@ -912,9 +945,11 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             if (TextUtils.equals(compareDevice.serial, device.serial)) {
                 if (TextUtils.equals(compareDevice.model, device.model)) {
                     // already exists & is the same
+                    log.trace("checkWirelessDevice: alredy exists: {}", compareDevice.model);
                     return;
                 } else {
                     // model changed - remove and re-add to top of list
+                    log.trace("checkWirelessDevice: model changed: {}", device.model);
                     iterator.remove();
                 }
             }

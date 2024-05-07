@@ -6,9 +6,10 @@ cd "$(/usr/bin/dirname $0)"
 source ./env-vars.sh
 
 function getPhoneNumber() {
-    var=$(${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo 15 s16 'com.android.shell'" | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
+    # NOTE: non-phones report "Service iphonesubinfo does not exist"
+    var=$(${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo 15 s16 'com.android.shell'" 2>/dev/null | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
     if [[ "$var" == "" ]]; then
-        var=$(${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo 12 s16 'com.android.shell'" | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
+        var=$(${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo 12 s16 'com.android.shell'" 2>/dev/null | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
         if [[ "$var" == "" ]]; then
             # alternate way to get phone
             var=$(getProp debug.app.phone)
@@ -18,7 +19,7 @@ function getPhoneNumber() {
 }
 
 function getImei() {
-    var=$(${ADB} -s $ADB_DEVICE shell service call iphonesubinfo 1 s16 'com.android.shell' | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
+    var=$(${ADB} -s $ADB_DEVICE shell "service call iphonesubinfo 1 s16 'com.android.shell'" 2>/dev/null | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
     if [[ "$var" == "" ]]; then
         # alternate way to get IMEI
         var=$(getProp debug.app.imei)

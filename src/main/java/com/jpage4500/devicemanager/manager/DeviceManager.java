@@ -545,7 +545,7 @@ public class DeviceManager {
         List<String> args = new ArrayList<>();
         args.add(device.serial);
         args.addAll(appList);
-        ScriptResult result = runScript(SCRIPT_DEVICE_DETAILS, args.toArray(new String[]{}));
+        ScriptResult result = runScript(SCRIPT_DEVICE_DETAILS, false, false, args.toArray(new String[]{}));
         if (result.isSuccess) {
             for (String line : result.stdOut) {
                 String[] lineArr = line.split(": ");
@@ -710,6 +710,7 @@ public class DeviceManager {
     public ScriptResult runScript(File script, boolean isLongRunning, boolean logResults, String... args) {
         ScriptResult result = new ScriptResult();
         Timer timer = new Timer();
+        String name = script.getName();
         try {
             List<String> commandList = new ArrayList<>();
             commandList.add(script.getAbsolutePath());
@@ -734,30 +735,30 @@ public class DeviceManager {
                 if (isExited) {
                     exitValue = process.exitValue();
                 } else {
-                    log.error("runScript: {}: NOT FINISHED: {}, args:{}", timer, script.getAbsolutePath(), GsonHelper.toJson(args));
+                    log.error("runScript: {}: NOT FINISHED: {}, args:{}", timer, name, GsonHelper.toJson(args));
                 }
             }
             result.isSuccess = exitValue == 0;
             if (!result.isSuccess) {
-                log.error("runScript: {}: ERROR:{}, {}, args:{}", timer, exitValue, script.getAbsolutePath(), GsonHelper.toJson(args));
+                log.error("runScript: {}: ERROR: {}, rc:{}, args:{}", timer, name, exitValue, GsonHelper.toJson(args));
             }
 
             result.stdOut = readInputStream(process.getInputStream());
             if (!result.stdOut.isEmpty() && log.isTraceEnabled() && logResults) {
-                log.trace("runScript: {}: RESULTS: {}", timer, GsonHelper.toJson(result.stdOut));
+                log.trace("runScript: {}: {}, RESULTS: {}", timer, name, GsonHelper.toJson(result.stdOut));
             }
             result.stdErr = readInputStream(process.getErrorStream());
             synchronized (processList) {
                 processList.remove(process);
             }
             if (!result.stdErr.isEmpty()) {
-                log.error("runScript: {}: ERROR: {}", timer, GsonHelper.toJson(result.stdErr));
+                log.error("runScript: {}: ERROR: {}, {}", timer, name, GsonHelper.toJson(result.stdErr));
             }
             return result;
         } catch (Exception e) {
             result.isSuccess = false;
             result.stdErr = List.of("Exception: " + e.getMessage());
-            log.error("runScript: {}: Exception: {}:{}, script:{}", timer, e.getClass().getSimpleName(), e.getMessage(), script.getAbsolutePath());
+            log.error("runScript: {}: Exception: {}, {}, {}", timer, name, e.getClass().getSimpleName(), e.getMessage());
         }
         return result;
     }
