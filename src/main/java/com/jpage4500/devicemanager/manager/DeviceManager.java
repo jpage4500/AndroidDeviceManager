@@ -3,11 +3,13 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Timer;
-import se.vidstige.jadb.*;
+import se.vidstige.jadb.DeviceDetectionListener;
+import se.vidstige.jadb.JadbConnection;
+import se.vidstige.jadb.JadbDevice;
+import se.vidstige.jadb.RemoteFile;
 import se.vidstige.jadb.managers.PropertyManager;
 
 import java.io.*;
@@ -19,15 +21,19 @@ import java.nio.file.StandardOpenOption;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
 
-    private static final String SCRIPT_DEVICE_LIST = "device-list.sh";
-    private static final String SCRIPT_DEVICE_DETAILS = "device-details.sh";
+    public static final String SHELL_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 'com.android.shell'";
+    public static final String SHELL_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 'com.android.shell'";
+    public static final String SHELL_SERVICE_IMEI = "service call iphonesubinfo 1 s16 'com.android.shell'";
+
     private static final String SCRIPT_TERMINAL = "terminal.sh";
     private static final String SCRIPT_CUSTOM_COMMAND = "custom-command.sh";
     private static final String SCRIPT_RESTART = "restart.sh";
@@ -44,11 +50,7 @@ public class DeviceManager {
     private static final String SCRIPT_DISCONNECT = "disconnect-device.sh";
     private static final String SCRIPT_INPUT_TEXT = "input-text.sh";
     private static final String SCRIPT_INPUT_KEYEVENT = "input-keyevent.sh";
-
-    // how often to poll (adb devices -l)
-    private static final int POLLING_INTERVAL_SECS = 10;
-    // how often to do a full refresh of connected devices
-    private static final long FULL_REFRESH_MS = TimeUnit.MINUTES.toMillis(10);
+    public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
 
     private static volatile DeviceManager instance;
 
@@ -56,17 +58,12 @@ public class DeviceManager {
     private final String tempFolder;
     private final List<Process> processList;
 
-    private final ScheduledExecutorService listExecutorService;
-    private final ExecutorService detailsExecutorService;
     private final ExecutorService commandExecutorService;
 
-    private ScheduledFuture<?> listDevicesFuture;
     private Process logProcess;
 
     private JadbConnection connection;
     private final ExecutorService adbExecutorService;
-
-    private long lastRefreshMs;
 
     public static DeviceManager getInstance() {
         if (instance == null) {
@@ -83,10 +80,7 @@ public class DeviceManager {
         deviceList = new ArrayList<>();
         processList = new ArrayList<>();
 
-        listExecutorService = Executors.newScheduledThreadPool(1);
-        detailsExecutorService = Executors.newFixedThreadPool(10);
         commandExecutorService = Executors.newFixedThreadPool(10);
-
         adbExecutorService = Executors.newFixedThreadPool(10);
 
         tempFolder = System.getProperty("java.io.tmpdir");
@@ -118,14 +112,16 @@ public class DeviceManager {
                             String serial = jadbDevice.getSerial();
                             // -- does this device already exist? --
                             Device device = getDevice(serial);
-                            if (device == null) {
+                            if (device == null || !device.hasFetchedDetails) {
                                 // -- ADD DEVICE --
-                                device = new Device();
-                                device.jadbDevice = jadbDevice;
-                                device.serial = serial;
-                                synchronized (deviceList) {
-                                    deviceList.add(device);
+                                if (device == null) {
+                                    device = new Device();
+                                    synchronized (deviceList) {
+                                        deviceList.add(device);
+                                    }
                                 }
+                                device.serial = serial;
+                                device.jadbDevice = jadbDevice;
                                 addedDeviceList.add(device);
                                 log.trace("onDetect: DEVICE_ADDED: {}", serial);
                             }
@@ -156,7 +152,22 @@ public class DeviceManager {
 
                             for (Device addedDevice : addedDeviceList) {
                                 // fetch more details for these devices
-                                fetchDeviceDetails(addedDevice, listener);
+                                try {
+                                    JadbDevice.State state = addedDevice.jadbDevice.getState();
+                                    if (state == JadbDevice.State.Device) {
+                                        addedDevice.status = "Fetching Details..";
+                                        listener.handleDeviceUpdated(addedDevice);
+                                        fetchDeviceDetails(addedDevice, listener);
+                                    } else {
+                                        log.trace("onDetect: NOT_READY: {} -> {}", addedDevice.serial, state);
+                                        addedDevice.status = state.name();
+                                        listener.handleDeviceUpdated(addedDevice);
+                                    }
+                                } catch (Exception e) {
+                                    log.error("onDetect: getState:Exception:{}", e.getMessage());
+                                    addedDevice.status = "not ready";
+                                    listener.handleDeviceUpdated(addedDevice);
+                                }
                             }
                         }
                     }
@@ -174,13 +185,11 @@ public class DeviceManager {
 
     private void fetchDeviceDetails(Device device, DeviceListener listener) {
         log.debug("fetchDeviceDetails: {}", device.serial);
-        // "service call iphonesubinfo 15 s16 'com.android.shell'" 2>/dev/null | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
-        //"service call iphonesubinfo 12 s16 'com.android.shell'" 2>/dev/null | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
-        device.phone = runShellServiceCall(device, "service call iphonesubinfo 15 s16 'com.android.shell'");
+        device.phone = runShellServiceCall(device, SHELL_SERVICE_PHONE1);
         if (TextUtils.isEmpty(device.phone)) {
-            device.phone = runShellServiceCall(device, "service call iphonesubinfo 12 s16 'com.android.shell'");
+            device.phone = runShellServiceCall(device, SHELL_SERVICE_PHONE2);
         }
-        device.imei = runShellServiceCall(device, "service call iphonesubinfo 1 s16 'com.android.shell'");
+        device.imei = runShellServiceCall(device, SHELL_SERVICE_IMEI);
 
         List<String> sizeLines = runShell(device, "df");
         if (!sizeLines.isEmpty()) {
@@ -197,31 +206,32 @@ public class DeviceManager {
         }
 
         try {
-            Map<String, String> propMap = new PropertyManager(device.jadbDevice).getprop();
-            device.sdk = propMap.get("ro.build.version.sdk");
-            device.model = propMap.get("ro.product.model");
-            device.release = propMap.get("ro.build.version.release");
-            device.carrier = propMap.get("gsm.sim.operator.alpha");
+            device.propMap = new PropertyManager(device.jadbDevice).getprop();
         } catch (Exception e) {
             log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
         }
 
+        // fetch file app is using to persist custom properties
         OutputStream outputStream = new ByteArrayOutputStream();
-        RemoteFile file = new RemoteFile("/sdcard/android_device_manager.properties");
+        RemoteFile file = new RemoteFile(FILE_CUSTOM_PROP);
         try {
             device.jadbDevice.pull(file, outputStream);
             String customPropStr = outputStream.toString();
             String[] customPropArr = customPropStr.split("\\n+");
             for (String customProp : customPropArr) {
-                if (customProp.startsWith("custom1=")) device.custom1 = customProp.substring(8);
-                if (customProp.startsWith("custom2=")) device.custom2 = customProp.substring(8);
+                String[] propArr = customProp.split("=");
+                if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
+                device.customPropertyMap.put(propArr[0], propArr[1]);
             }
-            log.debug("fetchDeviceDetails: {}", customPropStr);
+            //log.trace("fetchDeviceDetails: {}", customPropStr);
         } catch (Exception e) {
             log.error("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
         }
 
-        log.debug("fetchDeviceDetails: {}", GsonHelper.toJson(device));
+        device.hasFetchedDetails = true;
+        if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}", GsonHelper.toJson(device));
+
+        listener.handleDeviceUpdated(device);
     }
 
     /**
@@ -248,7 +258,7 @@ public class DeviceManager {
                 }
             }
         }
-        log.debug("shellServiceCall: RESULTS: {}", result);
+        log.debug("runShellServiceCall: RESULTS: {}", result);
         return result != null ? result.toString() : null;
     }
 
@@ -269,7 +279,7 @@ public class DeviceManager {
                 resultList.add(line);
             }
         } catch (Exception e) {
-            log.error("fetchDeviceDetails: {}", e.getMessage());
+            log.error("runShell: {}", e.getMessage());
         }
         return resultList;
     }
@@ -285,37 +295,12 @@ public class DeviceManager {
         return null;
     }
 
-    /**
-     * starts a scheduled task to list devices every [X] seconds
-     *
-     * @param pollingInterval polling interval in seconds
-     */
-    public void startDevicePolling(DeviceListener listener, long pollingInterval) {
-        stopDevicePolling();
-        listDevicesFuture = listExecutorService.scheduleWithFixedDelay(() -> {
-            listDevicesInternal(listener);
-        }, 0, pollingInterval, TimeUnit.SECONDS);
-    }
-
-    public void stopDevicePolling() {
-        if (listDevicesFuture != null && !listDevicesFuture.isCancelled()) {
-            listDevicesFuture.cancel(true);
-        }
-    }
-
-    private void getDeviceDetails(Device device, List<String> appList, DeviceListener listener) {
-        detailsExecutorService.submit(() -> {
-            getDeviceDetailsInternal(device, appList, listener);
-        });
-    }
-
     public void mirrorDevice(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "mirring...";
             listener.handleDeviceUpdated(device);
             String name = device.serial;
             if (device.phone != null) name += ": " + device.phone;
-            else if (device.model != null) name += ": " + device.model;
             ScriptResult result = runScript(SCRIPT_MIRROR, true, true, device.serial, name);
             if (result.isSuccess) device.status = null;
             else device.status = GsonHelper.toJson(result.stdErr);
@@ -624,104 +609,6 @@ public class DeviceManager {
         }
     }
 
-    private void listDevicesInternal(DeviceListener listener) {
-        boolean isFullRefreshNeeded = System.currentTimeMillis() - lastRefreshMs > FULL_REFRESH_MS;
-        lastRefreshMs = System.currentTimeMillis();
-        ScriptResult result = runScript(SCRIPT_DEVICE_LIST, false, false);
-        if (!result.isSuccess) {
-            listener.handleDevicesUpdated(null);
-            return;
-        }
-        List<Device> resultList = new ArrayList<>();
-        // List of devices attached
-        // 04QAX0NRLM             device usb:34603008X product:bonito model:Pixel_3a_XL device:bonito transport_id:3
-        // 192.168.0.28:35031     offline product:x1quex model:SM_G981U1 device:x1q transport_id:7
-        // 5858444a4e483498       unauthorized usb:34603008X transport_id:3
-        for (String line : result.stdOut) {
-            if (line.isEmpty() || line.startsWith("List")) continue;
-
-            String[] deviceArr = line.split(" ");
-            if (deviceArr.length <= 1) continue;
-            // TODO: check possible values for serialNumber including wireless
-            String serialNumber = deviceArr[0];
-            Device device = new Device();
-            device.serial = serialNumber;
-
-            resultList.add(device);
-
-            // get any other values returned
-            device.isOnline = true;
-            for (String keyVal : deviceArr) {
-                if (keyVal.startsWith("model:")) {
-                    device.model = keyVal.substring("model:".length());
-                } else if (TextUtils.equalsIgnoreCase(keyVal, "offline")) {
-                    device.status = "offline";
-                    device.isOnline = false;
-                } else if (TextUtils.equalsIgnoreCase(keyVal, "unauthorized")) {
-                    device.status = "unauthorized";
-                    device.isOnline = false;
-                }
-            }
-        }
-
-        boolean isChanged = false;
-        synchronized (deviceList) {
-            // iterate through found list
-            for (Device resultDevice : resultList) {
-                boolean isFound = false;
-                // iterate through master list
-                for (Device device : deviceList) {
-                    if (TextUtils.equals(resultDevice.serial, device.serial)) {
-                        isFound = true;
-                        // check if anything has changed.. if so, update resultDevice
-                        // NOTE: "adb devices -l" only returns a few fields (serial, model, online status)
-                        if (resultDevice.isOnline != device.isOnline) {
-                            device.isOnline = resultDevice.isOnline;
-                            isChanged = true;
-                        }
-                    }
-                }
-                if (!isFound) {
-                    // new device
-                    deviceList.add(resultDevice);
-                    isChanged = true;
-                }
-            }
-
-            // next, find any devices that don't exist anymore
-            for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
-                Device device = iterator.next();
-                boolean isFound = false;
-                for (Device resultDevice : resultList) {
-                    if (TextUtils.equals(resultDevice.serial, device.serial)) {
-                        isFound = true;
-                    }
-                }
-                if (!isFound) {
-                    // REMOVE device from list
-                    log.debug("listDevicesInternal: REMOVING:{}", GsonHelper.toJson(device));
-                    iterator.remove();
-                    isChanged = true;
-                }
-            }
-
-            if (isChanged) {
-                listener.handleDevicesUpdated(deviceList);
-            }
-
-            List<String> appList = null;
-            // kick off device details request if necessary
-            for (Device device : deviceList) {
-                if (device.isOnline && (isFullRefreshNeeded || !device.hasFetchedDetails)) {
-                    if (appList == null) {
-                        appList = SettingsScreen.getCustomApps();
-                    }
-                    getDeviceDetails(device, appList, listener);
-                }
-            }
-        }
-    }
-
     private Device getDeviceForSerial(String serialNumber) {
         synchronized (deviceList) {
             for (Device device : deviceList) {
@@ -731,82 +618,6 @@ public class DeviceManager {
             }
         }
         return null;
-    }
-
-    public void refreshDevices(DeviceListener listener) {
-        // TODO: probably a better way to force a refresh
-        stopDevicePolling();
-
-        synchronized (deviceList) {
-            for (Device device : deviceList) {
-                device.hasFetchedDetails = false;
-            }
-        }
-
-        startDevicePolling(listener, POLLING_INTERVAL_SECS);
-    }
-
-    private void getDeviceDetailsInternal(Device device, List<String> appList, DeviceListener listener) {
-        device.status = "details...";
-        listener.handleDeviceUpdated(device);
-        List<String> args = new ArrayList<>();
-        args.add(device.serial);
-        args.addAll(appList);
-        ScriptResult result = runScript(SCRIPT_DEVICE_DETAILS, false, false, args.toArray(new String[]{}));
-        if (result.isSuccess) {
-            for (String line : result.stdOut) {
-                String[] lineArr = line.split(": ");
-                if (lineArr.length <= 1) continue;
-                String key = lineArr[0].trim();
-                String val = lineArr[1].trim();
-                switch (key) {
-                    case "phone":
-                        device.phone = val;
-                        break;
-                    case "imei":
-                        device.imei = val;
-                        break;
-                    case "carrier":
-                        device.carrier = val;
-                        break;
-                    case "release":
-                        device.release = val;
-                        break;
-                    case "sdk":
-                        device.sdk = val;
-                        break;
-                    case "free":
-                        try {
-                            // NOTE: df returns size in k -- convert to bytes
-                            device.freeSpace = Long.parseLong(val) * 1024;
-                        } catch (NumberFormatException e) {
-                            log.error("FREE: NFE: {}, {}", val, e.getMessage());
-                        }
-                        break;
-                    case "model":
-                        device.model = val;
-                        break;
-                    case "custom1":
-                        device.custom1 = val.replaceAll("~", " ");
-                        break;
-                    case "custom2":
-                        device.custom2 = val.replaceAll("~", " ");
-                        break;
-                    default:
-                        // check custom app list
-                        if (appList.contains(key)) {
-                            //log.debug("getDeviceDetailsInternal: GOT:{} = {}", key, val);
-                            if (device.customAppList == null) device.customAppList = new HashMap<>();
-                            device.customAppList.put(key, val);
-                        }
-                        break;
-                }
-            }
-
-            device.status = null;
-            listener.handleDeviceUpdated(device);
-        }
-        device.hasFetchedDetails = true;
     }
 
     /**

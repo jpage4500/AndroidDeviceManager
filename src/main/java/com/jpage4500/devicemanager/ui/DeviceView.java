@@ -302,7 +302,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
         if (device.isWireless()) {
             popupMenu.addSeparator();
-            JMenuItem disconnectItem = new JMenuItem("Disconnect " + device.model);
+            JMenuItem disconnectItem = new JMenuItem("Disconnect " + device.getDisplayName());
             disconnectItem.addActionListener(actionEvent -> handleDisconnect(device));
             popupMenu.add(disconnectItem);
         }
@@ -342,7 +342,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 val = device.serial;
                 break;
             case MODEL:
-                val = device.model;
+                val = device.getProperty(Device.PROP_MODEL);
                 break;
             case PHONE:
                 val = device.phone;
@@ -354,10 +354,10 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 val = String.valueOf(device.freeSpace);
                 break;
             case CUSTOM1:
-                val = device.custom1;
+                val = device.getCustomProperty(Device.CUST_PROP_1);
                 break;
             case CUSTOM2:
-                val = device.custom2;
+                val = device.getCustomProperty(Device.CUST_PROP_2);
                 break;
             case STATUS:
                 val = device.status;
@@ -461,8 +461,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         String message;
         if (selectedDeviceList.size() == 1) {
             Device device = selectedDeviceList.get(0);
-            if (number == 1) customValue = device.custom1;
-            else if (number == 2) customValue = device.custom2;
+            customValue = device.getCustomProperty(Device.CUSTOM_PROP_X + number);
             message = "Enter Custom Note";
         } else {
             message = "Enter Custom Note for " + selectedDeviceList.size() + " devices";
@@ -481,8 +480,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         for (Device device : selectedDeviceList) {
             String prop = "custom" + number;
             DeviceManager.getInstance().setProperty(device, prop, result);
-            if (number == 1) device.custom1 = result;
-            else if (number == 2) device.custom2 = result;
+            device.setCustomProperty(Device.CUSTOM_PROP_X + number, result);
             model.updateRowForDevice(device);
         }
     }
@@ -528,21 +526,27 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         Device device = getFirstSelectedDevice();
         if (device == null) return;
         StringBuilder sb = new StringBuilder();
+        addLine(sb, "Serial", device.serial);
+        addLine(sb, "Model", device.getProperty(Device.PROP_MODEL));
+        addLine(sb, "Phone", device.phone);
+        addLine(sb, "IMEI", device.imei);
+        addLine(sb, "Carrier", device.getProperty(Device.PROP_CARRIER));
+        addLine(sb, "OS", device.getProperty(Device.PROP_OS));
+        addLine(sb, "SDK", device.getProperty(Device.PROP_SDK));
+        addLine(sb, "Free Space", FileUtils.bytesToDisplayString(device.freeSpace));
+        addLine(sb, "Custom1", device.getCustomProperty(Device.CUST_PROP_1));
+        addLine(sb, "Custom2", device.getCustomProperty(Device.CUST_PROP_2));
 
-        sb.append("Serial: " + device.serial + '\n');
-        sb.append("Model: " + device.model + '\n');
-        if (device.phone != null) sb.append("Phone: " + device.phone + '\n');
-        if (device.imei != null) sb.append("IMEI: " + device.imei + '\n');
-        if (device.carrier != null) sb.append("Carrier: " + device.carrier + '\n');
-        if (device.release != null) sb.append("OS: " + device.release + '\n');
-        if (device.sdk != null) sb.append("SDK: " + device.sdk + '\n');
-        if (device.freeSpace != null) sb.append("Free Space: " + FileUtils.bytesToDisplayString(device.freeSpace) + '\n');
-        if (device.custom1 != null) sb.append("Custom1: " + device.custom1 + '\n');
-        if (device.custom2 != null) sb.append("Custom2: " + device.custom2 + '\n');
-        if (device.customPropertyList != null) sb.append("Custom Properties: " + GsonHelper.toJson(device.customPropertyList) + '\n');
-        if (device.customAppList != null) sb.append("Custom Apps: " + GsonHelper.toJson(device.customAppList) + '\n');
+        //if (device.customPropertyMap != null) sb.append("Custom Properties: " + GsonHelper.toJson(device.customPropertyMap) + '\n');
+        //if (device.customAppList != null) sb.append("Custom Apps: " + GsonHelper.toJson(device.customAppList) + '\n');
 
         JOptionPane.showMessageDialog(frame, sb.toString());
+    }
+
+    private void addLine(StringBuilder sb, String label, String value) {
+        if (!TextUtils.isEmpty(value)) {
+            sb.append(label + ": " + value + '\n');
+        }
     }
 
     private void handleMirrorCommand() {
@@ -956,15 +960,8 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         for (Iterator<Device> iterator = wirelessDeviceList.iterator(); iterator.hasNext(); ) {
             Device compareDevice = iterator.next();
             if (TextUtils.equals(compareDevice.serial, device.serial)) {
-                if (TextUtils.equals(compareDevice.model, device.model)) {
-                    // already exists & is the same
-                    log.trace("checkWirelessDevice: alredy exists: {}", compareDevice.model);
-                    return;
-                } else {
-                    // model changed - remove and re-add to top of list
-                    log.trace("checkWirelessDevice: model changed: {}", device.model);
-                    iterator.remove();
-                }
+                // already exists
+                return;
             }
         }
         log.trace("checkWireless: ADD: {}", GsonHelper.toJson(device));

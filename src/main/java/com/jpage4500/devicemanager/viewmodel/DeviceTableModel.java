@@ -132,7 +132,7 @@ public class DeviceTableModel extends AbstractTableModel {
                 case SERIAL:
                     return device.serial;
                 case MODEL:
-                    return device.model;
+                    return device.getProperty(Device.PROP_MODEL);
                 case PHONE:
                     return device.phone;
                 case IMEI:
@@ -140,9 +140,9 @@ public class DeviceTableModel extends AbstractTableModel {
                 case FREE:
                     return new SizeData(device.freeSpace);
                 case CUSTOM1:
-                    return device.custom1;
+                    return device.getCustomProperty(Device.CUST_PROP_1);
                 case CUSTOM2:
-                    return device.custom2;
+                    return device.getCustomProperty(Device.CUST_PROP_2);
                 case STATUS:
                     return device.status;
                 default:
@@ -151,9 +151,9 @@ public class DeviceTableModel extends AbstractTableModel {
             }
         } else {
             // custom app version
-            if (device.customAppList != null) {
+            if (device.customAppVersionList != null) {
                 String appName = appList.get(col - visibleColumns.length);
-                return device.customAppList.get(appName);
+                return device.customAppVersionList.get(appName);
             } else {
                 return null;
             }

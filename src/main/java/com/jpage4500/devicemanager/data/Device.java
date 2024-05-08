@@ -2,24 +2,35 @@ package com.jpage4500.devicemanager.data;
 
 import se.vidstige.jadb.JadbDevice;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class Device {
+    // common device properties
+    public final static String PROP_SDK = "ro.build.version.sdk";
+    public final static String PROP_MODEL = "ro.product.model";
+    public final static String PROP_OS = "ro.build.version.release";
+    public final static String PROP_CARRIER = "gsm.sim.operator.alpha";
+    public final static String PROP_BRAND = "ro.product.brand";
+    public final static String PROP_NAME = "ro.product.name";
+
+    public final static String CUSTOM_PROP_X = "custom";
+    public final static String CUST_PROP_1 = "custom1";
+    public final static String CUST_PROP_2 = "custom2";
+
     public String serial;
-    public String model;
     public String phone;
     public String imei;
-    public String carrier;
-    public String release;
-    public String sdk;
     public Long freeSpace;
-    public String custom1;
-    public String custom2;
 
     // map of property name -> key
-    public Map<String, String> customPropertyList;
-    // map of application name -> version
-    public Map<String, String> customAppList;
+    public Map<String, String> propMap;
+
+    // custom properties (saved on a file on device)
+    public Map<String, String> customPropertyMap;
+
+    // user-defined map of applications and versions
+    public Map<String, String> customAppVersionList;
 
     // to show device status (viewing, copying, installing, etc)
     public String status;
@@ -31,10 +42,13 @@ public class Device {
 
     public JadbDevice jadbDevice;
 
+    /**
+     * @return best available device name
+     */
     public String getDisplayName() {
         StringBuilder sb = new StringBuilder();
+        String model = getProperty(PROP_MODEL);
         if (model != null) sb.append(model);
-
         if (phone != null) {
             if (sb.length() > 0) sb.append(" - ");
             sb.append(phone);
@@ -50,5 +64,20 @@ public class Device {
      */
     public boolean isWireless() {
         return serial.indexOf(':') > 0;
+    }
+
+    public String getProperty(String key) {
+        if (propMap == null) return null;
+        else return propMap.get(key);
+    }
+
+    public String getCustomProperty(String key) {
+        if (customPropertyMap == null) return null;
+        else return customPropertyMap.get(key);
+    }
+
+    public void setCustomProperty(String key, String value) {
+        if (customPropertyMap == null) customPropertyMap = new HashMap<>();
+        customPropertyMap.put(key, value);
     }
 }

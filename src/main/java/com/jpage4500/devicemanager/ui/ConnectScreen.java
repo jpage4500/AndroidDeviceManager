@@ -55,7 +55,7 @@ public class ConnectScreen extends JPanel {
 
         List<String> listData = new ArrayList<>();
         for (Device device : recentDeviceList) {
-            listData.add(device.serial + " - " + device.model);
+            listData.add(device.serial + " - " + device.getProperty(Device.PROP_MODEL));
         }
         JList<String> list = new JList<>(listData.toArray(new String[0]));
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
