@@ -40,6 +40,8 @@ public class DeviceManager {
     private static final String SCRIPT_START_LOGGING = "start-logging.sh";
     private static final String SCRIPT_CONNECT = "connect-device.sh";
     private static final String SCRIPT_DISCONNECT = "disconnect-device.sh";
+    private static final String SCRIPT_INPUT_TEXT = "input-text.sh";
+    private static final String SCRIPT_INPUT_KEYEVENT = "input-keyevent.sh";
 
     // how often to poll (adb devices -l)
     private static final int POLLING_INTERVAL_SECS = 10;
@@ -335,6 +337,20 @@ public class DeviceManager {
     public void disconnectDevice(String ip, TaskListener listener) {
         commandExecutorService.submit(() -> {
             ScriptResult result = runScript(SCRIPT_DISCONNECT, ip);
+            if (listener != null) listener.onTaskComplete(result.isSuccess);
+        });
+    }
+
+    public void sendInputText(Device device, String text, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            ScriptResult result = runScript(SCRIPT_INPUT_TEXT, device.serial, text);
+            if (listener != null) listener.onTaskComplete(result.isSuccess);
+        });
+    }
+
+    public void sendInputKeyCode(Device device, int keyEvent, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            ScriptResult result = runScript(SCRIPT_INPUT_KEYEVENT, device.serial, String.valueOf(keyEvent));
             if (listener != null) listener.onTaskComplete(result.isSuccess);
         });
     }

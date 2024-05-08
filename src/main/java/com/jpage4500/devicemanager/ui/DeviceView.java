@@ -485,6 +485,13 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         }
     }
 
+    private void handleInputCommand() {
+        Device device = getFirstSelectedDevice();
+        if (device == null) return;
+
+        new InputScreen(frame, device).show();
+    }
+
     private void handleScreenshotCommand() {
         List<Device> selectedDeviceList = getSelectedDevices();
         if (selectedDeviceList.isEmpty()) {
@@ -597,6 +604,10 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
         button = createButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
         deviceButtonList.add(button);
+
+        button = createButton(toolbar, "icon_edit.png", "Input", "Enter text", actionEvent -> handleInputCommand());
+        deviceButtonList.add(button);
+
         toolbar.addSeparator();
 
         button = createButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
