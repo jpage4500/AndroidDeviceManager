@@ -1,13 +1,19 @@
 package com.jpage4500.devicemanager.utils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * contains some frequently used string methods
  * NOTE: uses other classes like android.text.com.jpage4500.devicemanager.utils.TextUtils to avoid duplicating logic
  */
 public class TextUtils {
+    private static final Logger log = LoggerFactory.getLogger(TextUtils.class);
 
     public static int length(CharSequence str) {
         return str != null ? str.length() : 0;
@@ -237,6 +243,58 @@ public class TextUtils {
     }
 
     /**
+     * split a string using space as a delimiter and returning the value at index
+     */
+    public static String split(String str, int index) {
+        return split(str, "\\s+", index);
+    }
+
+    /**
+     * split a string into pieces and return the value at index
+     *
+     * @return column or null if not found
+     */
+    public static String split(String str, String regex, int index) {
+        if (TextUtils.isEmpty(str)) return null;
+        try {
+            String[] strArr = str.split(regex);
+            log.debug("split: {}", GsonHelper.toJson(strArr));
+            if (strArr.length > index) {
+                String value = strArr[index];
+                return value.trim();
+            }
+        } catch (Exception e) {
+            log.error("split: Exception: str:{}, regex:{}, error:{}", str, regex, e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * split a string into a List<String>, allowing for quoted strings
+     *
+     * @param splitChar - character to split text on
+     * @return List of Strings; if splitChar isn't found, entire str will be returned
+     */
+    public static List<String> splitSafe(String str, char splitChar) {
+        List<String> resultList = new ArrayList<>();
+        if (length(str) == 0) return resultList;
+        int start = 0;
+        boolean isQuote = false;
+        boolean isApostrophe = false;
+        for (int pos = 0; pos < str.length(); pos++) {
+            char ch = str.charAt(pos);
+            if (ch == '\"') isQuote = !isQuote;
+            if (ch == '\'') isApostrophe = !isApostrophe;
+            else if (ch == splitChar && !isQuote && !isApostrophe) {
+                resultList.add(str.substring(start, pos));
+                start = pos + 1;
+            }
+        }
+        resultList.add(str.substring(start).trim());
+        return resultList;
+    }
+
+    /**
      * split a string with the given token
      * - will NOT include empty results ""
      * - will TRIM results (leading and trailing space)
@@ -251,6 +309,93 @@ public class TextUtils {
             }
         }
         return list.toArray(new String[0]);
+    }
+
+    /**
+     * Splits a command on whitespaces. Preserves whitespace in quotes. Trims excess whitespace between chunks. Supports quote
+     * escape within quotes. Failed escape will preserve escape char.
+     *
+     * @return List of split commands
+     */
+    public static List<String> splitCommand(String inputString) {
+        List<String> matchList = new LinkedList<>();
+        LinkedList<Character> charList = inputString.chars()
+                .mapToObj(i -> (char) i)
+                .collect(Collectors.toCollection(LinkedList::new));
+
+        // Finite-State Automaton for parsing.
+
+        CommandSplitterState state = CommandSplitterState.BeginningChunk;
+        LinkedList<Character> chunkBuffer = new LinkedList<>();
+
+        for (Character currentChar : charList) {
+            switch (state) {
+                case BeginningChunk:
+                    switch (currentChar) {
+                        case '"':
+                        case '\'':
+                            state = CommandSplitterState.ParsingQuote;
+                            break;
+                        case ' ':
+                            break;
+                        default:
+                            state = CommandSplitterState.ParsingWord;
+                            chunkBuffer.add(currentChar);
+                    }
+                    break;
+                case ParsingWord:
+                    switch (currentChar) {
+                        case ' ':
+                            state = CommandSplitterState.BeginningChunk;
+                            String newWord = chunkBuffer.stream().map(Object::toString).collect(Collectors.joining());
+                            matchList.add(newWord);
+                            chunkBuffer = new LinkedList<>();
+                            break;
+                        default:
+                            chunkBuffer.add(currentChar);
+                    }
+                    break;
+                case ParsingQuote:
+                    switch (currentChar) {
+                        case '"':
+                        case '\'':
+                            state = CommandSplitterState.BeginningChunk;
+                            String newWord = chunkBuffer.stream().map(Object::toString).collect(Collectors.joining());
+                            matchList.add(newWord);
+                            chunkBuffer = new LinkedList<>();
+                            break;
+                        case '\\':
+                            state = CommandSplitterState.EscapeChar;
+                            break;
+                        default:
+                            chunkBuffer.add(currentChar);
+                    }
+                    break;
+                case EscapeChar:
+                    switch (currentChar) {
+                        case '"': // Intentional fall through
+                        case '\'':
+                        case '\\':
+                            state = CommandSplitterState.ParsingQuote;
+                            chunkBuffer.add(currentChar);
+                            break;
+                        default:
+                            state = CommandSplitterState.ParsingQuote;
+                            chunkBuffer.add('\\');
+                            chunkBuffer.add(currentChar);
+                    }
+            }
+        }
+
+        if (state != CommandSplitterState.BeginningChunk) {
+            String newWord = chunkBuffer.stream().map(Object::toString).collect(Collectors.joining());
+            matchList.add(newWord);
+        }
+        return matchList;
+    }
+
+    private enum CommandSplitterState {
+        BeginningChunk, ParsingWord, ParsingQuote, EscapeChar
     }
 
     public static boolean isNumber(String text) {

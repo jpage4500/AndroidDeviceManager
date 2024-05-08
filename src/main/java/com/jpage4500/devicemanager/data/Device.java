@@ -1,5 +1,7 @@
 package com.jpage4500.devicemanager.data;
 
+import se.vidstige.jadb.JadbDevice;
+
 import java.util.Map;
 
 public class Device {
@@ -26,6 +28,8 @@ public class Device {
 
     // only fetch device detail (IMEI, phone, etc) once -- shouldn't change
     public boolean hasFetchedDetails;
+
+    public JadbDevice jadbDevice;
 
     public String getDisplayName() {
         StringBuilder sb = new StringBuilder();

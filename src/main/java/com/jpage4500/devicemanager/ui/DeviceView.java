@@ -62,6 +62,8 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     public DeviceView() {
         initalizeUi();
+
+        DeviceManager.getInstance().connectAdbServer(this);
     }
 
     @Override
@@ -93,12 +95,12 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowActivated(WindowEvent e) {
-                DeviceManager.getInstance().startDevicePolling(DeviceView.this, 10);
+                //DeviceManager.getInstance().startDevicePolling(DeviceView.this, 10);
             }
 
             @Override
             public void windowDeactivated(WindowEvent e) {
-                DeviceManager.getInstance().stopDevicePolling();
+                //DeviceManager.getInstance().stopDevicePolling();
             }
         });
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -722,7 +724,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     }
 
     private void handleRefreshCommand() {
-        DeviceManager.getInstance().refreshDevices(this);
+        //DeviceManager.getInstance().refreshDevices(this);
     }
 
     private void handleRunCustomCommand() {

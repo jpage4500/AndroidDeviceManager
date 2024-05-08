@@ -7,6 +7,8 @@ import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Timer;
+import se.vidstige.jadb.*;
+import se.vidstige.jadb.managers.PropertyManager;
 
 import java.io.*;
 import java.net.URL;
@@ -61,6 +63,9 @@ public class DeviceManager {
     private ScheduledFuture<?> listDevicesFuture;
     private Process logProcess;
 
+    private JadbConnection connection;
+    private final ExecutorService adbExecutorService;
+
     private long lastRefreshMs;
 
     public static DeviceManager getInstance() {
@@ -82,6 +87,8 @@ public class DeviceManager {
         detailsExecutorService = Executors.newFixedThreadPool(10);
         commandExecutorService = Executors.newFixedThreadPool(10);
 
+        adbExecutorService = Executors.newFixedThreadPool(10);
+
         tempFolder = System.getProperty("java.io.tmpdir");
         copyResourcesToFiles();
     }
@@ -92,6 +99,190 @@ public class DeviceManager {
 
         // single device was updated
         void handleDeviceUpdated(Device device);
+    }
+
+    public void connectAdbServer(DeviceManager.DeviceListener listener) {
+        log.debug("connectAdbServer: ");
+        connection = new JadbConnection();
+        adbExecutorService.submit(() -> {
+            try {
+                String hostVersion = connection.getHostVersion();
+                log.debug("connectAdbServer: v:{}", hostVersion);
+                connection.createDeviceWatcher(new DeviceDetectionListener() {
+                    @Override
+                    public void onDetect(List<JadbDevice> devices) {
+                        //log.debug("onDetect: GOT:{}, {}", devices.size(), GsonHelper.toJson(devices));
+                        List<Device> addedDeviceList = new ArrayList<>();
+                        // 1) look for devices that don't exist today
+                        for (JadbDevice jadbDevice : devices) {
+                            String serial = jadbDevice.getSerial();
+                            // -- does this device already exist? --
+                            Device device = getDevice(serial);
+                            if (device == null) {
+                                // -- ADD DEVICE --
+                                device = new Device();
+                                device.jadbDevice = jadbDevice;
+                                device.serial = serial;
+                                synchronized (deviceList) {
+                                    deviceList.add(device);
+                                }
+                                addedDeviceList.add(device);
+                                log.trace("onDetect: DEVICE_ADDED: {}", serial);
+                            }
+                        }
+
+                        // 2) look for devices that have been removed
+                        int numRemoved = 0;
+                        for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
+                            Device device = iterator.next();
+                            boolean isFound = false;
+                            for (JadbDevice jadbDevice : devices) {
+                                if (device.serial.equals(jadbDevice.getSerial())) {
+                                    isFound = true;
+                                    break;
+                                }
+                            }
+                            if (!isFound) {
+                                // -- DEVICE REMOVED --
+                                log.trace("onDetect: DEVICE_REMOVED: {}", GsonHelper.toJson(device));
+                                iterator.remove();
+                                numRemoved++;
+                            }
+                        }
+
+                        if (numRemoved > 0 || !addedDeviceList.isEmpty()) {
+                            // notify listener that device list changed
+                            listener.handleDevicesUpdated(deviceList);
+
+                            for (Device addedDevice : addedDeviceList) {
+                                // fetch more details for these devices
+                                fetchDeviceDetails(addedDevice, listener);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onException(Exception e) {
+                        log.error("onException: {}", e.getMessage());
+                    }
+                }).run();
+            } catch (Exception e) {
+                log.error("Exception: {}", e.getMessage());
+            }
+        });
+    }
+
+    private void fetchDeviceDetails(Device device, DeviceListener listener) {
+        log.debug("fetchDeviceDetails: {}", device.serial);
+        // "service call iphonesubinfo 15 s16 'com.android.shell'" 2>/dev/null | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
+        //"service call iphonesubinfo 12 s16 'com.android.shell'" 2>/dev/null | cut -d "'" -f '2' -s | tr -d -s '.[:cntrl:]' '[:space:]')
+        device.phone = runShellServiceCall(device, "service call iphonesubinfo 15 s16 'com.android.shell'");
+        if (TextUtils.isEmpty(device.phone)) {
+            device.phone = runShellServiceCall(device, "service call iphonesubinfo 12 s16 'com.android.shell'");
+        }
+        device.imei = runShellServiceCall(device, "service call iphonesubinfo 1 s16 'com.android.shell'");
+
+        List<String> sizeLines = runShell(device, "df");
+        if (!sizeLines.isEmpty()) {
+            // only interested in last line
+            String last = sizeLines.get(sizeLines.size() - 1);
+            // /dev/fuse         115249236 14681484 100436680  13% /storage/emulated
+            //                                      ^^^^^^^^^
+            String size = TextUtils.split(last, 3);
+            try {
+                device.freeSpace = Long.parseLong(size);
+            } catch (Exception e) {
+                log.error("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
+            }
+        }
+
+        try {
+            Map<String, String> propMap = new PropertyManager(device.jadbDevice).getprop();
+            device.sdk = propMap.get("ro.build.version.sdk");
+            device.model = propMap.get("ro.product.model");
+            device.release = propMap.get("ro.build.version.release");
+            device.carrier = propMap.get("gsm.sim.operator.alpha");
+        } catch (Exception e) {
+            log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
+        }
+
+        OutputStream outputStream = new ByteArrayOutputStream();
+        RemoteFile file = new RemoteFile("/sdcard/android_device_manager.properties");
+        try {
+            device.jadbDevice.pull(file, outputStream);
+            String customPropStr = outputStream.toString();
+            String[] customPropArr = customPropStr.split("\\n+");
+            for (String customProp : customPropArr) {
+                if (customProp.startsWith("custom1=")) device.custom1 = customProp.substring(8);
+                if (customProp.startsWith("custom2=")) device.custom2 = customProp.substring(8);
+            }
+            log.debug("fetchDeviceDetails: {}", customPropStr);
+        } catch (Exception e) {
+            log.error("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
+        }
+
+        log.debug("fetchDeviceDetails: {}", GsonHelper.toJson(device));
+    }
+
+    /**
+     * run a 'shell service call ..." command and parse the results into a String
+     */
+    private String runShellServiceCall(Device device, String command) {
+        List<String> resultList = runShell(device, command);
+        // Result: Parcel(
+        // 0x00000000: 00000000 0000000b 00350031 00300034 '........1.2.2.2.'
+        // 0x00000010: 00310039 00390034 00310032 00000034 '3.3.3.4.4.4.4...')
+        StringBuilder result = null;
+        if (resultList.size() > 1) {
+            for (int i = 1; i < resultList.size(); i++) {
+                String line = resultList.get(i);
+                int stPos = line.indexOf('\'');
+                if (stPos >= 0) {
+                    int endPos = line.indexOf('\'', stPos + 1);
+                    if (endPos >= 0) {
+                        line = line.substring(stPos + 1, endPos);
+                        line = line.replaceAll("[^-?0-9]+", "");
+                        if (result == null) result = new StringBuilder();
+                        result.append(line);
+                    }
+                }
+            }
+        }
+        log.debug("shellServiceCall: RESULTS: {}", result);
+        return result != null ? result.toString() : null;
+    }
+
+    /**
+     * run a shell command and return multi-line output
+     */
+    private List<String> runShell(Device device, String command) {
+        List<String> resultList = new ArrayList<>();
+        List<String> commandList = TextUtils.splitCommand(command);
+        try {
+            String firstCommand = commandList.get(0);
+            List<String> subList = commandList.subList(1, commandList.size());
+            InputStream inputStream = device.jadbDevice.executeShell(firstCommand, subList.toArray(new String[0]));
+            BufferedReader input = new BufferedReader(new InputStreamReader(inputStream));
+            String line;
+            while ((line = input.readLine()) != null) {
+                //log.trace("runShell: {}", line);
+                resultList.add(line);
+            }
+        } catch (Exception e) {
+            log.error("fetchDeviceDetails: {}", e.getMessage());
+        }
+        return resultList;
+    }
+
+    public Device getDevice(String serial) {
+        synchronized (deviceList) {
+            for (Device device : deviceList) {
+                if (TextUtils.equals(device.serial, serial)) {
+                    return device;
+                }
+            }
+        }
+        return null;
     }
 
     /**
