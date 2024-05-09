@@ -1,7 +1,6 @@
 package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
@@ -16,7 +15,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -116,6 +114,8 @@ public class DeviceManager {
                                     synchronized (deviceList) {
                                         deviceList.add(device);
                                     }
+                                } else {
+                                    if (log.isTraceEnabled()) log.trace("connectAdbServer:onDetect: DEVICE_UPDATED: {}", GsonHelper.toJson(device));
                                 }
                                 device.serial = serial;
                                 device.jadbDevice = jadbDevice;
@@ -151,12 +151,14 @@ public class DeviceManager {
                                 // fetch more details for these devices
                                 try {
                                     JadbDevice.State state = addedDevice.jadbDevice.getState();
+                                    log.trace("connectAdbServer:getState: STATE: {} -> {}", addedDevice.serial, state);
                                     if (state == JadbDevice.State.Device) {
                                         addedDevice.status = "fetching details..";
                                         listener.handleDeviceUpdated(addedDevice);
+                                        // only do lookup once
+                                        addedDevice.hasFetchedDetails = true;
                                         fetchDeviceDetails(addedDevice, listener);
                                     } else {
-                                        log.trace("connectAdbServer:getState: NOT_READY: {} -> {}", addedDevice.serial, state);
                                         addedDevice.status = state.name();
                                         listener.handleDeviceUpdated(addedDevice);
                                     }
@@ -180,57 +182,68 @@ public class DeviceManager {
         });
     }
 
-    private void fetchDeviceDetails(Device device, DeviceListener listener) {
-        log.debug("fetchDeviceDetails: {}", device.serial);
-        device.phone = runShellServiceCall(device, SHELL_SERVICE_PHONE1);
-        if (TextUtils.isEmpty(device.phone)) {
-            device.phone = runShellServiceCall(device, SHELL_SERVICE_PHONE2);
-        }
-        device.imei = runShellServiceCall(device, SHELL_SERVICE_IMEI);
-
-        List<String> sizeLines = runShell(device, "df");
-        if (!sizeLines.isEmpty()) {
-            // only interested in last line
-            String last = sizeLines.get(sizeLines.size() - 1);
-            // /dev/fuse         115249236 14681484 100436680  13% /storage/emulated
-            //                                      ^^^^^^^^^
-            String size = TextUtils.split(last, 3);
-            try {
-                device.freeSpace = Long.parseLong(size);
-            } catch (Exception e) {
-                log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
+    public void refreshDevices(DeviceListener listener) {
+        synchronized (deviceList) {
+            for (Device device : deviceList) {
+                fetchDeviceDetails(device, listener);
             }
         }
-
-        try {
-            device.propMap = new PropertyManager(device.jadbDevice).getprop();
-        } catch (Exception e) {
-            log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
-        }
-
-        // fetch file app is using to persist custom properties
-        OutputStream outputStream = new ByteArrayOutputStream();
-        RemoteFile file = new RemoteFile(FILE_CUSTOM_PROP);
-        try {
-            device.jadbDevice.pull(file, outputStream);
-            String customPropStr = outputStream.toString();
-            String[] customPropArr = customPropStr.split("\\n+");
-            for (String customProp : customPropArr) {
-                String[] propArr = customProp.split("=");
-                if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
-                device.customPropertyMap.put(propArr[0], propArr[1]);
-            }
-            //log.trace("fetchDeviceDetails: {}", customPropStr);
-        } catch (Exception e) {
-            log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
-        }
-
-        device.hasFetchedDetails = true;
-        if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}", GsonHelper.toJson(device));
-
-        device.status = null;
-        listener.handleDeviceUpdated(device);
     }
+
+    private void fetchDeviceDetails(Device device, DeviceListener listener) {
+        commandExecutorService.submit(() -> {
+            log.debug("fetchDeviceDetails: {}", device.serial);
+            device.phone = runShellServiceCall(device, SHELL_SERVICE_PHONE1);
+            if (TextUtils.isEmpty(device.phone)) {
+                device.phone = runShellServiceCall(device, SHELL_SERVICE_PHONE2);
+            }
+            device.imei = runShellServiceCall(device, SHELL_SERVICE_IMEI);
+
+            List<String> sizeLines = runShell(device, "df");
+            if (!sizeLines.isEmpty()) {
+                // only interested in last line
+                String last = sizeLines.get(sizeLines.size() - 1);
+                // /dev/fuse         115249236 14681484 100436680  13% /storage/emulated
+                //                                      ^^^^^^^^^
+                String size = TextUtils.split(last, 3);
+                try {
+                    device.freeSpace = Long.parseLong(size);
+                } catch (Exception e) {
+                    log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
+                }
+            }
+
+            try {
+                device.propMap = new PropertyManager(device.jadbDevice).getprop();
+            } catch (Exception e) {
+                log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
+            }
+
+            // fetch file app is using to persist custom properties
+            OutputStream outputStream = new ByteArrayOutputStream();
+            RemoteFile file = new RemoteFile(FILE_CUSTOM_PROP);
+            try {
+                device.jadbDevice.pull(file, outputStream);
+                String customPropStr = outputStream.toString();
+                String[] customPropArr = customPropStr.split("\\n+");
+                for (String customProp : customPropArr) {
+                    String[] propArr = customProp.split("=");
+                    if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
+                    device.customPropertyMap.put(propArr[0], propArr[1]);
+                }
+                //log.trace("fetchDeviceDetails: {}", customPropStr);
+            } catch (Exception e) {
+                log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
+            }
+
+            device.hasFetchedDetails = true;
+            if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}", GsonHelper.toJson(device));
+
+            device.status = null;
+            listener.handleDeviceUpdated(device);
+        });
+    }
+
 
     /**
      * run a 'shell service call ..." command and parse the results into a String
@@ -383,35 +396,32 @@ public class DeviceManager {
     }
 
     public interface DeviceFileListener {
-        void handleFiles(List<DeviceFile> fileList);
+        void handleFiles(List<RemoteFile> fileList);
     }
 
     public void listFiles(Device device, String path, DeviceFileListener listener) {
-        if (TextUtils.notEmpty(path) && !TextUtils.endsWith(path, "/")) {
-            path += "/";
-        }
+        if (!TextUtils.endsWith(path, "/")) path += "/";
         String finalPath = path;
         commandExecutorService.submit(() -> {
             log.debug("listFiles: {}", finalPath);
             device.status = "list files...";
-            List<DeviceFile> resultList = new ArrayList<>();
             try {
                 List<RemoteFile> remoteFileList = device.jadbDevice.list(finalPath);
-                log.debug("listFiles: results: {}", remoteFileList.size());
-                for (RemoteFile remoteFile : remoteFileList) {
-                    log.trace("listFiles: {}", GsonHelper.toJson(remoteFile));
-                    DeviceFile file = new DeviceFile();
-                    file.name = remoteFile.getPath();
-                    file.isDir = remoteFile.isDirectory();
-                    if (!file.isDir) {
-                        file.size = (long) remoteFile.getSize();
+                log.trace("listFiles: results: {}", GsonHelper.toJson(remoteFileList));
+                // for some reason the top level directory returns "." and ".."
+                if (finalPath.equals("/")) {
+                    for (Iterator<RemoteFile> iterator = remoteFileList.iterator(); iterator.hasNext(); ) {
+                        RemoteFile remoteFile = iterator.next();
+                        if (TextUtils.equals(remoteFile.getName(), "..") ||
+                                TextUtils.equals(remoteFile.getName(), ".")) {
+                            iterator.remove();
+                        }
                     }
-                    file.date = new Date(remoteFile.getLastModified() * 1000L);
-                    resultList.add(file);
                 }
-                listener.handleFiles(resultList);
+                listener.handleFiles(remoteFileList);
             } catch (Exception e) {
                 log.error("listFiles: {}, Exception:{}", finalPath, e.getMessage());
+                log.debug("listFiles: ", e);
                 listener.handleFiles(null);
             }
 
@@ -445,7 +455,7 @@ public class DeviceManager {
 //                //
 //                String permissions = resultArr[0];
 //                if (permissions.startsWith("d")) {
-//                    file.isDir = true;
+//                    file.isDirectory() = true;
 //                } else if (permissions.startsWith("l")) {
 //                    file.isLink = true;
 //                }
@@ -453,7 +463,7 @@ public class DeviceManager {
 //                // -- file size (4) --
 //                String sizeStr = resultArr[4];
 //                if (TextUtils.equalsIgnoreCase(sizeStr, "?")) continue;
-//                if (!file.isDir) {
+//                if (!file.isDirectory()) {
 //                    long val = TextUtils.getNumberLong(sizeStr, 0);
 //                    // don't show "0" length file sizes
 //                    file.size = val > 0 ? val : null;
@@ -493,7 +503,7 @@ public class DeviceManager {
 //            if (TextUtils.notEmpty(finalPath)) {
 //                RemoteFile upFile = new RemoteFile();
 //                upFile.name = "..";
-//                upFile.isDir = true;
+//                upFile.isDirectory() = true;
 //                fileList.add(0, upFile);
 //            }
 //            if (listener != null) listener.handleFiles(fileList);

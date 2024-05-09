@@ -36,4 +36,9 @@ class RemoteFileRecord extends RemoteFile {
     public boolean isDirectory() {
         return (mode & (1 << 14)) == (1 << 14);
     }
+
+    @Override
+    public boolean isSymbolicLink() {
+        return (mode & (1 << 13)) == (1 << 13);
+    }
 }

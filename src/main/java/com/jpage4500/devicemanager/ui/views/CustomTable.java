@@ -1,10 +1,15 @@
 package com.jpage4500.devicemanager.ui.views;
 
+import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.utils.GsonHelper;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.swing.*;
+import javax.swing.table.TableCellRenderer;
+import javax.swing.table.TableColumn;
+import javax.swing.table.TableColumnModel;
+import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -12,12 +17,6 @@ import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.prefs.Preferences;
-
-import javax.swing.*;
-import javax.swing.table.TableCellRenderer;
-import javax.swing.table.TableColumn;
-import javax.swing.table.TableColumnModel;
-import javax.swing.table.TableModel;
 
 /**
  *
@@ -30,23 +29,32 @@ public class CustomTable extends JTable {
 
     private String prefKey;
 
+    private TableColumnAdjuster tableColumnAdjuster;
+
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
         //setOpaque(false);
         setAutoCreateRowSorter(true);
         getTableHeader().setBackground(headerColor);
+
+        //setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+//        tableColumnAdjuster = new TableColumnAdjuster(this);
     }
 
     @Override
     public void setModel(TableModel dataModel) {
         super.setModel(dataModel);
+//        dataModel.addTableModelListener(e -> {
+//            log.debug("setModel: CHANGED");
+//            tableColumnAdjuster.adjustColumns();
+//        });
         restore();
     }
 
     @Override
     public Component prepareRenderer(TableCellRenderer renderer, int row, int column) {
         Component c = super.prepareRenderer(renderer, row, column);
-        if (!c.getBackground().equals(getSelectionBackground())) {
+        if (c != null && !c.getBackground().equals(getSelectionBackground())) {
             Color color = (row % 2 == 0 ? Color.WHITE : lightGreyColor);
             c.setBackground(color);
         }
@@ -62,8 +70,8 @@ public class CustomTable extends JTable {
         int col = columnAtPoint(p);
         int row = rowAtPoint(p);
         Rectangle bounds = getCellRect(row, col, false);
-        Component comp = prepareRenderer(getCellRenderer(row, col), row, col);
-        if (comp.getPreferredSize().width > bounds.width) {
+        Component c = prepareRenderer(getCellRenderer(row, col), row, col);
+        if (c != null && c.getPreferredSize().width > bounds.width) {
             Object value = getValueAt(row, col);
             toolTipText = value.toString();
         }

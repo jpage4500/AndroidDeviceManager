@@ -4,7 +4,7 @@ import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
 import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
+import com.jpage4500.devicemanager.table.DeviceTableModel;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -5,6 +5,7 @@ import se.vidstige.jadb.JadbDevice;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class Device {
     // common device properties
@@ -85,5 +86,18 @@ public class Device {
     public void setCustomProperty(String key, String value) {
         if (customPropertyMap == null) customPropertyMap = new HashMap<>();
         customPropertyMap.put(key, value);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Device device = (Device) o;
+        return Objects.equals(serial, device.serial) && Objects.equals(phone, device.phone) && Objects.equals(imei, device.imei) && Objects.equals(freeSpace, device.freeSpace) && Objects.equals(propMap, device.propMap) && Objects.equals(customPropertyMap, device.customPropertyMap) && Objects.equals(customAppVersionList, device.customAppVersionList);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(serial, phone, imei, freeSpace, propMap, customPropertyMap, customAppVersionList);
     }
 }

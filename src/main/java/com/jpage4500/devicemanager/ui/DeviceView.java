@@ -9,7 +9,7 @@ import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
-import com.jpage4500.devicemanager.viewmodel.DeviceTableModel;
+import com.jpage4500.devicemanager.table.DeviceTableModel;
 import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -510,15 +510,13 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     private void handleConnectDevice() {
         ConnectScreen.showConnectDialog(frame, isSuccess -> {
             log.debug("handleConnectDevice: {}", isSuccess);
-            if (isSuccess) refreshRetry();
-            else JOptionPane.showMessageDialog(frame, "Unable to connect!");
+            if (!isSuccess) JOptionPane.showMessageDialog(frame, "Unable to connect!");
         });
     }
 
     private void handleDisconnect(Device device) {
         DeviceManager.getInstance().disconnectDevice(device.serial, isSuccess -> {
-            if (isSuccess) refreshRetry();
-            else JOptionPane.showMessageDialog(frame, "Unable to disconnect!");
+            if (!isSuccess) JOptionPane.showMessageDialog(frame, "Unable to disconnect!");
         });
     }
 
@@ -692,15 +690,24 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 popup.add(menuItem);
             }
             if (numScripts > 0) {
-                JButton button = createButton(toolbar, "icon_overflow.png", "Custom", "View custom scripts", null);
-                button.addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mouseClicked(MouseEvent e) {
-                        if (SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 1) {
-                            popup.show(e.getComponent(), e.getX(), e.getY());
-                        }
-                    }
-                });
+                Image icon = loadImage("icon_script.png", 30, 40);
+                JSplitButton button = new JSplitButton(new ImageIcon(icon));
+                button.setText("Custom");
+                button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
+                button.setToolTipText("View custom scripts");
+                button.setVerticalTextPosition(SwingConstants.BOTTOM);
+                button.setHorizontalTextPosition(SwingConstants.CENTER);
+                button.setPopupMenu(popup);
+                toolbar.add(button);
+//                JButton button = createButton(toolbar, "icon_overflow.png", "Custom", "View custom scripts", null);
+//                button.addMouseListener(new MouseAdapter() {
+//                    @Override
+//                    public void mouseClicked(MouseEvent e) {
+//                        if (SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 1) {
+//                            popup.show(e.getComponent(), e.getX(), e.getY());
+//                        }
+//                    }
+//                });
                 deviceButtonList.add(button);
             }
         }
@@ -728,7 +735,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     }
 
     private void handleRefreshCommand() {
-        //DeviceManager.getInstance().refreshDevices(this);
+        DeviceManager.getInstance().refreshDevices(this);
     }
 
     private void handleRunCustomCommand() {
@@ -938,19 +945,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     public void keyReleased(KeyEvent e) {
     }
 
-    private void refreshRetry() {
-        // refresh every few seconds to pick-up the new device
-        new Thread(() -> {
-            for (int i = 0; i < 3; i++) {
-                handleRefreshCommand();
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException ignored) {
-                }
-            }
-        }).start();
-    }
-
     /**
      * if device is wireless (IP:PORT), remember it to quick connect to later
      */
@@ -960,8 +954,15 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         for (Iterator<Device> iterator = wirelessDeviceList.iterator(); iterator.hasNext(); ) {
             Device compareDevice = iterator.next();
             if (TextUtils.equals(compareDevice.serial, device.serial)) {
-                // already exists
-                return;
+                // got serial number match
+                if (compareDevice.equals(device)) {
+                    // no changes
+                    return;
+                } else {
+                    // something changed
+                    iterator.remove();
+                    break;
+                }
             }
         }
         log.trace("checkWireless: ADD: {}", GsonHelper.toJson(device));

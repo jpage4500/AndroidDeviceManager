@@ -3,7 +3,7 @@ package se.vidstige.jadb;
 /**
  * Created by vidstige on 2014-03-20
  */
-public class RemoteFile {
+public class RemoteFile implements Comparable {
     private final String path;
 
     public RemoteFile(String path) { this.path = path; }
@@ -12,6 +12,7 @@ public class RemoteFile {
     public int getSize() { throw new UnsupportedOperationException(); }
     public int getLastModified() { throw new UnsupportedOperationException(); }
     public boolean isDirectory() { throw new UnsupportedOperationException(); }
+    public boolean isSymbolicLink() { throw new UnsupportedOperationException(); }
 
     public String getPath() { return path;}
 
@@ -27,5 +28,10 @@ public class RemoteFile {
     @Override
     public int hashCode() {
         return path.hashCode();
+    }
+
+    @Override
+    public int compareTo(Object o) {
+        return path.compareTo(((RemoteFile) o).path);
     }
 }

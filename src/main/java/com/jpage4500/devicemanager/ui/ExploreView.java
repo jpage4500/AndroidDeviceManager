@@ -1,21 +1,24 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.DeviceFile;
-import com.jpage4500.devicemanager.data.SizeData;
+import com.jpage4500.devicemanager.data.RemoteUpFolder;
 import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.table.utils.ExplorerRowFilter;
+import com.jpage4500.devicemanager.table.utils.ExplorerRowComparator;
 import com.jpage4500.devicemanager.ui.views.*;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.IconTableCellRenderer;
-import com.jpage4500.devicemanager.utils.MyDragDropListener;
-import com.jpage4500.devicemanager.utils.TextUtils;
-import com.jpage4500.devicemanager.viewmodel.ExploreTableModel;
-
+import com.jpage4500.devicemanager.utils.*;
+import com.jpage4500.devicemanager.table.ExploreTableModel;
+import com.jpage4500.devicemanager.table.utils.ExplorerCellRenderer;
 import net.coobird.thumbnailator.Thumbnails;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.vidstige.jadb.RemoteFile;
 
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.TableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -26,13 +29,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.List;
 import java.util.prefs.Preferences;
-
-import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.TableModel;
-import javax.swing.table.TableRowSorter;
 
 /**
  * create and manage device view
@@ -49,6 +45,8 @@ public class ExploreView {
 
     public CustomTable table;
     public ExploreTableModel model;
+    public TableRowSorter<TableModel> rowSorter;
+    private ExplorerRowFilter rowFilter;
 
     public CustomFrame frame;
     public JPanel panel;
@@ -71,7 +69,7 @@ public class ExploreView {
     public void setDevice(Device selectedDevice) {
         this.selectedDevice = selectedDevice;
         frame.setTitle("Browse " + selectedDevice.getDisplayName());
-        refreshFiles();
+        //refreshFiles();
         show();
     }
 
@@ -103,12 +101,31 @@ public class ExploreView {
         table = new CustomTable("browse");
         model = new ExploreTableModel();
         table.setModel(model);
-        table.setDefaultRenderer(DeviceFile.class, new IconTableCellRenderer());
+        // render folder column as images with custom renderer
+        //table.setDefaultRenderer(Icon.class, new IconTableCellRenderer());
+        table.setDefaultRenderer(RemoteFile.class, new ExplorerCellRenderer());
 
-        // right-align size column
-        DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer();
-        rightRenderer.setHorizontalAlignment(JLabel.RIGHT);
-        table.getColumnModel().getColumn(2).setCellRenderer(rightRenderer);
+        KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
+        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(enter, "Enter");
+        table.getActionMap().put("Enter", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleFileClicked();
+            }
+        });
+
+        rowSorter = new TableRowSorter<>(table.getModel());
+        for (int i = 0; i < model.getColumnCount(); i++) {
+            rowSorter.setComparator(i, new ExplorerRowComparator(ExploreTableModel.Columns.values()[i]));
+        }
+        table.setRowSorter(rowSorter);
+
+        // default to order by name
+        List<RowSorter.SortKey> sortKeys = new ArrayList<>();
+        sortKeys.add(new RowSorter.SortKey(0, SortOrder.ASCENDING));
+        rowSorter.setSortKeys(sortKeys);
+        rowFilter = new ExplorerRowFilter();
+        rowSorter.setRowFilter(rowFilter);
 
         // -- CMD+W = close window --
         Action closeAction = new AbstractAction("Close Window") {
@@ -207,26 +224,7 @@ public class ExploreView {
                 } else if (e.getClickCount() == 2) {
                     // double-click
                     selectedColumn = -1;
-                    DeviceFile deviceFile = model.getDeviceFileAtRow(row);
-                    log.trace("mouseClicked: DOUBLE-CLICK: " + GsonHelper.toJson(deviceFile));
-                    if (deviceFile.isDir || deviceFile.isLink) {
-                        if (TextUtils.equalsIgnoreCase(deviceFile.name, "..")) {
-                            log.debug("mouseClicked: UP: {}", selectedPath);
-                            int pos = selectedPath.lastIndexOf('/');
-                            if (pos > 0) {
-                                setPath(selectedPath.substring(0, pos));
-                            } else if (pos == 0) {
-                                // root folder
-                                setPath("");
-                            }
-                        } else {
-                            // append selected folder to current path
-                            setPath(selectedPath + "/" + deviceFile.name);
-                        }
-                        refreshFiles();
-                    } else {
-                        handleDownload();
-                    }
+                    handleFileClicked();
                 }
             }
         });
@@ -239,6 +237,33 @@ public class ExploreView {
             }
         });
         table.requestFocus();
+    }
+
+    private void handleFileClicked() {
+        List<RemoteFile> selectedFiles = getSelectedFiles();
+        log.debug("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
+        if (selectedFiles.isEmpty()) return;
+        RemoteFile selectedFile = selectedFiles.get(0);
+
+        if (selectedFile.isDirectory() || selectedFile.isSymbolicLink()) {
+            if (TextUtils.equalsIgnoreCase(selectedFile.getName(), "..")) {
+                String prevPath = selectedPath;
+                int pos = selectedPath.lastIndexOf('/');
+                if (pos > 0) {
+                    setPath(selectedPath.substring(0, pos));
+                } else if (pos == 0) {
+                    // root folder
+                    setPath("");
+                }
+                log.debug("mouseClicked: UP: {} -> {}", prevPath, selectedPath);
+            } else {
+                // append selected folder to current path
+                setPath(selectedPath + "/" + selectedFile.getName());
+            }
+            refreshFiles();
+        } else {
+            handleDownload();
+        }
     }
 
     private void setPath(String path) {
@@ -254,6 +279,7 @@ public class ExploreView {
         if (selectedDevice == null) return;
         DeviceManager.getInstance().listFiles(selectedDevice, selectedPath, fileList -> {
             if (fileList == null) {
+                log.debug("refreshFiles: NO FILES");
                 errorMessage = "permission denied - " + selectedPath;
                 // remove bad path
                 prevPathList.remove(prevPathList.size() - 1);
@@ -266,6 +292,11 @@ public class ExploreView {
                 log.trace("refreshFiles: selectedPath={}", selectedPath);
             } else {
                 errorMessage = null;
+                // TODO: add ".." to top of list
+                log.debug("refreshFiles: GOT:{}, selectedPath={}", fileList.size(), selectedPath);
+                if (!TextUtils.isEmpty(selectedPath)) {
+                    fileList.add(0, new RemoteUpFolder());
+                }
                 model.setFileList(fileList);
             }
             refreshUi();
@@ -311,17 +342,17 @@ public class ExploreView {
         table.setComponentPopupMenu(popupMenu);
     }
 
-    private String getDeviceField(DeviceFile deviceFile, ExploreTableModel.Columns column) {
+    private String getDeviceField(RemoteFile deviceFile, ExploreTableModel.Columns column) {
         String val;
         switch (column) {
             case NAME:
-                val = deviceFile.name;
+                val = deviceFile.getName();
                 break;
             case SIZE:
-                val = String.valueOf(deviceFile.size);
+                val = String.valueOf(deviceFile.getSize());
                 break;
             case DATE:
-                val = String.valueOf(deviceFile.date);
+                val = String.valueOf(deviceFile.getLastModified());
                 break;
             default:
                 val = column.name();
@@ -410,7 +441,7 @@ public class ExploreView {
     }
 
     private void handleDownload() {
-        List<DeviceFile> selectedFileList = getSelectedFiles();
+        List<RemoteFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
@@ -418,7 +449,7 @@ public class ExploreView {
 
         boolean isSingleFile = selectedFileList.size() == 1;
         String msg = isSingleFile ?
-                selectedFileList.get(0).name :
+                selectedFileList.get(0).getName() :
                 selectedFileList.size() + " files(s)";
 
         // prompt to install/copy
@@ -429,10 +460,10 @@ public class ExploreView {
 
         Preferences preferences = Preferences.userRoot();
         String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, "~/Downloads");
-        for (DeviceFile file : selectedFileList) {
-            DeviceManager.getInstance().downloadFile(selectedDevice, selectedPath, file.name, downloadFolder, isSuccess -> {
+        for (RemoteFile file : selectedFileList) {
+            DeviceManager.getInstance().downloadFile(selectedDevice, selectedPath, file.getName(), downloadFolder, isSuccess -> {
                 if (isSuccess && isSingleFile) {
-                    File downloadedFile = new File(downloadFolder + "/" + file.name);
+                    File downloadedFile = new File(downloadFolder + "/" + file.getName());
                     if (downloadedFile.exists()) {
                         int openRc = JOptionPane.showConfirmDialog(frame,
                                 "Open " + downloadedFile.getName() + "?",
@@ -450,17 +481,17 @@ public class ExploreView {
     }
 
     private void handleDelete() {
-        List<DeviceFile> selectedFileList = getSelectedFiles();
+        List<RemoteFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }
 
         StringBuilder sb = new StringBuilder();
-        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
-            DeviceFile file = iterator.next();
+        for (Iterator<RemoteFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
+            RemoteFile file = iterator.next();
             if (sb.length() > 0) sb.append('\n');
-            sb.append(file.name);
+            sb.append(file.getName());
         }
 
         int rc = JOptionPane.showConfirmDialog(frame,
@@ -468,8 +499,8 @@ public class ExploreView {
                 "Delete Files?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
-        for (DeviceFile file : selectedFileList) {
-            DeviceManager.getInstance().deleteFile(selectedDevice, selectedPath, file.name, isSuccess -> {
+        for (RemoteFile file : selectedFileList) {
+            DeviceManager.getInstance().deleteFile(selectedDevice, selectedPath, file.getName(), isSuccess -> {
                 refreshFiles();
             });
         }
@@ -501,17 +532,17 @@ public class ExploreView {
     }
 
     private void handleCopyPath() {
-        List<DeviceFile> selectedFileList = getSelectedFiles();
+        List<RemoteFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }
 
         StringBuilder sb = new StringBuilder();
-        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
-            DeviceFile file = iterator.next();
+        for (Iterator<RemoteFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
+            RemoteFile file = iterator.next();
             if (sb.length() > 0) sb.append('\n');
-            sb.append(selectedPath + "/" + file.name);
+            sb.append(selectedPath + "/" + file.getName());
         }
 
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -520,17 +551,17 @@ public class ExploreView {
     }
 
     private void handleCopyName() {
-        List<DeviceFile> selectedFileList = getSelectedFiles();
+        List<RemoteFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }
 
         StringBuilder sb = new StringBuilder();
-        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
-            DeviceFile file = iterator.next();
+        for (Iterator<RemoteFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
+            RemoteFile file = iterator.next();
             if (sb.length() > 0) sb.append('\n');
-            sb.append(file.name);
+            sb.append(file.getName());
         }
 
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -538,13 +569,13 @@ public class ExploreView {
         clipboard.setContents(stringSelection, null);
     }
 
-    private List<DeviceFile> getSelectedFiles() {
-        List<DeviceFile> selectedDeviceList = new ArrayList<>();
+    private List<RemoteFile> getSelectedFiles() {
+        List<RemoteFile> selectedDeviceList = new ArrayList<>();
         int[] selectedRows = table.getSelectedRows();
         for (int selectedRow : selectedRows) {
             // convert view row to data row (in case user changed sort order)
             int dataRow = table.convertRowIndexToModel(selectedRow);
-            DeviceFile deviceFile = model.getDeviceFileAtRow(dataRow);
+            RemoteFile deviceFile = model.getDeviceFileAtRow(dataRow);
             if (deviceFile != null) selectedDeviceList.add(deviceFile);
         }
         return selectedDeviceList;
@@ -555,12 +586,12 @@ public class ExploreView {
     }
 
     private void filterDevices(String text) {
-        final TableRowSorter<TableModel> sorter = new TableRowSorter<>(table.getModel());
-        table.setRowSorter(sorter);
         if (text.length() > 0 && !TextUtils.equals(text, HINT_FILTER_DEVICES)) {
-            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
+            rowFilter.searchFor = text;
+            rowSorter.setRowFilter(rowFilter);
+            //rowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
         } else {
-            sorter.setRowFilter(null);
+            rowSorter.setRowFilter(null);
         }
     }
 

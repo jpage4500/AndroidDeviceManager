@@ -1,4 +1,4 @@
-package com.jpage4500.devicemanager.viewmodel;
+package com.jpage4500.devicemanager.table;
 
 import com.jpage4500.devicemanager.data.LogEntry;
 

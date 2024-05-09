@@ -1,4 +1,4 @@
-package com.jpage4500.devicemanager.ui;
+package com.jpage4500.devicemanager.table.utils;
 
 import javax.swing.*;
 import java.awt.*;

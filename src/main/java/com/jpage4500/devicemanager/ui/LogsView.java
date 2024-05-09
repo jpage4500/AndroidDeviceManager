@@ -5,7 +5,7 @@ import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.ui.views.*;
 import com.jpage4500.devicemanager.utils.TextUtils;
-import com.jpage4500.devicemanager.viewmodel.LogsTableModel;
+import com.jpage4500.devicemanager.table.LogsTableModel;
 
 import net.coobird.thumbnailator.Thumbnails;
 
@@ -86,7 +86,7 @@ public class LogsView {
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         model = new LogsTableModel();
         table.setModel(model);
-        //table.setDefaultRenderer(DeviceFile.class, new IconTableCellRenderer());
+        //table.setDefaultRenderer(RemoteFile.class, new IconTableCellRenderer());
 
         // -- CMD+W = close window --
         Action closeAction = new AbstractAction("Close Window") {
