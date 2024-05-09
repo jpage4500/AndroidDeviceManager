@@ -6,12 +6,10 @@ import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Timer;
-import se.vidstige.jadb.DeviceDetectionListener;
-import se.vidstige.jadb.JadbConnection;
-import se.vidstige.jadb.JadbDevice;
-import se.vidstige.jadb.RemoteFile;
+import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PropertyManager;
 
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
 import java.nio.file.Files;
@@ -30,9 +28,9 @@ import java.util.jar.JarFile;
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
 
-    public static final String SHELL_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 'com.android.shell'";
-    public static final String SHELL_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 'com.android.shell'";
-    public static final String SHELL_SERVICE_IMEI = "service call iphonesubinfo 1 s16 'com.android.shell'";
+    public static final String SHELL_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 com.android.shell";
+    public static final String SHELL_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
+    public static final String SHELL_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
 
     private static final String SCRIPT_TERMINAL = "terminal.sh";
     private static final String SCRIPT_CUSTOM_COMMAND = "custom-command.sh";
@@ -63,7 +61,6 @@ public class DeviceManager {
     private Process logProcess;
 
     private JadbConnection connection;
-    private final ExecutorService adbExecutorService;
 
     public static DeviceManager getInstance() {
         if (instance == null) {
@@ -81,7 +78,6 @@ public class DeviceManager {
         processList = new ArrayList<>();
 
         commandExecutorService = Executors.newFixedThreadPool(10);
-        adbExecutorService = Executors.newFixedThreadPool(10);
 
         tempFolder = System.getProperty("java.io.tmpdir");
         copyResourcesToFiles();
@@ -98,7 +94,7 @@ public class DeviceManager {
     public void connectAdbServer(DeviceManager.DeviceListener listener) {
         log.debug("connectAdbServer: ");
         connection = new JadbConnection();
-        adbExecutorService.submit(() -> {
+        commandExecutorService.submit(() -> {
             try {
                 String hostVersion = connection.getHostVersion();
                 log.debug("connectAdbServer: v:{}", hostVersion);
@@ -116,6 +112,7 @@ public class DeviceManager {
                                 // -- ADD DEVICE --
                                 if (device == null) {
                                     device = new Device();
+                                    log.trace("connectAdbServer:onDetect: DEVICE_ADDED: {}", serial);
                                     synchronized (deviceList) {
                                         deviceList.add(device);
                                     }
@@ -123,7 +120,6 @@ public class DeviceManager {
                                 device.serial = serial;
                                 device.jadbDevice = jadbDevice;
                                 addedDeviceList.add(device);
-                                log.trace("onDetect: DEVICE_ADDED: {}", serial);
                             }
                         }
 
@@ -140,7 +136,8 @@ public class DeviceManager {
                             }
                             if (!isFound) {
                                 // -- DEVICE REMOVED --
-                                log.trace("onDetect: DEVICE_REMOVED: {}", GsonHelper.toJson(device));
+                                if (log.isTraceEnabled())
+                                    log.trace("connectAdbServer:onDetect: DEVICE_REMOVED: {}", GsonHelper.toJson(device));
                                 iterator.remove();
                                 numRemoved++;
                             }
@@ -155,17 +152,17 @@ public class DeviceManager {
                                 try {
                                     JadbDevice.State state = addedDevice.jadbDevice.getState();
                                     if (state == JadbDevice.State.Device) {
-                                        addedDevice.status = "Fetching Details..";
+                                        addedDevice.status = "fetching details..";
                                         listener.handleDeviceUpdated(addedDevice);
                                         fetchDeviceDetails(addedDevice, listener);
                                     } else {
-                                        log.trace("onDetect: NOT_READY: {} -> {}", addedDevice.serial, state);
+                                        log.trace("connectAdbServer:getState: NOT_READY: {} -> {}", addedDevice.serial, state);
                                         addedDevice.status = state.name();
                                         listener.handleDeviceUpdated(addedDevice);
                                     }
                                 } catch (Exception e) {
-                                    log.error("onDetect: getState:Exception:{}", e.getMessage());
-                                    addedDevice.status = "not ready";
+                                    log.trace("connectAdbServer:getState:Exception:{}", e.getMessage());
+                                    addedDevice.status = e.getMessage();
                                     listener.handleDeviceUpdated(addedDevice);
                                 }
                             }
@@ -201,7 +198,7 @@ public class DeviceManager {
             try {
                 device.freeSpace = Long.parseLong(size);
             } catch (Exception e) {
-                log.error("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
+                log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
             }
         }
 
@@ -225,12 +222,13 @@ public class DeviceManager {
             }
             //log.trace("fetchDeviceDetails: {}", customPropStr);
         } catch (Exception e) {
-            log.error("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
+            log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
         }
 
         device.hasFetchedDetails = true;
         if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}", GsonHelper.toJson(device));
 
+        device.status = null;
         listener.handleDeviceUpdated(device);
     }
 
@@ -258,7 +256,7 @@ public class DeviceManager {
                 }
             }
         }
-        log.debug("runShellServiceCall: RESULTS: {}", result);
+        //log.trace("runShellServiceCall: RESULTS: {}", result);
         return result != null ? result.toString() : null;
     }
 
@@ -267,10 +265,11 @@ public class DeviceManager {
      */
     private List<String> runShell(Device device, String command) {
         List<String> resultList = new ArrayList<>();
-        List<String> commandList = TextUtils.splitCommand(command);
+        List<String> commandList = TextUtils.splitSafe(command, ' ');
         try {
             String firstCommand = commandList.get(0);
             List<String> subList = commandList.subList(1, commandList.size());
+            //log.trace("runShell: COMMAND:{}, ARGS:{}", firstCommand, GsonHelper.toJson(subList));
             InputStream inputStream = device.jadbDevice.executeShell(firstCommand, subList.toArray(new String[0]));
             BufferedReader input = new BufferedReader(new InputStreamReader(inputStream));
             String line;
@@ -284,7 +283,7 @@ public class DeviceManager {
         return resultList;
     }
 
-    public Device getDevice(String serial) {
+    private Device getDevice(String serial) {
         synchronized (deviceList) {
             for (Device device : deviceList) {
                 if (TextUtils.equals(device.serial, serial)) {
@@ -311,6 +310,13 @@ public class DeviceManager {
     public void captureScreenshot(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "screenshot...";
+            try {
+                BufferedImage screencap = device.jadbDevice.screencap();
+                // TODO: display image in frame
+                log.debug("captureScreenshot: {}x{}", screencap.getWidth(), screencap.getHeight());
+            } catch (Exception e) {
+                log.error("captureScreenshot: {}", e.getMessage());
+            }
             runScript(device, SCRIPT_SCREENSHOT, listener, false, device.serial);
         });
     }
@@ -386,91 +392,113 @@ public class DeviceManager {
         }
         String finalPath = path;
         commandExecutorService.submit(() -> {
+            log.debug("listFiles: {}", finalPath);
             device.status = "list files...";
-            ScriptResult result = runScript(SCRIPT_LIST_FILES, false, false, device.serial, finalPath);
-            if (!result.isSuccess) {
-                listener.handleFiles(null);
-                device.status = "ERROR: " + GsonHelper.toJson(result.stdErr);
-                return;
-            }
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm");
-            List<DeviceFile> fileList = new ArrayList<>();
-            for (String line : result.stdOut) {
-                //log.trace(line);
-                DeviceFile file = new DeviceFile();
-                // handle errors such as: "Permission denied", "Not a directory"
-                if (TextUtils.containsIgnoreCase(line, "Permission denied")) {
-                    file.name = "Permission denied";
-                    fileList.add(file);
-                    break;
-                } else if (TextUtils.containsIgnoreCase(line, "Not a directory")) {
-                    file.name = "Not a directory";
-                    fileList.add(file);
-                    break;
-                }
-
-                String[] resultArr = line.split("\\s+");
-                if (resultArr.length < 8) continue;
-
-                // -- permissions (0) --
-                // drwxrwx--x = READ-ONLY
-                //
-                String permissions = resultArr[0];
-                if (permissions.startsWith("d")) {
-                    file.isDir = true;
-                } else if (permissions.startsWith("l")) {
-                    file.isLink = true;
-                }
-
-                // -- file size (4) --
-                String sizeStr = resultArr[4];
-                if (TextUtils.equalsIgnoreCase(sizeStr, "?")) continue;
-                if (!file.isDir) {
-                    long val = TextUtils.getNumberLong(sizeStr, 0);
-                    // don't show "0" length file sizes
-                    file.size = val > 0 ? val : null;
-                }
-
-                // -- file name (7+) --
-                StringBuilder name = new StringBuilder();
-                for (int pos = 7; pos < resultArr.length; pos++) {
-                    if (name.length() > 0) name.append(" ");
-                    name.append(resultArr[pos]);
-                }
-                if (file.isLink) {
-                    // remove "-> XYZ" from name
-                    int linkPos = name.indexOf(" ->");
-                    if (linkPos > 0) {
-                        name.delete(linkPos, name.length());
+            List<DeviceFile> resultList = new ArrayList<>();
+            try {
+                List<RemoteFile> remoteFileList = device.jadbDevice.list(finalPath);
+                log.debug("listFiles: results: {}", remoteFileList.size());
+                for (RemoteFile remoteFile : remoteFileList) {
+                    log.trace("listFiles: {}", GsonHelper.toJson(remoteFile));
+                    DeviceFile file = new DeviceFile();
+                    file.name = remoteFile.getPath();
+                    file.isDir = remoteFile.isDirectory();
+                    if (!file.isDir) {
+                        file.size = (long) remoteFile.getSize();
                     }
+                    file.date = new Date(remoteFile.getLastModified() * 1000L);
+                    resultList.add(file);
                 }
-                if (TextUtils.equalsAny(name, true, ".", "..")) continue;
-                file.name = name.toString();
-
-                // -- date (5): "2023-06-12" --
-                String dateStr = resultArr[5];
-                // -- time (6): "19:00" --
-                String timeStr = resultArr[6];
-
-                try {
-                    file.date = dateFormat.parse(dateStr + " " + timeStr);
-                } catch (ParseException e) {
-                    log.debug("listFiles: Exception: date:{}", dateStr + " " + timeStr);
-                }
-
-                fileList.add(file);
+                listener.handleFiles(resultList);
+            } catch (Exception e) {
+                log.error("listFiles: {}, Exception:{}", finalPath, e.getMessage());
+                listener.handleFiles(null);
             }
 
-            // always add ".." to every result as long as starting path isn't ""
-            if (TextUtils.notEmpty(finalPath)) {
-                DeviceFile upFile = new DeviceFile();
-                upFile.name = "..";
-                upFile.isDir = true;
-                fileList.add(0, upFile);
-            }
-            if (listener != null) listener.handleFiles(fileList);
-
-            device.status = null;
+//            ScriptResult result = runScript(SCRIPT_LIST_FILES, false, false, device.serial, finalPath);
+//            if (!result.isSuccess) {
+//                listener.handleFiles(null);
+//                device.status = "ERROR: " + GsonHelper.toJson(result.stdErr);
+//                return;
+//            }
+//            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm");
+//            List<RemoteFile> fileList = new ArrayList<>();
+//            for (String line : result.stdOut) {
+//                //log.trace(line);
+//                RemoteFile file = new RemoteFile();
+//                // handle errors such as: "Permission denied", "Not a directory"
+//                if (TextUtils.containsIgnoreCase(line, "Permission denied")) {
+//                    file.name = "Permission denied";
+//                    fileList.add(file);
+//                    break;
+//                } else if (TextUtils.containsIgnoreCase(line, "Not a directory")) {
+//                    file.name = "Not a directory";
+//                    fileList.add(file);
+//                    break;
+//                }
+//
+//                String[] resultArr = line.split("\\s+");
+//                if (resultArr.length < 8) continue;
+//
+//                // -- permissions (0) --
+//                // drwxrwx--x = READ-ONLY
+//                //
+//                String permissions = resultArr[0];
+//                if (permissions.startsWith("d")) {
+//                    file.isDir = true;
+//                } else if (permissions.startsWith("l")) {
+//                    file.isLink = true;
+//                }
+//
+//                // -- file size (4) --
+//                String sizeStr = resultArr[4];
+//                if (TextUtils.equalsIgnoreCase(sizeStr, "?")) continue;
+//                if (!file.isDir) {
+//                    long val = TextUtils.getNumberLong(sizeStr, 0);
+//                    // don't show "0" length file sizes
+//                    file.size = val > 0 ? val : null;
+//                }
+//
+//                // -- file name (7+) --
+//                StringBuilder name = new StringBuilder();
+//                for (int pos = 7; pos < resultArr.length; pos++) {
+//                    if (name.length() > 0) name.append(" ");
+//                    name.append(resultArr[pos]);
+//                }
+//                if (file.isLink) {
+//                    // remove "-> XYZ" from name
+//                    int linkPos = name.indexOf(" ->");
+//                    if (linkPos > 0) {
+//                        name.delete(linkPos, name.length());
+//                    }
+//                }
+//                if (TextUtils.equalsAny(name, true, ".", "..")) continue;
+//                file.name = name.toString();
+//
+//                // -- date (5): "2023-06-12" --
+//                String dateStr = resultArr[5];
+//                // -- time (6): "19:00" --
+//                String timeStr = resultArr[6];
+//
+//                try {
+//                    file.date = dateFormat.parse(dateStr + " " + timeStr);
+//                } catch (ParseException e) {
+//                    log.debug("listFiles: Exception: date:{}", dateStr + " " + timeStr);
+//                }
+//
+//                fileList.add(file);
+//            }
+//
+//            // always add ".." to every result as long as starting path isn't ""
+//            if (TextUtils.notEmpty(finalPath)) {
+//                RemoteFile upFile = new RemoteFile();
+//                upFile.name = "..";
+//                upFile.isDir = true;
+//                fileList.add(0, upFile);
+//            }
+//            if (listener != null) listener.handleFiles(fileList);
+//
+//            device.status = null;
         });
     }
 

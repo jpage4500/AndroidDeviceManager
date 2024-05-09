@@ -33,9 +33,8 @@ public class GsonHelper {
 
     public static GsonBuilder gsonBuilder() {
         GsonBuilder gsonBuilder = new GsonBuilder();
-        // NOTE: I don't like this but need it to compare restored devices with list response
-        //gsonBuilder.serializeNulls();
         gsonBuilder.setLenient();
+        gsonBuilder.setExclusionStrategies(new AnnotationExclusionStrategy());
         return gsonBuilder;
     }
 

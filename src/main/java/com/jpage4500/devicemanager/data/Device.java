@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.data;
 
+import com.jpage4500.devicemanager.utils.ExcludeFromSerialization;
 import se.vidstige.jadb.JadbDevice;
 
 import java.util.HashMap;
@@ -24,15 +25,19 @@ public class Device {
     public Long freeSpace;
 
     // map of property name -> key
+    @ExcludeFromSerialization
     public Map<String, String> propMap;
 
     // custom properties (saved on a file on device)
+    @ExcludeFromSerialization
     public Map<String, String> customPropertyMap;
 
     // user-defined map of applications and versions
+    @ExcludeFromSerialization
     public Map<String, String> customAppVersionList;
 
     // to show device status (viewing, copying, installing, etc)
+    @ExcludeFromSerialization
     public String status;
 
     public boolean isOnline;
@@ -40,6 +45,7 @@ public class Device {
     // only fetch device detail (IMEI, phone, etc) once -- shouldn't change
     public boolean hasFetchedDetails;
 
+    @ExcludeFromSerialization
     public JadbDevice jadbDevice;
 
     /**

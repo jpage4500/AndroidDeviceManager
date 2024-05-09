@@ -18,6 +18,11 @@ class RemoteFileRecord extends RemoteFile {
     }
 
     @Override
+    public String getName() {
+        return getPath();
+    }
+
+    @Override
     public int getSize() {
         return size;
     }
