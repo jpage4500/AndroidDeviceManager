@@ -2,8 +2,8 @@ package com.jpage4500.devicemanager.table.utils;
 
 import com.jpage4500.devicemanager.table.ExploreTableModel;
 import com.jpage4500.devicemanager.utils.FileUtils;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
-import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import se.vidstige.jadb.RemoteFile;
@@ -32,23 +32,10 @@ public class ExplorerCellRenderer extends JLabel implements TableCellRenderer {
         Border margin = new EmptyBorder(0, 10, 0, 0);
         setBorder(margin);
 
-        folderUpIcon = getIcon("icon_folder_up.png");
-        folderIcon = getIcon("icon_folder.png");
-        fileIcon = getIcon("icon_file.png");
-        linkIcon = getIcon("icon_link.png");
-    }
-
-    private ImageIcon getIcon(String imageName) {
-        Image icon = null;
-        try {
-            // library offers MUCH better image scaling than ImageIO
-            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(20, 20).asBufferedImage();
-            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
-        } catch (Exception e) {
-            log.error("getIcon: Exception:{}", e.getMessage());
-        }
-        if (icon != null) return new ImageIcon(icon);
-        else return null;
+        folderUpIcon = UiUtils.getIcon("icon_folder_up.png", 20);
+        folderIcon = UiUtils.getIcon("icon_folder.png", 20);
+        fileIcon = UiUtils.getIcon("icon_file.png", 20);
+        linkIcon = UiUtils.getIcon("icon_link.png", 20);
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {

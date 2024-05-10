@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.ui.views;
 
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,18 +28,47 @@ public class CustomTable extends JTable {
     private final Color lightGreyColor = new Color(246, 246, 246);
     private final Color headerColor = new Color(197, 197, 197);
 
+    private final Icon arrowUpIcon;
+    private final Icon arrowDownIcon;
+
     private String prefKey;
 
     private TableColumnAdjuster tableColumnAdjuster;
 
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
+
+        arrowUpIcon = UiUtils.getIcon("arrow_down.png", 15);
+        arrowDownIcon = UiUtils.getIcon("arrow_up.png", 15);
+
         //setOpaque(false);
         setAutoCreateRowSorter(true);
-        getTableHeader().setBackground(headerColor);
 
+        final TableCellRenderer defaultRenderer = getTableHeader().getDefaultRenderer();
+        getTableHeader().setBackground(headerColor);
         //setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
 //        tableColumnAdjuster = new TableColumnAdjuster(this);
+        getTableHeader().setDefaultRenderer((table, value, isSelected, hasFocus, row, column) -> {
+            Component comp = defaultRenderer.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            if (comp instanceof JLabel label) {
+                label.setIcon(getSortIcon(column));
+            }
+            return comp;
+        });
+    }
+
+    private Icon getSortIcon(int column) {
+        Icon sortIcon = null;
+        if (getRowSorter() != null) {
+            List<? extends RowSorter.SortKey> sortKeys = getRowSorter().getSortKeys();
+            if (!sortKeys.isEmpty()) {
+                RowSorter.SortKey key = sortKeys.get(0);
+                if (key.getColumn() == convertColumnIndexToModel(column)) {
+                    sortIcon = key.getSortOrder() == SortOrder.ASCENDING ? arrowUpIcon : arrowDownIcon;
+                }
+            }
+        }
+        return sortIcon;
     }
 
     @Override

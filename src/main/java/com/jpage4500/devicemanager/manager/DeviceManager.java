@@ -404,7 +404,6 @@ public class DeviceManager {
         String finalPath = path;
         commandExecutorService.submit(() -> {
             log.debug("listFiles: {}", finalPath);
-            device.status = "list files...";
             try {
                 List<RemoteFile> remoteFileList = device.jadbDevice.list(finalPath);
                 log.trace("listFiles: results: {}", GsonHelper.toJson(remoteFileList));
@@ -516,12 +515,20 @@ public class DeviceManager {
         void onTaskComplete(boolean isSuccess);
     }
 
-    public void downloadFile(Device device, String srcPath, String srcName, String dest, TaskListener listener) {
+    public void downloadFile(Device device, RemoteFile file, File saveFile, TaskListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "downloading...";
-            ScriptResult result = runScript(SCRIPT_DOWNLOAD_FILE, device.serial, srcPath, srcName, dest);
-            device.status = result.isSuccess ? null : "Download failed";
-            if (listener != null) listener.onTaskComplete(result.isSuccess);
+            log.debug("downloadFile: {} -> {}", file, saveFile.getAbsoluteFile());
+            try {
+                device.jadbDevice.pull(file, saveFile);
+                listener.onTaskComplete(true);
+            } catch (Exception e) {
+                log.error("downloadFile: {}, Exception:{}", file, e.getMessage());
+                listener.onTaskComplete(false);
+            }
+//            ScriptResult result = runScript(SCRIPT_DOWNLOAD_FILE, device.serial, srcPath, srcName, saveFile);
+//            device.status = result.isSuccess ? null : "Download failed";
+//            if (listener != null) listener.onTaskComplete(result.isSuccess);
         });
     }
 
@@ -645,17 +652,6 @@ public class DeviceManager {
                 process.destroy();
             }
         }
-    }
-
-    private Device getDeviceForSerial(String serialNumber) {
-        synchronized (deviceList) {
-            for (Device device : deviceList) {
-                if (TextUtils.equals(device.serial, serialNumber)) {
-                    return device;
-                }
-            }
-        }
-        return null;
     }
 
     /**

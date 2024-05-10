@@ -180,7 +180,9 @@ public class JadbDevice {
             sync.send("LIST", remotePath);
 
             List<RemoteFile> result = new ArrayList<>();
-            for (RemoteFileRecord dent = sync.readDirectoryEntry(); dent != RemoteFileRecord.DONE; dent = sync.readDirectoryEntry()) {
+            while (true) {
+                RemoteFileRecord dent = sync.readDirectoryEntry(remotePath);
+                if (dent == null) break;
                 result.add(dent);
             }
             return result;

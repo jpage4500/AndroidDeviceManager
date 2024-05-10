@@ -3,13 +3,15 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.RemoteUpFolder;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.table.utils.ExplorerRowFilter;
-import com.jpage4500.devicemanager.table.utils.ExplorerRowComparator;
-import com.jpage4500.devicemanager.ui.views.*;
-import com.jpage4500.devicemanager.utils.*;
 import com.jpage4500.devicemanager.table.ExploreTableModel;
 import com.jpage4500.devicemanager.table.utils.ExplorerCellRenderer;
-import net.coobird.thumbnailator.Thumbnails;
+import com.jpage4500.devicemanager.table.utils.ExplorerRowComparator;
+import com.jpage4500.devicemanager.table.utils.ExplorerRowFilter;
+import com.jpage4500.devicemanager.ui.views.*;
+import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.MyDragDropListener;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import se.vidstige.jadb.RemoteFile;
@@ -26,7 +28,8 @@ import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.prefs.Preferences;
 
@@ -104,6 +107,7 @@ public class ExploreView {
         // render folder column as images with custom renderer
         //table.setDefaultRenderer(Icon.class, new IconTableCellRenderer());
         table.setDefaultRenderer(RemoteFile.class, new ExplorerCellRenderer());
+        //table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer());
 
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
         table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(enter, "Enter");
@@ -406,10 +410,10 @@ public class ExploreView {
             toolbar.removeAll();
         }
 
-        createButton(toolbar, "icon_open_folder.png", "Go To..", "Open Folder", actionEvent -> handleGoToFolder());
-        createButton(toolbar, "icon_download.png", "Download", "Download Files", actionEvent -> handleDownload());
+        UiUtils.createToolbarButton(toolbar, "icon_open_folder.png", "Go To..", "Open Folder", actionEvent -> handleGoToFolder());
+        UiUtils.createToolbarButton(toolbar, "icon_download.png", "Download", "Download Files", actionEvent -> handleDownload());
         toolbar.addSeparator();
-        createButton(toolbar, "icon_delete.png", "Delete", "Delete Files", actionEvent -> handleDelete());
+        UiUtils.createToolbarButton(toolbar, "icon_delete.png", "Delete", "Delete Files", actionEvent -> handleDelete());
 
         toolbar.add(Box.createHorizontalGlue());
 
@@ -436,7 +440,7 @@ public class ExploreView {
         toolbar.add(textField);
 //        toolbar.add(Box.createHorizontalGlue());
 
-        createButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshUi());
+        UiUtils.createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshUi());
 
     }
 
@@ -461,16 +465,16 @@ public class ExploreView {
         Preferences preferences = Preferences.userRoot();
         String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, "~/Downloads");
         for (RemoteFile file : selectedFileList) {
-            DeviceManager.getInstance().downloadFile(selectedDevice, selectedPath, file.getName(), downloadFolder, isSuccess -> {
+            File downloadFile = new File(downloadFolder, file.getName());
+            DeviceManager.getInstance().downloadFile(selectedDevice, file, downloadFile, isSuccess -> {
                 if (isSuccess && isSingleFile) {
-                    File downloadedFile = new File(downloadFolder + "/" + file.getName());
-                    if (downloadedFile.exists()) {
+                    if (downloadFile.exists()) {
                         int openRc = JOptionPane.showConfirmDialog(frame,
-                                "Open " + downloadedFile.getName() + "?",
+                                "Open " + downloadFile.getName() + "?",
                                 "Open File?", JOptionPane.YES_NO_OPTION);
                         if (openRc != JOptionPane.YES_OPTION) return;
                         try {
-                            Desktop.getDesktop().open(downloadedFile);
+                            Desktop.getDesktop().open(downloadFile);
                         } catch (IOException e) {
                             log.error("handleDownload " + e.getMessage());
                         }
@@ -593,43 +597,6 @@ public class ExploreView {
         } else {
             rowSorter.setRowFilter(null);
         }
-    }
-
-    private Image getIcon(String imageName) {
-        Image icon = null;
-        try {
-            // library offers MUCH better image scaling than ImageIO
-            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(40, 40).asBufferedImage();
-            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
-        } catch (Exception e) {
-            log.debug("createButton: Exception:{}", e.getMessage());
-        }
-        return icon;
-    }
-
-    private void createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
-        Image icon;
-        try {
-            // library offers MUCH better image scaling than ImageIO
-            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(40, 40).asBufferedImage();
-            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
-            if (icon == null) {
-                log.error("createButton: image not found! {}", imageName);
-                return;
-            }
-        } catch (Exception e) {
-            log.debug("createButton: Exception:{}", e.getMessage());
-            return;
-        }
-        JButton button = new JButton(new ImageIcon(icon));
-        if (label != null) button.setText(label);
-
-        button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
-        if (tooltip != null) button.setToolTipText(tooltip);
-        button.setVerticalTextPosition(SwingConstants.BOTTOM);
-        button.setHorizontalTextPosition(SwingConstants.CENTER);
-        button.addActionListener(listener);
-        toolbar.add(button);
     }
 
 }

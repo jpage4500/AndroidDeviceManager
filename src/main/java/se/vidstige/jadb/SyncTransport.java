@@ -66,7 +66,7 @@ public class SyncTransport {
         output.writeBytes("\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"); // equivalent to the length of a "normal" dent
     }
 
-    public RemoteFileRecord readDirectoryEntry() throws IOException {
+    public RemoteFileRecord readDirectoryEntry(String remotePath) throws IOException {
         String id = readString(4);
         int mode = readInt();
         int size = readInt();
@@ -74,8 +74,8 @@ public class SyncTransport {
         int nameLength = readInt();
         String name = readString(nameLength);
 
-        if (!"DENT".equals(id)) return RemoteFileRecord.DONE;
-        return new RemoteFileRecord(name, mode, size, time);
+        if (!"DENT".equals(id)) return null; // RemoteFileRecord.DONE;
+        return new RemoteFileRecord(remotePath, name, mode, size, time);
     }
 
     private void sendChunk(byte[] buffer, int offset, int length) throws IOException {

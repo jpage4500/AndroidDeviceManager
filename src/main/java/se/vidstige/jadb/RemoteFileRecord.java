@@ -4,14 +4,16 @@ package se.vidstige.jadb;
  * Created by vidstige on 2014-03-19.
  */
 class RemoteFileRecord extends RemoteFile {
-    public static final RemoteFileRecord DONE = new RemoteFileRecord(null, 0, 0, 0);
+    //public static final RemoteFileRecord DONE = new RemoteFileRecord(null, 0, 0, 0);
 
+    private final String name;
     private final int mode;
     private final int size;
     private final int lastModified;
 
-    public RemoteFileRecord(String name, int mode, int size, int lastModified) {
-        super(name);
+    public RemoteFileRecord(String path, String name, int mode, int size, int lastModified) {
+        super(path + "/" + name);
+        this.name = name;
         this.mode = mode;
         this.size = size;
         this.lastModified = lastModified;
@@ -19,7 +21,7 @@ class RemoteFileRecord extends RemoteFile {
 
     @Override
     public String getName() {
-        return getPath();
+        return name;
     }
 
     @Override
@@ -40,5 +42,10 @@ class RemoteFileRecord extends RemoteFile {
     @Override
     public boolean isSymbolicLink() {
         return (mode & (1 << 13)) == (1 << 13);
+    }
+
+    @Override
+    public String toString() {
+        return getPath();
     }
 }

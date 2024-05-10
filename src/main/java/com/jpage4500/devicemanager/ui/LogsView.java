@@ -3,23 +3,21 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.ui.views.*;
-import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.table.LogsTableModel;
-
-import net.coobird.thumbnailator.Thumbnails;
-
+import com.jpage4500.devicemanager.ui.views.*;
+import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.TableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.List;
-
-import javax.swing.*;
-import javax.swing.event.*;
-import javax.swing.table.TableModel;
-import javax.swing.table.TableRowSorter;
 
 /**
  * create and manage device view
@@ -227,8 +225,8 @@ public class LogsView {
             toolbar.removeAll();
         }
 
-        createButton(toolbar, "icon_open_folder.png", "Start", "Open Folder", actionEvent -> startLogging());
-        createButton(toolbar, "icon_download.png", "Stop", "Download Files", actionEvent -> stopLogging());
+        UiUtils.createToolbarButton(toolbar, "icon_open_folder.png", "Start", "Open Folder", actionEvent -> startLogging());
+        UiUtils.createToolbarButton(toolbar, "icon_download.png", "Stop", "Download Files", actionEvent -> stopLogging());
         toolbar.addSeparator();
 
         toolbar.add(Box.createHorizontalGlue());
@@ -238,25 +236,25 @@ public class LogsView {
         textField.setMinimumSize(new Dimension(10, 40));
         textField.setMaximumSize(new Dimension(200, 40));
         textField.getDocument().addDocumentListener(
-            new DocumentListener() {
-                @Override
-                public void insertUpdate(DocumentEvent documentEvent) {
-                    filterDevices(textField.getText());
-                }
+                new DocumentListener() {
+                    @Override
+                    public void insertUpdate(DocumentEvent documentEvent) {
+                        filterDevices(textField.getText());
+                    }
 
-                @Override
-                public void removeUpdate(DocumentEvent documentEvent) {
-                    filterDevices(textField.getText());
-                }
+                    @Override
+                    public void removeUpdate(DocumentEvent documentEvent) {
+                        filterDevices(textField.getText());
+                    }
 
-                @Override
-                public void changedUpdate(DocumentEvent documentEvent) {
-                }
-            });
+                    @Override
+                    public void changedUpdate(DocumentEvent documentEvent) {
+                    }
+                });
         toolbar.add(textField);
 //        toolbar.add(Box.createHorizontalGlue());
 
-        createButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshUi());
+        UiUtils.createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshUi());
     }
 
     private void filterDevices(String text) {
@@ -267,43 +265,6 @@ public class LogsView {
         } else {
             sorter.setRowFilter(null);
         }
-    }
-
-    private Image getIcon(String imageName) {
-        Image icon = null;
-        try {
-            // library offers MUCH better image scaling than ImageIO
-            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(40, 40).asBufferedImage();
-            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
-        } catch (Exception e) {
-            log.debug("createButton: Exception:{}", e.getMessage());
-        }
-        return icon;
-    }
-
-    private void createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
-        Image icon;
-        try {
-            // library offers MUCH better image scaling than ImageIO
-            icon = Thumbnails.of(getClass().getResource("/images/" + imageName)).size(40, 40).asBufferedImage();
-            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
-            if (icon == null) {
-                log.error("createButton: image not found! {}", imageName);
-                return;
-            }
-        } catch (Exception e) {
-            log.debug("createButton: Exception:{}", e.getMessage());
-            return;
-        }
-        JButton button = new JButton(new ImageIcon(icon));
-        if (label != null) button.setText(label);
-
-        button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
-        if (tooltip != null) button.setToolTipText(tooltip);
-        button.setVerticalTextPosition(SwingConstants.BOTTOM);
-        button.setHorizontalTextPosition(SwingConstants.CENTER);
-        button.addActionListener(listener);
-        toolbar.add(button);
     }
 
 }

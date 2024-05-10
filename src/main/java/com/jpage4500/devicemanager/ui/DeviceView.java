@@ -4,13 +4,9 @@ import com.jpage4500.devicemanager.Build;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.ui.views.*;
-import com.jpage4500.devicemanager.utils.FileUtils;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.MyDragDropListener;
-import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
-import net.coobird.thumbnailator.Thumbnails;
+import com.jpage4500.devicemanager.ui.views.*;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -600,41 +596,41 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         deviceButtonList.clear();
         JButton button;
 
-        createButton(toolbar, "icon_add.png", "Connect", "Connect Device", actionEvent -> handleConnectDevice());
+        UiUtils.createToolbarButton(toolbar, "icon_add.png", "Connect", "Connect Device", actionEvent -> handleConnectDevice());
         toolbar.addSeparator();
 
-        button = createButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
+        button = UiUtils.createToolbarButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
         deviceButtonList.add(button);
 
-        button = createButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
+        button = UiUtils.createToolbarButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
         deviceButtonList.add(button);
 
-        button = createButton(toolbar, "icon_edit.png", "Input", "Enter text", actionEvent -> handleInputCommand());
+        button = UiUtils.createToolbarButton(toolbar, "icon_edit.png", "Input", "Enter text", actionEvent -> handleInputCommand());
         deviceButtonList.add(button);
 
         toolbar.addSeparator();
 
-        button = createButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
+        button = UiUtils.createToolbarButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
         deviceButtonList.add(button);
 
         if (TEST_LOGGING) {
-            button = createButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+            button = UiUtils.createToolbarButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
             deviceButtonList.add(button);
         }
-        button = createButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
+        button = UiUtils.createToolbarButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
         deviceButtonList.add(button);
-        button = createButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
+        button = UiUtils.createToolbarButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
         deviceButtonList.add(button);
 
         toolbar.addSeparator();
-        //createButton(toolbar, "icon_variable.png", "Set Property", actionEvent -> handleSetPropertyCommand());
+        //UiUtils.createToolbarButton(toolbar, "icon_variable.png", "Set Property", actionEvent -> handleSetPropertyCommand());
 
         // create custom action buttons
-        button = createButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
+        button = UiUtils.createToolbarButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
         deviceButtonList.add(button);
 
         // TODO: add the 'add custom' button
-        // createButton(toolbar, "icon_add.png", "add custom", "Run custom adb command", actionEvent -> handleAddCustomCommand());
+        // UiUtils.createToolbarButton(toolbar, "icon_add.png", "add custom", "Run custom adb command", actionEvent -> handleAddCustomCommand());
 
         loadCustomScripts(toolbar);
 
@@ -663,8 +659,8 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         toolbar.add(textField);
 //        toolbar.add(Box.createHorizontalGlue());
 
-        createButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> handleRefreshCommand());
-        createButton(toolbar, "icon_settings.png", "Settings", "Settings", actionEvent -> handleSettingsClicked());
+        UiUtils.createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> handleRefreshCommand());
+        UiUtils.createToolbarButton(toolbar, "icon_settings.png", "Settings", "Settings", actionEvent -> handleSettingsClicked());
     }
 
     private void loadCustomScripts(JToolBar toolbar) {
@@ -682,16 +678,16 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 String name = file.getName();
                 if (!TextUtils.endsWith(name, ".sh")) return;
                 numScripts++;
-                Image icon = loadImage("icon_script.png", 20, 20);
-                JMenuItem menuItem = new JMenuItem(name, new ImageIcon(icon));
+                ImageIcon icon = UiUtils.getIcon("icon_script.png", 20);
+                JMenuItem menuItem = new JMenuItem(name, icon);
                 menuItem.addActionListener(e -> {
                     runCustomScript(file);
                 });
                 popup.add(menuItem);
             }
             if (numScripts > 0) {
-                Image icon = loadImage("icon_script.png", 30, 40);
-                JSplitButton button = new JSplitButton(new ImageIcon(icon));
+                ImageIcon imageIcon = UiUtils.getIcon("icon_script.png", 40, 40);
+                JSplitButton button = new JSplitButton(imageIcon);
                 button.setText("Custom");
                 button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
                 button.setToolTipText("View custom scripts");
@@ -699,15 +695,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 button.setHorizontalTextPosition(SwingConstants.CENTER);
                 button.setPopupMenu(popup);
                 toolbar.add(button);
-//                JButton button = createButton(toolbar, "icon_overflow.png", "Custom", "View custom scripts", null);
-//                button.addMouseListener(new MouseAdapter() {
-//                    @Override
-//                    public void mouseClicked(MouseEvent e) {
-//                        if (SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 1) {
-//                            popup.show(e.getComponent(), e.getX(), e.getY());
-//                        }
-//                    }
-//                });
                 deviceButtonList.add(button);
             }
         }
@@ -847,34 +834,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             logsView = new LogsView(frame);
         }
         logsView.setDevice(selectedDevice);
-    }
-
-    private Image loadImage(String path, int w, int h) {
-        try {
-            // library offers MUCH better image scaling than ImageIO
-            Image icon = Thumbnails.of(getClass().getResource("/images/" + path)).size(w, h).asBufferedImage();
-            //Image image = ImageIO.read(getClass().getResource("/images/" + imageName));
-            if (icon != null) return icon;
-            log.error("createButton: image not found! {}", path);
-        } catch (Exception e) {
-            log.error("createButton: Exception:{}", e.getMessage());
-        }
-        return null;
-    }
-
-    private JButton createButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
-        Image icon = loadImage(imageName, 40, 40);
-        if (icon == null) return null;
-        JButton button = new JButton(new ImageIcon(icon));
-        if (label != null) button.setText(label);
-
-        button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
-        if (tooltip != null) button.setToolTipText(tooltip);
-        button.setVerticalTextPosition(SwingConstants.BOTTOM);
-        button.setHorizontalTextPosition(SwingConstants.CENTER);
-        button.addActionListener(listener);
-        toolbar.add(button);
-        return button;
     }
 
     private void handleVersionClicked() {
