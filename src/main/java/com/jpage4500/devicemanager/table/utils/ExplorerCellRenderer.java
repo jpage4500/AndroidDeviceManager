@@ -32,10 +32,10 @@ public class ExplorerCellRenderer extends JLabel implements TableCellRenderer {
         Border margin = new EmptyBorder(0, 10, 0, 0);
         setBorder(margin);
 
-        folderUpIcon = UiUtils.getIcon("icon_folder_up.png", 20);
-        folderIcon = UiUtils.getIcon("icon_folder.png", 20);
-        fileIcon = UiUtils.getIcon("icon_file.png", 20);
-        linkIcon = UiUtils.getIcon("icon_link.png", 20);
+        folderUpIcon = UiUtils.getImageIcon("icon_folder_up.png", 20);
+        folderIcon = UiUtils.getImageIcon("icon_folder.png", 20);
+        fileIcon = UiUtils.getImageIcon("icon_file.png", 20);
+        linkIcon = UiUtils.getImageIcon("icon_link.png", 20);
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {

@@ -38,8 +38,8 @@ public class CustomTable extends JTable {
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
 
-        arrowUpIcon = UiUtils.getIcon("arrow_down.png", 15);
-        arrowDownIcon = UiUtils.getIcon("arrow_up.png", 15);
+        arrowUpIcon = UiUtils.getImageIcon("arrow_down.png", 15);
+        arrowDownIcon = UiUtils.getImageIcon("arrow_up.png", 15);
 
         //setOpaque(false);
         setAutoCreateRowSorter(true);

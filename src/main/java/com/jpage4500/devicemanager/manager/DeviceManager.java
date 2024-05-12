@@ -5,11 +5,16 @@ import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Timer;
-import se.vidstige.jadb.*;
+import se.vidstige.jadb.DeviceDetectionListener;
+import se.vidstige.jadb.JadbConnection;
+import se.vidstige.jadb.JadbDevice;
+import se.vidstige.jadb.RemoteFile;
+import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,27 +31,24 @@ import java.util.jar.JarFile;
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
 
-    public static final String SHELL_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 com.android.shell";
-    public static final String SHELL_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
-    public static final String SHELL_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
+    public static final String COMMAND_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 com.android.shell";
+    public static final String COMMAND_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
+    public static final String COMMAND_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
+    public static final String COMMAND_REBOOT = "reboot";
+    public static final String COMMAND_DISK_SIZE = "df";
+
+    public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
 
     private static final String SCRIPT_TERMINAL = "terminal.sh";
     private static final String SCRIPT_CUSTOM_COMMAND = "custom-command.sh";
-    private static final String SCRIPT_RESTART = "restart.sh";
     private static final String SCRIPT_COPY_FILE = "copy-file.sh";
-    private static final String SCRIPT_INSTALL_APK = "install-apk.sh";
     private static final String SCRIPT_SET_PROPERTY = "set-property.sh";
     private static final String SCRIPT_SCREENSHOT = "screenshot.sh";
     private static final String SCRIPT_MIRROR = "mirror.sh";
-    private static final String SCRIPT_LIST_FILES = "list-files.sh";
-    private static final String SCRIPT_DOWNLOAD_FILE = "download-file.sh";
     private static final String SCRIPT_DELETE_FILE = "delete-file.sh";
     private static final String SCRIPT_START_LOGGING = "start-logging.sh";
-    private static final String SCRIPT_CONNECT = "connect-device.sh";
-    private static final String SCRIPT_DISCONNECT = "disconnect-device.sh";
     private static final String SCRIPT_INPUT_TEXT = "input-text.sh";
     private static final String SCRIPT_INPUT_KEYEVENT = "input-keyevent.sh";
-    public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
 
     private static volatile DeviceManager instance;
 
@@ -193,13 +195,13 @@ public class DeviceManager {
     private void fetchDeviceDetails(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             log.debug("fetchDeviceDetails: {}", device.serial);
-            device.phone = runShellServiceCall(device, SHELL_SERVICE_PHONE1);
+            device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
             if (TextUtils.isEmpty(device.phone)) {
-                device.phone = runShellServiceCall(device, SHELL_SERVICE_PHONE2);
+                device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
             }
-            device.imei = runShellServiceCall(device, SHELL_SERVICE_IMEI);
+            device.imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
 
-            List<String> sizeLines = runShell(device, "df");
+            List<String> sizeLines = runShell(device, COMMAND_DISK_SIZE);
             if (!sizeLines.isEmpty()) {
                 // only interested in last line
                 String last = sizeLines.get(sizeLines.size() - 1);
@@ -357,10 +359,18 @@ public class DeviceManager {
 
     public void installApp(Device device, File file, DeviceListener listener) {
         commandExecutorService.submit(() -> {
-            String path = file.getAbsolutePath();
             device.status = "installing...";
-            runScript(device, SCRIPT_INSTALL_APK, listener, true, path);
-            log.debug("installApp: {}, {}, DONE", device.serial, path);
+            listener.handleDeviceUpdated(device);
+            try {
+                PackageManager packageManager = new PackageManager(device.jadbDevice);
+                packageManager.install(file);
+                device.status = null;
+                listener.handleDeviceUpdated(device);
+            } catch (Exception e) {
+                log.error("installApp: {}, {}", file.getAbsolutePath(), e.getMessage());
+                device.status = "failed: " + e.getMessage();
+                listener.handleDeviceUpdated(device);
+            }
         });
     }
 
@@ -375,8 +385,9 @@ public class DeviceManager {
 
     public void restartDevice(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
-            device.status = "restarting...";
-            runScript(device, SCRIPT_RESTART, listener, true, device.serial);
+            runShell(device, COMMAND_REBOOT);
+//            device.status = "restarting...";
+//            runScript(device, SCRIPT_RESTART, listener, true, device.serial);
             listener.handleDeviceUpdated(device);
         });
     }
@@ -408,106 +419,13 @@ public class DeviceManager {
                 List<RemoteFile> remoteFileList = device.jadbDevice.list(finalPath);
                 log.trace("listFiles: results: {}", GsonHelper.toJson(remoteFileList));
                 // for some reason the top level directory returns "." and ".."
-                if (finalPath.equals("/")) {
-                    for (Iterator<RemoteFile> iterator = remoteFileList.iterator(); iterator.hasNext(); ) {
-                        RemoteFile remoteFile = iterator.next();
-                        if (TextUtils.equals(remoteFile.getName(), "..") ||
-                                TextUtils.equals(remoteFile.getName(), ".")) {
-                            iterator.remove();
-                        }
-                    }
-                }
+                remoteFileList.removeIf(remoteFile -> TextUtils.equalsAny(remoteFile.getName(), false, "..", "."));
                 listener.handleFiles(remoteFileList);
             } catch (Exception e) {
                 log.error("listFiles: {}, Exception:{}", finalPath, e.getMessage());
                 log.debug("listFiles: ", e);
                 listener.handleFiles(null);
             }
-
-//            ScriptResult result = runScript(SCRIPT_LIST_FILES, false, false, device.serial, finalPath);
-//            if (!result.isSuccess) {
-//                listener.handleFiles(null);
-//                device.status = "ERROR: " + GsonHelper.toJson(result.stdErr);
-//                return;
-//            }
-//            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm");
-//            List<RemoteFile> fileList = new ArrayList<>();
-//            for (String line : result.stdOut) {
-//                //log.trace(line);
-//                RemoteFile file = new RemoteFile();
-//                // handle errors such as: "Permission denied", "Not a directory"
-//                if (TextUtils.containsIgnoreCase(line, "Permission denied")) {
-//                    file.name = "Permission denied";
-//                    fileList.add(file);
-//                    break;
-//                } else if (TextUtils.containsIgnoreCase(line, "Not a directory")) {
-//                    file.name = "Not a directory";
-//                    fileList.add(file);
-//                    break;
-//                }
-//
-//                String[] resultArr = line.split("\\s+");
-//                if (resultArr.length < 8) continue;
-//
-//                // -- permissions (0) --
-//                // drwxrwx--x = READ-ONLY
-//                //
-//                String permissions = resultArr[0];
-//                if (permissions.startsWith("d")) {
-//                    file.isDirectory() = true;
-//                } else if (permissions.startsWith("l")) {
-//                    file.isLink = true;
-//                }
-//
-//                // -- file size (4) --
-//                String sizeStr = resultArr[4];
-//                if (TextUtils.equalsIgnoreCase(sizeStr, "?")) continue;
-//                if (!file.isDirectory()) {
-//                    long val = TextUtils.getNumberLong(sizeStr, 0);
-//                    // don't show "0" length file sizes
-//                    file.size = val > 0 ? val : null;
-//                }
-//
-//                // -- file name (7+) --
-//                StringBuilder name = new StringBuilder();
-//                for (int pos = 7; pos < resultArr.length; pos++) {
-//                    if (name.length() > 0) name.append(" ");
-//                    name.append(resultArr[pos]);
-//                }
-//                if (file.isLink) {
-//                    // remove "-> XYZ" from name
-//                    int linkPos = name.indexOf(" ->");
-//                    if (linkPos > 0) {
-//                        name.delete(linkPos, name.length());
-//                    }
-//                }
-//                if (TextUtils.equalsAny(name, true, ".", "..")) continue;
-//                file.name = name.toString();
-//
-//                // -- date (5): "2023-06-12" --
-//                String dateStr = resultArr[5];
-//                // -- time (6): "19:00" --
-//                String timeStr = resultArr[6];
-//
-//                try {
-//                    file.date = dateFormat.parse(dateStr + " " + timeStr);
-//                } catch (ParseException e) {
-//                    log.debug("listFiles: Exception: date:{}", dateStr + " " + timeStr);
-//                }
-//
-//                fileList.add(file);
-//            }
-//
-//            // always add ".." to every result as long as starting path isn't ""
-//            if (TextUtils.notEmpty(finalPath)) {
-//                RemoteFile upFile = new RemoteFile();
-//                upFile.name = "..";
-//                upFile.isDirectory() = true;
-//                fileList.add(0, upFile);
-//            }
-//            if (listener != null) listener.handleFiles(fileList);
-//
-//            device.status = null;
         });
     }
 
@@ -526,9 +444,6 @@ public class DeviceManager {
                 log.error("downloadFile: {}, Exception:{}", file, e.getMessage());
                 listener.onTaskComplete(false);
             }
-//            ScriptResult result = runScript(SCRIPT_DOWNLOAD_FILE, device.serial, srcPath, srcName, saveFile);
-//            device.status = result.isSuccess ? null : "Download failed";
-//            if (listener != null) listener.onTaskComplete(result.isSuccess);
         });
     }
 
@@ -542,23 +457,33 @@ public class DeviceManager {
         });
     }
 
-    public void connectDevice(String ip, TaskListener listener) {
+    public void connectDevice(String ip, int port, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            ScriptResult result = runScript(SCRIPT_CONNECT, ip);
-            // NOTE: exit code returns success even when device fails to connect
-            // "failed to connect to '192.168.0.175:5555': Operation timed out"
-            String resultStr = GsonHelper.toJson(result.stdOut);
-            if (TextUtils.containsAny(resultStr, true, "failed to connect", "timed out")) {
-                result.isSuccess = false;
+            try {
+                connection.connectToTcpDevice(new InetSocketAddress(ip, port));
+                listener.onTaskComplete(true);
+            } catch (Exception e) {
+                log.error("connectDevice: {}:{}, Exception:{}", ip, port, e.getMessage());
+                listener.onTaskComplete(false);
             }
-            if (listener != null) listener.onTaskComplete(result.isSuccess);
         });
     }
 
-    public void disconnectDevice(String ip, TaskListener listener) {
+    public void disconnectDevice(String serial, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            ScriptResult result = runScript(SCRIPT_DISCONNECT, ip);
-            if (listener != null) listener.onTaskComplete(result.isSuccess);
+            String[] deviceArr = TextUtils.split(serial, ":");
+            if (deviceArr.length < 2) {
+                return;
+            }
+            String ip = deviceArr[0];
+            try {
+                int port = Integer.parseInt(deviceArr[1]);
+                connection.disconnectFromTcpDevice(new InetSocketAddress(ip, port));
+                listener.onTaskComplete(true);
+            } catch (Exception e) {
+                log.error("connectDevice: {}, Exception:{}", serial, e.getMessage());
+                listener.onTaskComplete(false);
+            }
         });
     }
 

@@ -67,6 +67,10 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         if (deviceList != null) {
             model.setDeviceList(deviceList);
 
+            if (!deviceList.isEmpty() && table.getSelectedRow() == -1) {
+                table.changeSelection(0, 0, false, false);
+            }
+
             // check if any devices are wireless
             for (Device device : deviceList) {
                 checkWirelessDevice(device);
@@ -678,7 +682,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 String name = file.getName();
                 if (!TextUtils.endsWith(name, ".sh")) return;
                 numScripts++;
-                ImageIcon icon = UiUtils.getIcon("icon_script.png", 20);
+                ImageIcon icon = UiUtils.getImageIcon("icon_script.png", 20);
                 JMenuItem menuItem = new JMenuItem(name, icon);
                 menuItem.addActionListener(e -> {
                     runCustomScript(file);
@@ -686,7 +690,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 popup.add(menuItem);
             }
             if (numScripts > 0) {
-                ImageIcon imageIcon = UiUtils.getIcon("icon_script.png", 40, 40);
+                ImageIcon imageIcon = UiUtils.getImageIcon("icon_script.png", 40, 40);
                 JSplitButton button = new JSplitButton(imageIcon);
                 button.setText("Custom");
                 button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
@@ -908,7 +912,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
      * if device is wireless (IP:PORT), remember it to quick connect to later
      */
     private void checkWirelessDevice(Device device) {
-        if (!device.isWireless()) return;
+        if (!device.isWireless() || !device.hasFetchedDetails) return;
 
         for (Iterator<Device> iterator = wirelessDeviceList.iterator(); iterator.hasNext(); ) {
             Device compareDevice = iterator.next();

@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,13 +35,19 @@ public class ConnectScreen extends JPanel {
         if (rc != JOptionPane.YES_OPTION) return;
 
         String ip = screen.serverField.getText();
-        String port = screen.portField.getText();
+        int port;
+        try {
+            port = Integer.parseInt(screen.portField.getText());
+        } catch (NumberFormatException e) {
+            log.error("Invalid port: " + screen.portField.getText());
+            return;
+        }
         Preferences preferences = Preferences.userRoot();
         preferences.put(PREF_LAST_DEVICE_IP, ip);
-        preferences.put(PREF_LAST_DEVICE_PORT, port);
+        preferences.put(PREF_LAST_DEVICE_PORT, String.valueOf(port));
 
         DeviceManager deviceManager = DeviceManager.getInstance();
-        deviceManager.connectDevice(ip + ":" + port, listener);
+        deviceManager.connectDevice(ip, port, listener);
     }
 
     public ConnectScreen(Component frame) {

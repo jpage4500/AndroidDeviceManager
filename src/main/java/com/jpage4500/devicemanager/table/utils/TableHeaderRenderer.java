@@ -28,8 +28,8 @@ public class TableHeaderRenderer extends JLabel implements TableCellRenderer {
         Border margin = new EmptyBorder(0, 10, 0, 0);
         setBorder(margin);
 
-        arrowUpIcon = UiUtils.getIcon("arrow_up.png", 20);
-        arrowDownIcon = UiUtils.getIcon("arrow_up.png", 20);
+        arrowUpIcon = UiUtils.getImageIcon("arrow_up.png", 20);
+        arrowDownIcon = UiUtils.getImageIcon("arrow_up.png", 20);
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
