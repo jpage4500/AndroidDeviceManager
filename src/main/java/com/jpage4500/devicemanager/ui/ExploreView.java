@@ -504,7 +504,7 @@ public class ExploreView {
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (RemoteFile file : selectedFileList) {
-            DeviceManager.getInstance().deleteFile(selectedDevice, selectedPath, file.getName(), isSuccess -> {
+            DeviceManager.getInstance().deleteFile(selectedDevice, file, isSuccess -> {
                 refreshFiles();
             });
         }

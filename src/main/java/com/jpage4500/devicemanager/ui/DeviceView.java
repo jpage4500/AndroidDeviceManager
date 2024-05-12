@@ -24,7 +24,6 @@ import java.awt.event.*;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.prefs.Preferences;
 
@@ -51,7 +50,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     public int selectedColumn = -1;
     private final List<JButton> deviceButtonList = new ArrayList<>();
-    private final List<Device> wirelessDeviceList = new ArrayList<>();
 
     private ExploreView exploreView;
     private LogsView logsView;
@@ -71,11 +69,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 table.changeSelection(0, 0, false, false);
             }
 
-            // check if any devices are wireless
-            for (Device device : deviceList) {
-                checkWirelessDevice(device);
-            }
-
             refreshUi();
         }
         updateVersionLabel();
@@ -84,7 +77,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     @Override
     public void handleDeviceUpdated(Device device) {
         model.updateRowForDevice(device);
-        checkWirelessDevice(device);
     }
 
     private void initalizeUi() {
@@ -223,12 +215,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         table.requestFocus();
 
         table.addKeyListener(this);
-
-        // restore wireless device list
-        Preferences preferences = Preferences.userRoot();
-        String wirelessStr = preferences.get(ConnectScreen.PREF_RECENT_WIRELESS_DEVICES, null);
-        List<Device> wirelessList = GsonHelper.stringToList(wirelessStr, Device.class);
-        wirelessDeviceList.addAll(wirelessList);
     }
 
     private void refreshUi() {
@@ -906,40 +892,6 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     @Override
     public void keyReleased(KeyEvent e) {
-    }
-
-    /**
-     * if device is wireless (IP:PORT), remember it to quick connect to later
-     */
-    private void checkWirelessDevice(Device device) {
-        if (!device.isWireless() || !device.hasFetchedDetails) return;
-
-        for (Iterator<Device> iterator = wirelessDeviceList.iterator(); iterator.hasNext(); ) {
-            Device compareDevice = iterator.next();
-            if (TextUtils.equals(compareDevice.serial, device.serial)) {
-                // got serial number match
-                if (compareDevice.equals(device)) {
-                    // no changes
-                    return;
-                } else {
-                    // something changed
-                    iterator.remove();
-                    break;
-                }
-            }
-        }
-        log.trace("checkWireless: ADD: {}", GsonHelper.toJson(device));
-
-        Preferences preferences = Preferences.userRoot();
-        // add device to TOP of list
-        wirelessDeviceList.add(0, device);
-
-        // max 10 devices
-        if (wirelessDeviceList.size() > 10) {
-            wirelessDeviceList.remove(wirelessDeviceList.size() - 1);
-        }
-
-        preferences.put(ConnectScreen.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(wirelessDeviceList));
     }
 
 }

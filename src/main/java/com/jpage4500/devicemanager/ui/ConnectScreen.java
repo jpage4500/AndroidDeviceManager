@@ -28,6 +28,38 @@ public class ConnectScreen extends JPanel {
     private JTextField serverField;
     private JTextField portField;
 
+    // used to persist the most recent X wireless devices
+    private static class WirelessDevice {
+        String serial;
+        String model;
+    }
+
+    public static List<WirelessDevice> getRecentWirelessDevices() {
+        Preferences preferences = Preferences.userRoot();
+        String recentDeviceStr = preferences.get(PREF_RECENT_WIRELESS_DEVICES, null);
+        return GsonHelper.stringToList(recentDeviceStr, WirelessDevice.class);
+    }
+
+    public static void addWirelessDevice(Device device) {
+        if (!device.isWireless()) return;
+        String model = device.getProperty(Device.PROP_MODEL);
+        if (TextUtils.isEmptyAny(device.serial, model)) return;
+
+        List<WirelessDevice> deviceList = getRecentWirelessDevices();
+        deviceList.removeIf(wirelessDevice -> TextUtils.equals(wirelessDevice.serial, device.serial));
+        WirelessDevice wd = new WirelessDevice();
+        wd.serial = device.serial;
+        wd.model = model;
+        // add to top of list
+        deviceList.add(0, wd);
+
+        if (deviceList.size() > 10) {
+            deviceList.remove(deviceList.size() - 1);
+        }
+        Preferences preferences = Preferences.userRoot();
+        preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
+    }
+
     public static void showConnectDialog(Component frame, DeviceManager.TaskListener listener) {
         ConnectScreen screen = new ConnectScreen(frame);
         Object[] choices = {"Connect", "Cancel"};
@@ -53,17 +85,17 @@ public class ConnectScreen extends JPanel {
     public ConnectScreen(Component frame) {
         setLayout(new MigLayout("fillx", "[][]"));
 
+        List<WirelessDevice> deviceList = getRecentWirelessDevices();
+
         Preferences preferences = Preferences.userRoot();
-        String recentDeviceStr = preferences.get(PREF_RECENT_WIRELESS_DEVICES, null);
-        List<Device> recentDeviceList = GsonHelper.stringToList(recentDeviceStr, Device.class);
         String lastIp = preferences.get(PREF_LAST_DEVICE_IP, "192.168.0.1");
         String lastPort = preferences.get(PREF_LAST_DEVICE_PORT, "5555");
 
         add(new JLabel("Recent Devices"), "growx, span 2, wrap");
 
         List<String> listData = new ArrayList<>();
-        for (Device device : recentDeviceList) {
-            listData.add(device.serial + " - " + device.getProperty(Device.PROP_MODEL));
+        for (WirelessDevice device : deviceList) {
+            listData.add(device.serial + " - " + device.model);
         }
         JList<String> list = new JList<>(listData.toArray(new String[0]));
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -90,7 +122,7 @@ public class ConnectScreen extends JPanel {
         list.addListSelectionListener(e -> {
             int selectedIndex = list.getSelectedIndex();
             if (selectedIndex == -1) return;
-            Device selectedDevice = recentDeviceList.get(selectedIndex);
+            WirelessDevice selectedDevice = deviceList.get(selectedIndex);
             int pos = selectedDevice.serial.indexOf(':');
             serverField.setText(selectedDevice.serial.substring(0, pos));
             portField.setText(selectedDevice.serial.substring(pos + 1));

@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.ui.ConnectScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Timer;
@@ -101,76 +102,7 @@ public class DeviceManager {
                 connection.createDeviceWatcher(new DeviceDetectionListener() {
                     @Override
                     public void onDetect(List<JadbDevice> devices) {
-                        //log.debug("onDetect: GOT:{}, {}", devices.size(), GsonHelper.toJson(devices));
-                        List<Device> addedDeviceList = new ArrayList<>();
-                        // 1) look for devices that don't exist today
-                        for (JadbDevice jadbDevice : devices) {
-                            String serial = jadbDevice.getSerial();
-                            // -- does this device already exist? --
-                            Device device = getDevice(serial);
-                            if (device == null || !device.hasFetchedDetails) {
-                                // -- ADD DEVICE --
-                                if (device == null) {
-                                    device = new Device();
-                                    log.trace("connectAdbServer:onDetect: DEVICE_ADDED: {}", serial);
-                                    synchronized (deviceList) {
-                                        deviceList.add(device);
-                                    }
-                                } else {
-                                    if (log.isTraceEnabled()) log.trace("connectAdbServer:onDetect: DEVICE_UPDATED: {}", GsonHelper.toJson(device));
-                                }
-                                device.serial = serial;
-                                device.jadbDevice = jadbDevice;
-                                addedDeviceList.add(device);
-                            }
-                        }
-
-                        // 2) look for devices that have been removed
-                        int numRemoved = 0;
-                        for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
-                            Device device = iterator.next();
-                            boolean isFound = false;
-                            for (JadbDevice jadbDevice : devices) {
-                                if (device.serial.equals(jadbDevice.getSerial())) {
-                                    isFound = true;
-                                    break;
-                                }
-                            }
-                            if (!isFound) {
-                                // -- DEVICE REMOVED --
-                                if (log.isTraceEnabled())
-                                    log.trace("connectAdbServer:onDetect: DEVICE_REMOVED: {}", GsonHelper.toJson(device));
-                                iterator.remove();
-                                numRemoved++;
-                            }
-                        }
-
-                        if (numRemoved > 0 || !addedDeviceList.isEmpty()) {
-                            // notify listener that device list changed
-                            listener.handleDevicesUpdated(deviceList);
-
-                            for (Device addedDevice : addedDeviceList) {
-                                // fetch more details for these devices
-                                try {
-                                    JadbDevice.State state = addedDevice.jadbDevice.getState();
-                                    log.trace("connectAdbServer:getState: STATE: {} -> {}", addedDevice.serial, state);
-                                    if (state == JadbDevice.State.Device) {
-                                        addedDevice.status = "fetching details..";
-                                        listener.handleDeviceUpdated(addedDevice);
-                                        // only do lookup once
-                                        addedDevice.hasFetchedDetails = true;
-                                        fetchDeviceDetails(addedDevice, listener);
-                                    } else {
-                                        addedDevice.status = state.name();
-                                        listener.handleDeviceUpdated(addedDevice);
-                                    }
-                                } catch (Exception e) {
-                                    log.trace("connectAdbServer:getState:Exception:{}", e.getMessage());
-                                    addedDevice.status = e.getMessage();
-                                    listener.handleDeviceUpdated(addedDevice);
-                                }
-                            }
-                        }
+                        handleDeviceUpdate(devices, listener);
                     }
 
                     @Override
@@ -182,6 +114,83 @@ public class DeviceManager {
                 log.error("Exception: {}", e.getMessage());
             }
         });
+    }
+
+    /**
+     * called when a device is added/updated/removed
+     * NOTE: run on background thread
+     */
+    private void handleDeviceUpdate(List<JadbDevice> devices, DeviceListener listener) {
+        //log.debug("onDetect: GOT:{}, {}", devices.size(), GsonHelper.toJson(devices));
+        List<Device> addedDeviceList = new ArrayList<>();
+        // 1) look for devices that don't exist today
+        for (JadbDevice jadbDevice : devices) {
+            String serial = jadbDevice.getSerial();
+            // -- does this device already exist? --
+            Device device = getDevice(serial);
+            if (device == null || !device.hasFetchedDetails) {
+                // -- ADD DEVICE --
+                if (device == null) {
+                    device = new Device();
+                    log.trace("handleDeviceUpdate: DEVICE_ADDED: {}", serial);
+                    synchronized (deviceList) {
+                        deviceList.add(device);
+                    }
+                } else {
+                    if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_UPDATED: {}", GsonHelper.toJson(device));
+                }
+                device.serial = serial;
+                device.jadbDevice = jadbDevice;
+                addedDeviceList.add(device);
+            }
+        }
+
+        // 2) look for devices that have been removed
+        int numRemoved = 0;
+        for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
+            Device device = iterator.next();
+            boolean isFound = false;
+            for (JadbDevice jadbDevice : devices) {
+                if (device.serial.equals(jadbDevice.getSerial())) {
+                    isFound = true;
+                    break;
+                }
+            }
+            if (!isFound) {
+                // -- DEVICE REMOVED --
+                if (log.isTraceEnabled())
+                    log.trace("handleDeviceUpdate: DEVICE_REMOVED: {}", GsonHelper.toJson(device));
+                iterator.remove();
+                numRemoved++;
+            }
+        }
+
+        if (numRemoved > 0 || !addedDeviceList.isEmpty()) {
+            // notify listener that device list changed
+            listener.handleDevicesUpdated(deviceList);
+
+            for (Device addedDevice : addedDeviceList) {
+                // fetch more details for these devices
+                try {
+                    JadbDevice.State state = addedDevice.jadbDevice.getState();
+                    log.trace("handleDeviceUpdate: STATE: {} -> {}", addedDevice.serial, state);
+                    if (state == JadbDevice.State.Device) {
+                        addedDevice.status = "fetching details..";
+                        listener.handleDeviceUpdated(addedDevice);
+                        // only do lookup once
+                        addedDevice.hasFetchedDetails = true;
+                        fetchDeviceDetails(addedDevice, listener);
+                    } else {
+                        addedDevice.status = state.name();
+                        listener.handleDeviceUpdated(addedDevice);
+                    }
+                } catch (Exception e) {
+                    log.trace("handleDeviceUpdate: Exception:{}", e.getMessage());
+                    addedDevice.status = e.getMessage();
+                    listener.handleDeviceUpdated(addedDevice);
+                }
+            }
+        }
     }
 
     public void refreshDevices(DeviceListener listener) {
@@ -243,6 +252,9 @@ public class DeviceManager {
 
             device.status = null;
             listener.handleDeviceUpdated(device);
+
+            // keep track of wireless devices
+            ConnectScreen.addWirelessDevice(device);
         });
     }
 
@@ -414,10 +426,10 @@ public class DeviceManager {
         if (!TextUtils.endsWith(path, "/")) path += "/";
         String finalPath = path;
         commandExecutorService.submit(() -> {
-            log.debug("listFiles: {}", finalPath);
+            log.trace("listFiles: {}", finalPath);
             try {
                 List<RemoteFile> remoteFileList = device.jadbDevice.list(finalPath);
-                log.trace("listFiles: results: {}", GsonHelper.toJson(remoteFileList));
+                //log.trace("listFiles: results: {}", GsonHelper.toJson(remoteFileList));
                 // for some reason the top level directory returns "." and ".."
                 remoteFileList.removeIf(remoteFile -> TextUtils.equalsAny(remoteFile.getName(), false, "..", "."));
                 listener.handleFiles(remoteFileList);
@@ -435,25 +447,46 @@ public class DeviceManager {
 
     public void downloadFile(Device device, RemoteFile file, File saveFile, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            device.status = "downloading...";
             log.debug("downloadFile: {} -> {}", file, saveFile.getAbsoluteFile());
-            try {
-                device.jadbDevice.pull(file, saveFile);
-                listener.onTaskComplete(true);
-            } catch (Exception e) {
-                log.error("downloadFile: {}, Exception:{}", file, e.getMessage());
-                listener.onTaskComplete(false);
-            }
+            downloadFileInternal(device, file, saveFile);
         });
     }
 
-    public void deleteFile(Device device, String srcPath, String srcName, TaskListener listener) {
+    /**
+     * recursive method to download a file or folder
+     */
+    private void downloadFileInternal(Device device, RemoteFile file, File saveFile) {
+        if (file.isDirectory() || file.isSymbolicLink()) {
+            // create local folder
+            boolean isOk = saveFile.mkdir();
+            log.trace("downloadFile: DIR:{}, mkdir:{}", saveFile.getAbsoluteFile(), isOk);
+            // get list of files in folder
+            try {
+                List<RemoteFile> fileList = device.jadbDevice.list(file.getPath());
+                for (RemoteFile remoteFile : fileList) {
+                    File subFile = new File(saveFile, remoteFile.getName());
+                    downloadFileInternal(device, remoteFile, subFile);
+                }
+            } catch (Exception e) {
+                log.error("downloadFile: {}, Exception:{}", file, e.getMessage());
+            }
+        } else {
+            // pull file
+            log.trace("downloadFile: {} -> {}", file, saveFile.getAbsoluteFile());
+            try {
+                device.jadbDevice.pull(file, saveFile);
+            } catch (Exception e) {
+                log.error("downloadFile: {}, Exception:{}", file, e.getMessage());
+            }
+        }
+    }
+
+    public void deleteFile(Device device, RemoteFile file, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            device.status = "deleting...";
-            ScriptResult result = runScript(SCRIPT_DELETE_FILE, device.serial, srcPath, srcName);
-            // TODO
-            if (listener != null) listener.onTaskComplete(result.isSuccess);
-            device.status = null;
+            List<String> resultList = runShell(device, "rm -rf " + file.getPath());
+            log.debug("deleteFile: {} -> {}", file, GsonHelper.toJson(resultList));
+            // TODO: determine success/fail
+            listener.onTaskComplete(true);
         });
     }
 

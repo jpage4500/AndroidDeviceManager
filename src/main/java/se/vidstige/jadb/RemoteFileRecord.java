@@ -12,7 +12,7 @@ class RemoteFileRecord extends RemoteFile {
     private final int lastModified;
 
     public RemoteFileRecord(String path, String name, int mode, int size, int lastModified) {
-        super(path + "/" + name);
+        super(path + (!path.endsWith("/") ? "/" : "") + name);
         this.name = name;
         this.mode = mode;
         this.size = size;
