@@ -218,7 +218,8 @@ public class DeviceManager {
                 //                                      ^^^^^^^^^
                 String size = TextUtils.split(last, 3);
                 try {
-                    device.freeSpace = Long.parseLong(size);
+                    // size is in 1k blocks
+                    device.freeSpace = Long.parseLong(size) * 1000L;
                 } catch (Exception e) {
                     log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
                 }
@@ -244,7 +245,7 @@ public class DeviceManager {
                 }
                 //log.trace("fetchDeviceDetails: {}", customPropStr);
             } catch (Exception e) {
-                log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
+                //log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
             }
 
             device.hasFetchedDetails = true;
@@ -493,6 +494,7 @@ public class DeviceManager {
     public void connectDevice(String ip, int port, TaskListener listener) {
         commandExecutorService.submit(() -> {
             try {
+                log.debug("connectDevice: {}:{}", ip, port);
                 connection.connectToTcpDevice(new InetSocketAddress(ip, port));
                 listener.onTaskComplete(true);
             } catch (Exception e) {
@@ -506,11 +508,13 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             String[] deviceArr = TextUtils.split(serial, ":");
             if (deviceArr.length < 2) {
+                log.error("disconnectDevice: bad device:{}", serial);
                 return;
             }
             String ip = deviceArr[0];
             try {
                 int port = Integer.parseInt(deviceArr[1]);
+                log.debug("disconnectDevice: {}:{}", ip, port);
                 connection.disconnectFromTcpDevice(new InetSocketAddress(ip, port));
                 listener.onTaskComplete(true);
             } catch (Exception e) {

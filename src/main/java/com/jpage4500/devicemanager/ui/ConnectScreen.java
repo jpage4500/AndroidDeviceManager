@@ -11,10 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
+import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.prefs.Preferences;
@@ -43,7 +40,7 @@ public class ConnectScreen extends JPanel {
     public static void addWirelessDevice(Device device) {
         if (!device.isWireless()) return;
         String model = device.getProperty(Device.PROP_MODEL);
-        if (TextUtils.isEmptyAny(device.serial, model)) return;
+        if (TextUtils.isEmpty(model)) return;
 
         List<WirelessDevice> deviceList = getRecentWirelessDevices();
         deviceList.removeIf(wirelessDevice -> TextUtils.equals(wirelessDevice.serial, device.serial));
@@ -56,6 +53,13 @@ public class ConnectScreen extends JPanel {
         if (deviceList.size() > 10) {
             deviceList.remove(deviceList.size() - 1);
         }
+        Preferences preferences = Preferences.userRoot();
+        preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
+    }
+
+    public static void removeWirelessDevice(WirelessDevice wirelessDevice) {
+        List<WirelessDevice> deviceList = getRecentWirelessDevices();
+        deviceList.removeIf(device -> TextUtils.equals(device.serial, wirelessDevice.serial));
         Preferences preferences = Preferences.userRoot();
         preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
     }
@@ -93,11 +97,11 @@ public class ConnectScreen extends JPanel {
 
         add(new JLabel("Recent Devices"), "growx, span 2, wrap");
 
-        List<String> listData = new ArrayList<>();
+        DefaultListModel<String> listModel = new DefaultListModel<>();
         for (WirelessDevice device : deviceList) {
-            listData.add(device.serial + " - " + device.model);
+            listModel.addElement(device.serial + " - " + device.model);
         }
-        JList<String> list = new JList<>(listData.toArray(new String[0]));
+        JList<String> list = new JList<>(listModel);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new AlternatingBackgroundColorRenderer());
         list.setVisibleRowCount(3);
@@ -126,6 +130,22 @@ public class ConnectScreen extends JPanel {
             int pos = selectedDevice.serial.indexOf(':');
             serverField.setText(selectedDevice.serial.substring(0, pos));
             portField.setText(selectedDevice.serial.substring(pos + 1));
+        });
+        list.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                int selectedIndex = list.getSelectedIndex();
+                if (selectedIndex == -1) return;
+                switch (e.getExtendedKeyCode()) {
+                    case KeyEvent.VK_DELETE:
+                    case KeyEvent.VK_BACK_SPACE:
+                        WirelessDevice selectedDevice = deviceList.get(selectedIndex);
+                        log.debug("keyPressed: remove index:{}, device:{}", selectedIndex, GsonHelper.toJson(selectedDevice));
+                        listModel.remove(selectedIndex);
+                        removeWirelessDevice(selectedDevice);
+                        break;
+                }
+            }
         });
 
         add(new JLabel("IP"), "");

@@ -5,8 +5,10 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
+import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.ui.views.*;
 import com.jpage4500.devicemanager.utils.*;
+import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +27,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.prefs.Preferences;
 
 /**
@@ -509,22 +512,39 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     private void handleDeviceDetails() {
         Device device = getFirstSelectedDevice();
         if (device == null) return;
-        StringBuilder sb = new StringBuilder();
-        addLine(sb, "Serial", device.serial);
-        addLine(sb, "Model", device.getProperty(Device.PROP_MODEL));
-        addLine(sb, "Phone", device.phone);
-        addLine(sb, "IMEI", device.imei);
-        addLine(sb, "Carrier", device.getProperty(Device.PROP_CARRIER));
-        addLine(sb, "OS", device.getProperty(Device.PROP_OS));
-        addLine(sb, "SDK", device.getProperty(Device.PROP_SDK));
-        addLine(sb, "Free Space", FileUtils.bytesToDisplayString(device.freeSpace));
-        addLine(sb, "Custom1", device.getCustomProperty(Device.CUST_PROP_1));
-        addLine(sb, "Custom2", device.getCustomProperty(Device.CUST_PROP_2));
 
-        //if (device.customPropertyMap != null) sb.append("Custom Properties: " + GsonHelper.toJson(device.customPropertyMap) + '\n');
-        //if (device.customAppList != null) sb.append("Custom Apps: " + GsonHelper.toJson(device.customAppList) + '\n');
+        JPanel panel = new JPanel(new MigLayout());
+        addDeviceDetail(panel, "Serial", device.serial);
+        addDeviceDetail(panel, "Model", device.getProperty(Device.PROP_MODEL));
+        addDeviceDetail(panel, "Phone", device.phone);
+        addDeviceDetail(panel, "IMEI", device.imei);
+        addDeviceDetail(panel, "Carrier", device.getProperty(Device.PROP_CARRIER));
+        addDeviceDetail(panel, "OS", device.getProperty(Device.PROP_OS));
+        addDeviceDetail(panel, "SDK", device.getProperty(Device.PROP_SDK));
+        addDeviceDetail(panel, "Free Space", FileUtils.bytesToDisplayString(device.freeSpace));
+        addDeviceDetail(panel, "Custom1", device.getCustomProperty(Device.CUST_PROP_1));
+        addDeviceDetail(panel, "Custom2", device.getCustomProperty(Device.CUST_PROP_2));
 
-        JOptionPane.showMessageDialog(frame, sb.toString());
+        if (device.propMap != null) {
+            DefaultListModel<String> listModel = new DefaultListModel<>();
+            for (Map.Entry<String, String> entry : device.propMap.entrySet()) {
+                listModel.addElement(entry.getKey() + " : " + entry.getValue());
+            }
+            JList<String> list = new JList<>(listModel);
+            list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            list.setCellRenderer(new AlternatingBackgroundColorRenderer());
+            list.setVisibleRowCount(6);
+            JScrollPane scroll = new JScrollPane(list);
+            panel.add(scroll, "grow, span, wrap");
+        }
+
+        JOptionPane.showOptionDialog(frame, panel, "Device Info", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+    }
+
+    private void addDeviceDetail(JPanel panel, String label, String value) {
+        if (!TextUtils.isEmpty(value)) {
+            panel.add(new JLabel(label + ": " + value), "wrap");
+        }
     }
 
     private void addLine(StringBuilder sb, String label, String value) {
