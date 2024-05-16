@@ -19,6 +19,8 @@ public class BaseFrame extends CustomFrame {
     public BaseFrame(String prefKey) {
         super(prefKey);
 
+        setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowActivated(WindowEvent e) {
@@ -31,33 +33,47 @@ public class BaseFrame extends CustomFrame {
             }
 
             @Override
+            public void windowOpened(WindowEvent e) {
+                onWindowStateChanged(WindowState.OPENED);
+            }
+
+            @Override
             public void windowClosing(WindowEvent e) {
                 onWindowStateChanged(WindowState.CLOSING);
             }
+
+            @Override
+            public void windowClosed(WindowEvent e) {
+                onWindowStateChanged(WindowState.CLOSED);
+            }
         });
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         // NOTE: this breaks dragging the scrollbar on Mac
-        getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);
+        // getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);
     }
 
     public enum WindowState {
-        ACTIVATED,
-        DEACTIVATED,
-        CLOSING
+        ACTIVATED,      // visible
+        DEACTIVATED,    // background
+        OPENED,
+        CLOSING,        // closing (user closed window)
+        CLOSED          // closed (NOTE: not sent if HIDE_ON_CLOSE is used)
     }
 
     protected void onWindowStateChanged(WindowState state) {
-        //log.debug("onWindowStateChanged: {}", state);
+        log.trace("onWindowStateChanged: {}: {}", prefKey, state);
     }
 
     /**
      * create a 'standard' toolbar button with 40x40 image and label below
      */
     protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
-        BufferedImage image = UiUtils.getImage(imageName, 40, 40);
-        //image = replaceColor(image, new Color(0, 38, 255, 184));
-        JButton button = new JButton(label, new ImageIcon(image));
+        JButton button = new JButton(label);
+        if (imageName != null) {
+            ImageIcon icon = UiUtils.getImageIcon(imageName, 40, 40);
+            //image = replaceColor(image, new Color(0, 38, 255, 184));
+            button.setIcon(icon);
+        }
 
         button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
         if (tooltip != null) button.setToolTipText(tooltip);
@@ -75,7 +91,7 @@ public class BaseFrame extends CustomFrame {
     /**
      * create shortcut key using CMD key
      */
-    protected Action createAction(JMenu menu, String label, int key, CustomActionListener listener) {
+    protected Action createCmdAction(JMenu menu, String label, int key, CustomActionListener listener) {
         Action action = new AbstractAction(label) {
             @Override
             public void actionPerformed(ActionEvent e) {

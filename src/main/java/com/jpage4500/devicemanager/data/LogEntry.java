@@ -10,6 +10,8 @@ public class LogEntry {
     public String level;
     public String message;
 
+    public Long timestamp;
+
     /**
      * 10-16 11:34:17.824  2063  2063 D PluginAODManager: onNotificationInfoUpdated() 0|com.test.pm|2000|null|10400
      * 10-16 11:34:17.825  2063  2063 I AODNotificationManager: updateVisibleNotifications: 4
@@ -24,6 +26,7 @@ public class LogEntry {
         String dateStr = lineArr[0] + " " + lineArr[1];
         try {
             Date inDate = inFormat.parse(dateStr);
+            timestamp = inDate.getTime();
             date = outFormat.format(inDate);
         } catch (Exception e) {
             System.out.println("Exception: " + dateStr);

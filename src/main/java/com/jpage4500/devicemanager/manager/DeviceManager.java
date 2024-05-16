@@ -257,7 +257,6 @@ public class DeviceManager {
         });
     }
 
-
     /**
      * run a 'shell service call ..." command and parse the results into a String
      */
@@ -562,10 +561,10 @@ public class DeviceManager {
         void handleProcessMap(Map<String, String> processMap);
     }
 
-    public void startLogging(Device device, DeviceLogListener listener) {
+    public void startLogging(Device device, Long startTime, DeviceLogListener listener) {
         stopLogging(device);
         commandExecutorService.submit(() -> {
-            log.debug("startLogging: ");
+            log.debug("startLogging: {}", startTime);
             isLogging.set(true);
             InputStream inputStream = null;
             try {
@@ -583,7 +582,10 @@ public class DeviceManager {
                 String line;
                 while ((line = input.readLine()) != null) {
                     LogEntry logEntry = new LogEntry(line, inputFormat, outputFormat);
-                    if (logEntry.date != null) logList.add(logEntry);
+                    if (logEntry.date == null) continue;
+                    else if (startTime != null && logEntry.timestamp < startTime) continue;
+
+                    logList.add(logEntry);
 
                     // only update every X ms
                     if (System.currentTimeMillis() - lastUpdateMs >= 100 && !logList.isEmpty()) {

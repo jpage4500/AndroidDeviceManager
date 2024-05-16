@@ -235,6 +235,6 @@ public class CustomTable extends JTable {
 
         Preferences prefs = Preferences.userRoot();
         prefs.put(prefKey + "-details", GsonHelper.toJson(detailList));
-        log.trace("persist: {}", GsonHelper.toJson(detailList));
+        log.trace("persist: {}: {}", prefKey, GsonHelper.toJson(detailList));
     }
 }

@@ -21,7 +21,7 @@ public class CustomFrame extends JFrame {
     private static final String FRAME_W = "frame-w";
     private static final String FRAME_H = "frame-h";
 
-    private String prefKey;
+    protected String prefKey;
 
     public CustomFrame() throws HeadlessException {
         init();

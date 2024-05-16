@@ -58,7 +58,7 @@ public class ExplorerCellRenderer extends JLabel implements TableCellRenderer {
                 // right-align size column
                 align = SwingConstants.RIGHT;
                 if (!remoteFile.isDirectory() && !remoteFile.isSymbolicLink()) {
-                    text = FileUtils.bytesToDisplayString(remoteFile.getSize());
+                    text = FileUtils.bytesToDisplayString((long) remoteFile.getSize());
                 } else {
                     text = "-";
                 }

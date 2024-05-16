@@ -63,11 +63,11 @@ public class FileUtils {
     /**
      * return string description of number of bytes (45k, 320b, 1.1M)
      */
-    public static String bytesToDisplayString(long sizeInBytes) {
-        if (sizeInBytes <= 0) return String.valueOf(sizeInBytes);
+    public static String bytesToDisplayString(Long sizeInBytes) {
+        if (sizeInBytes == null) return "";
+        else if (sizeInBytes <= 0) return String.valueOf(sizeInBytes);
         int digitGroups = (int) (Math.log10(sizeInBytes) / Math.log10(1024));
         return sizeDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + "" + SIZE_UNITS[digitGroups];
     }
-
 
 }

@@ -69,12 +69,8 @@ public class ExploreView extends BaseFrame {
         this.device = device;
         initalizeUi();
         setTitle("Browse " + device.getDisplayName());
-    }
 
-    @Override
-    public void show() {
-        super.show();
-        //refreshFiles();
+        refreshFiles();
     }
 
     protected void initalizeUi() {
@@ -100,17 +96,6 @@ public class ExploreView extends BaseFrame {
         setupMenuBar();
         setupPopupMenu();
 
-        addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowActivated(WindowEvent e) {
-                refreshFiles();
-            }
-
-            @Override
-            public void windowDeactivated(WindowEvent e) {
-            }
-        });
-        //setDefaultCloseOperation(JHIDE_ON_CLOSE);
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent windowEvent) {
@@ -132,8 +117,11 @@ public class ExploreView extends BaseFrame {
     @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
-        if (state == WindowState.ACTIVATED) {
-            refreshFiles();
+        switch (state) {
+            case CLOSING -> table.persist();
+            case ACTIVATED -> {
+                //refreshFiles();
+            }
         }
     }
 
@@ -141,30 +129,30 @@ public class ExploreView extends BaseFrame {
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
+        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
             setVisible(false);
             dispose();
         });
 
         // [CMD + 1] = show devices
-        createAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
+        createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
             deviceView.toFront();
         });
 
         // [CMD + 3] = show logs
-        createAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> {
+        createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> {
             deviceView.handleLogsCommand();
         });
 
         JMenu fileMenu = new JMenu("Files");
 
         // [CMD + BACKSPACE] = delete files
-        createAction(fileMenu, "Delete", KeyEvent.VK_BACK_SPACE, e -> {
+        createCmdAction(fileMenu, "Delete", KeyEvent.VK_BACK_SPACE, e -> {
             handleDelete();
         });
 
         // [CMD + G] = go to folder
-        createAction(fileMenu, "Go to folder..", KeyEvent.VK_G, e -> {
+        createCmdAction(fileMenu, "Go to folder..", KeyEvent.VK_G, e -> {
             handleGoToFolder();
         });
 
@@ -415,7 +403,7 @@ public class ExploreView extends BaseFrame {
         textField.setMaximumSize(new Dimension(200, 40));
         toolbar.add(textField);
 
-        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshUi());
+        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Files", actionEvent -> refreshFiles());
     }
 
     private void handleDownload() {

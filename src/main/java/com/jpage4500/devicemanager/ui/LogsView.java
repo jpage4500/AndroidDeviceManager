@@ -12,6 +12,7 @@ import com.jpage4500.devicemanager.ui.views.EmptyView;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,7 +21,10 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +53,7 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
     private TableRowSorter<LogsTableModel> sorter;
     public int selectedColumn = -1;
 
+    public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
 
     public LogsView(DeviceView deviceView, Device device) {
@@ -57,6 +62,8 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         this.device = device;
         initalizeUi();
         setTitle("Logs: " + device.getDisplayName());
+
+        startLogging();
     }
 
     protected void initalizeUi() {
@@ -109,19 +116,20 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
     }
 
     @Override
-    public void show() {
-        super.show();
-        startLogging();
-    }
-
-    @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSING) {
-            table.persist();
-            stopLogging();
-            setVisible(false);
-            dispose();
+        switch (state) {
+            case CLOSED -> {
+                // stop logging when window is closed
+                stopLogging();
+                table.persist();
+            }
+            case ACTIVATED -> {
+                // start logging if user didn't stop
+                if (!isLoggedPaused) {
+                    startLogging();
+                }
+            }
         }
     }
 
@@ -142,37 +150,37 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
+        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
             setVisible(false);
             dispose();
         });
 
         // [CMD + 1] = show devices
-        createAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
+        createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
             deviceView.toFront();
         });
 
         // [CMD + 2] = show explorer
-        createAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> {
+        createCmdAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> {
             deviceView.handleBrowseCommand();
         });
 
         JMenu logsMenu = new JMenu("Logs");
 
         // [CMD + ENTER] = toggle auto scroll
-        createAction(logsMenu, "Auto Scroll", KeyEvent.VK_ENTER, e -> {
+        createCmdAction(logsMenu, "Auto Scroll", KeyEvent.VK_ENTER, e -> {
             autoScrollCheckBox.setSelected(!autoScrollCheckBox.isSelected());
             scrollToFollow();
         });
 
         // [CMD + KEY_UP] = scroll to top
-        createAction(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
+        createCmdAction(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
             autoScrollCheckBox.setSelected(false);
             table.scrollToTop();
         });
 
         // [CMD + KEY_DOWN] = scroll to bottom
-        createAction(logsMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> {
+        createCmdAction(logsMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> {
             table.scrollToBottom();
         });
 
@@ -187,7 +195,7 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         });
 
         // [CMD + K] = clear logs
-        createAction(logsMenu, "Clear logs", KeyEvent.VK_K, e -> {
+        createCmdAction(logsMenu, "Clear logs", KeyEvent.VK_K, e -> {
             model.clearLogs();
         });
 
@@ -254,14 +262,13 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
     }
 
     private void stopLogging() {
-        isLoggedPaused = true;
         DeviceManager.getInstance().stopLogging(device);
     }
 
     private void startLogging() {
-        isLoggedPaused = false;
         if (!DeviceManager.getInstance().isLogging(device)) {
-            DeviceManager.getInstance().startLogging(device, this);
+            Long startTime = model.getLastLogTime();
+            DeviceManager.getInstance().startLogging(device, startTime, this);
         }
     }
 
@@ -291,8 +298,10 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         toolbar.setRollover(true);
         toolbar.removeAll();
 
-        createToolbarButton(toolbar, "icon_open_folder.png", null, "Open Folder", actionEvent -> startLogging());
-        createToolbarButton(toolbar, "icon_download.png", null, "Download Files", actionEvent -> stopLogging());
+        logButton = createToolbarButton(toolbar, null, "Start", "Start Logging", actionEvent -> {
+            toggleLoggingButton();
+        });
+        updateLoggingButton();
         toolbar.addSeparator();
 
         toolbar.add(Box.createHorizontalGlue());
@@ -306,9 +315,25 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         createToolbarButton(toolbar, "icon_refresh.png", null, "Refresh Device List", actionEvent -> refreshUi());
     }
 
+    private void toggleLoggingButton() {
+        isLoggedPaused = !isLoggedPaused;
+        updateLoggingButton();
+        if (isLoggedPaused) {
+            stopLogging();
+        } else {
+            startLogging();
+        }
+    }
+
+    private void updateLoggingButton() {
+        String imageName = isLoggedPaused ? "icon_play.png" : "icon_stop.png";
+        ImageIcon icon = UiUtils.getImageIcon(imageName, 30, 30);
+        logButton.setIcon(icon);
+        logButton.setText(isLoggedPaused ? "Start" : "Stop");
+    }
+
     private void doSearch(String text) {
-        log.debug("search: {}", text);
-        if (TextUtils.isEmpty(text) || TextUtils.equals(text, HINT_SEARCH)) {
+        if (TextUtils.isEmpty(text)) {
             model.setSearchText(null);
         } else {
             model.setSearchText(text);
@@ -316,8 +341,7 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
     }
 
     private void filterDevices(String text) {
-        log.debug("filterDevices: filter:{}", text);
-        if (TextUtils.isEmpty(text) || TextUtils.equals(text, HINT_FILTER)) {
+        if (TextUtils.isEmpty(text)) {
             rowFilter.setFilter(null);
             statusBar.setCenterLabel(null);
         } else {

@@ -57,6 +57,15 @@ public class LogsTableModel extends AbstractTableModel {
         fireTableDataChanged();
     }
 
+    /**
+     * @return the latest log entry time
+     */
+    public Long getLastLogTime() {
+        if (logEntryList.isEmpty()) return null;
+        LogEntry last = logEntryList.getLast();
+        return last.timestamp;
+    }
+
     private void checkSizeAndUpdate(int numAdded) {
         if (logEntryList.size() > MAX_LINES) {
             // remove rows over the max and also a little more to prevent needing to do this on every new log

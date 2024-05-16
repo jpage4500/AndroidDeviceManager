@@ -53,6 +53,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
     public DeviceView() {
         super("main");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         initalizeUi();
 
         DeviceManager.getInstance().connectAdbServer(this);
@@ -104,18 +105,18 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
+        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
             setVisible(false);
             dispose();
         });
 
         // [CMD + 2] = show explorer
-        createAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> {
+        createCmdAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> {
             handleBrowseCommand();
         });
 
         // [CMD + 3] = show logs
-        createAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> {
+        createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> {
             handleLogsCommand();
         });
 
@@ -200,7 +201,6 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     public void handleDeviceUpdated(Device device) {
         model.updateRowForDevice(device);
     }
-
 
     private void refreshUi() {
         int selectedRowCount = table.getSelectedRowCount();
@@ -299,46 +299,12 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
         StringBuilder sb = new StringBuilder();
         for (Device device : selectedDeviceList) {
-            if (sb.length() > 0) sb.append("\n");
-            sb.append(getDeviceField(device, column));
+            if (!sb.isEmpty()) sb.append("\n");
+            String value = DeviceTableModel.deviceValue(device, column);
+            sb.append(value != null ? value : "");
         }
         StringSelection stringSelection = new StringSelection(sb.toString());
         clipboard.setContents(stringSelection, null);
-    }
-
-    private String getDeviceField(Device device, DeviceTableModel.Columns column) {
-        String val;
-        switch (column) {
-            case SERIAL:
-                val = device.serial;
-                break;
-            case MODEL:
-                val = device.getProperty(Device.PROP_MODEL);
-                break;
-            case PHONE:
-                val = device.phone;
-                break;
-            case IMEI:
-                val = device.imei;
-                break;
-            case FREE:
-                val = String.valueOf(device.freeSpace);
-                break;
-            case CUSTOM1:
-                val = device.getCustomProperty(Device.CUST_PROP_1);
-                break;
-            case CUSTOM2:
-                val = device.getCustomProperty(Device.CUST_PROP_2);
-                break;
-            case STATUS:
-                val = device.status;
-                break;
-            default:
-                val = column.name();
-                break;
-        }
-        if (TextUtils.isEmpty(val)) return "";
-        else return val;
     }
 
     private void handleCopyClipboardCommand() {
@@ -357,7 +323,8 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             for (int i = 0; i < columns.length; i++) {
                 DeviceTableModel.Columns column = columns[i];
                 if (i > 0) sb.append(", ");
-                sb.append(getDeviceField(device, column));
+                String value = DeviceTableModel.deviceValue(device, column);
+                sb.append(value != null ? value : "");
             }
         }
         StringSelection stringSelection = new StringSelection(sb.toString());
@@ -526,12 +493,6 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     private void addDeviceDetail(JPanel panel, String label, String value) {
         if (!TextUtils.isEmpty(value)) {
             panel.add(new JLabel(label + ": " + value), "wrap");
-        }
-    }
-
-    private void addLine(StringBuilder sb, String label, String value) {
-        if (!TextUtils.isEmpty(value)) {
-            sb.append(label + ": " + value + '\n');
         }
     }
 

@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.table;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.SizeData;
+import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -127,28 +128,7 @@ public class DeviceTableModel extends AbstractTableModel {
 
         Device device = deviceList.get(row);
         if (col < visibleColumns.length) {
-            Columns colType = visibleColumns[col];
-            switch (colType) {
-                case SERIAL:
-                    return device.serial;
-                case MODEL:
-                    return device.getProperty(Device.PROP_MODEL);
-                case PHONE:
-                    return device.phone;
-                case IMEI:
-                    return device.imei;
-                case FREE:
-                    return new SizeData(device.freeSpace);
-                case CUSTOM1:
-                    return device.getCustomProperty(Device.CUST_PROP_1);
-                case CUSTOM2:
-                    return device.getCustomProperty(Device.CUST_PROP_2);
-                case STATUS:
-                    return device.status;
-                default:
-                    log.debug("getValueAt: ERROR: {}", colType);
-                    return "";
-            }
+            return deviceValue(device, visibleColumns[col]);
         } else {
             // custom app version
             if (device.customAppVersionList != null) {
@@ -158,6 +138,19 @@ public class DeviceTableModel extends AbstractTableModel {
                 return null;
             }
         }
+    }
+
+    public static String deviceValue(Device device, Columns colType) {
+        return switch (colType) {
+            case SERIAL -> device.serial;
+            case MODEL -> device.getProperty(Device.PROP_MODEL);
+            case PHONE -> device.phone;
+            case IMEI -> device.imei;
+            case FREE -> FileUtils.bytesToDisplayString(device.freeSpace);
+            case CUSTOM1 -> device.getCustomProperty(Device.CUST_PROP_1);
+            case CUSTOM2 -> device.getCustomProperty(Device.CUST_PROP_2);
+            case STATUS -> device.status;
+        };
     }
 
 }
