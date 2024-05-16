@@ -35,7 +35,7 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
     private static final String HINT_SEARCH = "Search...";
 
     private final Device device;
-    private final JFrame deviceFrame;
+    private final DeviceView deviceView;
 
     public CustomTable table;
     public LogsTableModel model;
@@ -51,12 +51,12 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
 
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
 
-    public LogsView(JFrame deviceFrame, Device device) {
+    public LogsView(DeviceView deviceView, Device device) {
         super("logs");
-        this.deviceFrame = deviceFrame;
+        this.deviceView = deviceView;
         this.device = device;
         initalizeUi();
-        setTitle("Browse " + device.getDisplayName());
+        setTitle("Logs: " + device.getDisplayName());
     }
 
     protected void initalizeUi() {
@@ -66,9 +66,7 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         // --- [status bar] ---
         JPanel mainPanel = new JPanel(new BorderLayout());
 
-        // NOTE: this breaks dragging the scrollbar on Mac
-        //getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);
-
+        // -- toolbar --
         toolbar = new JToolBar("Applications");
         setupToolbar();
         mainPanel.add(toolbar, BorderLayout.NORTH);
@@ -84,6 +82,8 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         leftPanel.add(filterList, BorderLayout.CENTER);
 
         JPanel rightPanel = new JPanel(new BorderLayout());
+
+        // -- table --
         table = new CustomTable("logs");
         setupTable();
         JScrollPane scrollPane = new JScrollPane(table);
@@ -100,18 +100,6 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         splitPane.setRightComponent(rightPanel);
         mainPanel.add(splitPane, BorderLayout.CENTER);
 
-        addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                log.debug("windowClosing: ");
-                table.persist();
-                stopLogging();
-                setVisible(false);
-                dispose();
-            }
-        });
-        //setDefaultCloseOperation(JHIDE_ON_CLOSE);
-
         setupMenuBar();
         setupPopupMenu();
 
@@ -124,6 +112,17 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
     public void show() {
         super.show();
         startLogging();
+    }
+
+    @Override
+    protected void onWindowStateChanged(WindowState state) {
+        super.onWindowStateChanged(state);
+        if (state == WindowState.CLOSING) {
+            table.persist();
+            stopLogging();
+            setVisible(false);
+            dispose();
+        }
     }
 
     private void setupStatusBar() {
@@ -150,7 +149,12 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
 
         // [CMD + 1] = show devices
         createAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
-            deviceFrame.toFront();
+            deviceView.toFront();
+        });
+
+        // [CMD + 2] = show explorer
+        createAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> {
+            deviceView.handleBrowseCommand();
         });
 
         JMenu logsMenu = new JMenu("Logs");
@@ -256,7 +260,9 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
 
     private void startLogging() {
         isLoggedPaused = false;
-        DeviceManager.getInstance().startLogging(device, this);
+        if (!DeviceManager.getInstance().isLogging(device)) {
+            DeviceManager.getInstance().startLogging(device, this);
+        }
     }
 
     private void scrollToFollow() {

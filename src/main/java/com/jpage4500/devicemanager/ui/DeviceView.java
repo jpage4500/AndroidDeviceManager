@@ -13,8 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
@@ -22,22 +20,23 @@ import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
-import java.awt.event.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.prefs.Preferences;
 
 /**
  * create and manage device view
  */
-public class DeviceView extends BaseFrame implements DeviceManager.DeviceListener, KeyListener {
+public class DeviceView extends BaseFrame implements DeviceManager.DeviceListener {
     private static final Logger log = LoggerFactory.getLogger(DeviceView.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
     public static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
 
-    public JPanel panel;
     public CustomTable table;
     public DeviceTableModel model;
     public EmptyView emptyView;
@@ -59,73 +58,73 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         DeviceManager.getInstance().connectAdbServer(this);
     }
 
-    @Override
-    public void handleDevicesUpdated(List<Device> deviceList) {
-        if (deviceList != null) {
-            model.setDeviceList(deviceList);
-
-            if (!deviceList.isEmpty() && table.getSelectedRow() == -1) {
-                table.changeSelection(0, 0, false, false);
-            }
-
-            refreshUi();
-        }
-        updateVersionLabel();
-    }
-
-    @Override
-    public void handleDeviceUpdated(Device device) {
-        model.updateRowForDevice(device);
-    }
-
     protected void initalizeUi() {
         setTitle("Device Manager");
-        panel = new JPanel();
-        panel.setLayout(new BorderLayout());
-        addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowActivated(WindowEvent e) {
-                //DeviceManager.getInstance().startDevicePolling(DeviceView.this, 10);
-            }
+        JPanel panel = new JPanel(new BorderLayout());
 
-            @Override
-            public void windowDeactivated(WindowEvent e) {
-                //DeviceManager.getInstance().stopDevicePolling();
-            }
+        // -- toolbar --
+        toolbar = new JToolBar("Applications");
+        setupToolbar();
+        panel.add(toolbar, BorderLayout.NORTH);
+
+        // -- table --
+        table = new CustomTable("devices");
+        setupTable();
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBackground(Color.RED);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // -- statusbar --
+        statusBar = new StatusBar();
+        statusBar.setLeftLabelListener(this::handleVersionClicked);
+        panel.add(statusBar, BorderLayout.SOUTH);
+        updateVersionLabel();
+
+        setupMenuBar();
+
+        setContentPane(panel);
+        setVisible(true);
+
+        // -- empty view --
+        // NOTE: must be done after setContentPane() above
+        JRootPane rootPane = SwingUtilities.getRootPane(table);
+        emptyView = new EmptyView("No Android Devices!");
+        rootPane.setGlassPane(emptyView);
+        emptyView.setOpaque(false);
+        emptyView.setVisible(true);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            //log.debug("initializeUI: EXIT");
+            table.persist();
+            DeviceManager.getInstance().handleExit();
+        }));
+    }
+
+    private void setupMenuBar() {
+        JMenu windowMenu = new JMenu("Window");
+
+        // [CMD + W] = close window
+        createAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
+            setVisible(false);
+            dispose();
         });
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // -- CMD+2 = show devices --
-        Action switchAction = new AbstractAction("Show Explorer") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                handleBrowseCommand();
-            }
-        };
-        int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
-        KeyStroke switchKey = KeyStroke.getKeyStroke(KeyEvent.VK_2, mask);
-        switchAction.putValue(Action.ACCELERATOR_KEY, switchKey);
+        // [CMD + 2] = show explorer
+        createAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> {
+            handleBrowseCommand();
+        });
+
+        // [CMD + 3] = show logs
+        createAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> {
+            handleLogsCommand();
+        });
 
         JMenuBar menubar = new JMenuBar();
-        JMenu menu = new JMenu("Window");
-        JMenuItem switchItem = new JMenuItem("Show Explorer");
-
-        // -- CMD+3 = show log window --
-        Action logAction = new AbstractAction("Show Log View") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                handleLogsCommand();
-            }
-        };
-        KeyStroke logKey = KeyStroke.getKeyStroke(KeyEvent.VK_3, mask);
-        logAction.putValue(Action.ACCELERATOR_KEY, logKey);
-        switchItem.setAction(logAction);
-
-        menu.add(switchItem);
-        menubar.add(menu);
+        menubar.add(windowMenu);
         setJMenuBar(menubar);
+    }
 
-        table = new CustomTable("devices");
+    private void setupTable() {
         table.setShowTooltips(true);
         model = new DeviceTableModel();
 
@@ -141,35 +140,6 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer();
         rightRenderer.setHorizontalAlignment(JLabel.RIGHT);
         table.getColumnModel().getColumn(4).setCellRenderer(rightRenderer);
-
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setBackground(Color.RED);
-        panel.add(scrollPane, BorderLayout.CENTER);
-
-        // setup toolbar
-        setupToolbar();
-        panel.add(toolbar, BorderLayout.NORTH);
-
-        // statusbar
-        statusBar = new StatusBar();
-        statusBar.setLeftLabelListener(this::handleVersionClicked);
-        panel.add(statusBar, BorderLayout.SOUTH);
-        updateVersionLabel();
-
-        setContentPane(panel);
-        setVisible(true);
-
-        JRootPane rootPane = SwingUtilities.getRootPane(table);
-        emptyView = new EmptyView("No Android Devices!");
-        rootPane.setGlassPane(emptyView);
-        emptyView.setOpaque(false);
-        emptyView.setVisible(true);
-
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            //log.debug("initializeUI: EXIT");
-            table.persist();
-            DeviceManager.getInstance().handleExit();
-        }));
 
         // support drag and drop of files
         MyDragDropListener dragDropListener = new MyDragDropListener(table, true, this::handleFilesDropped);
@@ -210,9 +180,27 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             refreshUi();
         });
         table.requestFocus();
-
-        table.addKeyListener(this);
     }
+
+    @Override
+    public void handleDevicesUpdated(List<Device> deviceList) {
+        if (deviceList != null) {
+            model.setDeviceList(deviceList);
+
+            if (!deviceList.isEmpty() && table.getSelectedRow() == -1) {
+                table.changeSelection(0, 0, false, false);
+            }
+
+            refreshUi();
+        }
+        updateVersionLabel();
+    }
+
+    @Override
+    public void handleDeviceUpdated(Device device) {
+        model.updateRowForDevice(device);
+    }
+
 
     private void refreshUi() {
         int selectedRowCount = table.getSelectedRowCount();
@@ -591,13 +579,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     }
 
     private void setupToolbar() {
-        if (toolbar == null) {
-            toolbar = new JToolBar("Applications");
-            toolbar.setRollover(true);
-        } else {
-            toolbar.removeAll();
-        }
-        deviceButtonList.clear();
+        toolbar.setRollover(true);
         JButton button;
 
         createToolbarButton(toolbar, "icon_add.png", "Connect", "Connect Device", actionEvent -> handleConnectDevice());
@@ -794,7 +776,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         handleFilesDropped(Arrays.asList(fileArr));
     }
 
-    private void handleBrowseCommand() {
+    public void handleBrowseCommand() {
         Device selectedDevice = getFirstSelectedDevice();
         if (selectedDevice == null) return;
 
@@ -806,7 +788,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         exploreView.show();
     }
 
-    private void handleLogsCommand() {
+    public void handleLogsCommand() {
         Device selectedDevice = getFirstSelectedDevice();
         if (selectedDevice == null) return;
 
@@ -836,54 +818,6 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         }
         // open failed
         JOptionPane.showConfirmDialog(this, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
-    }
-
-    @Override
-    public void keyTyped(KeyEvent e) {
-        int keyCode = e.getExtendedKeyCode();
-        char keyChar = e.getKeyChar();
-        // ignore any key press along with a modifier key (CTRL/OPTION/CMD) -- except SHIFT
-        int modifiers = e.getModifiersEx();
-        if (modifiers != 0 && !e.isShiftDown()) return;
-        String text = textField.getText();
-        if (text.equalsIgnoreCase(HINT_FILTER_DEVICES)) text = "";
-        boolean isHandled = false;
-        switch (keyCode) {
-            case KeyEvent.VK_DELETE:
-            case KeyEvent.VK_BACK_SPACE:
-                if (text.isEmpty()) break;
-                text = text.substring(0, text.length() - 1);
-                isHandled = true;
-                break;
-            case KeyEvent.VK_ESCAPE:
-                text = "";
-                isHandled = true;
-                break;
-            default:
-                if (Character.isLetterOrDigit(keyChar) || keyChar == KeyEvent.VK_PERIOD || keyChar == KeyEvent.VK_MINUS) {
-                    text += keyChar;
-                    isHandled = true;
-                }
-                break;
-        }
-        if (isHandled) {
-            if (text.isEmpty()) textField.setText(HINT_FILTER_DEVICES);
-            else textField.setText(text);
-        }
-    }
-
-    @Override
-    public void keyPressed(KeyEvent e) {
-        char keyChar = e.getKeyChar();
-        if (e.isMetaDown()) {
-            // handle shortcut keys
-            if (keyChar == '1') handleLogsCommand();
-            else if (keyChar == '2') handleBrowseCommand();
-        }
-    }
-
-    @Override
-    public void keyReleased(KeyEvent e) {
     }
 
 }

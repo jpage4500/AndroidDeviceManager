@@ -14,7 +14,7 @@ import java.util.Map;
 public class LogsTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(LogsTableModel.class);
     private static final int MAX_LINES = 50000;
-    private static final int REMOVE_LINES = 5000;
+    private static final int REMOVE_EXTRA = 5000;
 
     private final ArrayList<LogEntry> logEntryList;
     // map of PID <-> app name
@@ -59,12 +59,11 @@ public class LogsTableModel extends AbstractTableModel {
 
     private void checkSizeAndUpdate(int numAdded) {
         if (logEntryList.size() > MAX_LINES) {
-            // remove top 20%
-            int pos = logEntryList.size() - MAX_LINES - REMOVE_LINES;
-            pos = Math.max(pos, 0);
-            log.trace("checkSizeAndUpdate: truncating: {}, size:{}", pos, logEntryList.size());
-            logEntryList.subList(pos, logEntryList.size()).clear();
-            fireTableRowsDeleted(0, pos);
+            // remove rows over the max and also a little more to prevent needing to do this on every new log
+            int numRemove = (logEntryList.size() - MAX_LINES) + REMOVE_EXTRA;
+            log.trace("checkSizeAndUpdate: removing:{}, size:{}", numRemove, logEntryList.size());
+            logEntryList.subList(0, numRemove).clear();
+            fireTableRowsDeleted(0, numRemove - 1);
             //fireTableDataChanged();
         } else {
             int startPos = logEntryList.size() - numAdded;

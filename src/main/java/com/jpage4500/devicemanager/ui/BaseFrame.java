@@ -1,17 +1,13 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.ui.views.CustomFrame;
-import com.jpage4500.devicemanager.ui.views.EmptyView;
-import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.InputEvent;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 
 /**
@@ -20,12 +16,39 @@ import java.awt.image.BufferedImage;
 public class BaseFrame extends CustomFrame {
     private static final Logger log = LoggerFactory.getLogger(BaseFrame.class);
 
-    public EmptyView emptyView;
-    public StatusBar statusBar;
-    public JToolBar toolbar;
-
     public BaseFrame(String prefKey) {
         super(prefKey);
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowActivated(WindowEvent e) {
+                onWindowStateChanged(WindowState.ACTIVATED);
+            }
+
+            @Override
+            public void windowDeactivated(WindowEvent e) {
+                onWindowStateChanged(WindowState.DEACTIVATED);
+            }
+
+            @Override
+            public void windowClosing(WindowEvent e) {
+                onWindowStateChanged(WindowState.CLOSING);
+            }
+        });
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        // NOTE: this breaks dragging the scrollbar on Mac
+        getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);
+    }
+
+    public enum WindowState {
+        ACTIVATED,
+        DEACTIVATED,
+        CLOSING
+    }
+
+    protected void onWindowStateChanged(WindowState state) {
+        //log.debug("onWindowStateChanged: {}", state);
     }
 
     /**

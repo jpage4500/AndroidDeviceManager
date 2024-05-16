@@ -44,7 +44,7 @@ public class ExploreView extends BaseFrame {
     private static final String HINT_FILTER_DEVICES = "Filter files...";
     public static final int MAX_PATH_SAVE = 10;
 
-    private final JFrame deviceFrame;
+    private final DeviceView deviceView;
 
     public CustomTable table;
     public ExploreTableModel model;
@@ -63,9 +63,9 @@ public class ExploreView extends BaseFrame {
     private List<String> prevPathList = new ArrayList<>();
     private String errorMessage;
 
-    public ExploreView(JFrame deviceFrame, Device device) {
+    public ExploreView(DeviceView deviceView, Device device) {
         super("browse");
-        this.deviceFrame = deviceFrame;
+        this.deviceView = deviceView;
         this.device = device;
         initalizeUi();
         setTitle("Browse " + device.getDisplayName());
@@ -129,6 +129,14 @@ public class ExploreView extends BaseFrame {
         table.requestFocus();
     }
 
+    @Override
+    protected void onWindowStateChanged(WindowState state) {
+        super.onWindowStateChanged(state);
+        if (state == WindowState.ACTIVATED) {
+            refreshFiles();
+        }
+    }
+
     private void setupMenuBar() {
         JMenu windowMenu = new JMenu("Window");
 
@@ -140,7 +148,12 @@ public class ExploreView extends BaseFrame {
 
         // [CMD + 1] = show devices
         createAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
-            deviceFrame.toFront();
+            deviceView.toFront();
+        });
+
+        // [CMD + 3] = show logs
+        createAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> {
+            deviceView.handleLogsCommand();
         });
 
         JMenu fileMenu = new JMenu("Files");
@@ -264,28 +277,30 @@ public class ExploreView extends BaseFrame {
     private void refreshFiles() {
         if (device == null) return;
         DeviceManager.getInstance().listFiles(device, selectedPath, fileList -> {
-            if (fileList == null) {
-                log.debug("refreshFiles: NO FILES");
-                errorMessage = "permission denied - " + selectedPath;
-                // remove bad path
-                prevPathList.remove(prevPathList.size() - 1);
-                if (!prevPathList.isEmpty()) {
-                    // reset good path
-                    selectedPath = prevPathList.get(prevPathList.size() - 1);
+            SwingUtilities.invokeLater(() -> {
+                if (fileList == null) {
+                    log.debug("refreshFiles: NO FILES");
+                    errorMessage = "permission denied - " + selectedPath;
+                    // remove bad path
+                    prevPathList.remove(prevPathList.size() - 1);
+                    if (!prevPathList.isEmpty()) {
+                        // reset good path
+                        selectedPath = prevPathList.get(prevPathList.size() - 1);
+                    } else {
+                        selectedPath = "";
+                    }
+                    log.trace("refreshFiles: selectedPath={}", selectedPath);
                 } else {
-                    selectedPath = "";
+                    errorMessage = null;
+                    // TODO: add ".." to top of list
+                    log.debug("refreshFiles: GOT:{}, selectedPath={}", fileList.size(), selectedPath);
+                    if (!TextUtils.isEmpty(selectedPath)) {
+                        fileList.add(0, new RemoteUpFolder());
+                    }
+                    model.setFileList(fileList);
                 }
-                log.trace("refreshFiles: selectedPath={}", selectedPath);
-            } else {
-                errorMessage = null;
-                // TODO: add ".." to top of list
-                log.debug("refreshFiles: GOT:{}, selectedPath={}", fileList.size(), selectedPath);
-                if (!TextUtils.isEmpty(selectedPath)) {
-                    fileList.add(0, new RemoteUpFolder());
-                }
-                model.setFileList(fileList);
-            }
-            refreshUi();
+                refreshUi();
+            });
         });
     }
 
