@@ -45,16 +45,26 @@ public class JadbDevice {
 
     private State convertState(String type) {
         switch (type) {
-            case "device":     return State.Device;
-            case "offline":    return State.Offline;
-            case "bootloader": return State.BootLoader;
-            case "recovery":   return State.Recovery;
-            case "unauthorized": return State.Unauthorized;
-            case "authorizing" : return State.Authorizing;
-            case "connecting": return State.Connecting;
-            case "sideload": return State.Sideload;
-            case "rescue"  : return State.Rescue;
-            default:           return State.Unknown;
+            case "device":
+                return State.Device;
+            case "offline":
+                return State.Offline;
+            case "bootloader":
+                return State.BootLoader;
+            case "recovery":
+                return State.Recovery;
+            case "unauthorized":
+                return State.Unauthorized;
+            case "authorizing":
+                return State.Authorizing;
+            case "connecting":
+                return State.Connecting;
+            case "sideload":
+                return State.Sideload;
+            case "rescue":
+                return State.Rescue;
+            default:
+                return State.Unknown;
         }
     }
 
@@ -63,8 +73,8 @@ public class JadbDevice {
         // Do not use try-with-resources here. We want to return unclosed Transport and it is up to caller
         // to close it. Here we close it only in case of exception.
         try {
-            send(transport, serial == null ? "host:transport-any" : "host:transport:" + serial );
-        } catch (IOException|JadbException e) {
+            send(transport, serial == null ? "host:transport-any" : "host:transport:" + serial);
+        } catch (IOException | JadbException e) {
             transport.close();
             throw e;
         }
@@ -82,12 +92,13 @@ public class JadbDevice {
         }
     }
 
-    /** <p>Execute a shell command.</p>
+    /**
+     * <p>Execute a shell command.</p>
      *
      * <p>For Lollipop and later see: {@link #execute(String, String...)}</p>
      *
      * @param command main command to run. E.g. "ls"
-     * @param args arguments to the command.
+     * @param args    arguments to the command.
      * @return combined stdout/stderr stream.
      * @throws IOException
      * @throws JadbException
@@ -100,7 +111,6 @@ public class JadbDevice {
     }
 
     /**
-     *
      * @deprecated Use InputStream executeShell(String command, String... args) method instead. Together with
      * Stream.copy(in, out), it is possible to achieve the same effect.
      */
@@ -117,14 +127,15 @@ public class JadbDevice {
         }
     }
 
-    /** <p>Execute a command with raw binary output.</p>
+    /**
+     * <p>Execute a command with raw binary output.</p>
      *
      * <p>Support for this command was added in Lollipop (Android 5.0), and is the recommended way to transmit binary
      * data with that version or later. For earlier versions of Android, use
      * {@link #executeShell(String, String...)}.</p>
      *
      * @param command main command to run, e.g. "screencap"
-     * @param args arguments to the command, e.g. "-p".
+     * @param args    arguments to the command, e.g. "-p".
      * @return combined stdout/stderr stream.
      * @throws IOException
      * @throws JadbException
@@ -140,7 +151,7 @@ public class JadbDevice {
      * Builds a command line string from the command and its arguments.
      *
      * @param command the command.
-     * @param args the list of arguments.
+     * @param args    the list of arguments.
      * @return the command line.
      */
     private StringBuilder buildCmdLine(String command, String... args) {
@@ -165,7 +176,6 @@ public class JadbDevice {
      * Enable tcpip on a specific port
      *
      * @param port for the device to bind on
-     *
      * @return success or failure
      */
     public void enableAdbOverTCP(int port) throws IOException, JadbException {
@@ -237,7 +247,7 @@ public class JadbDevice {
     }
 
     public HashSet<String> listInstalledPackages() throws IOException, JadbException {
-        try ( ByteArrayOutputStream result = new ByteArrayOutputStream()){
+        try (ByteArrayOutputStream result = new ByteArrayOutputStream()) {
             InputStream stdout = this.executeShell("pm list packages 2>/dev/null");
             Stream.copy(stdout, result);
 
@@ -252,7 +262,7 @@ public class JadbDevice {
     }
 
     public HashSet<String> listRunningPackages() throws IOException, JadbException {
-        try ( ByteArrayOutputStream result = new ByteArrayOutputStream()){
+        try (ByteArrayOutputStream result = new ByteArrayOutputStream()) {
             InputStream stdout = this.executeShell("ps | grep u0_");
             Stream.copy(stdout, result);
 
@@ -273,14 +283,30 @@ public class JadbDevice {
 
     public void tap(int x, int y) throws IOException, JadbException {
         String cmd = String.format("input tap %s %s", x, y);
-        InputStream is = this.executeShell(cmd);
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            InputStream is = this.executeShell(cmd);
             Stream.copy(is, baos);
         }
     }
 
     public void swipe(int startX, int startY, int endX, int endY, int duration) throws IOException, JadbException {
         String cmd = String.format("input swipe %s %s %s %s %s", startX, startY, endX, endY, duration);
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            InputStream is = this.executeShell(cmd);
+            Stream.copy(is, baos);
+        }
+    }
+
+    public void inputText(String text) throws IOException, JadbException {
+        String cmd = String.format("input text %s", text);
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            InputStream is = this.executeShell(cmd);
+            Stream.copy(is, baos);
+        }
+    }
+
+    public void inputKeyEvent(int keyEvent) throws IOException, JadbException {
+        String cmd = String.format("input keyevent %s", keyEvent);
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             InputStream is = this.executeShell(cmd);
             Stream.copy(is, baos);

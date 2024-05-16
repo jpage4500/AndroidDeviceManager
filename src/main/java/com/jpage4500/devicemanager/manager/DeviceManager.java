@@ -23,9 +23,8 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -37,6 +36,7 @@ public class DeviceManager {
     public static final String COMMAND_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
     public static final String COMMAND_REBOOT = "reboot";
     public static final String COMMAND_DISK_SIZE = "df";
+    public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS";
 
     public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
 
@@ -46,10 +46,7 @@ public class DeviceManager {
     private static final String SCRIPT_SET_PROPERTY = "set-property.sh";
     private static final String SCRIPT_SCREENSHOT = "screenshot.sh";
     private static final String SCRIPT_MIRROR = "mirror.sh";
-    private static final String SCRIPT_DELETE_FILE = "delete-file.sh";
     private static final String SCRIPT_START_LOGGING = "start-logging.sh";
-    private static final String SCRIPT_INPUT_TEXT = "input-text.sh";
-    private static final String SCRIPT_INPUT_KEYEVENT = "input-keyevent.sh";
 
     private static volatile DeviceManager instance;
 
@@ -58,8 +55,8 @@ public class DeviceManager {
     private final List<Process> processList;
 
     private final ExecutorService commandExecutorService;
-
-    private Process logProcess;
+    private final ScheduledExecutorService scheduledExecutorService;
+    private final AtomicBoolean isLogging = new AtomicBoolean(false);
 
     private JadbConnection connection;
 
@@ -79,6 +76,7 @@ public class DeviceManager {
         processList = new ArrayList<>();
 
         commandExecutorService = Executors.newFixedThreadPool(10);
+        scheduledExecutorService = Executors.newScheduledThreadPool(1);
 
         tempFolder = System.getProperty("java.io.tmpdir");
         copyResourcesToFiles();
@@ -294,11 +292,12 @@ public class DeviceManager {
     private List<String> runShell(Device device, String command) {
         List<String> resultList = new ArrayList<>();
         List<String> commandList = TextUtils.splitSafe(command, ' ');
+        InputStream inputStream = null;
         try {
             String firstCommand = commandList.get(0);
             List<String> subList = commandList.subList(1, commandList.size());
             //log.trace("runShell: COMMAND:{}, ARGS:{}", firstCommand, GsonHelper.toJson(subList));
-            InputStream inputStream = device.jadbDevice.executeShell(firstCommand, subList.toArray(new String[0]));
+            inputStream = device.jadbDevice.executeShell(firstCommand, subList.toArray(new String[0]));
             BufferedReader input = new BufferedReader(new InputStreamReader(inputStream));
             String line;
             while ((line = input.readLine()) != null) {
@@ -307,6 +306,13 @@ public class DeviceManager {
             }
         } catch (Exception e) {
             log.error("runShell: {}", e.getMessage());
+        } finally {
+            if (inputStream != null) {
+                try {
+                    inputStream.close();
+                } catch (IOException ignored) {
+                }
+            }
         }
         return resultList;
     }
@@ -526,80 +532,135 @@ public class DeviceManager {
 
     public void sendInputText(Device device, String text, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            ScriptResult result = runScript(SCRIPT_INPUT_TEXT, device.serial, text);
-            if (listener != null) listener.onTaskComplete(result.isSuccess);
+            log.debug("sendInputText: {}", text);
+            try {
+                device.jadbDevice.inputText(text);
+                if (listener != null) listener.onTaskComplete(true);
+            } catch (Exception e) {
+                log.error("sendInputText: {}, Exception:{}", text, e.getMessage());
+                if (listener != null) listener.onTaskComplete(false);
+            }
         });
     }
 
     public void sendInputKeyCode(Device device, int keyEvent, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            ScriptResult result = runScript(SCRIPT_INPUT_KEYEVENT, device.serial, String.valueOf(keyEvent));
-            if (listener != null) listener.onTaskComplete(result.isSuccess);
+            log.debug("sendInputKeyCode: {}", keyEvent);
+            try {
+                device.jadbDevice.inputKeyEvent(keyEvent);
+                if (listener != null) listener.onTaskComplete(true);
+            } catch (Exception e) {
+                log.error("sendInputKeyCode: {}, Exception:{}", keyEvent, e.getMessage());
+                if (listener != null) listener.onTaskComplete(false);
+            }
         });
     }
 
     public interface DeviceLogListener {
         void handleLogEntries(List<LogEntry> logEntryList);
 
-        void handleLogEntry(LogEntry logEntry);
-    }
-
-    public void stopLogging(Device device) {
-        log.debug("stopLogging: ");
-        if (logProcess != null && logProcess.isAlive()) {
-            logProcess.destroy();
-        }
+        void handleProcessMap(Map<String, String> processMap);
     }
 
     public void startLogging(Device device, DeviceLogListener listener) {
+        stopLogging(device);
         commandExecutorService.submit(() -> {
             log.debug("startLogging: ");
-
-            // 10-16 11:34:17.824
-            SimpleDateFormat inputFormat = new SimpleDateFormat("MM-dd HH:mm:ss");
-            // display format
-            SimpleDateFormat outputFormat = new SimpleDateFormat("MM-dd HH:mm:ss");
-
+            isLogging.set(true);
+            InputStream inputStream = null;
             try {
-                List<String> commandList = new ArrayList<>();
-                File tempFile = getScriptFile(SCRIPT_START_LOGGING);
-                commandList.add(tempFile.getAbsolutePath());
-                commandList.add(device.serial);
+                String[] args = new String[]{"-v", "threadtime"};
+                inputStream = device.jadbDevice.executeShell("logcat", args);
+                BufferedReader input = new BufferedReader(new InputStreamReader(inputStream));
 
-                ProcessBuilder processBuilder = new ProcessBuilder();
-                processBuilder.command(commandList);
-                logProcess = processBuilder.start();
-
-                BufferedReader reader = new BufferedReader(new InputStreamReader(logProcess.getInputStream()));
-                String line;
-                List<LogEntry> logList = new ArrayList<>();
                 long lastUpdateMs = System.currentTimeMillis();
-                try {
-                    while (true) {
-                        line = reader.readLine();
-                        if (line == null) break;
-                        else if (line.isEmpty()) continue;
-                        LogEntry logEntry = new LogEntry(line, inputFormat, outputFormat);
-                        logList.add(logEntry);
+                List<LogEntry> logList = new ArrayList<>();
+                // 10-16 11:34:17.824
+                SimpleDateFormat inputFormat = new SimpleDateFormat("MM-dd HH:mm:ss");
+                // display format
+                SimpleDateFormat outputFormat = new SimpleDateFormat("MM-dd HH:mm:ss");
 
-                        // only update every X ms
-                        if (System.currentTimeMillis() - lastUpdateMs >= 100) {
-                            // update
-                            listener.handleLogEntries(logList);
-                            logList.clear();
-                            lastUpdateMs = System.currentTimeMillis();
-                        }
+                String line;
+                while ((line = input.readLine()) != null) {
+                    LogEntry logEntry = new LogEntry(line, inputFormat, outputFormat);
+                    if (logEntry.date != null) logList.add(logEntry);
+
+                    // only update every X ms
+                    if (System.currentTimeMillis() - lastUpdateMs >= 100 && !logList.isEmpty()) {
+                        // update
+                        listener.handleLogEntries(logList);
+                        logList.clear();
+                        lastUpdateMs = System.currentTimeMillis();
+
+                        // check if logging is still running
+                        if (!isLogging.get()) break;
                     }
-                    reader.close();
-                } catch (IOException e) {
-                    log.error("startLogging: Exception: {}", e.getMessage());
                 }
             } catch (Exception e) {
-                log.error("startLogging: Exception: {}:{}", e.getClass().getSimpleName(), e.getMessage());
-                log.error("startLogging", e);
+                log.error("startLogging: {}", e.getMessage());
+            } finally {
+                if (inputStream != null) {
+                    try {
+                        inputStream.close();
+                    } catch (IOException ignored) {
+                    }
+                }
             }
             log.debug("startLogging: DONE");
         });
+
+        // run a periodic task to fetch running apps from device so logs can replace PID with app name
+        commandExecutorService.submit(() -> {
+            Map<String, String> pidMap = getProcessMap(device);
+            if (!pidMap.isEmpty()) {
+                listener.handleProcessMap(pidMap);
+            }
+            // check if logging is still running and schedule next lookup
+            if (isLogging.get()) {
+                scheduleNextProcessCheck(device, listener);
+            }
+        });
+    }
+
+    private void scheduleNextProcessCheck(Device device, DeviceLogListener listener) {
+        // make sure logging is still running
+        if (!isLogging.get()) return;
+
+        // run in 30 seconds
+        scheduledExecutorService.schedule(() -> {
+            // make sure logging is still running
+            if (!isLogging.get()) return;
+
+            Map<String, String> pidMap = getProcessMap(device);
+            listener.handleProcessMap(pidMap);
+            scheduleNextProcessCheck(device, listener);
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private Map<String, String> getProcessMap(Device device) {
+        List<String> pidList = runShell(device, COMMAND_LIST_PROCESSES);
+        // 7617 com.android.traceur
+        // 7677 [csf_sync_update]
+        Map<String, String> pidMap = new HashMap<>();
+        for (String line : pidList) {
+            String[] lineArr = line.trim().split(" ", 2);
+            if (lineArr.length < 2) continue;
+            String pid = lineArr[0];
+            String app = lineArr[1];
+            pidMap.put(pid, app);
+        }
+        return pidMap;
+    }
+
+    public void stopLogging(Device device) {
+        if (isLogging.get()) {
+            log.debug("stopLogging: ");
+            isLogging.set(false);
+        }
+    }
+
+    public boolean isLogging(Device device) {
+        return isLogging.get();
     }
 
     public void handleExit() {

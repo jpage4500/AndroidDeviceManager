@@ -1,12 +1,15 @@
 package com.jpage4500.devicemanager.ui.views;
 
-import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.TableColumnModelEvent;
+import javax.swing.event.TableColumnModelListener;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
@@ -28,26 +31,60 @@ public class CustomTable extends JTable {
     private final Color lightGreyColor = new Color(246, 246, 246);
     private final Color headerColor = new Color(197, 197, 197);
 
-    private final Icon arrowUpIcon;
-    private final Icon arrowDownIcon;
+    private Icon arrowUpIcon;
+    private Icon arrowDownIcon;
 
     private String prefKey;
 
-    private TableColumnAdjuster tableColumnAdjuster;
+    private boolean showTooltips = false;
 
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
 
+        getTableHeader().setBackground(headerColor);
+
+        // TODO: REMOVE ME
+        getColumnModel().addColumnModelListener(new TableColumnModelListener() {
+            @Override
+            public void columnAdded(TableColumnModelEvent e) {
+
+            }
+
+            @Override
+            public void columnRemoved(TableColumnModelEvent e) {
+
+            }
+
+            @Override
+            public void columnMoved(TableColumnModelEvent e) {
+
+            }
+
+            @Override
+            public void columnMarginChanged(ChangeEvent e) {
+                TableColumn resizingColumn = getTableHeader().getResizingColumn();
+                if (resizingColumn != null)
+                    log.debug("columnMarginChanged: {}, w:{}", resizingColumn.getModelIndex(), resizingColumn.getWidth());
+            }
+
+            @Override
+            public void columnSelectionChanged(ListSelectionEvent e) {
+
+            }
+        });
+    }
+
+    public void setShowTooltips(boolean showTooltips) {
+        this.showTooltips = showTooltips;
+    }
+
+    public void allowSorting(boolean allowSorting) {
+        if (!allowSorting) return;
+        setAutoCreateRowSorter(allowSorting);
         arrowUpIcon = UiUtils.getImageIcon("arrow_down.png", 15);
         arrowDownIcon = UiUtils.getImageIcon("arrow_up.png", 15);
 
-        //setOpaque(false);
-        setAutoCreateRowSorter(true);
-
         final TableCellRenderer defaultRenderer = getTableHeader().getDefaultRenderer();
-        getTableHeader().setBackground(headerColor);
-        //setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-//        tableColumnAdjuster = new TableColumnAdjuster(this);
         getTableHeader().setDefaultRenderer((table, value, isSelected, hasFocus, row, column) -> {
             Component comp = defaultRenderer.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             if (comp instanceof JLabel label) {
@@ -55,6 +92,12 @@ public class CustomTable extends JTable {
             }
             return comp;
         });
+    }
+
+    @Override
+    public void scrollRectToVisible(Rectangle aRect) {
+        aRect.x = getVisibleRect().x;
+        super.scrollRectToVisible(aRect);
     }
 
     private Icon getSortIcon(int column) {
@@ -93,7 +136,7 @@ public class CustomTable extends JTable {
 
     @Override
     public String getToolTipText(MouseEvent e) {
-        if (prefKey == null) return null;
+        if (!showTooltips) return null;
         // only show tooltip if value doesn't fit in column width
         String toolTipText = null;
         Point p = e.getPoint();
@@ -106,6 +149,37 @@ public class CustomTable extends JTable {
             toolTipText = value.toString();
         }
         return toolTipText;
+    }
+
+    public void scrollToBottom() {
+        scrollRectToVisible(getCellRect(getRowCount() - 1, 0, true));
+    }
+
+    public void scrollToTop() {
+        scrollRectToVisible(getCellRect(0, 0, true));
+    }
+
+    public void pageUp() {
+        scrollPage(true);
+    }
+
+    public void pageDown() {
+        scrollPage(false);
+    }
+
+    private void scrollPage(boolean isUp) {
+        Rectangle visibleRect = getVisibleRect();
+        int firstRow = rowAtPoint(visibleRect.getLocation());
+        visibleRect.translate(0, visibleRect.height);
+        int lastRow = rowAtPoint(visibleRect.getLocation());
+        int numRows = lastRow - firstRow;
+        int scrollToRow;
+        if (isUp) {
+            scrollToRow = Math.max(firstRow - numRows, 0);
+        } else {
+            scrollToRow = Math.min(lastRow + numRows, getRowCount() - 1);
+        }
+        scrollRectToVisible(getCellRect(scrollToRow, 0, true));
     }
 
     public static class ColumnDetails {
@@ -137,7 +211,7 @@ public class CustomTable extends JTable {
         for (int i = 0; i < detailsList.size(); i++) {
             ColumnDetails details = detailsList.get(i);
             if (details.modelPos != details.userPos) {
-                //log.debug("restore: move:{} to:{}", details.modelPos, details.userPos);
+                log.trace("restore: move:{} to:{}", details.modelPos, details.userPos);
                 columnModel.moveColumn(details.modelPos, details.userPos);
             }
         }
@@ -161,6 +235,6 @@ public class CustomTable extends JTable {
 
         Preferences prefs = Preferences.userRoot();
         prefs.put(prefKey + "-details", GsonHelper.toJson(detailList));
-        //log.debug("persist: {}", GsonHelper.toJson(detailList));
+        log.trace("persist: {}", GsonHelper.toJson(detailList));
     }
 }

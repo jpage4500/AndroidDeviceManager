@@ -218,6 +218,37 @@ public class TextUtils {
         return -1;
     }
 
+    public static int indexOfIgnoreCase(final String value, final String searchFor) {
+        if (value == null || searchFor == null) return -1;
+        else if (searchFor.isEmpty() || value.isEmpty()) return -1;
+
+        for (int i = 0; i < value.length(); ++i) {
+            // Early out, if possible.
+            if (i + searchFor.length() > value.length()) {
+                return -1;
+            }
+
+            // Attempt to match substring starting at position i of haystack.
+            int j = 0;
+            int ii = i;
+            while (ii < value.length() && j < searchFor.length()) {
+                char c = Character.toLowerCase(value.charAt(ii));
+                char c2 = Character.toLowerCase(searchFor.charAt(j));
+                if (c != c2) {
+                    break;
+                }
+                j++;
+                ii++;
+            }
+            // Walked all the way to the end of the needle, return the start
+            // position that this was found.
+            if (j == searchFor.length()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     /**
      * mask string with "*"'s -- all but the last 4 characters
      */

@@ -11,7 +11,7 @@ import java.util.Objects;
 public class ExplorerRowComparator implements Comparator<RemoteFile> {
     private static final Logger log = LoggerFactory.getLogger(ExplorerRowComparator.class);
 
-    private ExploreTableModel.Columns column;
+    private final ExploreTableModel.Columns column;
 
     public ExplorerRowComparator(ExploreTableModel.Columns column) {
         this.column = column;

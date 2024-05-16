@@ -24,27 +24,21 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.prefs.Preferences;
 
 /**
  * create and manage device view
  */
-public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
+public class DeviceView extends BaseFrame implements DeviceManager.DeviceListener, KeyListener {
     private static final Logger log = LoggerFactory.getLogger(DeviceView.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
     public static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
 
-    // TODO: for testing logging
-    private static final boolean TEST_LOGGING = false;
-
     public JPanel panel;
     public CustomTable table;
-    public CustomFrame frame;
     public DeviceTableModel model;
     public EmptyView emptyView;
     public StatusBar statusBar;
@@ -54,10 +48,12 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     public int selectedColumn = -1;
     private final List<JButton> deviceButtonList = new ArrayList<>();
 
-    private ExploreView exploreView;
-    private LogsView logsView;
+    // open windows (per device)
+    private final Map<String, ExploreView> exploreViewMap = new HashMap<>();
+    private final Map<String, LogsView> logsViewMap = new HashMap<>();
 
     public DeviceView() {
+        super("main");
         initalizeUi();
 
         DeviceManager.getInstance().connectAdbServer(this);
@@ -82,12 +78,11 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         model.updateRowForDevice(device);
     }
 
-    private void initalizeUi() {
-        frame = new CustomFrame("main");
-        frame.setTitle("Device Manager");
+    protected void initalizeUi() {
+        setTitle("Device Manager");
         panel = new JPanel();
         panel.setLayout(new BorderLayout());
-        frame.addWindowListener(new WindowAdapter() {
+        addWindowListener(new WindowAdapter() {
             @Override
             public void windowActivated(WindowEvent e) {
                 //DeviceManager.getInstance().startDevicePolling(DeviceView.this, 10);
@@ -98,7 +93,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
                 //DeviceManager.getInstance().stopDevicePolling();
             }
         });
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         // -- CMD+2 = show devices --
         Action switchAction = new AbstractAction("Show Explorer") {
@@ -115,24 +110,23 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         JMenu menu = new JMenu("Window");
         JMenuItem switchItem = new JMenuItem("Show Explorer");
 
-        if (TEST_LOGGING) {
-            // -- CMD+3 = show log window --
-            Action logAction = new AbstractAction("Show Log View") {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    handleLogsCommand();
-                }
-            };
-            KeyStroke logKey = KeyStroke.getKeyStroke(KeyEvent.VK_3, mask);
-            logAction.putValue(Action.ACCELERATOR_KEY, logKey);
-            switchItem.setAction(logAction);
-        }
+        // -- CMD+3 = show log window --
+        Action logAction = new AbstractAction("Show Log View") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleLogsCommand();
+            }
+        };
+        KeyStroke logKey = KeyStroke.getKeyStroke(KeyEvent.VK_3, mask);
+        logAction.putValue(Action.ACCELERATOR_KEY, logKey);
+        switchItem.setAction(logAction);
 
         menu.add(switchItem);
         menubar.add(menu);
-        frame.setJMenuBar(menubar);
+        setJMenuBar(menubar);
 
         table = new CustomTable("devices");
+        table.setShowTooltips(true);
         model = new DeviceTableModel();
 
         // restore previous settings
@@ -162,8 +156,8 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         panel.add(statusBar, BorderLayout.SOUTH);
         updateVersionLabel();
 
-        frame.setContentPane(panel);
-        frame.setVisible(true);
+        setContentPane(panel);
+        setVisible(true);
 
         JRootPane rootPane = SwingUtilities.getRootPane(table);
         emptyView = new EmptyView("No Android Devices!");
@@ -389,7 +383,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             return;
         } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(frame, "Open Terminal for " + selectedDeviceList.size() + " devices?", "Open Terminal", JOptionPane.YES_NO_OPTION);
+            int rc = JOptionPane.showConfirmDialog(this, "Open Terminal for " + selectedDeviceList.size() + " devices?", "Open Terminal", JOptionPane.YES_NO_OPTION);
             if (rc != JOptionPane.YES_OPTION) return;
         }
         for (Device device : selectedDeviceList) {
@@ -456,7 +450,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             message = "Enter Custom Note for " + selectedDeviceList.size() + " devices";
         }
 
-        String result = (String) JOptionPane.showInputDialog(frame,
+        String result = (String) JOptionPane.showInputDialog(this,
                 message,
                 "Custom Note (" + number + ")",
                 JOptionPane.QUESTION_MESSAGE,
@@ -478,7 +472,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         Device device = getFirstSelectedDevice();
         if (device == null) return;
 
-        new InputScreen(frame, device).show();
+        new InputScreen(this, device).show();
     }
 
     private void handleScreenshotCommand() {
@@ -488,7 +482,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             return;
         } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(frame, "Take screenshot of " + selectedDeviceList.size() + " devices?", "Screenshot", JOptionPane.YES_NO_OPTION);
+            int rc = JOptionPane.showConfirmDialog(this, "Take screenshot of " + selectedDeviceList.size() + " devices?", "Screenshot", JOptionPane.YES_NO_OPTION);
             if (rc != JOptionPane.YES_OPTION) return;
         }
         for (Device device : selectedDeviceList) {
@@ -497,15 +491,15 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     }
 
     private void handleConnectDevice() {
-        ConnectScreen.showConnectDialog(frame, isSuccess -> {
+        ConnectScreen.showConnectDialog(this, isSuccess -> {
             log.debug("handleConnectDevice: {}", isSuccess);
-            if (!isSuccess) JOptionPane.showMessageDialog(frame, "Unable to connect!");
+            if (!isSuccess) JOptionPane.showMessageDialog(this, "Unable to connect!");
         });
     }
 
     private void handleDisconnect(Device device) {
         DeviceManager.getInstance().disconnectDevice(device.serial, isSuccess -> {
-            if (!isSuccess) JOptionPane.showMessageDialog(frame, "Unable to disconnect!");
+            if (!isSuccess) JOptionPane.showMessageDialog(this, "Unable to disconnect!");
         });
     }
 
@@ -538,7 +532,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             panel.add(scroll, "grow, span, wrap");
         }
 
-        JOptionPane.showOptionDialog(frame, panel, "Device Info", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        JOptionPane.showOptionDialog(this, panel, "Device Info", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
     }
 
     private void addDeviceDetail(JPanel panel, String label, String value) {
@@ -560,7 +554,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             return;
         } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(frame,
+            int rc = JOptionPane.showConfirmDialog(this,
                     "Mirror " + selectedDeviceList.size() + " devices?",
                     "Mirror Device",
                     JOptionPane.YES_NO_OPTION
@@ -606,71 +600,53 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         deviceButtonList.clear();
         JButton button;
 
-        UiUtils.createToolbarButton(toolbar, "icon_add.png", "Connect", "Connect Device", actionEvent -> handleConnectDevice());
+        createToolbarButton(toolbar, "icon_add.png", "Connect", "Connect Device", actionEvent -> handleConnectDevice());
         toolbar.addSeparator();
 
-        button = UiUtils.createToolbarButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
+        button = createToolbarButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
         deviceButtonList.add(button);
 
-        button = UiUtils.createToolbarButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
+        button = createToolbarButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
         deviceButtonList.add(button);
 
-        button = UiUtils.createToolbarButton(toolbar, "icon_edit.png", "Input", "Enter text", actionEvent -> handleInputCommand());
-        deviceButtonList.add(button);
-
-        toolbar.addSeparator();
-
-        button = UiUtils.createToolbarButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
-        deviceButtonList.add(button);
-
-        if (TEST_LOGGING) {
-            button = UiUtils.createToolbarButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
-            deviceButtonList.add(button);
-        }
-        button = UiUtils.createToolbarButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
-        deviceButtonList.add(button);
-        button = UiUtils.createToolbarButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
+        button = createToolbarButton(toolbar, "icon_edit.png", "Input", "Enter text", actionEvent -> handleInputCommand());
         deviceButtonList.add(button);
 
         toolbar.addSeparator();
-        //UiUtils.createToolbarButton(toolbar, "icon_variable.png", "Set Property", actionEvent -> handleSetPropertyCommand());
+
+        button = createToolbarButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
+        deviceButtonList.add(button);
+
+        button = createToolbarButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+        deviceButtonList.add(button);
+        button = createToolbarButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
+        deviceButtonList.add(button);
+        button = createToolbarButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
+        deviceButtonList.add(button);
+
+        toolbar.addSeparator();
+        //createToolbarButton(toolbar, "icon_variable.png", "Set Property", actionEvent -> handleSetPropertyCommand());
 
         // create custom action buttons
-        button = UiUtils.createToolbarButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
+        button = createToolbarButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
         deviceButtonList.add(button);
 
         // TODO: add the 'add custom' button
-        // UiUtils.createToolbarButton(toolbar, "icon_add.png", "add custom", "Run custom adb command", actionEvent -> handleAddCustomCommand());
+        // createToolbarButton(toolbar, "icon_add.png", "add custom", "Run custom adb command", actionEvent -> handleAddCustomCommand());
 
         loadCustomScripts(toolbar);
 
         toolbar.add(Box.createHorizontalGlue());
 
-        textField = new HintTextField(HINT_FILTER_DEVICES);
+        textField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
         textField.setPreferredSize(new Dimension(150, 40));
         textField.setMinimumSize(new Dimension(10, 40));
         textField.setMaximumSize(new Dimension(200, 40));
-        textField.getDocument().addDocumentListener(
-                new DocumentListener() {
-                    @Override
-                    public void insertUpdate(DocumentEvent documentEvent) {
-                        filterDevices(textField.getText());
-                    }
-
-                    @Override
-                    public void removeUpdate(DocumentEvent documentEvent) {
-                        filterDevices(textField.getText());
-                    }
-
-                    @Override
-                    public void changedUpdate(DocumentEvent documentEvent) {
-                    }
-                });
         toolbar.add(textField);
 //        toolbar.add(Box.createHorizontalGlue());
 
-        UiUtils.createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> handleRefreshCommand());
-        UiUtils.createToolbarButton(toolbar, "icon_settings.png", "Settings", "Settings", actionEvent -> handleSettingsClicked());
+        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> handleRefreshCommand());
+        createToolbarButton(toolbar, "icon_settings.png", "Settings", "Settings", actionEvent -> handleSettingsClicked());
     }
 
     private void loadCustomScripts(JToolBar toolbar) {
@@ -719,7 +695,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             return;
         } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(frame, "Run script: " + file.getName() + " on selected devices?", "Run Script?", JOptionPane.YES_NO_OPTION);
+            int rc = JOptionPane.showConfirmDialog(this, "Run script: " + file.getName() + " on selected devices?", "Run Script?", JOptionPane.YES_NO_OPTION);
             if (rc != JOptionPane.YES_OPTION) return;
         }
         for (Device device : selectedDeviceList) {
@@ -728,7 +704,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     }
 
     private void handleSettingsClicked() {
-        SettingsScreen.showSettings(frame, model);
+        SettingsScreen.showSettings(this, model);
     }
 
     private void handleRefreshCommand() {
@@ -747,7 +723,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
         JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
         comboBox.setEditable(true);
-        int rc = JOptionPane.showOptionDialog(frame, comboBox, "Custom adb command", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        int rc = JOptionPane.showOptionDialog(this, comboBox, "Custom adb command", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return;
         String selectedItem = comboBox.getSelectedItem().toString();
         if (TextUtils.isEmpty(selectedItem)) return;
@@ -778,7 +754,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         }
 
         // prompt to install/copy
-        int rc = JOptionPane.showConfirmDialog(frame,
+        int rc = JOptionPane.showConfirmDialog(this,
                 "Restart " + selectedDeviceList.size() + " device(s)?",
                 "Restart devices?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
@@ -790,7 +766,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
 
     private void showSelectDevicesDialog() {
         if (model.getRowCount() > 0) {
-            JOptionPane.showConfirmDialog(frame, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+            JOptionPane.showConfirmDialog(this, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
         }
     }
 
@@ -810,7 +786,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             showSelectDevicesDialog();
             return;
         }
-        FileDialog dialog = new FileDialog(frame, "Select File to Install/Copy to selected devices");
+        FileDialog dialog = new FileDialog(this, "Select File to Install/Copy to selected devices");
         dialog.setMode(FileDialog.LOAD);
         dialog.setVisible(true);
         File[] fileArr = dialog.getFiles();
@@ -819,31 +795,27 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
     }
 
     private void handleBrowseCommand() {
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
-        Device selectedDevice = selectedDeviceList.get(0);
+        Device selectedDevice = getFirstSelectedDevice();
+        if (selectedDevice == null) return;
 
+        ExploreView exploreView = exploreViewMap.get(selectedDevice.serial);
         if (exploreView == null) {
-            exploreView = new ExploreView(frame);
+            exploreView = new ExploreView(this, selectedDevice);
+            exploreViewMap.put(selectedDevice.serial, exploreView);
         }
-        exploreView.setDevice(selectedDevice);
+        exploreView.show();
     }
 
     private void handleLogsCommand() {
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
-        Device selectedDevice = selectedDeviceList.get(0);
+        Device selectedDevice = getFirstSelectedDevice();
+        if (selectedDevice == null) return;
 
+        LogsView logsView = logsViewMap.get(selectedDevice.serial);
         if (logsView == null) {
-            logsView = new LogsView(frame);
+            logsView = new LogsView(this, selectedDevice);
+            logsViewMap.put(selectedDevice.serial, logsView);
         }
-        logsView.setDevice(selectedDevice);
+        logsView.show();
     }
 
     private void handleVersionClicked() {
@@ -863,7 +835,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
             log.error("handleVersionClicked: Exception: {}, {}", logsFile.getAbsolutePath(), e.getMessage());
         }
         // open failed
-        JOptionPane.showConfirmDialog(frame, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
+        JOptionPane.showConfirmDialog(this, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
     }
 
     @Override
@@ -905,7 +877,7 @@ public class DeviceView implements DeviceManager.DeviceListener, KeyListener {
         char keyChar = e.getKeyChar();
         if (e.isMetaDown()) {
             // handle shortcut keys
-            if (TEST_LOGGING && keyChar == '1') handleLogsCommand();
+            if (keyChar == '1') handleLogsCommand();
             else if (keyChar == '2') handleBrowseCommand();
         }
     }

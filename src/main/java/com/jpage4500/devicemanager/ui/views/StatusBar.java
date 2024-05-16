@@ -20,36 +20,77 @@ public class StatusBar extends JPanel {
     private JLabel centerLabel;
     private JLabel rightLabel;
 
+    private ClickListener leftListener;
+    private ClickListener centerListener;
+    private ClickListener rightListener;
+
     public StatusBar() {
         init();
     }
 
     private void init() {
-        leftLabel = new JLabel();
-        leftLabel.setBorder(new EmptyBorder(0, 10, 0, 0));
-
-        centerLabel = new JLabel();
-        centerLabel.setHorizontalAlignment(SwingConstants.CENTER);
-
-        rightLabel = new JLabel();
-        rightLabel.setBorder(new EmptyBorder(0, 0, 0, 10));
-
         setLayout(new BorderLayout());
-        add(leftLabel, BorderLayout.WEST);
-        add(centerLabel, BorderLayout.CENTER);
-        add(rightLabel, BorderLayout.EAST);
     }
 
     public void setLeftLabel(String text) {
+        if (leftLabel == null) {
+            leftLabel = createLabel("left");
+            add(leftLabel, BorderLayout.WEST);
+        }
         leftLabel.setText(text);
     }
 
     public void setCenterLabel(String text) {
+        if (centerLabel == null) {
+            centerLabel = createLabel("center");
+            add(centerLabel, BorderLayout.CENTER);
+        }
         centerLabel.setText(text);
     }
 
     public void setRightLabel(String text) {
+        if (rightLabel == null) {
+            rightLabel = createLabel("center");
+            add(rightLabel, BorderLayout.EAST);
+        }
         rightLabel.setText(text);
+    }
+
+    public void setRightComponent(JComponent component) {
+        add(component, BorderLayout.EAST);
+//        component.addMouseListener(new MouseAdapter() {
+//            @Override
+//            public void mouseClicked(MouseEvent e) {
+//                if (rightListener != null) rightListener.onClicked();
+//            }
+//        });
+    }
+
+    private JLabel createLabel(String desc) {
+        JLabel label = new JLabel();
+        label.setBorder(new EmptyBorder(0, 10, 0, 10));
+        switch (desc) {
+            case "center":
+                label.setHorizontalAlignment(SwingConstants.CENTER);
+                break;
+        }
+        label.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                switch (desc) {
+                    case "left":
+                        if (leftListener != null) leftListener.onClicked();
+                        break;
+                    case "center":
+                        if (centerListener != null) centerListener.onClicked();
+                        break;
+                    case "right":
+                        if (rightListener != null) rightListener.onClicked();
+                        break;
+                }
+            }
+        });
+        return label;
     }
 
     public interface ClickListener {
@@ -57,30 +98,15 @@ public class StatusBar extends JPanel {
     }
 
     public void setLeftLabelListener(ClickListener listener) {
-        leftLabel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                listener.onClicked();
-            }
-        });
+        this.leftListener = listener;
     }
 
     public void setCenterLabelListener(ClickListener listener) {
-        centerLabel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                listener.onClicked();
-            }
-        });
+        this.centerListener = listener;
     }
 
     public void setRightLabelListener(ClickListener listener) {
-        rightLabel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                listener.onClicked();
-            }
-        });
+        this.rightListener = listener;
     }
 
 }

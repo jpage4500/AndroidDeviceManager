@@ -7,9 +7,11 @@ import com.jpage4500.devicemanager.table.ExploreTableModel;
 import com.jpage4500.devicemanager.table.utils.ExplorerCellRenderer;
 import com.jpage4500.devicemanager.table.utils.ExplorerRowComparator;
 import com.jpage4500.devicemanager.table.utils.ExplorerRowFilter;
-import com.jpage4500.devicemanager.ui.views.*;
+import com.jpage4500.devicemanager.ui.views.CustomTable;
+import com.jpage4500.devicemanager.ui.views.EmptyView;
+import com.jpage4500.devicemanager.ui.views.HintTextField;
+import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.UiUtils;
 import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
@@ -17,8 +19,6 @@ import org.slf4j.LoggerFactory;
 import se.vidstige.jadb.RemoteFile;
 
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -36,7 +36,7 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class ExploreView {
+public class ExploreView extends BaseFrame {
     private static final Logger log = LoggerFactory.getLogger(ExploreView.class);
 
     public static final String PREF_DOWNLOAD_FOLDER = "PREF_DOWNLOAD_FOLDER";
@@ -44,47 +44,63 @@ public class ExploreView {
     private static final String HINT_FILTER_DEVICES = "Filter files...";
     public static final int MAX_PATH_SAVE = 10;
 
-    private JFrame deviceFrame;
+    private final JFrame deviceFrame;
 
     public CustomTable table;
     public ExploreTableModel model;
     public TableRowSorter<TableModel> rowSorter;
     private ExplorerRowFilter rowFilter;
 
-    public CustomFrame frame;
-    public JPanel panel;
     public EmptyView emptyView;
     public StatusBar statusBar;
     public JToolBar toolbar;
 
     public int selectedColumn = -1;
 
-    private Device selectedDevice;
+    private final Device device;
+
     private String selectedPath = "/sdcard";
     private List<String> prevPathList = new ArrayList<>();
     private String errorMessage;
 
-    public ExploreView(JFrame deviceFrame) {
+    public ExploreView(JFrame deviceFrame, Device device) {
+        super("browse");
         this.deviceFrame = deviceFrame;
+        this.device = device;
         initalizeUi();
+        setTitle("Browse " + device.getDisplayName());
     }
 
-    public void setDevice(Device selectedDevice) {
-        this.selectedDevice = selectedDevice;
-        frame.setTitle("Browse " + selectedDevice.getDisplayName());
-        //refreshFiles();
-        show();
-    }
-
+    @Override
     public void show() {
-        frame.setVisible(true);
+        super.show();
+        //refreshFiles();
     }
 
-    private void initalizeUi() {
-        frame = new CustomFrame("browse");
-        panel = new JPanel();
-        panel.setLayout(new BorderLayout());
-        frame.addWindowListener(new WindowAdapter() {
+    protected void initalizeUi() {
+        JPanel mainPanel = new JPanel(new BorderLayout());
+
+        // -- toolbar --
+        toolbar = new JToolBar("Applications");
+        setupToolbar();
+        mainPanel.add(toolbar, BorderLayout.NORTH);
+
+        // -- table --
+        table = new CustomTable("browse");
+        setupTable();
+        JScrollPane scrollPane = new JScrollPane(table);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+
+        // -- statusbar --
+        statusBar = new StatusBar();
+        statusBar.setLeftLabelListener(this::handleGoToFolder);
+        mainPanel.add(statusBar, BorderLayout.SOUTH);
+        setContentPane(mainPanel);
+
+        setupMenuBar();
+        setupPopupMenu();
+
+        addWindowListener(new WindowAdapter() {
             @Override
             public void windowActivated(WindowEvent e) {
                 refreshFiles();
@@ -94,18 +110,62 @@ public class ExploreView {
             public void windowDeactivated(WindowEvent e) {
             }
         });
-        frame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
-        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+        //setDefaultCloseOperation(JHIDE_ON_CLOSE);
+        addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent windowEvent) {
                 table.persist();
             }
         });
-        table = new CustomTable("browse");
+
+        //setVisible(true);
+
+        JRootPane rootPane = SwingUtilities.getRootPane(table);
+        emptyView = new EmptyView("No Files");
+        rootPane.setGlassPane(emptyView);
+        emptyView.setOpaque(false);
+        emptyView.setVisible(true);
+
+        table.requestFocus();
+    }
+
+    private void setupMenuBar() {
+        JMenu windowMenu = new JMenu("Window");
+
+        // [CMD + W] = close window
+        createAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
+            setVisible(false);
+            dispose();
+        });
+
+        // [CMD + 1] = show devices
+        createAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
+            deviceFrame.toFront();
+        });
+
+        JMenu fileMenu = new JMenu("Files");
+
+        // [CMD + BACKSPACE] = delete files
+        createAction(fileMenu, "Delete", KeyEvent.VK_BACK_SPACE, e -> {
+            handleDelete();
+        });
+
+        // [CMD + G] = go to folder
+        createAction(fileMenu, "Go to folder..", KeyEvent.VK_G, e -> {
+            handleGoToFolder();
+        });
+
+        JMenuBar menubar = new JMenuBar();
+        menubar.add(windowMenu);
+        menubar.add(fileMenu);
+        setJMenuBar(menubar);
+    }
+
+    private void setupTable() {
+        table.setShowTooltips(true);
         model = new ExploreTableModel();
         table.setModel(model);
         // render folder column as images with custom renderer
-        //table.setDefaultRenderer(Icon.class, new IconTableCellRenderer());
         table.setDefaultRenderer(RemoteFile.class, new ExplorerCellRenderer());
         //table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer());
 
@@ -130,87 +190,6 @@ public class ExploreView {
         rowSorter.setSortKeys(sortKeys);
         rowFilter = new ExplorerRowFilter();
         rowSorter.setRowFilter(rowFilter);
-
-        // -- CMD+W = close window --
-        Action closeAction = new AbstractAction("Close Window") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                log.debug("actionPerformed: CLOSE");
-                frame.setVisible(false);
-                frame.dispose();
-            }
-        };
-        int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
-        KeyStroke closeKey = KeyStroke.getKeyStroke(KeyEvent.VK_W, mask);
-        closeAction.putValue(Action.ACCELERATOR_KEY, closeKey);
-
-        // -- CMD+~ = show devices --
-        Action switchAction = new AbstractAction("Show Devices") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                deviceFrame.toFront();
-            }
-        };
-        KeyStroke switchKey = KeyStroke.getKeyStroke(KeyEvent.VK_1, mask);
-        switchAction.putValue(Action.ACCELERATOR_KEY, switchKey);
-
-        JMenuBar menubar = new JMenuBar();
-        JMenu menu = new JMenu("Window");
-        JMenuItem closeItem = new JMenuItem("Close");
-        closeItem.setAction(closeAction);
-        menu.add(closeItem);
-        JMenuItem switchItem = new JMenuItem("Show Devices");
-        switchItem.setAction(switchAction);
-        menu.add(switchItem);
-        menubar.add(menu);
-        frame.setJMenuBar(menubar);
-
-        InputMap inputMap = table.getInputMap(JComponent.WHEN_FOCUSED);
-        ActionMap actionMap = table.getActionMap();
-
-        // -- CMD + DELETE = delete selected files --
-        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_BACK_SPACE, InputEvent.META_MASK), "delete");
-        actionMap.put("delete", new AbstractAction() {
-            public void actionPerformed(ActionEvent evt) {
-                handleDelete();
-            }
-        });
-
-        // -- CMD + G = open folder --
-        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.META_MASK), "goto");
-        actionMap.put("goto", new AbstractAction() {
-            public void actionPerformed(ActionEvent evt) {
-                handleGoToFolder();
-            }
-        });
-
-        refreshFiles();
-
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setBackground(Color.RED);
-        panel.add(scrollPane, BorderLayout.CENTER);
-
-        // setup toolbar
-        setupToolbar();
-        panel.add(toolbar, BorderLayout.NORTH);
-
-        // statusbar
-        statusBar = new StatusBar();
-        statusBar.setLeftLabelListener(this::handleGoToFolder);
-        panel.add(statusBar, BorderLayout.SOUTH);
-
-        frame.setContentPane(panel);
-        frame.setVisible(true);
-
-        JRootPane rootPane = SwingUtilities.getRootPane(table);
-        emptyView = new EmptyView("No Files");
-        rootPane.setGlassPane(emptyView);
-        emptyView.setOpaque(false);
-        emptyView.setVisible(true);
-
-        // support drag and drop of files
-        MyDragDropListener dragDropListener = new MyDragDropListener(table, false, this::handleFilesDropped);
-        new DropTarget(table, dragDropListener);
 
         table.addMouseListener(new MouseAdapter() {
             @Override
@@ -240,7 +219,10 @@ public class ExploreView {
                 refreshUi();
             }
         });
-        table.requestFocus();
+
+        // support drag and drop of files
+        MyDragDropListener dragDropListener = new MyDragDropListener(table, false, this::handleFilesDropped);
+        new DropTarget(table, dragDropListener);
     }
 
     private void handleFileClicked() {
@@ -280,8 +262,8 @@ public class ExploreView {
     }
 
     private void refreshFiles() {
-        if (selectedDevice == null) return;
-        DeviceManager.getInstance().listFiles(selectedDevice, selectedPath, fileList -> {
+        if (device == null) return;
+        DeviceManager.getInstance().listFiles(device, selectedPath, fileList -> {
             if (fileList == null) {
                 log.debug("refreshFiles: NO FILES");
                 errorMessage = "permission denied - " + selectedPath;
@@ -395,53 +377,30 @@ public class ExploreView {
         for (File file : fileList) {
             String filename = file.getName();
             if (filename.endsWith(".apk")) {
-                DeviceManager.getInstance().installApp(selectedDevice, file, null);
+                DeviceManager.getInstance().installApp(device, file, null);
             } else {
-                DeviceManager.getInstance().copyFile(selectedDevice, file, selectedPath + "/", null);
+                DeviceManager.getInstance().copyFile(device, file, selectedPath + "/", null);
             }
         }
     }
 
     private void setupToolbar() {
-        if (toolbar == null) {
-            toolbar = new JToolBar("Applications");
-            toolbar.setRollover(true);
-        } else {
-            toolbar.removeAll();
-        }
+        toolbar.setRollover(true);
 
-        UiUtils.createToolbarButton(toolbar, "icon_open_folder.png", "Go To..", "Open Folder", actionEvent -> handleGoToFolder());
-        UiUtils.createToolbarButton(toolbar, "icon_download.png", "Download", "Download Files", actionEvent -> handleDownload());
+        createToolbarButton(toolbar, "icon_open_folder.png", "Go To..", "Open Folder", actionEvent -> handleGoToFolder());
+        createToolbarButton(toolbar, "icon_download.png", "Download", "Download Files", actionEvent -> handleDownload());
         toolbar.addSeparator();
-        UiUtils.createToolbarButton(toolbar, "icon_delete.png", "Delete", "Delete Files", actionEvent -> handleDelete());
+        createToolbarButton(toolbar, "icon_delete.png", "Delete", "Delete Files", actionEvent -> handleDelete());
 
         toolbar.add(Box.createHorizontalGlue());
 
-        HintTextField textField = new HintTextField(HINT_FILTER_DEVICES);
+        HintTextField textField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
         textField.setPreferredSize(new Dimension(150, 40));
         textField.setMinimumSize(new Dimension(10, 40));
         textField.setMaximumSize(new Dimension(200, 40));
-        textField.getDocument().addDocumentListener(
-                new DocumentListener() {
-                    @Override
-                    public void insertUpdate(DocumentEvent documentEvent) {
-                        filterDevices(textField.getText());
-                    }
-
-                    @Override
-                    public void removeUpdate(DocumentEvent documentEvent) {
-                        filterDevices(textField.getText());
-                    }
-
-                    @Override
-                    public void changedUpdate(DocumentEvent documentEvent) {
-                    }
-                });
         toolbar.add(textField);
-//        toolbar.add(Box.createHorizontalGlue());
 
-        UiUtils.createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshUi());
-
+        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshUi());
     }
 
     private void handleDownload() {
@@ -457,7 +416,7 @@ public class ExploreView {
                 selectedFileList.size() + " files(s)";
 
         // prompt to install/copy
-        int rc = JOptionPane.showConfirmDialog(frame,
+        int rc = JOptionPane.showConfirmDialog(this,
                 "Download " + msg + "?",
                 "Download?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
@@ -466,10 +425,10 @@ public class ExploreView {
         String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, "~/Downloads");
         for (RemoteFile file : selectedFileList) {
             File downloadFile = new File(downloadFolder, file.getName());
-            DeviceManager.getInstance().downloadFile(selectedDevice, file, downloadFile, isSuccess -> {
+            DeviceManager.getInstance().downloadFile(device, file, downloadFile, isSuccess -> {
                 if (isSuccess && isSingleFile) {
                     if (downloadFile.exists()) {
-                        int openRc = JOptionPane.showConfirmDialog(frame,
+                        int openRc = JOptionPane.showConfirmDialog(this,
                                 "Open " + downloadFile.getName() + "?",
                                 "Open File?", JOptionPane.YES_NO_OPTION);
                         if (openRc != JOptionPane.YES_OPTION) return;
@@ -498,13 +457,13 @@ public class ExploreView {
             sb.append(file.getName());
         }
 
-        int rc = JOptionPane.showConfirmDialog(frame,
+        int rc = JOptionPane.showConfirmDialog(this,
                 "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
                 "Delete Files?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (RemoteFile file : selectedFileList) {
-            DeviceManager.getInstance().deleteFile(selectedDevice, file, isSuccess -> {
+            DeviceManager.getInstance().deleteFile(device, file, isSuccess -> {
                 refreshFiles();
             });
         }
@@ -517,7 +476,7 @@ public class ExploreView {
 
         JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
         comboBox.setEditable(true);
-        int rc = JOptionPane.showOptionDialog(frame, comboBox, "Go to folder", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        int rc = JOptionPane.showOptionDialog(this, comboBox, "Go to folder", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return;
         String selectedItem = comboBox.getSelectedItem().toString();
         if (TextUtils.isEmpty(selectedItem)) return;
@@ -586,7 +545,7 @@ public class ExploreView {
     }
 
     private void showSelectDevicesDialog() {
-        JOptionPane.showConfirmDialog(frame, "Select 1 or more files to use this feature", "No files selected", JOptionPane.DEFAULT_OPTION);
+        JOptionPane.showConfirmDialog(this, "Select 1 or more files to use this feature", "No files selected", JOptionPane.DEFAULT_OPTION);
     }
 
     private void filterDevices(String text) {
