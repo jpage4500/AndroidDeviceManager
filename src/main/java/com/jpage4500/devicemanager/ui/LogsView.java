@@ -17,6 +17,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.border.Border;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableRowSorter;
@@ -61,9 +63,18 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         this.deviceView = deviceView;
         this.device = device;
         initalizeUi();
-        setTitle("Logs: " + device.getDisplayName());
+        updateDeviceState();
+    }
 
-        startLogging();
+    public void updateDeviceState() {
+        log.debug("updateDeviceState: ONLINE:{}", device.isOnline);
+        if (device.isOnline) {
+            setTitle("Logs: [" + device.getDisplayName() + "]");
+            startLogging();
+        } else {
+            setTitle("OFFLINE [" + device.getDisplayName() + "]");
+            stopLogging();
+        }
     }
 
     protected void initalizeUi() {
@@ -223,9 +234,8 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         columnModel.getColumn(LogsTableModel.Columns.APP.ordinal()).setPreferredWidth(150);
         columnModel.getColumn(LogsTableModel.Columns.MSG.ordinal()).setPreferredWidth(700);
 
-        table.getSelectionModel().addListSelectionListener(listSelectionEvent -> {
-            if (listSelectionEvent.getValueIsAdjusting()) return;
-            refreshUi();
+        table.getSelectionModel().addListSelectionListener(event -> {
+            if (event.getValueIsAdjusting()) return;
 
             // if row selected, stop auto-scroll
             int numSelected = table.getSelectedRowCount();
@@ -296,23 +306,29 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
 
     private void setupToolbar() {
         toolbar.setRollover(true);
-        toolbar.removeAll();
 
-        logButton = createToolbarButton(toolbar, null, "Start", "Start Logging", actionEvent -> {
+        logButton = createSmallToolbarButton(toolbar, null, null, "Start Logging", actionEvent -> {
             toggleLoggingButton();
         });
         updateLoggingButton();
-        toolbar.addSeparator();
 
         toolbar.add(Box.createHorizontalGlue());
 
+        // toolbar.addSeparator(new Dimension(10, 0));
+
         HintTextField searchField = new HintTextField(HINT_SEARCH, this::doSearch);
-        searchField.setPreferredSize(new Dimension(150, 30));
-        searchField.setMinimumSize(new Dimension(10, 40));
-        searchField.setMaximumSize(new Dimension(200, 40));
+        searchField.setPreferredSize(new Dimension(250, 30));
+        searchField.setMinimumSize(new Dimension(10, 30));
+        searchField.setMaximumSize(new Dimension(250, 30));
         toolbar.add(searchField);
 
-        createToolbarButton(toolbar, "icon_refresh.png", null, "Refresh Device List", actionEvent -> refreshUi());
+        toolbar.addSeparator(new Dimension(10, 0));
+
+        createSmallToolbarButton(toolbar, "icon_trash.png", "Clear", "Clear Logs", actionEvent -> clearLogs());
+    }
+
+    private void clearLogs() {
+        model.clearLogs();
     }
 
     private void toggleLoggingButton() {
@@ -327,7 +343,7 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
 
     private void updateLoggingButton() {
         String imageName = isLoggedPaused ? "icon_play.png" : "icon_stop.png";
-        ImageIcon icon = UiUtils.getImageIcon(imageName, 30, 30);
+        ImageIcon icon = UiUtils.getImageIcon(imageName, 20, 20);
         logButton.setIcon(icon);
         logButton.setText(isLoggedPaused ? "Start" : "Stop");
     }

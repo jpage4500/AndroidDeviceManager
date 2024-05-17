@@ -88,6 +88,11 @@ public class DeviceManager {
 
         // single device was updated
         void handleDeviceUpdated(Device device);
+
+        // device was removed
+        void handleDeviceRemoved(Device device);
+
+        void handleException(Exception e);
     }
 
     public void connectAdbServer(DeviceManager.DeviceListener listener) {
@@ -106,6 +111,7 @@ public class DeviceManager {
                     @Override
                     public void onException(Exception e) {
                         log.error("onException: {}", e.getMessage());
+                        listener.handleException(e);
                     }
                 }).run();
             } catch (Exception e) {
@@ -135,7 +141,7 @@ public class DeviceManager {
                         deviceList.add(device);
                     }
                 } else {
-                    if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_UPDATED: {}", GsonHelper.toJson(device));
+                    if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_UPDATED: {}", device.getDisplayName());
                 }
                 device.serial = serial;
                 device.jadbDevice = jadbDevice;
@@ -156,9 +162,11 @@ public class DeviceManager {
             }
             if (!isFound) {
                 // -- DEVICE REMOVED --
-                if (log.isTraceEnabled())
-                    log.trace("handleDeviceUpdate: DEVICE_REMOVED: {}", GsonHelper.toJson(device));
-                iterator.remove();
+                device.isOnline = false;
+                device.lastUpdateMs = System.currentTimeMillis();
+                if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_REMOVED: {}", device.getDisplayName());
+                //iterator.remove();
+                listener.handleDeviceRemoved(device);
                 numRemoved++;
             }
         }
@@ -250,6 +258,7 @@ public class DeviceManager {
             if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}", GsonHelper.toJson(device));
 
             device.status = null;
+            device.isOnline = true;
             listener.handleDeviceUpdated(device);
 
             // keep track of wireless devices
@@ -304,7 +313,7 @@ public class DeviceManager {
                 resultList.add(line);
             }
         } catch (Exception e) {
-            log.error("runShell: {}", e.getMessage());
+            log.error("runShell: cmd:{}, Exception: {}", command, e.getMessage());
         } finally {
             if (inputStream != null) {
                 try {

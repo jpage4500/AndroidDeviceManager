@@ -41,7 +41,11 @@ public class Device {
     @ExcludeFromSerialization
     public String status;
 
+    // true when device is online/ready
     public boolean isOnline;
+
+    // last time device was seen (online or offline)
+    public Long lastUpdateMs;
 
     // only fetch device detail (IMEI, phone, etc) once -- shouldn't change
     public boolean hasFetchedDetails;

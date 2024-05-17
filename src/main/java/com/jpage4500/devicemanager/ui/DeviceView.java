@@ -56,7 +56,51 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         initalizeUi();
 
+        connectAdbServer();
+    }
+
+    private void connectAdbServer() {
         DeviceManager.getInstance().connectAdbServer(this);
+    }
+
+    @Override
+    public void handleDevicesUpdated(List<Device> deviceList) {
+        if (deviceList != null) {
+            model.setDeviceList(deviceList);
+
+            if (!deviceList.isEmpty() && table.getSelectedRow() == -1) {
+                table.changeSelection(0, 0, false, false);
+            }
+
+            refreshUi();
+
+            for (Device device : deviceList) {
+                updateDeviceState(device);
+            }
+        }
+        updateVersionLabel();
+    }
+
+    @Override
+    public void handleDeviceUpdated(Device device) {
+        model.updateRowForDevice(device);
+        updateDeviceState(device);
+    }
+
+    @Override
+    public void handleDeviceRemoved(Device device) {
+        updateDeviceState(device);
+    }
+
+    @Override
+    public void handleException(Exception e) {
+        Object[] choices = {"Retry", "Cancel"};
+        int rc = JOptionPane.showOptionDialog(DeviceView.this,
+                "Unable to connect to ADB server. Please check that it's running and re-try"
+                , "ADB Server", JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, choices, null);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        connectAdbServer();
     }
 
     protected void initalizeUi() {
@@ -183,23 +227,17 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         table.requestFocus();
     }
 
-    @Override
-    public void handleDevicesUpdated(List<Device> deviceList) {
-        if (deviceList != null) {
-            model.setDeviceList(deviceList);
-
-            if (!deviceList.isEmpty() && table.getSelectedRow() == -1) {
-                table.changeSelection(0, 0, false, false);
-            }
-
-            refreshUi();
+    private void updateDeviceState(Device device) {
+        log.debug("updateDeviceState: {}, online:{}", device.serial, device.isOnline);
+        ExploreView exploreView = exploreViewMap.get(device.serial);
+        if (exploreView != null) {
+            exploreView.updateDeviceState();
         }
-        updateVersionLabel();
-    }
 
-    @Override
-    public void handleDeviceUpdated(Device device) {
-        model.updateRowForDevice(device);
+        LogsView logsView = logsViewMap.get(device.serial);
+        if (logsView != null) {
+            logsView.updateDeviceState();
+        }
     }
 
     private void refreshUi() {

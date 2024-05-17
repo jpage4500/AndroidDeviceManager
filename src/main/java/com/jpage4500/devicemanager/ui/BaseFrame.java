@@ -61,16 +61,24 @@ public class BaseFrame extends CustomFrame {
     }
 
     protected void onWindowStateChanged(WindowState state) {
-        log.trace("onWindowStateChanged: {}: {}", prefKey, state);
+        //log.trace("onWindowStateChanged: {}: {}", prefKey, state);
+    }
+
+    protected JButton createSmallToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
+        return createToolbarButton(toolbar, imageName, label, tooltip, 20, listener);
     }
 
     /**
      * create a 'standard' toolbar button with 40x40 image and label below
      */
     protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
+        return createToolbarButton(toolbar, imageName, label, tooltip, 40, listener);
+    }
+
+    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, int size, ActionListener listener) {
         JButton button = new JButton(label);
         if (imageName != null) {
-            ImageIcon icon = UiUtils.getImageIcon(imageName, 40, 40);
+            ImageIcon icon = UiUtils.getImageIcon(imageName, size, size);
             //image = replaceColor(image, new Color(0, 38, 255, 184));
             button.setIcon(icon);
         }

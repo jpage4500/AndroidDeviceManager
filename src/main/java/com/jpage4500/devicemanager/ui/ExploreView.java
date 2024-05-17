@@ -68,9 +68,16 @@ public class ExploreView extends BaseFrame {
         this.deviceView = deviceView;
         this.device = device;
         initalizeUi();
-        setTitle("Browse " + device.getDisplayName());
+        updateDeviceState();
+    }
 
-        refreshFiles();
+    public void updateDeviceState() {
+        if (device.isOnline) {
+            setTitle("Browse [" + device.getDisplayName() + "]");
+            refreshFiles();
+        } else {
+            setTitle("OFFLINE [" + device.getDisplayName() + "]");
+        }
     }
 
     protected void initalizeUi() {
@@ -118,7 +125,7 @@ public class ExploreView extends BaseFrame {
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
         switch (state) {
-            case CLOSING -> table.persist();
+            case CLOSED -> table.persist();
             case ACTIVATED -> {
                 //refreshFiles();
             }
@@ -166,7 +173,6 @@ public class ExploreView extends BaseFrame {
         table.setShowTooltips(true);
         model = new ExploreTableModel();
         table.setModel(model);
-        // render folder column as images with custom renderer
         table.setDefaultRenderer(RemoteFile.class, new ExplorerCellRenderer());
         //table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer());
 
@@ -263,7 +269,7 @@ public class ExploreView extends BaseFrame {
     }
 
     private void refreshFiles() {
-        if (device == null) return;
+        if (device == null || !device.isOnline) return;
         DeviceManager.getInstance().listFiles(device, selectedPath, fileList -> {
             SwingUtilities.invokeLater(() -> {
                 if (fileList == null) {

@@ -1,7 +1,6 @@
 package com.jpage4500.devicemanager.table;
 
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.SizeData;
 import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
@@ -90,7 +89,7 @@ public class DeviceTableModel extends AbstractTableModel {
             device.hasFetchedDetails = false;
         }
 
-        fireTableStructureChanged();
+        fireTableDataChanged();
     }
 
     public int getColumnCount() {
@@ -99,8 +98,7 @@ public class DeviceTableModel extends AbstractTableModel {
 
     @Override
     public Class<?> getColumnClass(int columnIndex) {
-        if (columnIndex == Columns.FREE.ordinal()) return SizeData.class;
-        else return String.class;
+        return Device.class;
     }
 
     public String getColumnName(int i) {

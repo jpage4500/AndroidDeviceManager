@@ -13,7 +13,7 @@ import java.util.Map;
 
 public class LogsTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(LogsTableModel.class);
-    private static final int MAX_LINES = 50000;
+    private static final int MAX_LINES = 90000;
     private static final int REMOVE_EXTRA = 5000;
 
     private final ArrayList<LogEntry> logEntryList;
@@ -70,7 +70,7 @@ public class LogsTableModel extends AbstractTableModel {
         if (logEntryList.size() > MAX_LINES) {
             // remove rows over the max and also a little more to prevent needing to do this on every new log
             int numRemove = (logEntryList.size() - MAX_LINES) + REMOVE_EXTRA;
-            log.trace("checkSizeAndUpdate: removing:{}, size:{}", numRemove, logEntryList.size());
+            //log.trace("checkSizeAndUpdate: removing:{}, size:{}", numRemove, logEntryList.size());
             logEntryList.subList(0, numRemove).clear();
             fireTableRowsDeleted(0, numRemove - 1);
             //fireTableDataChanged();
