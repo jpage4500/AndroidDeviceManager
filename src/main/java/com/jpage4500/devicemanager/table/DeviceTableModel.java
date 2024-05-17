@@ -17,6 +17,7 @@ public class DeviceTableModel extends AbstractTableModel {
     private final List<Device> deviceList;
     private final List<String> appList;
     private Columns[] visibleColumns;
+    private String searchText;
 
     public enum Columns {
         SERIAL,
@@ -59,6 +60,16 @@ public class DeviceTableModel extends AbstractTableModel {
         fireTableStructureChanged();
     }
 
+    public void setSearchText(String text) {
+        if (TextUtils.equals(searchText, text)) return;
+        searchText = text;
+        fireTableDataChanged();
+    }
+
+    public String getSearchText() {
+        return searchText;
+    }
+
     /**
      * get device for given row
      * NOTE: make sure you use table.convertRowIndexToModel() first
@@ -85,11 +96,9 @@ public class DeviceTableModel extends AbstractTableModel {
         if (this.appList.equals(appList)) return;
         this.appList.clear();
         this.appList.addAll(appList);
-        for (Device device : deviceList) {
-            device.hasFetchedDetails = false;
-        }
 
-        fireTableDataChanged();
+        // update columns
+        fireTableStructureChanged();
     }
 
     public int getColumnCount() {
@@ -121,34 +130,46 @@ public class DeviceTableModel extends AbstractTableModel {
     }
 
     public Object getValueAt(int row, int col) {
-        if (row >= deviceList.size()) return null;
-        else if (col >= getColumnCount()) return null;
+        return deviceList.get(row);
+//        if (row >= deviceList.size()) return null;
+//        else if (col >= getColumnCount()) return null;
+//
+//        Device device = deviceList.get(row);
+//        if (col < visibleColumns.length) {
+//            return deviceValue(device, visibleColumns[col]);
+//        } else {
+//            // custom app version
+//            if (device.customAppVersionList != null) {
+//                String appName = appList.get(col - visibleColumns.length);
+//                return device.customAppVersionList.get(appName);
+//            } else {
+//                return null;
+//            }
+//        }
+    }
 
-        Device device = deviceList.get(row);
-        if (col < visibleColumns.length) {
-            return deviceValue(device, visibleColumns[col]);
+    public String deviceValue(Device device, int column) {
+        if (column >= 0 && column < visibleColumns.length) {
+            DeviceTableModel.Columns colType = visibleColumns[column];
+            return switch (colType) {
+                case SERIAL -> device.serial;
+                case MODEL -> device.getProperty(Device.PROP_MODEL);
+                case PHONE -> device.phone;
+                case IMEI -> device.imei;
+                case FREE -> FileUtils.bytesToDisplayString(device.freeSpace);
+                case CUSTOM1 -> device.getCustomProperty(Device.CUST_PROP_1);
+                case CUSTOM2 -> device.getCustomProperty(Device.CUST_PROP_2);
+                case STATUS -> device.status;
+            };
         } else {
             // custom app version
             if (device.customAppVersionList != null) {
-                String appName = appList.get(col - visibleColumns.length);
+                String appName = appList.get(column - visibleColumns.length);
                 return device.customAppVersionList.get(appName);
             } else {
                 return null;
             }
         }
-    }
-
-    public static String deviceValue(Device device, Columns colType) {
-        return switch (colType) {
-            case SERIAL -> device.serial;
-            case MODEL -> device.getProperty(Device.PROP_MODEL);
-            case PHONE -> device.phone;
-            case IMEI -> device.imei;
-            case FREE -> FileUtils.bytesToDisplayString(device.freeSpace);
-            case CUSTOM1 -> device.getCustomProperty(Device.CUST_PROP_1);
-            case CUSTOM2 -> device.getCustomProperty(Device.CUST_PROP_2);
-            case STATUS -> device.status;
-        };
     }
 
 }

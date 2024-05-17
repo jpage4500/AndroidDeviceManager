@@ -47,9 +47,6 @@ public class Device {
     // last time device was seen (online or offline)
     public Long lastUpdateMs;
 
-    // only fetch device detail (IMEI, phone, etc) once -- shouldn't change
-    public boolean hasFetchedDetails;
-
     @ExcludeFromSerialization
     public JadbDevice jadbDevice;
 

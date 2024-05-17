@@ -6,6 +6,7 @@ import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
+import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.ui.views.*;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
@@ -13,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -180,11 +180,12 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         model.setHiddenColumns(hiddenColList);
 
         table.setModel(model);
+        table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
 
         // right-align size column
-        DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer();
-        rightRenderer.setHorizontalAlignment(JLabel.RIGHT);
-        table.getColumnModel().getColumn(4).setCellRenderer(rightRenderer);
+//        DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer();
+//        rightRenderer.setHorizontalAlignment(JLabel.RIGHT);
+//        table.getColumnModel().getColumn(4).setCellRenderer(rightRenderer);
 
         // support drag and drop of files
         MyDragDropListener dragDropListener = new MyDragDropListener(table, true, this::handleFilesDropped);
@@ -228,7 +229,6 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     }
 
     private void updateDeviceState(Device device) {
-        log.debug("updateDeviceState: {}, online:{}", device.serial, device.isOnline);
         ExploreView exploreView = exploreViewMap.get(device.serial);
         if (exploreView != null) {
             exploreView.updateDeviceState();
@@ -329,16 +329,12 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             return;
         }
 
-        DeviceTableModel.Columns column = null;
-        if (selectedColumn >= 0 && selectedColumn < DeviceTableModel.Columns.values().length) {
-            column = DeviceTableModel.Columns.values()[selectedColumn];
-        }
-        if (column == null) return;
+        if (selectedColumn < 0) return;
 
         StringBuilder sb = new StringBuilder();
         for (Device device : selectedDeviceList) {
             if (!sb.isEmpty()) sb.append("\n");
-            String value = DeviceTableModel.deviceValue(device, column);
+            String value = model.deviceValue(device, selectedColumn);
             sb.append(value != null ? value : "");
         }
         StringSelection stringSelection = new StringSelection(sb.toString());
@@ -354,14 +350,12 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             return;
         }
 
-        DeviceTableModel.Columns[] columns = DeviceTableModel.Columns.values();
         StringBuilder sb = new StringBuilder();
         for (Device device : selectedDeviceList) {
             if (sb.length() > 0) sb.append("\n");
-            for (int i = 0; i < columns.length; i++) {
-                DeviceTableModel.Columns column = columns[i];
+            for (int i = 0; i < model.getColumnCount(); i++) {
                 if (i > 0) sb.append(", ");
-                String value = DeviceTableModel.deviceValue(device, column);
+                String value = model.deviceValue(device, i);
                 sb.append(value != null ? value : "");
             }
         }

@@ -132,7 +132,7 @@ public class DeviceManager {
             String serial = jadbDevice.getSerial();
             // -- does this device already exist? --
             Device device = getDevice(serial);
-            if (device == null || !device.hasFetchedDetails) {
+            if (device == null || !device.isOnline) {
                 // -- ADD DEVICE --
                 if (device == null) {
                     device = new Device();
@@ -140,8 +140,6 @@ public class DeviceManager {
                     synchronized (deviceList) {
                         deviceList.add(device);
                     }
-                } else {
-                    if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_UPDATED: {}", device.getDisplayName());
                 }
                 device.serial = serial;
                 device.jadbDevice = jadbDevice;
@@ -162,6 +160,7 @@ public class DeviceManager {
             }
             if (!isFound) {
                 // -- DEVICE REMOVED --
+                device.status = "OFFLINE";
                 device.isOnline = false;
                 device.lastUpdateMs = System.currentTimeMillis();
                 if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_REMOVED: {}", device.getDisplayName());
@@ -179,19 +178,20 @@ public class DeviceManager {
                 // fetch more details for these devices
                 try {
                     JadbDevice.State state = addedDevice.jadbDevice.getState();
-                    log.trace("handleDeviceUpdate: STATE: {} -> {}", addedDevice.serial, state);
                     if (state == JadbDevice.State.Device) {
+                        log.trace("handleDeviceUpdate: ONLINE: {} -> {}", addedDevice.serial, state);
                         addedDevice.status = "fetching details..";
                         listener.handleDeviceUpdated(addedDevice);
-                        // only do lookup once
-                        addedDevice.hasFetchedDetails = true;
+                        addedDevice.isOnline = true;
+                        addedDevice.lastUpdateMs = System.currentTimeMillis();
                         fetchDeviceDetails(addedDevice, listener);
                     } else {
+                        log.trace("handleDeviceUpdate: NOT_READY: {} -> {}", addedDevice.serial, state);
                         addedDevice.status = state.name();
                         listener.handleDeviceUpdated(addedDevice);
                     }
                 } catch (Exception e) {
-                    log.trace("handleDeviceUpdate: Exception:{}", e.getMessage());
+                    log.trace("handleDeviceUpdate: NOT_READY: {} -> {}", addedDevice.serial, e.getMessage());
                     addedDevice.status = e.getMessage();
                     listener.handleDeviceUpdated(addedDevice);
                 }
@@ -210,6 +210,8 @@ public class DeviceManager {
     private void fetchDeviceDetails(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             log.debug("fetchDeviceDetails: {}", device.serial);
+            device.status = "Fetch Details..";
+            listener.handleDeviceUpdated(device);
             device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
             if (TextUtils.isEmpty(device.phone)) {
                 device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
@@ -254,11 +256,10 @@ public class DeviceManager {
                 //log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
             }
 
-            device.hasFetchedDetails = true;
             if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}", GsonHelper.toJson(device));
 
+            device.lastUpdateMs = System.currentTimeMillis();
             device.status = null;
-            device.isOnline = true;
             listener.handleDeviceUpdated(device);
 
             // keep track of wireless devices
