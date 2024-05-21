@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.ConnectScreen;
+import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Timer;
@@ -89,14 +90,10 @@ public class DeviceManager {
         // single device was updated
         void handleDeviceUpdated(Device device);
 
-        // device was removed
-        void handleDeviceRemoved(Device device);
-
         void handleException(Exception e);
     }
 
     public void connectAdbServer(DeviceManager.DeviceListener listener) {
-        log.debug("connectAdbServer: ");
         connection = new JadbConnection();
         commandExecutorService.submit(() -> {
             try {
@@ -110,7 +107,7 @@ public class DeviceManager {
 
                     @Override
                     public void onException(Exception e) {
-                        log.error("onException: {}", e.getMessage());
+                        log.error("connectAdbServer: onException: {}", e.getMessage());
                         listener.handleException(e);
                     }
                 }).run();
@@ -127,6 +124,7 @@ public class DeviceManager {
     private void handleDeviceUpdate(List<JadbDevice> devices, DeviceListener listener) {
         //log.debug("onDetect: GOT:{}, {}", devices.size(), GsonHelper.toJson(devices));
         List<Device> addedDeviceList = new ArrayList<>();
+
         // 1) look for devices that don't exist today
         for (JadbDevice jadbDevice : devices) {
             String serial = jadbDevice.getSerial();
@@ -165,7 +163,7 @@ public class DeviceManager {
                 device.lastUpdateMs = System.currentTimeMillis();
                 if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_REMOVED: {}", device.getDisplayName());
                 //iterator.remove();
-                listener.handleDeviceRemoved(device);
+                listener.handleDeviceUpdated(device);
                 numRemoved++;
             }
         }
@@ -254,6 +252,22 @@ public class DeviceManager {
                 //log.trace("fetchDeviceDetails: {}", customPropStr);
             } catch (Exception e) {
                 //log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
+            }
+
+            List<String> customApps = SettingsScreen.getCustomApps();
+            for (String customApp : customApps) {
+                // shell dumpsys package $PACKAGE | grep versionName | sed 's/    versionName=//')
+                List<String> appResultList = runShell(device, "dumpsys package " + customApp);
+                for (String appLine : appResultList) {
+                    // "    versionName\u003d24.05.16.160",
+                    int index = appLine.indexOf("versionName=");
+                    if (index > 0) {
+                        String versionName = appLine.substring(index + "versionName=".length());
+                        if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
+                        device.customAppVersionList.put(customApp, versionName);
+                        //log.trace("fetchDeviceDetails: {} = {}", customApp, versionName);
+                    }
+                }
             }
 
             if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}", GsonHelper.toJson(device));
@@ -618,7 +632,6 @@ public class DeviceManager {
                     }
                 }
             }
-            log.debug("startLogging: DONE");
         });
 
         // run a periodic task to fetch running apps from device so logs can replace PID with app name

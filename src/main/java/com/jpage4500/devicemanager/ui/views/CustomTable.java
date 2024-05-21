@@ -29,10 +29,9 @@ public class CustomTable extends JTable {
     private static final Logger log = LoggerFactory.getLogger(CustomTable.class);
 
     private final Color lightGreyColor = new Color(246, 246, 246);
-    private final Color headerColor = new Color(197, 197, 197);
 
-    private Icon arrowUpIcon;
-    private Icon arrowDownIcon;
+    private final Icon arrowUpIcon;
+    private final Icon arrowDownIcon;
 
     private String prefKey;
 
@@ -41,7 +40,20 @@ public class CustomTable extends JTable {
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
 
+        Color headerColor = new Color(197, 197, 197);
         getTableHeader().setBackground(headerColor);
+
+        arrowUpIcon = UiUtils.getImageIcon("arrow_down.png", 15);
+        arrowDownIcon = UiUtils.getImageIcon("arrow_up.png", 15);
+
+        final TableCellRenderer defaultRenderer = getTableHeader().getDefaultRenderer();
+        getTableHeader().setDefaultRenderer((table, value, isSelected, hasFocus, row, column) -> {
+            Component comp = defaultRenderer.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            if (comp instanceof JLabel label) {
+                label.setIcon(getSortIcon(column));
+            }
+            return comp;
+        });
 
         // TODO: REMOVE ME
         getColumnModel().addColumnModelListener(new TableColumnModelListener() {
@@ -81,17 +93,6 @@ public class CustomTable extends JTable {
     public void allowSorting(boolean allowSorting) {
         if (!allowSorting) return;
         setAutoCreateRowSorter(allowSorting);
-        arrowUpIcon = UiUtils.getImageIcon("arrow_down.png", 15);
-        arrowDownIcon = UiUtils.getImageIcon("arrow_up.png", 15);
-
-        final TableCellRenderer defaultRenderer = getTableHeader().getDefaultRenderer();
-        getTableHeader().setDefaultRenderer((table, value, isSelected, hasFocus, row, column) -> {
-            Component comp = defaultRenderer.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-            if (comp instanceof JLabel label) {
-                label.setIcon(getSortIcon(column));
-            }
-            return comp;
-        });
     }
 
     @Override

@@ -195,6 +195,7 @@ public class ExploreView extends BaseFrame {
         List<RowSorter.SortKey> sortKeys = new ArrayList<>();
         sortKeys.add(new RowSorter.SortKey(0, SortOrder.ASCENDING));
         rowSorter.setSortKeys(sortKeys);
+
         rowFilter = new ExplorerRowFilter();
         rowSorter.setRowFilter(rowFilter);
 

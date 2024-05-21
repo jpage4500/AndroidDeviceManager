@@ -7,6 +7,7 @@ import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
+import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
 import com.jpage4500.devicemanager.ui.views.*;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
@@ -14,8 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.table.TableModel;
-import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -39,10 +38,11 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
     public CustomTable table;
     public DeviceTableModel model;
+    private DeviceRowSorter sorter;
     public EmptyView emptyView;
     public StatusBar statusBar;
     public JToolBar toolbar;
-    private HintTextField textField;
+    private HintTextField filterTextField;
 
     public int selectedColumn = -1;
     private final List<JButton> deviceButtonList = new ArrayList<>();
@@ -65,42 +65,45 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
     @Override
     public void handleDevicesUpdated(List<Device> deviceList) {
-        if (deviceList != null) {
-            model.setDeviceList(deviceList);
+        SwingUtilities.invokeLater(() -> {
+            if (deviceList != null) {
+                model.setDeviceList(deviceList);
 
-            if (!deviceList.isEmpty() && table.getSelectedRow() == -1) {
-                table.changeSelection(0, 0, false, false);
+                // auto-select first device
+//                if (!deviceList.isEmpty() && table.getSelectedRow() == -1) {
+//                    table.changeSelection(0, 0, false, false);
+//                }
+
+                refreshUi();
+
+                for (Device device : deviceList) {
+                    updateDeviceState(device);
+                }
             }
-
-            refreshUi();
-
-            for (Device device : deviceList) {
-                updateDeviceState(device);
-            }
-        }
-        updateVersionLabel();
+            updateVersionLabel();
+        });
     }
 
     @Override
     public void handleDeviceUpdated(Device device) {
-        model.updateRowForDevice(device);
-        updateDeviceState(device);
-    }
-
-    @Override
-    public void handleDeviceRemoved(Device device) {
-        updateDeviceState(device);
+        SwingUtilities.invokeLater(() -> {
+            model.updateRowForDevice(device);
+            updateDeviceState(device);
+            sorter.sort();
+        });
     }
 
     @Override
     public void handleException(Exception e) {
-        Object[] choices = {"Retry", "Cancel"};
-        int rc = JOptionPane.showOptionDialog(DeviceView.this,
-                "Unable to connect to ADB server. Please check that it's running and re-try"
-                , "ADB Server", JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, choices, null);
-        if (rc != JOptionPane.YES_OPTION) return;
+        SwingUtilities.invokeLater(() -> {
+            Object[] choices = {"Retry", "Cancel"};
+            int rc = JOptionPane.showOptionDialog(DeviceView.this,
+                    "Unable to connect to ADB server. Please check that it's running and re-try"
+                    , "ADB Server", JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, choices, null);
+            if (rc != JOptionPane.YES_OPTION) return;
 
-        connectAdbServer();
+            connectAdbServer();
+        });
     }
 
     protected void initalizeUi() {
@@ -138,6 +141,8 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         emptyView.setOpaque(false);
         emptyView.setVisible(true);
 
+        table.requestFocus();
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             //log.debug("initializeUI: EXIT");
             table.persist();
@@ -164,6 +169,11 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             handleLogsCommand();
         });
 
+        // [CMD + F] = focus search box
+        createCmdAction(windowMenu, "Filter", KeyEvent.VK_F, e -> {
+            filterTextField.requestFocus();
+        });
+
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
         setJMenuBar(menubar);
@@ -182,10 +192,8 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         table.setModel(model);
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
 
-        // right-align size column
-//        DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer();
-//        rightRenderer.setHorizontalAlignment(JLabel.RIGHT);
-//        table.getColumnModel().getColumn(4).setCellRenderer(rightRenderer);
+        sorter = new DeviceRowSorter(model);
+        table.setRowSorter(sorter);
 
         // support drag and drop of files
         MyDragDropListener dragDropListener = new MyDragDropListener(table, true, this::handleFilesDropped);
@@ -225,7 +233,6 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             if (e.getValueIsAdjusting()) return;
             refreshUi();
         });
-        table.requestFocus();
     }
 
     private void updateDeviceState(Device device) {
@@ -613,11 +620,11 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
         toolbar.add(Box.createHorizontalGlue());
 
-        textField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
-        textField.setPreferredSize(new Dimension(150, 40));
-        textField.setMinimumSize(new Dimension(10, 40));
-        textField.setMaximumSize(new Dimension(200, 40));
-        toolbar.add(textField);
+        filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
+        filterTextField.setPreferredSize(new Dimension(150, 40));
+        filterTextField.setMinimumSize(new Dimension(10, 40));
+        filterTextField.setMaximumSize(new Dimension(200, 40));
+        toolbar.add(filterTextField);
 //        toolbar.add(Box.createHorizontalGlue());
 
         createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> handleRefreshCommand());
@@ -746,13 +753,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     }
 
     private void filterDevices(String text) {
-        final TableRowSorter<TableModel> sorter = new TableRowSorter<>(table.getModel());
-        table.setRowSorter(sorter);
-        if (!text.isEmpty() && !TextUtils.equals(text, HINT_FILTER_DEVICES)) {
-            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
-        } else {
-            sorter.setRowFilter(null);
-        }
+        if (sorter != null) sorter.setFilterText(text);
     }
 
     private void handleInstallCommand() {

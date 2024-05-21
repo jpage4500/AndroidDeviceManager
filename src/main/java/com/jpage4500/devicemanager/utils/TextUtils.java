@@ -347,4 +347,12 @@ public class TextUtils {
         return defValue;
     }
 
+    public static int compareToIgnoreCase(String value1, String value2) {
+        if (value1 == value2) return 0;
+        else if (value1 == null || value2 == null) {
+            if (value1 == null) return -1;
+            else return 1;
+        }
+        return value1.compareToIgnoreCase(value2);
+    }
 }

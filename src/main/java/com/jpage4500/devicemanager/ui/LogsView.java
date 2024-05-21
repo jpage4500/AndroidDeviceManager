@@ -7,19 +7,17 @@ import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowFilter;
-import com.jpage4500.devicemanager.ui.views.CustomTable;
-import com.jpage4500.devicemanager.ui.views.EmptyView;
-import com.jpage4500.devicemanager.ui.views.HintTextField;
-import com.jpage4500.devicemanager.ui.views.StatusBar;
+import com.jpage4500.devicemanager.ui.views.*;
+import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.border.Border;
-import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -30,6 +28,7 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.prefs.Preferences;
 
 /**
  * create and manage device view
@@ -50,6 +49,9 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
     public StatusBar statusBar;
     public JToolBar toolbar;
     private JCheckBox autoScrollCheckBox;
+    private HintTextField searchField;
+    private HintTextField filterField;
+    private JList<FilterItem> filterList;
 
     private LogsRowFilter rowFilter;
     private TableRowSorter<LogsTableModel> sorter;
@@ -89,14 +91,13 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         setupToolbar();
         mainPanel.add(toolbar, BorderLayout.NORTH);
 
+        // -- left panel --
         JPanel leftPanel = new JPanel(new BorderLayout());
-        HintTextField filterField = new HintTextField(HINT_FILTER, this::filterDevices);
-//        filterField.setPreferredSize(new Dimension(150, 30));
-//        filterField.setMinimumSize(new Dimension(10, 40));
-//        filterField.setMaximumSize(new Dimension(200, 40));
+        filterField = new HintTextField(HINT_FILTER, this::filterDevices);
         leftPanel.add(filterField, BorderLayout.NORTH);
 
-        JList<FilterItem> filterList = new JList<>();
+        filterList = new JList<>();
+        setupFilterList();
         leftPanel.add(filterList, BorderLayout.CENTER);
 
         JPanel rightPanel = new JPanel(new BorderLayout());
@@ -124,6 +125,42 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         setContentPane(mainPanel);
         setVisible(true);
         table.requestFocus();
+        autoScrollCheckBox.setSelected(true);
+    }
+
+    private void setupFilterList() {
+        Preferences preferences = Preferences.userRoot();
+        String prefListStr = preferences.get("PREF_FILTER_LIST", null);
+        List<FilterItem> filterItemList = GsonHelper.stringToList(prefListStr, FilterItem.class);
+
+        // add basic log level filters
+        addLogLevel(filterItemList, "All Messages", null);
+        addLogLevel(filterItemList, "Log Level Debug+", "level:D");
+        addLogLevel(filterItemList, "Log Level Info+", "level:I");
+        addLogLevel(filterItemList, "Log Level Warn+", "level:W");
+        addLogLevel(filterItemList, "Log Level Error+", "level:E");
+
+        filterList.setListData(filterItemList.toArray(new FilterItem[0]));
+        filterList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        filterList.addListSelectionListener(e -> {
+            FilterItem selectedFilter = filterList.getSelectedValue();
+            if (selectedFilter == null) {
+                rowFilter.setFilter(null);
+                statusBar.setCenterLabel(null);
+            } else {
+
+                filterDevices(selectedFilter.filter);
+                statusBar.setCenterLabel(selectedFilter.name);
+            }
+            model.fireTableDataChanged();
+        });
+    }
+
+    private void addLogLevel(List<FilterItem> filterItemList, String label, String filter) {
+        FilterItem item = new FilterItem();
+        item.name = label;
+        item.filter = filter;
+        filterItemList.add(item);
     }
 
     @Override
@@ -210,6 +247,11 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
             model.clearLogs();
         });
 
+        // [CMD + F] = focus search field
+        createCmdAction(windowMenu, "Search for...", KeyEvent.VK_1, e -> {
+            searchField.requestFocus();
+        });
+
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
         menubar.add(logsMenu);
@@ -218,7 +260,7 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
 
     private void setupTable() {
         // prevent sorting
-        //table.getTableHeader().setEnabled(false);
+        table.getTableHeader().setEnabled(false);
 
         model = new LogsTableModel();
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
@@ -316,7 +358,7 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
 
         // toolbar.addSeparator(new Dimension(10, 0));
 
-        HintTextField searchField = new HintTextField(HINT_SEARCH, this::doSearch);
+        searchField = new HintTextField(HINT_SEARCH, this::doSearch);
         searchField.setPreferredSize(new Dimension(250, 30));
         searchField.setMinimumSize(new Dimension(10, 30));
         searchField.setMaximumSize(new Dimension(250, 30));

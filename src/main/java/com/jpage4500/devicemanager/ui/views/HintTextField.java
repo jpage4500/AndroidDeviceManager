@@ -10,6 +10,8 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 
 public class HintTextField extends JTextField {
     private static final Logger log = LoggerFactory.getLogger(HintTextField.class);
@@ -34,6 +36,7 @@ public class HintTextField extends JTextField {
         addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
+                log.debug("focusGained: ");
                 setFont(origFont);
                 if (getText().equals(hintText)) {
                     setText("");
@@ -42,6 +45,7 @@ public class HintTextField extends JTextField {
 
             @Override
             public void focusLost(FocusEvent e) {
+                log.debug("focusLost: ");
                 if (getText().isEmpty()) {
                     setText(hintText);
                     setFont(hintFont);
@@ -65,6 +69,26 @@ public class HintTextField extends JTextField {
                     public void changedUpdate(DocumentEvent documentEvent) {
                     }
                 });
+
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyTyped(KeyEvent e) {
+                super.keyTyped(e);
+            }
+
+            @Override
+            public void keyPressed(KeyEvent e) {
+                super.keyPressed(e);
+                switch (e.getExtendedKeyCode()) {
+                    case KeyEvent.VK_ESCAPE -> setText(null);
+                }
+            }
+
+            @Override
+            public void keyReleased(KeyEvent e) {
+                super.keyReleased(e);
+            }
+        });
     }
 
     /**

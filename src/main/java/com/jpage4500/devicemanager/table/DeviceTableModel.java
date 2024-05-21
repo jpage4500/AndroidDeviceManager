@@ -38,6 +38,7 @@ public class DeviceTableModel extends AbstractTableModel {
 
     public void setDeviceList(List<Device> deviceList) {
         this.deviceList.clear();
+        log.debug("setDeviceList: {}", deviceList.size());
         this.deviceList.addAll(deviceList);
         fireTableDataChanged();
     }
@@ -63,6 +64,7 @@ public class DeviceTableModel extends AbstractTableModel {
     public void setSearchText(String text) {
         if (TextUtils.equals(searchText, text)) return;
         searchText = text;
+        // force re-draw table so we can highlight any matches
         fireTableDataChanged();
     }
 
@@ -77,6 +79,13 @@ public class DeviceTableModel extends AbstractTableModel {
     public Device getDeviceAtRow(int row) {
         if (deviceList.size() > row) {
             return deviceList.get(row);
+        }
+        return null;
+    }
+
+    public Columns getColumnType(int colIndex) {
+        if (colIndex < visibleColumns.length) {
+            return visibleColumns[colIndex];
         }
         return null;
     }
@@ -131,21 +140,6 @@ public class DeviceTableModel extends AbstractTableModel {
 
     public Object getValueAt(int row, int col) {
         return deviceList.get(row);
-//        if (row >= deviceList.size()) return null;
-//        else if (col >= getColumnCount()) return null;
-//
-//        Device device = deviceList.get(row);
-//        if (col < visibleColumns.length) {
-//            return deviceValue(device, visibleColumns[col]);
-//        } else {
-//            // custom app version
-//            if (device.customAppVersionList != null) {
-//                String appName = appList.get(col - visibleColumns.length);
-//                return device.customAppVersionList.get(appName);
-//            } else {
-//                return null;
-//            }
-//        }
     }
 
     public String deviceValue(Device device, int column) {

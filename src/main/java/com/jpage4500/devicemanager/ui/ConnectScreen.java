@@ -11,8 +11,10 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
-import java.util.ArrayList;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.util.List;
 import java.util.prefs.Preferences;
 
@@ -160,7 +162,8 @@ public class ConnectScreen extends JPanel {
                     return;
                 }
                 int length = portField.getText().length();
-                if (length >= 5) {
+                int selectedLen = TextUtils.length(portField.getSelectedText());
+                if (length - selectedLen >= 5) {
                     e.consume();
                 } else if (!(c >= '0' && c <= '9')) {
                     e.consume();

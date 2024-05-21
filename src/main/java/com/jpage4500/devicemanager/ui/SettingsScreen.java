@@ -18,6 +18,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
 public class SettingsScreen extends JPanel {
@@ -28,6 +29,10 @@ public class SettingsScreen extends JPanel {
 
     private Component frame;
     private DeviceTableModel tableModel;
+
+    private JCheckBox debugCheckbox;
+    private JLabel viewLogsLabel;
+    private JLabel resetLabel;
 
     public static int showSettings(Component frame, DeviceTableModel tableModel) {
         SettingsScreen settingsScreen = new SettingsScreen(frame, tableModel);
@@ -87,21 +92,20 @@ public class SettingsScreen extends JPanel {
 
         Preferences preferences = Preferences.userRoot();
         boolean isDebugMode = preferences.getBoolean(PREF_DEBUG_MODE, false);
-        JCheckBox debugCheckbox = new JCheckBox("Debug Mode");
+        debugCheckbox = new JCheckBox("Debug Mode");
         debugCheckbox.setHorizontalTextPosition(SwingConstants.LEFT);
         debugCheckbox.setSelected(isDebugMode);
-        debugCheckbox.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                boolean updatedValue = debugCheckbox.isSelected();
-                preferences.putBoolean(PREF_DEBUG_MODE, updatedValue);
-                AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
-                logger.setFileLogLevel(updatedValue ? Log.VERBOSE : Log.DEBUG);
-            }
+        debugCheckbox.addChangeListener(e -> {
+            boolean updatedValue = debugCheckbox.isSelected();
+            preferences.putBoolean(PREF_DEBUG_MODE, updatedValue);
+            AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
+            logger.setFileLogLevel(updatedValue ? Log.VERBOSE : Log.DEBUG);
+
+            refreshUi();
         });
         add(debugCheckbox, "span 2, al right, wrap");
 
-        JLabel viewLogsLabel = new JLabel("View Logs");
+        viewLogsLabel = new JLabel("View Logs");
         viewLogsLabel.setForeground(Color.BLUE);
         Font font = viewLogsLabel.getFont();
         Map attributes = font.getAttributes();
@@ -115,6 +119,38 @@ public class SettingsScreen extends JPanel {
             }
         });
         add(viewLogsLabel, "span 2, al right, wrap");
+
+        resetLabel = new JLabel("Reset Preferences");
+        resetLabel.setForeground(Color.BLUE);
+        resetLabel.setFont(font.deriveFont(attributes));
+        resetLabel.setHorizontalTextPosition(SwingConstants.LEFT);
+        resetLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                resetPreferences();
+            }
+        });
+        add(resetLabel, "span 2, al right, wrap");
+
+        refreshUi();
+    }
+
+    private void resetPreferences() {
+        int rc = JOptionPane.showConfirmDialog(this, "Reset All Preferences?", "Reset Preferences", JOptionPane.YES_NO_OPTION);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        log.debug("resetPreferences: ");
+        Preferences preferences = Preferences.userRoot();
+        try {
+            preferences.clear();
+        } catch (BackingStoreException e) {
+        }
+
+    }
+
+    private void refreshUi() {
+        boolean isDebugMode = debugCheckbox.isSelected();
+        viewLogsLabel.setVisible(isDebugMode);
     }
 
     private void viewLogs() {
