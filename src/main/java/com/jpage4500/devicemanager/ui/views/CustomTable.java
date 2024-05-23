@@ -15,6 +15,10 @@ import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetEvent;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -34,11 +38,32 @@ public class CustomTable extends JTable {
     private final Icon arrowDownIcon;
 
     private String prefKey;
+    private TableListener listener;
+    private JScrollPane scrollPane;
 
     private boolean showTooltips = false;
 
-    public CustomTable(String prefKey) {
+    public int selectedColumn = -1;
+
+    public interface TableListener {
+        /**
+         * @param row    converted to model row
+         * @param column converted to model col
+         */
+        void showPopupMenu(int row, int column, MouseEvent e);
+
+        /**
+         * @param row    converted to model row
+         * @param column converted to model col
+         */
+        void handleTableDoubleClick(int row, int column, MouseEvent e);
+    }
+
+    public CustomTable(String prefKey, TableListener listener) {
+        this.listener = listener;
         this.prefKey = prefKey;
+
+        createScrollPane();
 
         Color headerColor = new Color(197, 197, 197);
         getTableHeader().setBackground(headerColor);
@@ -53,6 +78,34 @@ public class CustomTable extends JTable {
                 label.setIcon(getSortIcon(column));
             }
             return comp;
+        });
+
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                // single click
+                Point point = e.getPoint();
+                int row = rowAtPoint(point);
+                int column = columnAtPoint(point);
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    // right-click
+                    if (getSelectedRowCount() <= 1) {
+                        changeSelection(row, column, false, false);
+                    }
+                    // convert table row/col to model row/col
+                    row = convertRowIndexToModel(row);
+                    column = convertColumnIndexToModel(column);
+                    selectedColumn = column;
+                    if (listener != null) listener.showPopupMenu(row, column, e);
+                } else if (e.getClickCount() == 2) {
+                    // double-click
+                    selectedColumn = -1;
+                    // convert table row/col to model row/col
+                    row = convertRowIndexToModel(row);
+                    column = convertColumnIndexToModel(column);
+                    if (listener != null) listener.handleTableDoubleClick(row, column, e);
+                }
+            }
         });
 
         // TODO: REMOVE ME
@@ -86,6 +139,40 @@ public class CustomTable extends JTable {
         });
     }
 
+    private void createScrollPane() {
+        scrollPane = new JScrollPane(this);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (SwingUtilities.isLeftMouseButton(e)) {
+                    // single click outside of table should de-select row
+                    clearSelection();
+                }
+            }
+        });
+    }
+
+    public JScrollPane getScrollPane() {
+        return scrollPane;
+    }
+
+    public void setupDragAndDrop() {
+        // support drag and drop of files
+        //MyDragDropListener dragDropListener = new MyDragDropListener(this, false, this::handleFilesDropped);
+        getScrollPane().setDropTarget(new DropTarget() {
+            @Override
+            public synchronized void dragOver(DropTargetDragEvent dtde) {
+                super.dragOver(dtde);
+            }
+
+            @Override
+            public synchronized void dragExit(DropTargetEvent dte) {
+                super.dragExit(dte);
+            }
+        });
+    }
+
     public void setShowTooltips(boolean showTooltips) {
         this.showTooltips = showTooltips;
     }
@@ -108,7 +195,7 @@ public class CustomTable extends JTable {
             if (!sortKeys.isEmpty()) {
                 RowSorter.SortKey key = sortKeys.get(0);
                 if (key.getColumn() == convertColumnIndexToModel(column)) {
-                    sortIcon = key.getSortOrder() == SortOrder.ASCENDING ? arrowUpIcon : arrowDownIcon;
+                    sortIcon = key.getSortOrder() == SortOrder.ASCENDING ? arrowDownIcon : arrowUpIcon;
                 }
             }
         }
@@ -146,6 +233,9 @@ public class CustomTable extends JTable {
         Rectangle bounds = getCellRect(row, col, false);
         Component c = prepareRenderer(getCellRenderer(row, col), row, col);
         if (c != null && c.getPreferredSize().width > bounds.width) {
+            if (c instanceof JLabel label) {
+                return label.getText();
+            }
             Object value = getValueAt(row, col);
             toolTipText = value.toString();
         }

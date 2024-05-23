@@ -7,7 +7,10 @@ import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowFilter;
-import com.jpage4500.devicemanager.ui.views.*;
+import com.jpage4500.devicemanager.ui.views.CustomTable;
+import com.jpage4500.devicemanager.ui.views.EmptyView;
+import com.jpage4500.devicemanager.ui.views.HintTextField;
+import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
@@ -16,14 +19,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +33,7 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListener {
+public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListener, CustomTable.TableListener {
     private static final Logger log = LoggerFactory.getLogger(LogsView.class);
 
     private static final String HINT_FILTER = "Filter...";
@@ -55,7 +55,6 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
 
     private LogsRowFilter rowFilter;
     private TableRowSorter<LogsTableModel> sorter;
-    public int selectedColumn = -1;
 
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
@@ -103,11 +102,9 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         JPanel rightPanel = new JPanel(new BorderLayout());
 
         // -- table --
-        table = new CustomTable("logs");
+        table = new CustomTable("logs", this);
         setupTable();
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        rightPanel.add(scrollPane, BorderLayout.CENTER);
+        rightPanel.add(table.getScrollPane(), BorderLayout.CENTER);
 
         // statusbar
         statusBar = new StatusBar();
@@ -287,26 +284,6 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
             }
         });
 
-        table.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                // single click
-                Point point = e.getPoint();
-                int row = table.rowAtPoint(point);
-                int column = table.columnAtPoint(point);
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    // right-click
-                    if (!table.isRowSelected(row)) {
-                        table.changeSelection(row, column, false, false);
-                    }
-                    selectedColumn = column;
-                } else if (e.getClickCount() == 2) {
-                    // double-click
-                    selectedColumn = -1;
-                }
-            }
-        });
-
         rowFilter = new LogsRowFilter();
         sorter = new TableRowSorter<>(model);
         sorter.setRowFilter(rowFilter);
@@ -425,5 +402,15 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         SwingUtilities.invokeLater(() -> {
             model.setProcessMap(processMap);
         });
+    }
+
+    @Override
+    public void showPopupMenu(int row, int column, MouseEvent e) {
+
+    }
+
+    @Override
+    public void handleTableDoubleClick(int row, int column, MouseEvent e) {
+
     }
 }

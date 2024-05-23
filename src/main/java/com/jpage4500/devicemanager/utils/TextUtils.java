@@ -299,26 +299,47 @@ public class TextUtils {
 
     /**
      * split a string into a List<String>, allowing for quoted strings
+     * eg: "abc def \"hi mom\"" -> [abc][def][hi mom]
      *
-     * @param splitChar - character to split text on
      * @return List of Strings; if splitChar isn't found, entire str will be returned
      */
-    public static List<String> splitSafe(String str, char splitChar) {
+    public static List<String> splitSafe(String str) {
         List<String> resultList = new ArrayList<>();
         if (length(str) == 0) return resultList;
         int start = 0;
         boolean isQuote = false;
-        boolean isApostrophe = false;
+        boolean isEscapeChar = false;
         for (int pos = 0; pos < str.length(); pos++) {
             char ch = str.charAt(pos);
-            if (ch == '\"') isQuote = !isQuote;
-            if (ch == '\'') isApostrophe = !isApostrophe;
-            else if (ch == splitChar && !isQuote && !isApostrophe) {
-                resultList.add(str.substring(start, pos));
-                start = pos + 1;
+            switch (ch) {
+                case '\\':
+                    isEscapeChar = true;
+                    break;
+                case '\"':
+                case '\'':
+                    isQuote = !isQuote;
+                    if (isQuote) {
+                        start++;
+                        continue;
+                    }
+                    // else, fall through..
+                case ' ':
+                    if (isQuote) continue;
+                    else if (isEscapeChar) {
+                        // space after escape char - ignore
+                        isEscapeChar = false;
+                        continue;
+                    }
+                    if (pos > start) {
+                        resultList.add(str.substring(start, pos));
+                    }
+                    start = pos + 1;
+                    break;
             }
         }
-        resultList.add(str.substring(start).trim());
+        if (start < str.length()) {
+            resultList.add(str.substring(start).trim());
+        }
         return resultList;
     }
 

@@ -1,7 +1,7 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.RemoteUpFolder;
+import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.ExploreTableModel;
 import com.jpage4500.devicemanager.table.utils.ExplorerCellRenderer;
@@ -11,12 +11,11 @@ import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.EmptyView;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
+import com.jpage4500.devicemanager.utils.FileDragAndDropListener;
 import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.MyDragDropListener;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.vidstige.jadb.RemoteFile;
 
 import javax.swing.*;
 import javax.swing.table.TableModel;
@@ -36,7 +35,7 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class ExploreView extends BaseFrame {
+public class ExploreView extends BaseFrame implements CustomTable.TableListener {
     private static final Logger log = LoggerFactory.getLogger(ExploreView.class);
 
     public static final String PREF_DOWNLOAD_FOLDER = "PREF_DOWNLOAD_FOLDER";
@@ -54,8 +53,6 @@ public class ExploreView extends BaseFrame {
     public EmptyView emptyView;
     public StatusBar statusBar;
     public JToolBar toolbar;
-
-    public int selectedColumn = -1;
 
     private final Device device;
 
@@ -89,10 +86,9 @@ public class ExploreView extends BaseFrame {
         mainPanel.add(toolbar, BorderLayout.NORTH);
 
         // -- table --
-        table = new CustomTable("browse");
+        table = new CustomTable("browse", this);
         setupTable();
-        JScrollPane scrollPane = new JScrollPane(table);
-        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        mainPanel.add(table.getScrollPane(), BorderLayout.CENTER);
 
         // -- statusbar --
         statusBar = new StatusBar();
@@ -173,7 +169,7 @@ public class ExploreView extends BaseFrame {
         table.setShowTooltips(true);
         model = new ExploreTableModel();
         table.setModel(model);
-        table.setDefaultRenderer(RemoteFile.class, new ExplorerCellRenderer());
+        table.setDefaultRenderer(DeviceFile.class, new ExplorerCellRenderer());
         //table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer());
 
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
@@ -199,27 +195,6 @@ public class ExploreView extends BaseFrame {
         rowFilter = new ExplorerRowFilter();
         rowSorter.setRowFilter(rowFilter);
 
-        table.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                // single click
-                Point point = e.getPoint();
-                int row = table.rowAtPoint(point);
-                int column = table.columnAtPoint(point);
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    // right-click
-                    if (!table.isRowSelected(row)) {
-                        table.changeSelection(row, column, false, false);
-                    }
-                    selectedColumn = column;
-                } else if (e.getClickCount() == 2) {
-                    // double-click
-                    selectedColumn = -1;
-                    handleFileClicked();
-                }
-            }
-        });
-
         setupPopupMenu();
 
         table.getSelectionModel().addListSelectionListener(listSelectionEvent -> {
@@ -228,19 +203,18 @@ public class ExploreView extends BaseFrame {
             }
         });
 
-        // support drag and drop of files
-        MyDragDropListener dragDropListener = new MyDragDropListener(table, false, this::handleFilesDropped);
-        new DropTarget(table, dragDropListener);
+        // support drag and drop of files IN TO deviceView
+        new DropTarget(table.getScrollPane(), new FileDragAndDropListener(table.getScrollPane(), this::handleFilesDropped));
     }
 
     private void handleFileClicked() {
-        List<RemoteFile> selectedFiles = getSelectedFiles();
+        List<DeviceFile> selectedFiles = getSelectedFiles();
         log.debug("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
         if (selectedFiles.isEmpty()) return;
-        RemoteFile selectedFile = selectedFiles.get(0);
-
-        if (selectedFile.isDirectory() || selectedFile.isSymbolicLink()) {
-            if (TextUtils.equalsIgnoreCase(selectedFile.getName(), "..")) {
+        DeviceFile selectedFile = selectedFiles.get(0);
+        if (selectedFile.isReadOnly) return;
+        else if (selectedFile.isDirectory || selectedFile.isSymbolicLink) {
+            if (TextUtils.equalsIgnoreCase(selectedFile.name, "..")) {
                 String prevPath = selectedPath;
                 int pos = selectedPath.lastIndexOf('/');
                 if (pos > 0) {
@@ -252,7 +226,7 @@ public class ExploreView extends BaseFrame {
                 log.debug("mouseClicked: UP: {} -> {}", prevPath, selectedPath);
             } else {
                 // append selected folder to current path
-                setPath(selectedPath + "/" + selectedFile.getName());
+                setPath(selectedPath + "/" + selectedFile.name);
             }
             refreshFiles();
         } else {
@@ -261,6 +235,9 @@ public class ExploreView extends BaseFrame {
     }
 
     private void setPath(String path) {
+        // selectedPath should never end with "/"
+        if (path.endsWith("/")) path = path.substring(0, path.length() - 1);
+
         prevPathList.add(path);
         if (prevPathList.size() > MAX_PATH_SAVE) {
             prevPathList.remove(0);
@@ -281,6 +258,7 @@ public class ExploreView extends BaseFrame {
                     if (!prevPathList.isEmpty()) {
                         // reset good path
                         selectedPath = prevPathList.get(prevPathList.size() - 1);
+                        if (selectedPath.endsWith("/")) selectedPath = selectedPath.substring(0, selectedPath.length() - 1);
                     } else {
                         selectedPath = "";
                     }
@@ -288,9 +266,11 @@ public class ExploreView extends BaseFrame {
                 } else {
                     errorMessage = null;
                     // TODO: add ".." to top of list
-                    log.debug("refreshFiles: GOT:{}, selectedPath={}", fileList.size(), selectedPath);
                     if (!TextUtils.isEmpty(selectedPath)) {
-                        fileList.add(0, new RemoteUpFolder());
+                        DeviceFile upFile = new DeviceFile();
+                        upFile.name = "..";
+                        upFile.isDirectory = true;
+                        fileList.add(0, upFile);
                     }
                     model.setFileList(fileList);
                 }
@@ -338,17 +318,27 @@ public class ExploreView extends BaseFrame {
         table.setComponentPopupMenu(popupMenu);
     }
 
-    private String getDeviceField(RemoteFile deviceFile, ExploreTableModel.Columns column) {
+    @Override
+    public void showPopupMenu(int row, int column, MouseEvent e) {
+
+    }
+
+    @Override
+    public void handleTableDoubleClick(int row, int column, MouseEvent e) {
+        handleFileClicked();
+    }
+
+    private String getDeviceField(DeviceFile deviceFile, ExploreTableModel.Columns column) {
         String val;
         switch (column) {
             case NAME:
-                val = deviceFile.getName();
+                val = deviceFile.name;
                 break;
             case SIZE:
-                val = String.valueOf(deviceFile.getSize());
+                val = String.valueOf(deviceFile.size);
                 break;
             case DATE:
-                val = String.valueOf(deviceFile.getLastModified());
+                val = String.valueOf(deviceFile.dateMs);
                 break;
             default:
                 val = column.name();
@@ -389,7 +379,9 @@ public class ExploreView extends BaseFrame {
             if (filename.endsWith(".apk")) {
                 DeviceManager.getInstance().installApp(device, file, null);
             } else {
-                DeviceManager.getInstance().copyFile(device, file, selectedPath + "/", null);
+                DeviceManager.getInstance().copyFile(device, file, selectedPath + "/", isSuccess -> {
+                    if (isSuccess) refreshFiles();
+                });
             }
         }
     }
@@ -400,6 +392,7 @@ public class ExploreView extends BaseFrame {
         createToolbarButton(toolbar, "icon_open_folder.png", "Go To..", "Open Folder", actionEvent -> handleGoToFolder());
         createToolbarButton(toolbar, "icon_download.png", "Download", "Download Files", actionEvent -> handleDownload());
         toolbar.addSeparator();
+        createToolbarButton(toolbar, "icon_folder_new.png", "New Folder", "New Folder", actionEvent -> handleNewFolder());
         createToolbarButton(toolbar, "icon_delete.png", "Delete", "Delete Files", actionEvent -> handleDelete());
 
         toolbar.add(Box.createHorizontalGlue());
@@ -413,8 +406,23 @@ public class ExploreView extends BaseFrame {
         createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Files", actionEvent -> refreshFiles());
     }
 
+    private void handleNewFolder() {
+        String result = (String) JOptionPane.showInputDialog(this,
+                "Enter Folder Name",
+                "New Folder",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                null,
+                null);
+        if (TextUtils.isEmpty(result)) return;
+
+        DeviceManager.getInstance().createFolder(device, selectedPath + "/" + result, isSuccess -> {
+            refreshFiles();
+        });
+    }
+
     private void handleDownload() {
-        List<RemoteFile> selectedFileList = getSelectedFiles();
+        List<DeviceFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
@@ -422,7 +430,7 @@ public class ExploreView extends BaseFrame {
 
         boolean isSingleFile = selectedFileList.size() == 1;
         String msg = isSingleFile ?
-                selectedFileList.get(0).getName() :
+                selectedFileList.get(0).name :
                 selectedFileList.size() + " files(s)";
 
         // prompt to install/copy
@@ -432,10 +440,17 @@ public class ExploreView extends BaseFrame {
         if (rc != JOptionPane.YES_OPTION) return;
 
         Preferences preferences = Preferences.userRoot();
-        String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, "~/Downloads");
-        for (RemoteFile file : selectedFileList) {
-            File downloadFile = new File(downloadFolder, file.getName());
-            DeviceManager.getInstance().downloadFile(device, file, downloadFile, isSuccess -> {
+        String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, null);
+        if (downloadFolder == null) {
+            downloadFolder = System.getProperty("user.home") + "/Downloads";
+        }
+        for (DeviceFile file : selectedFileList) {
+            if (file.isReadOnly) {
+                JOptionPane.showMessageDialog(this, "File is read-only!", "Read-only", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            File downloadFile = new File(downloadFolder, file.name);
+            DeviceManager.getInstance().downloadFile(device, selectedPath, file, downloadFile, isSuccess -> {
                 if (isSuccess && isSingleFile) {
                     if (downloadFile.exists()) {
                         int openRc = JOptionPane.showConfirmDialog(this,
@@ -454,17 +469,17 @@ public class ExploreView extends BaseFrame {
     }
 
     private void handleDelete() {
-        List<RemoteFile> selectedFileList = getSelectedFiles();
+        List<DeviceFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }
 
         StringBuilder sb = new StringBuilder();
-        for (Iterator<RemoteFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
-            RemoteFile file = iterator.next();
+        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
+            DeviceFile file = iterator.next();
             if (sb.length() > 0) sb.append('\n');
-            sb.append(file.getName());
+            sb.append(file.name);
         }
 
         int rc = JOptionPane.showConfirmDialog(this,
@@ -472,8 +487,8 @@ public class ExploreView extends BaseFrame {
                 "Delete Files?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
-        for (RemoteFile file : selectedFileList) {
-            DeviceManager.getInstance().deleteFile(device, file, isSuccess -> {
+        for (DeviceFile file : selectedFileList) {
+            DeviceManager.getInstance().deleteFile(device, selectedPath, file, isSuccess -> {
                 refreshFiles();
             });
         }
@@ -488,7 +503,9 @@ public class ExploreView extends BaseFrame {
         comboBox.setEditable(true);
         int rc = JOptionPane.showOptionDialog(this, comboBox, "Go to folder", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return;
-        String selectedItem = comboBox.getSelectedItem().toString();
+        Object selectedObj = comboBox.getSelectedItem();
+        if (selectedObj == null) return;
+        String selectedItem = (String) selectedObj;
         if (TextUtils.isEmpty(selectedItem)) return;
         // remove from list
         customList.remove(selectedItem);
@@ -505,17 +522,17 @@ public class ExploreView extends BaseFrame {
     }
 
     private void handleCopyPath() {
-        List<RemoteFile> selectedFileList = getSelectedFiles();
+        List<DeviceFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }
 
         StringBuilder sb = new StringBuilder();
-        for (Iterator<RemoteFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
-            RemoteFile file = iterator.next();
+        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
+            DeviceFile file = iterator.next();
             if (sb.length() > 0) sb.append('\n');
-            sb.append(selectedPath + "/" + file.getName());
+            sb.append(selectedPath + "/" + file.name);
         }
 
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -524,17 +541,17 @@ public class ExploreView extends BaseFrame {
     }
 
     private void handleCopyName() {
-        List<RemoteFile> selectedFileList = getSelectedFiles();
+        List<DeviceFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
         }
 
         StringBuilder sb = new StringBuilder();
-        for (Iterator<RemoteFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
-            RemoteFile file = iterator.next();
+        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
+            DeviceFile file = iterator.next();
             if (sb.length() > 0) sb.append('\n');
-            sb.append(file.getName());
+            sb.append(file.name);
         }
 
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -542,13 +559,13 @@ public class ExploreView extends BaseFrame {
         clipboard.setContents(stringSelection, null);
     }
 
-    private List<RemoteFile> getSelectedFiles() {
-        List<RemoteFile> selectedDeviceList = new ArrayList<>();
+    private List<DeviceFile> getSelectedFiles() {
+        List<DeviceFile> selectedDeviceList = new ArrayList<>();
         int[] selectedRows = table.getSelectedRows();
         for (int selectedRow : selectedRows) {
             // convert view row to data row (in case user changed sort order)
             int dataRow = table.convertRowIndexToModel(selectedRow);
-            RemoteFile deviceFile = model.getDeviceFileAtRow(dataRow);
+            DeviceFile deviceFile = model.getDeviceFileAtRow(dataRow);
             if (deviceFile != null) selectedDeviceList.add(deviceFile);
         }
         return selectedDeviceList;

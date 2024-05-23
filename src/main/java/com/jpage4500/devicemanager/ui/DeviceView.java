@@ -15,12 +15,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.List;
@@ -30,7 +30,7 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class DeviceView extends BaseFrame implements DeviceManager.DeviceListener {
+public class DeviceView extends BaseFrame implements DeviceManager.DeviceListener, CustomTable.TableListener {
     private static final Logger log = LoggerFactory.getLogger(DeviceView.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
@@ -44,7 +44,6 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     public JToolBar toolbar;
     private HintTextField filterTextField;
 
-    public int selectedColumn = -1;
     private final List<JButton> deviceButtonList = new ArrayList<>();
 
     // open windows (per device)
@@ -116,11 +115,9 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         panel.add(toolbar, BorderLayout.NORTH);
 
         // -- table --
-        table = new CustomTable("devices");
+        table = new CustomTable("devices", this);
         setupTable();
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setBackground(Color.RED);
-        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(table.getScrollPane(), BorderLayout.CENTER);
 
         // -- statusbar --
         statusBar = new StatusBar();
@@ -189,45 +186,19 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         List<String> hiddenColList = SettingsScreen.getHiddenColumnList();
         model.setHiddenColumns(hiddenColList);
 
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setModel(model);
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
+
+        // default column sizes
+        TableColumnModel columnModel = table.getColumnModel();
+        columnModel.getColumn(DeviceTableModel.Columns.SERIAL.ordinal()).setPreferredWidth(152);
 
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);
 
-        // support drag and drop of files
-        MyDragDropListener dragDropListener = new MyDragDropListener(table, true, this::handleFilesDropped);
-        new DropTarget(table, dragDropListener);
-
-        table.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                // single click
-                Point point = e.getPoint();
-                int row = table.rowAtPoint(point);
-                int column = table.columnAtPoint(point);
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    // right-click
-                    if (!table.isRowSelected(row)) {
-                        table.changeSelection(row, column, false, false);
-                    }
-                    selectedColumn = column;
-                    setupPopupMenu(row, e);
-                } else if (e.getClickCount() == 2) {
-                    // double-click
-                    selectedColumn = -1;
-                    if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
-                        // edit custom 1 field
-                        handleSetProperty(1);
-                    } else if (column == DeviceTableModel.Columns.CUSTOM2.ordinal()) {
-                        // edit custom 1 field
-                        handleSetProperty(2);
-                    } else {
-                        handleMirrorCommand();
-                    }
-                }
-            }
-        });
+        // support drag and drop of files IN TO deviceView
+        new DropTarget(table, new FileDragAndDropListener(table, this::handleFilesDropped));
 
         table.getSelectionModel().addListSelectionListener(e -> {
             if (e.getValueIsAdjusting()) return;
@@ -272,7 +243,8 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         statusBar.setLeftLabel(Build.versionName + " / " + memUsage);
     }
 
-    private void setupPopupMenu(int row, MouseEvent e) {
+    @Override
+    public void showPopupMenu(int row, int column, MouseEvent e) {
         Device device = model.getDeviceAtRow(row);
         if (device == null) return;
 
@@ -327,6 +299,19 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         //table.setComponentPopupMenu(popupMenu);
     }
 
+    @Override
+    public void handleTableDoubleClick(int row, int column, MouseEvent e) {
+        if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
+            // edit custom 1 field
+            handleSetProperty(1);
+        } else if (column == DeviceTableModel.Columns.CUSTOM2.ordinal()) {
+            // edit custom 1 field
+            handleSetProperty(2);
+        } else {
+            handleMirrorCommand();
+        }
+    }
+
     private void handleCopyClipboardFieldCommand() {
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 
@@ -336,12 +321,12 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             return;
         }
 
-        if (selectedColumn < 0) return;
+        if (table.selectedColumn < 0) return;
 
         StringBuilder sb = new StringBuilder();
         for (Device device : selectedDeviceList) {
             if (!sb.isEmpty()) sb.append("\n");
-            String value = model.deviceValue(device, selectedColumn);
+            String value = model.deviceValue(device, table.selectedColumn);
             sb.append(value != null ? value : "");
         }
         StringSelection stringSelection = new StringSelection(sb.toString());
@@ -420,9 +405,13 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             for (File file : fileList) {
                 String filename = file.getName();
                 if (filename.endsWith(".apk")) {
-                    DeviceManager.getInstance().installApp(device, file, this);
+                    DeviceManager.getInstance().installApp(device, file, isSuccess -> {
+
+                    });
                 } else {
-                    DeviceManager.getInstance().copyFile(device, file, "/sdcard/Downloads/", this);
+                    // TODO: where to put files?
+                    DeviceManager.getInstance().copyFile(device, file, "/sdcard/Download/", isSuccess -> {
+                    });
                 }
             }
         }
@@ -570,7 +559,6 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             Device device = model.getDeviceAtRow(dataRow);
             if (device != null) selectedDeviceList.add(device);
         }
-        // if only 1 device exists - just use it
         if (selectedDeviceList.isEmpty() && model.getRowCount() == 1) {
             Device device = model.getDeviceAtRow(0);
             selectedDeviceList.add(device);

@@ -1,8 +1,8 @@
 package com.jpage4500.devicemanager.table;
 
+import com.jpage4500.devicemanager.data.DeviceFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.vidstige.jadb.RemoteFile;
 
 import javax.swing.table.AbstractTableModel;
 import java.util.ArrayList;
@@ -11,7 +11,7 @@ import java.util.List;
 public class ExploreTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(ExploreTableModel.class);
 
-    private final List<RemoteFile> fileList;
+    private final List<DeviceFile> fileList;
 
     public enum Columns {
         NAME,
@@ -23,7 +23,7 @@ public class ExploreTableModel extends AbstractTableModel {
         fileList = new ArrayList<>();
     }
 
-    public void setFileList(List<RemoteFile> fileList) {
+    public void setFileList(List<DeviceFile> fileList) {
         this.fileList.clear();
         this.fileList.addAll(fileList);
 
@@ -34,7 +34,7 @@ public class ExploreTableModel extends AbstractTableModel {
      * get device for given row
      * NOTE: make sure you use table.convertRowIndexToModel() first
      */
-    public RemoteFile getDeviceFileAtRow(int row) {
+    public DeviceFile getDeviceFileAtRow(int row) {
         if (fileList.size() > row) {
             return fileList.get(row);
         }
@@ -47,7 +47,7 @@ public class ExploreTableModel extends AbstractTableModel {
 
     @Override
     public Class<?> getColumnClass(int columnIndex) {
-        return RemoteFile.class;
+        return DeviceFile.class;
     }
 
     public String getColumnName(int i) {

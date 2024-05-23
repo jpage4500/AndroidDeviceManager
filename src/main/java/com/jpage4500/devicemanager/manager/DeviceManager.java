@@ -1,16 +1,14 @@
 package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.ConnectScreen;
 import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Timer;
-import se.vidstige.jadb.DeviceDetectionListener;
-import se.vidstige.jadb.JadbConnection;
-import se.vidstige.jadb.JadbDevice;
-import se.vidstige.jadb.RemoteFile;
+import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
@@ -314,7 +312,7 @@ public class DeviceManager {
      */
     private List<String> runShell(Device device, String command) {
         List<String> resultList = new ArrayList<>();
-        List<String> commandList = TextUtils.splitSafe(command, ' ');
+        List<String> commandList = TextUtils.splitSafe(command);
         InputStream inputStream = null;
         try {
             String firstCommand = commandList.get(0);
@@ -399,29 +397,31 @@ public class DeviceManager {
         });
     }
 
-    public void installApp(Device device, File file, DeviceListener listener) {
+    public void installApp(Device device, File file, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            device.status = "installing...";
-            listener.handleDeviceUpdated(device);
             try {
                 PackageManager packageManager = new PackageManager(device.jadbDevice);
                 packageManager.install(file);
-                device.status = null;
-                listener.handleDeviceUpdated(device);
+                if (listener != null) listener.onTaskComplete(true);
             } catch (Exception e) {
                 log.error("installApp: {}, {}", file.getAbsolutePath(), e.getMessage());
                 device.status = "failed: " + e.getMessage();
-                listener.handleDeviceUpdated(device);
+                if (listener != null) listener.onTaskComplete(true);
             }
         });
     }
 
-    public void copyFile(Device device, File file, String dest, DeviceListener listener) {
+    public void copyFile(Device device, File file, String dest, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            String path = file.getAbsolutePath();
-            device.status = "copying...";
-            runScript(device, SCRIPT_COPY_FILE, listener, true, path);
-            log.debug("copyFile: {}, {}, DONE", device.serial, path);
+            log.debug("copyFile: {} -> {}", file.getAbsolutePath(), dest);
+            try {
+                RemoteFile remoteFile = new RemoteFileRecord(dest, file.getName(), 0, 0, 0);
+                device.jadbDevice.push(file, remoteFile);
+                listener.onTaskComplete(true);
+            } catch (Exception e) {
+                log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
+                listener.onTaskComplete(false);
+            }
         });
     }
 
@@ -449,22 +449,28 @@ public class DeviceManager {
     }
 
     public interface DeviceFileListener {
-        void handleFiles(List<RemoteFile> fileList);
+        void handleFiles(List<DeviceFile> fileList);
     }
 
     public void listFiles(Device device, String path, DeviceFileListener listener) {
-        if (!TextUtils.endsWith(path, "/")) path += "/";
-        String finalPath = path;
         commandExecutorService.submit(() -> {
-            log.trace("listFiles: {}", finalPath);
             try {
-                List<RemoteFile> remoteFileList = device.jadbDevice.list(finalPath);
-                //log.trace("listFiles: results: {}", GsonHelper.toJson(remoteFileList));
-                // for some reason the top level directory returns "." and ".."
-                remoteFileList.removeIf(remoteFile -> TextUtils.equalsAny(remoteFile.getName(), false, "..", "."));
-                listener.handleFiles(remoteFileList);
+                // TODO: offer root mode option ("su -c ls -al PATH")
+                String safePath = path + "/";
+                if (safePath.indexOf(' ') > 0) {
+                    safePath = "\"" + safePath + "\"";
+                }
+                log.trace("listFiles: {}", safePath);
+                List<String> dirList = runShell(device, "ls -al " + safePath);
+                List<DeviceFile> fileList = new ArrayList<>();
+                for (String dir : dirList) {
+                    DeviceFile file = DeviceFile.fromEntry(dir);
+                    if (file != null) fileList.add(file);
+                }
+                //log.trace("listFiles: FILES:{}, PATH:{}, {}", fileList.size(), safePath, GsonHelper.toJson(fileList));
+                listener.handleFiles(fileList);
             } catch (Exception e) {
-                log.error("listFiles: {}, Exception:{}", finalPath, e.getMessage());
+                log.error("listFiles: {}, Exception:{}", path, e.getMessage());
                 log.debug("listFiles: ", e);
                 listener.handleFiles(null);
             }
@@ -475,46 +481,56 @@ public class DeviceManager {
         void onTaskComplete(boolean isSuccess);
     }
 
-    public void downloadFile(Device device, RemoteFile file, File saveFile, TaskListener listener) {
+    public void downloadFile(Device device, String path, DeviceFile file, File saveFile, TaskListener listener) {
+        log.debug("downloadFile: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
         commandExecutorService.submit(() -> {
-            log.debug("downloadFile: {} -> {}", file, saveFile.getAbsoluteFile());
-            downloadFileInternal(device, file, saveFile);
+            downloadFileInternal(device, path, file, saveFile);
         });
     }
 
     /**
      * recursive method to download a file or folder
      */
-    private void downloadFileInternal(Device device, RemoteFile file, File saveFile) {
-        if (file.isDirectory() || file.isSymbolicLink()) {
+    private void downloadFileInternal(Device device, String path, DeviceFile file, File saveFile) {
+        if (file.isDirectory || file.isSymbolicLink) {
             // create local folder
-            boolean isOk = saveFile.mkdir();
-            log.trace("downloadFile: DIR:{}, mkdir:{}", saveFile.getAbsoluteFile(), isOk);
-            // get list of files in folder
-            try {
-                List<RemoteFile> fileList = device.jadbDevice.list(file.getPath());
-                for (RemoteFile remoteFile : fileList) {
-                    File subFile = new File(saveFile, remoteFile.getName());
-                    downloadFileInternal(device, remoteFile, subFile);
-                }
-            } catch (Exception e) {
-                log.error("downloadFile: {}, Exception:{}", file, e.getMessage());
+            if (!saveFile.exists()) {
+                boolean isOk = saveFile.mkdir();
+                log.trace("downloadFileInternal: DIR:{}, mkdir:{}", saveFile.getAbsolutePath(), isOk);
             }
+            // get list of files in folder
+            String dirPath = path + "/" + file.name;
+            listFiles(device, dirPath, fileList -> {
+                for (DeviceFile deviceFile : fileList) {
+                    File subFile = new File(saveFile, deviceFile.name);
+                    downloadFileInternal(device, path, deviceFile, subFile);
+                }
+            });
         } else {
             // pull file
-            log.trace("downloadFile: {} -> {}", file, saveFile.getAbsoluteFile());
+            log.trace("downloadFileInternal: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
+            RemoteFile remoteFile = new RemoteFileRecord(path, file.name, 0, 0, 0);
             try {
-                device.jadbDevice.pull(file, saveFile);
+                device.jadbDevice.pull(remoteFile, saveFile);
             } catch (Exception e) {
-                log.error("downloadFile: {}, Exception:{}", file, e.getMessage());
+                log.error("downloadFileInternal: {}/{}, Exception:{}", path, file.name, e.getMessage());
             }
         }
     }
 
-    public void deleteFile(Device device, RemoteFile file, TaskListener listener) {
+    public void deleteFile(Device device, String path, DeviceFile file, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            List<String> resultList = runShell(device, "rm -rf " + file.getPath());
-            log.debug("deleteFile: {} -> {}", file, GsonHelper.toJson(resultList));
+            List<String> resultList = runShell(device, "rm -rf " + path + file.name);
+            log.debug("deleteFile: {}/{} -> {}", path, file.name, GsonHelper.toJson(resultList));
+            // TODO: determine success/fail
+            listener.onTaskComplete(true);
+        });
+    }
+
+    public void createFolder(Device device, String path, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            List<String> resultList = runShell(device, "mkdir \"" + path + "\"");
+            log.debug("createFolder: {} -> {}", path, GsonHelper.toJson(resultList));
             // TODO: determine success/fail
             listener.onTaskComplete(true);
         });

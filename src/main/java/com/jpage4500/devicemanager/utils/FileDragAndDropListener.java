@@ -1,10 +1,10 @@
 package com.jpage4500.devicemanager.utils;
 
-import com.jpage4500.devicemanager.ui.views.CustomTable;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.swing.*;
+import javax.swing.border.Border;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -12,13 +12,9 @@ import java.awt.dnd.*;
 import java.io.File;
 import java.util.List;
 
-import javax.swing.*;
-import javax.swing.border.Border;
-
-public class MyDragDropListener implements DropTargetListener {
-    private static final Logger log = LoggerFactory.getLogger(MyDragDropListener.class);
-    private CustomTable table;
-    private boolean isRowDrop;
+public class FileDragAndDropListener implements DropTargetListener {
+    private static final Logger log = LoggerFactory.getLogger(FileDragAndDropListener.class);
+    private JComponent component;
     private DragDropListener listener;
 
     private Color defaultRowColor;
@@ -30,14 +26,11 @@ public class MyDragDropListener implements DropTargetListener {
         void onFileDropped(List<File> fileList);
     }
 
-    public MyDragDropListener(CustomTable table, boolean isRowDrop, DragDropListener listener) {
-        this.table = table;
-        this.isRowDrop = isRowDrop;
+    public FileDragAndDropListener(JComponent component, DragDropListener listener) {
+        this.component = component;
         this.listener = listener;
 
-        if (!isRowDrop) {
-            defaultBorder = table.getBorder();
-        }
+        defaultBorder = component.getBorder();
     }
 
     @Override
@@ -81,7 +74,7 @@ public class MyDragDropListener implements DropTargetListener {
 
     @Override
     public void dragOver(DropTargetDragEvent event) {
-        if (isRowDrop) {
+        if (component instanceof JTable table) {
             Point p = event.getLocation();
             int numSelected = table.getSelectedRowCount();
             int row = table.rowAtPoint(p);
@@ -98,7 +91,7 @@ public class MyDragDropListener implements DropTargetListener {
             if (selectedBorder == null) {
                 selectedBorder = BorderFactory.createMatteBorder(2, 2, 2, 2, Color.BLUE);
             }
-            table.setBorder(selectedBorder);
+            component.setBorder(selectedBorder);
             showDragEnter();
         }
     }
@@ -108,27 +101,26 @@ public class MyDragDropListener implements DropTargetListener {
     }
 
     private void showDragExit() {
-        if (isRowDrop) {
+        if (component instanceof JTable table) {
             if (defaultRowColor != null) {
                 table.setSelectionBackground(defaultRowColor);
                 table.repaint();
             }
         } else {
-            table.setBorder(defaultBorder);
+            component.setBorder(defaultBorder);
         }
-        table.setCursor(Cursor.getDefaultCursor());
+        component.setCursor(Cursor.getDefaultCursor());
     }
 
     private void showDragEnter() {
-        if (isRowDrop) {
+        if (component instanceof JTable table) {
             if (defaultRowColor == null) {
                 defaultRowColor = table.getSelectionBackground();
             }
             table.setSelectionBackground(dragRowColor);
             table.repaint();
         }
-        table.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        component.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     }
-
 
 }

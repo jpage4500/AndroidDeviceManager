@@ -1,7 +1,7 @@
 package com.jpage4500.devicemanager.table.utils;
 
+import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.utils.TextUtils;
-import se.vidstige.jadb.RemoteFile;
 
 import javax.swing.*;
 
@@ -14,9 +14,9 @@ public class ExplorerRowFilter extends RowFilter<Object, Object> {
 
         for (int i = entry.getValueCount() - 1; i >= 0; i--) {
             Object value = entry.getValue(i);
-            if (value instanceof RemoteFile) {
-                RemoteFile file = (RemoteFile) value;
-                String name = file.getName();
+            if (value instanceof DeviceFile) {
+                DeviceFile file = (DeviceFile) value;
+                String name = file.name;
                 if (TextUtils.containsIgnoreCase(name, searchFor)) return true;
                 else if (TextUtils.equals(name, "..")) return true;
             } else {

@@ -22,7 +22,7 @@ public class DeviceCellRenderer extends JTextField implements TableCellRenderer 
     public DeviceCellRenderer() {
         setOpaque(true);
         setEditable(false);
-        Border border = new EmptyBorder(0, 10, 0, 0);
+        Border border = new EmptyBorder(0, 5, 0, 0);
         setBorder(border);
     }
 

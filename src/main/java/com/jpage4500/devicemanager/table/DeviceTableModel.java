@@ -43,6 +43,10 @@ public class DeviceTableModel extends AbstractTableModel {
         fireTableDataChanged();
     }
 
+    public List<Device> getDeviceList() {
+        return deviceList;
+    }
+
     public void setHiddenColumns(List<String> hiddenColumns) {
         Columns[] columns = Columns.values();
         int numColumns = columns.length;
