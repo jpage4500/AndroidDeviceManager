@@ -185,8 +185,8 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         });
 
         JMenuBar menubar = new JMenuBar();
-        menubar.add(deviceMenu);
         menubar.add(windowMenu);
+        menubar.add(deviceMenu);
         setJMenuBar(menubar);
     }
 
