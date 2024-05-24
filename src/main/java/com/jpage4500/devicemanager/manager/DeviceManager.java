@@ -185,7 +185,12 @@ public class DeviceManager {
                         listener.handleDeviceUpdated(addedDevice);
                     }
                 } catch (Exception e) {
-                    log.trace("handleDeviceUpdate: NOT_READY: {} -> {}", addedDevice.serial, e.getMessage());
+                    //  command failed: device still authorizing
+                    //  command failed: device unauthorized.
+                    //  This adb server's $ADB_VENDOR_KEYS is not set
+                    //  Try 'adb kill-server' if that seems wrong.
+                    //  Otherwise check for a confirmation dialog on your device.
+                    log.trace("handleDeviceUpdate: NOT_READY_EXCEPTION: {} -> {}", addedDevice.serial, e.getMessage());
                     addedDevice.status = e.getMessage();
                     listener.handleDeviceUpdated(addedDevice);
                 }

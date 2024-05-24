@@ -494,7 +494,9 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     private void handleConnectDevice() {
         ConnectScreen.showConnectDialog(this, isSuccess -> {
             log.debug("handleConnectDevice: {}", isSuccess);
-            if (!isSuccess) JOptionPane.showMessageDialog(this, "Unable to connect!");
+            if (!isSuccess) {
+                JOptionPane.showMessageDialog(this, "Unable to connect!\n\nCheck if the device is showing an prompt to authorize");
+            }
         });
     }
 

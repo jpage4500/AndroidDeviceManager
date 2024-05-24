@@ -74,13 +74,16 @@ public class MainApplication {
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
 
+        String os = System.getProperty("os.name");
         // set docker app icon (mac)
-        final Taskbar taskbar = Taskbar.getTaskbar();
-        try {
-            Image image = ImageIO.read(getClass().getResource("/images/logo.png"));
-            taskbar.setIconImage(image);
-        } catch (final Exception e) {
-            log.error("Exception: {}", e.getMessage());
+        if (TextUtils.containsIgnoreCase(os, "Mac")) {
+            final Taskbar taskbar = Taskbar.getTaskbar();
+            try {
+                Image image = ImageIO.read(getClass().getResource("/images/logo.png"));
+                taskbar.setIconImage(image);
+            } catch (final Exception e) {
+                log.error("Exception: {}", e.getMessage());
+            }
         }
 
         deviceView = new DeviceView();
