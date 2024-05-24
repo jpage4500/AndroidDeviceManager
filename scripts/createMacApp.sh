@@ -20,7 +20,10 @@ fi
 
 cd target
 
-zip -r $APP-1.0.$COMMITS.zip $APP.app
+VERSION=$(ls -t ${APP}*.jar | head -1 | sed "s/${APP}-//g" | sed 's/.jar//g')
+
+zip -r $APP-$VERSION.zip $APP.app
 
 # copy to /Applications folder
-cp -r $APP.app /Applications
+rm -rf /Applications/$APP.app
+cp -Rf $APP.app /Applications
