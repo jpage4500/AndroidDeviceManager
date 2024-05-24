@@ -7,7 +7,6 @@
     <groupId>com.jpage</groupId>
     <artifactId>AndroidDeviceManager</artifactId>
     <version>${maven.build.timestamp}</version>
-
     <packaging>jar</packaging>
 
     <properties>
@@ -57,11 +56,12 @@
                 <filtering>true</filtering>
             </resource>
         </resources>
-        <finalName>AndroidDeviceManager-${maven.build.timestamp}</finalName>
+        <finalName>AndroidDeviceManager</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
                 <configuration>
                     <source>21</source>
                     <target>21</target>

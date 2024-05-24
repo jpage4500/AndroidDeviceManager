@@ -33,7 +33,6 @@ public class AppLoggerFactory implements ILoggerFactory {
 
     private final SimpleDateFormat sdf = new SimpleDateFormat("MM/dd HH:mm:ss", Locale.US);
 
-
     /**
      * set a short prefix string to the TAG field
      * NOTE: total tag length is only 23 characters so you'll want to make this VERY short

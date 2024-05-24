@@ -25,6 +25,7 @@ public class MainApplication {
     public MainApplication() {
         setupLogging();
         SwingUtilities.invokeLater(this::initializeUI);
+        log.debug("MainApplication: APP START: {}, java:{}", version, Runtime.version());
     }
 
     public static void main(String[] args) {
@@ -40,9 +41,8 @@ public class MainApplication {
             prop.load(MainApplication.class.getClassLoader().getResourceAsStream("app.properties"));
             version = prop.getProperty("version");
         } catch (IOException ex) {
-            log.error("MainApplication: property: {}", ex.getMessage());
+            System.out.println("Failed to load app.properties");
         }
-        log.debug("MainApplication: APP START: {}, java:{}", version, Runtime.version());
         new MainApplication();
     }
 
@@ -61,7 +61,7 @@ public class MainApplication {
 
         Preferences preferences = Preferences.userRoot();
         boolean isDebugMode = preferences.getBoolean(SettingsScreen.PREF_DEBUG_MODE, false);
-        logger.setFileLogLevel(isDebugMode ? Log.VERBOSE : Log.DEBUG);
+        logger.setFileLogLevel(isDebugMode ? Log.DEBUG : Log.INFO);
     }
 
     private void initializeUI() {
