@@ -41,11 +41,9 @@ public class DeviceManager {
 
     private static final String SCRIPT_TERMINAL = "terminal.sh";
     private static final String SCRIPT_CUSTOM_COMMAND = "custom-command.sh";
-    private static final String SCRIPT_COPY_FILE = "copy-file.sh";
     private static final String SCRIPT_SET_PROPERTY = "set-property.sh";
     private static final String SCRIPT_SCREENSHOT = "screenshot.sh";
     private static final String SCRIPT_MIRROR = "mirror.sh";
-    private static final String SCRIPT_START_LOGGING = "start-logging.sh";
 
     private static volatile DeviceManager instance;
 
@@ -372,7 +370,7 @@ public class DeviceManager {
             } catch (Exception e) {
                 log.error("captureScreenshot: {}", e.getMessage());
             }
-            runScript(device, SCRIPT_SCREENSHOT, listener, false, device.serial);
+            //runScript(device, SCRIPT_SCREENSHOT, listener, false, device.serial);
         });
     }
 

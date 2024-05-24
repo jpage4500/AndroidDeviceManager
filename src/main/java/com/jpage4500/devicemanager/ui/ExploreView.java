@@ -147,6 +147,11 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
             deviceView.handleLogsCommand();
         });
 
+        // [CMD + T] = hide toolbar
+        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> {
+            hideToolbar();
+        });
+
         JMenu fileMenu = new JMenu("Files");
 
         // [CMD + BACKSPACE] = delete files
@@ -163,6 +168,10 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
         menubar.add(windowMenu);
         menubar.add(fileMenu);
         setJMenuBar(menubar);
+    }
+
+    private void hideToolbar() {
+        toolbar.setVisible(!toolbar.isVisible());
     }
 
     private void setupTable() {
@@ -203,7 +212,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
             }
         });
 
-        // support drag and drop of files IN TO deviceView
+        // support drag and drop of files IN TO explorer window
         new DropTarget(table.getScrollPane(), new FileDragAndDropListener(table.getScrollPane(), this::handleFilesDropped));
     }
 

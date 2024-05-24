@@ -1,6 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
-import com.jpage4500.devicemanager.Build;
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
@@ -154,6 +154,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
             setVisible(false);
             dispose();
+            System.exit(0);
         });
 
         // [CMD + 2] = show explorer
@@ -166,14 +167,31 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             handleLogsCommand();
         });
 
+        // [CMD + T] = hide toolbar
+        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> {
+            hideToolbar();
+        });
+
+        JMenu deviceMenu = new JMenu("Devices");
+
         // [CMD + F] = focus search box
-        createCmdAction(windowMenu, "Filter", KeyEvent.VK_F, e -> {
+        createCmdAction(deviceMenu, "Filter", KeyEvent.VK_F, e -> {
             filterTextField.requestFocus();
         });
 
+        // [CMD + N] = connect device
+        createCmdAction(deviceMenu, "Connect Device", KeyEvent.VK_N, e -> {
+            handleConnectDevice();
+        });
+
         JMenuBar menubar = new JMenuBar();
+        menubar.add(deviceMenu);
         menubar.add(windowMenu);
         setJMenuBar(menubar);
+    }
+
+    private void hideToolbar() {
+        toolbar.setVisible(!toolbar.isVisible());
     }
 
     private void setupTable() {
@@ -240,7 +258,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         long usedMemory = totalMemory - freeMemory;
         String memUsage = FileUtils.bytesToDisplayString(usedMemory);
 
-        statusBar.setLeftLabel(Build.versionName + " / " + memUsage);
+        statusBar.setLeftLabel(MainApplication.version + " / " + memUsage);
     }
 
     @Override

@@ -210,6 +210,11 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
             deviceView.handleBrowseCommand();
         });
 
+        // [CMD + T] = hide toolbar
+        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> {
+            hideToolbar();
+        });
+
         JMenu logsMenu = new JMenu("Logs");
 
         // [CMD + ENTER] = toggle auto scroll
@@ -253,6 +258,10 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
         menubar.add(windowMenu);
         menubar.add(logsMenu);
         setJMenuBar(menubar);
+    }
+
+    private void hideToolbar() {
+        toolbar.setVisible(!toolbar.isVisible());
     }
 
     private void setupTable() {

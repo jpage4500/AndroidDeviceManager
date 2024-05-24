@@ -205,10 +205,6 @@ public class CustomTable extends JTable {
     @Override
     public void setModel(TableModel dataModel) {
         super.setModel(dataModel);
-//        dataModel.addTableModelListener(e -> {
-//            log.debug("setModel: CHANGED");
-//            tableColumnAdjuster.adjustColumns();
-//        });
         restore();
     }
 

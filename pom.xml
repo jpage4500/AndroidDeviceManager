@@ -6,7 +6,7 @@
 
     <groupId>com.jpage</groupId>
     <artifactId>AndroidDeviceManager</artifactId>
-    <version>1.0.BETA</version>
+    <version>${maven.build.timestamp}</version>
 
     <packaging>jar</packaging>
 
@@ -14,6 +14,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <maven.compiler.release>21</maven.compiler.release>
+        <maven.build.timestamp.format>yy.MM.dd.HHmm</maven.build.timestamp.format>
     </properties>
 
     <dependencies>
@@ -50,7 +51,13 @@
     </dependencies>
 
     <build>
-        <finalName>AndroidDeviceManager-1.0.${git.total.commit.count}</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <finalName>AndroidDeviceManager-${maven.build.timestamp}</finalName>
         <plugins>
             <!-- create native MacOS app from jar -->
             <plugin>
@@ -79,24 +86,6 @@
                         <goals>
                             <goal>bundle</goal>
                         </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- create com.jpage4500.devicemanager.Build.java file with version constants -->
-            <plugin>
-                <artifactId>exec-maven-plugin</artifactId>
-                <groupId>org.codehaus.mojo</groupId>
-                <version>1.6.0</version>
-                <executions>
-                    <execution>
-                        <id>Run Script</id>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <executable>scripts/createVersion.sh</executable>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>

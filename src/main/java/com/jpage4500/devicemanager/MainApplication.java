@@ -3,30 +3,27 @@ package com.jpage4500.devicemanager;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
-import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.ui.DeviceView;
 import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.TextUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.*;
-import java.util.prefs.Preferences;
-
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import java.awt.*;
+import java.io.IOException;
+import java.util.Properties;
+import java.util.prefs.Preferences;
 
 public class MainApplication {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
     private DeviceView deviceView;
+    public static String version;
 
     public MainApplication() {
         setupLogging();
-        Runtime.Version version = Runtime.version();
-        log.debug("MainApplication: APP START: {}, java:{}", Build.versionName, version);
-
         SwingUtilities.invokeLater(this::initializeUI);
     }
 
@@ -38,6 +35,14 @@ public class MainApplication {
         if (TextUtils.containsIgnoreCase(os, "Mac")) {
             System.setProperty("jdk.lang.Process.launchMechanism", "FORK");
         }
+        Properties prop = new Properties();
+        try {
+            prop.load(MainApplication.class.getClassLoader().getResourceAsStream("app.properties"));
+            version = prop.getProperty("version");
+        } catch (IOException ex) {
+            log.error("MainApplication: property: {}", ex.getMessage());
+        }
+        log.debug("MainApplication: APP START: {}, java:{}", version, Runtime.version());
         new MainApplication();
     }
 
