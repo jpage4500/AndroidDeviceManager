@@ -22,7 +22,10 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -352,17 +355,60 @@ public class DeviceManager {
         return null;
     }
 
-    public void mirrorDevice(Device device, DeviceListener listener) {
+    /**
+     * run scrcpy app
+     */
+    public void mirrorDevice(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            device.status = "mirring...";
-            listener.handleDeviceUpdated(device);
-            String name = device.serial;
-            if (device.phone != null) name += ": " + device.phone;
-            ScriptResult result = runScript(SCRIPT_MIRROR, true, true, device.serial, name);
-            if (result.isSuccess) device.status = null;
-            else device.status = GsonHelper.toJson(result.stdErr);
-            listener.handleDeviceUpdated(device);
+            int port = new Random().nextInt(9999);
+            log.debug("mirrorDevice: {}, port:{}", device.serial, port);
+            // # options:
+            //# --stay-awake
+            //# --always-on-top
+            //# --encoder ['OMX.qcom.video.encoder.avc', 'c2.android.avc.encoder', 'OMX.google.h264.encoder']
+            //
+            //${SCRCPY} -s "$ADB_DEVICE" -p $RANDOM --window-title "$DEVICE_NAME" --show-touches --stay-awake
+            String[] args = new String[]{
+                    "-s", device.serial, "-p", String.valueOf(port),
+                    "--window-title", device.getDisplayName(), "--show-touches", "--stay-awake"
+            };
+            AppResult result = runApp("scrcpy", true, args);
+            log.debug("mirrorDevice: DONE:{}", GsonHelper.toJson(result));
+            // TODO: figure out how to determine if scrcpy was run successfully..
+            listener.onTaskComplete(result.isSuccess);
+
+            // TODO: remove me
+            File scrcpy = findAppInPath("scrcpy");
+            if (scrcpy == null) {
+                listener.onTaskComplete(false);
+                return;
+            }
         });
+    }
+
+    private File findAppInPath(String app) {
+        String os = System.getProperty("os.name");
+        log.debug("findAppInPath: OS:{}", os);
+
+        String path = System.getenv("PATH");
+        if (path == null) {
+            log.debug("findAppInPath: PATH_NOT_FOUND");
+            return null;
+        }
+
+        // PATH='/c/Users/joe/bin:/clangarm64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/joe/bin:/c/Program Files/Common Files/Oracle/Java/javapath:/c/Windows/system32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0:/c/Windows/System32/OpenSSH:/cmd:/c/Program Files/apache-maven-3.9.6/bin:/c/Users/joe/AppData/Local/Android/sdk/platform-tools:/c/Program Files/scrcpy-win64-v2.4:/c/Users/joe/AppData/Local/Microsoft/WindowsApps:/usr/bin/vendor_perl:/usr/bin/core_perl'
+        // PATH='/Users/jpage/.rbenv/shims:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/opt/python/libexec/bin:.:/usr/local/bin:/Users/jpage/Library/Android/sdk/platform-tools:/opt/homebrew/Cellar/openjdk/21.0.2/libexec/openjdk.jdk/Contents/Home/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/Applications/Wireshark.app/Contents/MacOS:/Applications/VMware Fusion.app/Contents/Public:/usr/local/share/dotnet:~/.dotnet/tools:/usr/local/go/bin:/Applications/iTerm.app/Contents/Resources/utilities:/Users/jpage/Library/Android/sdk/tools:/Users/jpage/Library/Android/sdk/tools/bin:/Users/jpage/Library/Android/sdk/build-tools/29.0.3:/Users/jpage/GoogleDrive/bin:/Users/jpage/GoogleDrive/bin/IST:/Users/jpage/GoogleDrive/bin/PROJECTS:/Users/jpage/node_modules/.bin:/opt/homebrew/Cellar/gradle/bin:/Users/jpage/.local/bin:/Users/jpage/golang/bin:/opt/homebrew/opt/go/libexec/bin:/Users/jpage/.rbenv/shims/:/opt/homebrew/opt/python@3.9/Frameworks/Python.framework/Versions/3.9/bin:/Applications/Wireshark.app/Contents/MacOS/extcap'
+        String[] splitArr = path.split(":");
+        for (String var : splitArr) {
+            File file = new File(var, app);
+            if (file.exists()) {
+                log.debug("findAppInPath: GOT: {}", file.getAbsolutePath());
+                return file;
+            }
+        }
+
+        log.debug("findAppInPath: NOT_FOUND: {}", app);
+        return null;
     }
 
     public void captureScreenshot(Device device, DeviceListener listener) {
@@ -383,9 +429,10 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             device.status = "runUserScript...";
             listener.handleDeviceUpdated(device);
-            ScriptResult result = runScript(file, false, true, device.serial, tempFolder);
-            if (result.isSuccess) device.status = null;
-            else device.status = GsonHelper.toJson(result.stdErr);
+            // TODO
+            //ScriptResult result = runScript(file, false, true, device.serial, tempFolder);
+            //if (result.isSuccess) device.status = null;
+            //else device.status = GsonHelper.toJson(result.stdErr);
             listener.handleDeviceUpdated(device);
             log.debug("runUserScript: DONE");
         });
@@ -395,7 +442,8 @@ public class DeviceManager {
         if (value == null) value = "";
         String safeValue = value.replaceAll(" ", "~");
         commandExecutorService.submit(() -> {
-            runScript(SCRIPT_SET_PROPERTY, device.serial, key, safeValue);
+            // TODO
+            // runScript(SCRIPT_SET_PROPERTY, device.serial, key, safeValue);
             log.debug("setProperty: {}, key:{}, value:{}, DONE", device.serial, key, safeValue);
         });
     }
@@ -440,14 +488,16 @@ public class DeviceManager {
     public void runCustomCommand(Device device, String customCommand, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "running...";
-            runScript(device, SCRIPT_CUSTOM_COMMAND, listener, true, device.serial);
+            // TODO
+            // runScript(device, SCRIPT_CUSTOM_COMMAND, listener, true, device.serial);
         });
     }
 
     public void openTerminal(Device device, DeviceListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "terminal...";
-            runScript(device, SCRIPT_TERMINAL, listener, false, device.serial);
+            // TODO
+            // runScript(device, SCRIPT_TERMINAL, listener, false, device.serial);
         });
     }
 
@@ -802,37 +852,24 @@ public class DeviceManager {
         return tempFile;
     }
 
-    private void runScript(Device device, String script, DeviceListener listener, boolean showSuccess, String arg) {
-        if (listener != null) listener.handleDeviceUpdated(device);
-        ScriptResult result = runScript(script, device.serial, arg);
-        if (result.isSuccess) device.status = showSuccess ? GsonHelper.toJson(result.stdOut) : null;
-        else device.status = GsonHelper.toJson(result.stdErr);
-        if (listener != null) listener.handleDeviceUpdated(device);
-    }
-
-    public static class ScriptResult {
+    public static class AppResult {
         boolean isSuccess;
         List<String> stdOut;
         List<String> stdErr;
     }
 
-    public ScriptResult runScript(String scriptName, String... args) {
-        return runScript(scriptName, false, true, args);
-    }
-
-    public ScriptResult runScript(String scriptName, boolean isLongRunning, boolean logResults, String... args) {
-        //if (logResults) log.trace("runScript: {}, args:{}", scriptName, GsonHelper.toJson(args));
-        File tempFile = getScriptFile(scriptName);
-        return runScript(tempFile, isLongRunning, logResults, args);
-    }
-
-    public ScriptResult runScript(File script, boolean isLongRunning, boolean logResults, String... args) {
-        ScriptResult result = new ScriptResult();
+    /**
+     * run external application
+     *
+     * @param app           - app name (full path necessary if app isn't in env PATH)
+     * @param isLongRunning - true to allow app to run; false to kill it if still running after 30 seconds
+     */
+    public AppResult runApp(String app, boolean isLongRunning, String... args) {
+        AppResult result = new AppResult();
         Timer timer = new Timer();
-        String name = script.getName();
         try {
             List<String> commandList = new ArrayList<>();
-            commandList.add(script.getAbsolutePath());
+            commandList.add(app);
             if (args != null) {
                 commandList.addAll(Arrays.asList(args));
             }
@@ -854,30 +891,28 @@ public class DeviceManager {
                 if (isExited) {
                     exitValue = process.exitValue();
                 } else {
-                    log.error("runScript: {}: NOT FINISHED: {}, args:{}", timer, name, GsonHelper.toJson(args));
+                    log.error("runScript: {}: NOT FINISHED: {}, args:{}", timer, app, GsonHelper.toJson(args));
                 }
             }
             result.isSuccess = exitValue == 0;
             if (!result.isSuccess) {
-                log.error("runScript: {}: ERROR: {}, rc:{}, args:{}", timer, name, exitValue, GsonHelper.toJson(args));
+                log.error("runScript: {}: ERROR: {}, rc:{}, args:{}", timer, app, exitValue, GsonHelper.toJson(args));
             }
 
             result.stdOut = readInputStream(process.getInputStream());
-            if (!result.stdOut.isEmpty() && log.isTraceEnabled() && logResults) {
-                log.trace("runScript: {}: {}, RESULTS: {}", timer, name, GsonHelper.toJson(result.stdOut));
-            }
+            //log.trace("runScript: {}: {}, RESULTS: {}", timer, app, GsonHelper.toJson(result.stdOut));
             result.stdErr = readInputStream(process.getErrorStream());
             synchronized (processList) {
                 processList.remove(process);
             }
             if (!result.stdErr.isEmpty()) {
-                log.error("runScript: {}: ERROR: {}, {}", timer, name, GsonHelper.toJson(result.stdErr));
+                log.error("runScript: {}: ERROR: {}, {}", timer, app, GsonHelper.toJson(result.stdErr));
             }
             return result;
         } catch (Exception e) {
             result.isSuccess = false;
             result.stdErr = List.of("Exception: " + e.getMessage());
-            log.error("runScript: {}: Exception: {}, {}, {}", timer, name, e.getClass().getSimpleName(), e.getMessage());
+            log.error("runScript: {}: Exception: {}, {}, {}", timer, app, e.getClass().getSimpleName(), e.getMessage());
         }
         return result;
     }

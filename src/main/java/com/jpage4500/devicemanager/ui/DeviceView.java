@@ -560,7 +560,14 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         }
 
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().mirrorDevice(device, this);
+            DeviceManager.getInstance().mirrorDevice(device, isSuccess -> {
+//                StringBuilder sb = new StringBuilder();
+//                sb.append("Result from command:\n\n");
+//                sb.append(GsonHelper.toJson());
+//                JOptionPane.showMessageDialog(this,
+//                        "Unable to connect!\n\nCheck if the device is showing an prompt to authorize");
+
+            });
         }
     }
 

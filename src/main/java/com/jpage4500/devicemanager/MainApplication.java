@@ -6,6 +6,7 @@ import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.ui.DeviceView;
 import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,9 +32,8 @@ public class MainApplication {
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "Device Manager");
         System.setProperty("apple.laf.useScreenMenuBar", "true");
-        String os = System.getProperty("os.name");
         // required to run scripts when packaged as an app
-        if (TextUtils.containsIgnoreCase(os, "Mac")) {
+        if (Utils.isMac()) {
             System.setProperty("jdk.lang.Process.launchMechanism", "FORK");
         }
         Properties prop = new Properties();
