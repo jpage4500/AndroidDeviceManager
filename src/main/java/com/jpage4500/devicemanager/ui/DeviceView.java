@@ -423,12 +423,12 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             for (File file : fileList) {
                 String filename = file.getName();
                 if (filename.endsWith(".apk")) {
-                    DeviceManager.getInstance().installApp(device, file, isSuccess -> {
+                    DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
 
                     });
                 } else {
                     // TODO: where to put files?
-                    DeviceManager.getInstance().copyFile(device, file, "/sdcard/Download/", isSuccess -> {
+                    DeviceManager.getInstance().copyFile(device, file, "/sdcard/Download/", (isSuccess, error) -> {
                     });
                 }
             }
@@ -487,12 +487,18 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             if (rc != JOptionPane.YES_OPTION) return;
         }
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().captureScreenshot(device, this);
+            DeviceManager.getInstance().captureScreenshot(device, (isSuccess, error) -> {
+                if (!isSuccess && selectedDeviceList.size() == 1) {
+                    // only show dialog if command was run on a single device
+                    String msg = "RESULTS:\n\n" + error;
+                    JOptionPane.showMessageDialog(this, msg);
+                }
+            });
         }
     }
 
     private void handleConnectDevice() {
-        ConnectScreen.showConnectDialog(this, isSuccess -> {
+        ConnectScreen.showConnectDialog(this, (isSuccess, error) -> {
             log.debug("handleConnectDevice: {}", isSuccess);
             if (!isSuccess) {
                 JOptionPane.showMessageDialog(this, "Unable to connect!\n\nCheck if the device is showing an prompt to authorize");
@@ -501,7 +507,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     }
 
     private void handleDisconnect(Device device) {
-        DeviceManager.getInstance().disconnectDevice(device.serial, isSuccess -> {
+        DeviceManager.getInstance().disconnectDevice(device.serial, (isSuccess, error) -> {
             if (!isSuccess) JOptionPane.showMessageDialog(this, "Unable to disconnect!");
         });
     }
@@ -560,13 +566,12 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         }
 
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().mirrorDevice(device, isSuccess -> {
-//                StringBuilder sb = new StringBuilder();
-//                sb.append("Result from command:\n\n");
-//                sb.append(GsonHelper.toJson());
-//                JOptionPane.showMessageDialog(this,
-//                        "Unable to connect!\n\nCheck if the device is showing an prompt to authorize");
-
+            DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
+                // only show dialog if mirror was run on a single device
+                if (selectedDeviceList.size() == 1 && !isSuccess) {
+                    String msg = "RESULTS:\n\n" + error;
+                    JOptionPane.showMessageDialog(this, msg);
+                }
             });
         }
     }

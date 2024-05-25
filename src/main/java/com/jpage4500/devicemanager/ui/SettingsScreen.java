@@ -282,12 +282,27 @@ public class SettingsScreen extends JPanel {
 
     private void showDownloadLocation() {
         Preferences preferences = Preferences.userRoot();
-        String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, "~/Downloads");
+        String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
 
-        String result = showSingleLineEditDialog("Download Folder", "Enter Download Folder", downloadFolder);
-        if (result != null) {
-            preferences.put(ExploreView.PREF_DOWNLOAD_FOLDER, result);
+        JFileChooser chooser = new JFileChooser();
+        chooser.setCurrentDirectory(new File(downloadFolder));
+        chooser.setDialogTitle("Select Folder");
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        chooser.setApproveButtonText("OK");
+        chooser.setAcceptAllFileFilterUsed(false);
+
+        int rc = chooser.showOpenDialog(this);
+        if (rc == JFileChooser.APPROVE_OPTION) {
+            File selectedFile = chooser.getSelectedFile();
+            if (selectedFile != null && selectedFile.exists() && selectedFile.isDirectory()) {
+                preferences.put(ExploreView.PREF_DOWNLOAD_FOLDER, selectedFile.getAbsolutePath());
+            }
         }
+
+//        String result = showSingleLineEditDialog("Download Folder", "Enter Download Folder", downloadFolder);
+//        if (result != null) {
+//            preferences.put(ExploreView.PREF_DOWNLOAD_FOLDER, result);
+//        }
     }
 
 }

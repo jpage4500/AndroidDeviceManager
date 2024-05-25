@@ -165,7 +165,7 @@ public class InputScreen {
         textField.setEnabled(false);
         if (text.isEmpty()) {
             // send newline character
-            DeviceManager.getInstance().sendInputKeyCode(selectedDevice, 66, isSuccess -> {
+            DeviceManager.getInstance().sendInputKeyCode(selectedDevice, 66, (isSuccess, error) -> {
                 textField.setEnabled(true);
                 if (isSuccess) {
                     // clear out text
@@ -178,7 +178,7 @@ public class InputScreen {
             return;
         }
 
-        DeviceManager.getInstance().sendInputText(selectedDevice, text, isSuccess -> {
+        DeviceManager.getInstance().sendInputText(selectedDevice, text, (isSuccess, error) -> {
             textField.setEnabled(true);
             if (isSuccess) {
                 // clear out text

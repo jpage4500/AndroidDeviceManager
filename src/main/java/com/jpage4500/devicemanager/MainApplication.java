@@ -26,7 +26,7 @@ public class MainApplication {
     public MainApplication() {
         setupLogging();
         SwingUtilities.invokeLater(this::initializeUI);
-        log.debug("MainApplication: APP START: {}, java:{}", version, Runtime.version());
+        log.debug("MainApplication: APP START: {}, java:{}, os:{}", version, Runtime.version(), System.getProperty("os.name"));
     }
 
     public static void main(String[] args) {
@@ -74,9 +74,8 @@ public class MainApplication {
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
 
-        String os = System.getProperty("os.name");
         // set docker app icon (mac)
-        if (TextUtils.containsIgnoreCase(os, "Mac")) {
+        if (Utils.isMac()) {
             final Taskbar taskbar = Taskbar.getTaskbar();
             try {
                 Image image = ImageIO.read(getClass().getResource("/images/logo.png"));

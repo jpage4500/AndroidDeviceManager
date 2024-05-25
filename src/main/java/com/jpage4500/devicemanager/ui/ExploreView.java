@@ -388,7 +388,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
             if (filename.endsWith(".apk")) {
                 DeviceManager.getInstance().installApp(device, file, null);
             } else {
-                DeviceManager.getInstance().copyFile(device, file, selectedPath + "/", isSuccess -> {
+                DeviceManager.getInstance().copyFile(device, file, selectedPath + "/", (isSuccess, error) -> {
                     if (isSuccess) refreshFiles();
                 });
             }
@@ -425,7 +425,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
                 null);
         if (TextUtils.isEmpty(result)) return;
 
-        DeviceManager.getInstance().createFolder(device, selectedPath + "/" + result, isSuccess -> {
+        DeviceManager.getInstance().createFolder(device, selectedPath + "/" + result, (isSuccess, error) -> {
             refreshFiles();
         });
     }
@@ -459,7 +459,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
                 return;
             }
             File downloadFile = new File(downloadFolder, file.name);
-            DeviceManager.getInstance().downloadFile(device, selectedPath, file, downloadFile, isSuccess -> {
+            DeviceManager.getInstance().downloadFile(device, selectedPath, file, downloadFile, (isSuccess, error) -> {
                 if (isSuccess && isSingleFile) {
                     if (downloadFile.exists()) {
                         int openRc = JOptionPane.showConfirmDialog(this,
@@ -497,7 +497,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (DeviceFile file : selectedFileList) {
-            DeviceManager.getInstance().deleteFile(device, selectedPath, file, isSuccess -> {
+            DeviceManager.getInstance().deleteFile(device, selectedPath, file, (isSuccess, error) -> {
                 refreshFiles();
             });
         }

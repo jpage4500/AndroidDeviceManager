@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.ConnectScreen;
+import com.jpage4500.devicemanager.ui.ExploreView;
 import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
@@ -12,6 +13,8 @@ import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -21,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
+import java.util.List;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -29,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.prefs.Preferences;
 
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
@@ -41,12 +46,6 @@ public class DeviceManager {
     public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS";
 
     public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
-
-    private static final String SCRIPT_TERMINAL = "terminal.sh";
-    private static final String SCRIPT_CUSTOM_COMMAND = "custom-command.sh";
-    private static final String SCRIPT_SET_PROPERTY = "set-property.sh";
-    private static final String SCRIPT_SCREENSHOT = "screenshot.sh";
-    private static final String SCRIPT_MIRROR = "mirror.sh";
 
     private static volatile DeviceManager instance;
 
@@ -375,60 +374,36 @@ public class DeviceManager {
             AppResult result = runApp("scrcpy", true, args);
             log.debug("mirrorDevice: DONE:{}", GsonHelper.toJson(result));
             // TODO: figure out how to determine if scrcpy was run successfully..
-            listener.onTaskComplete(result.isSuccess);
-
-            // TODO: remove me
-            File scrcpy = findAppInPath("scrcpy");
-            if (scrcpy == null) {
-                listener.onTaskComplete(false);
-                return;
-            }
+            // - scrcpy will log to stderr even when successful
+            listener.onTaskComplete(result.isSuccess, TextUtils.join(result.stdErr, "\n"));
         });
     }
 
-    private File findAppInPath(String app) {
-        String os = System.getProperty("os.name");
-        log.debug("findAppInPath: OS:{}", os);
-
-        String path = System.getenv("PATH");
-        if (path == null) {
-            log.debug("findAppInPath: PATH_NOT_FOUND");
-            return null;
-        }
-
-        // PATH='/c/Users/joe/bin:/clangarm64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/joe/bin:/c/Program Files/Common Files/Oracle/Java/javapath:/c/Windows/system32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0:/c/Windows/System32/OpenSSH:/cmd:/c/Program Files/apache-maven-3.9.6/bin:/c/Users/joe/AppData/Local/Android/sdk/platform-tools:/c/Program Files/scrcpy-win64-v2.4:/c/Users/joe/AppData/Local/Microsoft/WindowsApps:/usr/bin/vendor_perl:/usr/bin/core_perl'
-        // PATH='/Users/jpage/.rbenv/shims:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/opt/python/libexec/bin:.:/usr/local/bin:/Users/jpage/Library/Android/sdk/platform-tools:/opt/homebrew/Cellar/openjdk/21.0.2/libexec/openjdk.jdk/Contents/Home/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/Applications/Wireshark.app/Contents/MacOS:/Applications/VMware Fusion.app/Contents/Public:/usr/local/share/dotnet:~/.dotnet/tools:/usr/local/go/bin:/Applications/iTerm.app/Contents/Resources/utilities:/Users/jpage/Library/Android/sdk/tools:/Users/jpage/Library/Android/sdk/tools/bin:/Users/jpage/Library/Android/sdk/build-tools/29.0.3:/Users/jpage/GoogleDrive/bin:/Users/jpage/GoogleDrive/bin/IST:/Users/jpage/GoogleDrive/bin/PROJECTS:/Users/jpage/node_modules/.bin:/opt/homebrew/Cellar/gradle/bin:/Users/jpage/.local/bin:/Users/jpage/golang/bin:/opt/homebrew/opt/go/libexec/bin:/Users/jpage/.rbenv/shims/:/opt/homebrew/opt/python@3.9/Frameworks/Python.framework/Versions/3.9/bin:/Applications/Wireshark.app/Contents/MacOS/extcap'
-        String[] splitArr = path.split(":");
-        for (String var : splitArr) {
-            File file = new File(var, app);
-            if (file.exists()) {
-                log.debug("findAppInPath: GOT: {}", file.getAbsolutePath());
-                return file;
-            }
-        }
-
-        log.debug("findAppInPath: NOT_FOUND: {}", app);
-        return null;
-    }
-
-    public void captureScreenshot(Device device, DeviceListener listener) {
+    public void captureScreenshot(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            device.status = "screenshot...";
+            Preferences preferences = Preferences.userRoot();
+            String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
+            // 20211215-1441PM-1.png
+            String name = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date()) + ".png";
             try {
-                BufferedImage screencap = device.jadbDevice.screencap();
-                // TODO: display image in frame
-                log.debug("captureScreenshot: {}x{}", screencap.getWidth(), screencap.getHeight());
+                Timer timer = new Timer();
+                BufferedImage image = device.jadbDevice.screencap();
+                // save to file
+                File outputfile = new File(downloadFolder, name);
+                ImageIO.write(image, "png", outputfile);
+                log.debug("captureScreenshot: DONE:{}, {}x{}, {}", timer, image.getWidth(), image.getHeight(), outputfile.getAbsolutePath());
+                // open with default viewer
+                Desktop.getDesktop().open(outputfile);
+                listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("captureScreenshot: {}", e.getMessage());
+                listener.onTaskComplete(false, e.getMessage());
             }
-            //runScript(device, SCRIPT_SCREENSHOT, listener, false, device.serial);
         });
     }
 
     public void runUserScript(Device device, File file, DeviceListener listener) {
         commandExecutorService.submit(() -> {
-            device.status = "runUserScript...";
-            listener.handleDeviceUpdated(device);
             // TODO
             //ScriptResult result = runScript(file, false, true, device.serial, tempFolder);
             //if (result.isSuccess) device.status = null;
@@ -453,11 +428,11 @@ public class DeviceManager {
             try {
                 PackageManager packageManager = new PackageManager(device.jadbDevice);
                 packageManager.install(file);
-                if (listener != null) listener.onTaskComplete(true);
+                if (listener != null) listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("installApp: {}, {}", file.getAbsolutePath(), e.getMessage());
                 device.status = "failed: " + e.getMessage();
-                if (listener != null) listener.onTaskComplete(true);
+                if (listener != null) listener.onTaskComplete(true, null);
             }
         });
     }
@@ -468,10 +443,10 @@ public class DeviceManager {
             try {
                 RemoteFile remoteFile = new RemoteFileRecord(dest, file.getName(), 0, 0, 0);
                 device.jadbDevice.push(file, remoteFile);
-                listener.onTaskComplete(true);
+                listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
-                listener.onTaskComplete(false);
+                listener.onTaskComplete(false, null);
             }
         });
     }
@@ -531,7 +506,7 @@ public class DeviceManager {
     }
 
     public interface TaskListener {
-        void onTaskComplete(boolean isSuccess);
+        void onTaskComplete(boolean isSuccess, String error);
     }
 
     public void downloadFile(Device device, String path, DeviceFile file, File saveFile, TaskListener listener) {
@@ -576,7 +551,7 @@ public class DeviceManager {
             List<String> resultList = runShell(device, "rm -rf " + path + file.name);
             log.debug("deleteFile: {}/{} -> {}", path, file.name, GsonHelper.toJson(resultList));
             // TODO: determine success/fail
-            listener.onTaskComplete(true);
+            listener.onTaskComplete(true, null);
         });
     }
 
@@ -585,7 +560,7 @@ public class DeviceManager {
             List<String> resultList = runShell(device, "mkdir \"" + path + "\"");
             log.debug("createFolder: {} -> {}", path, GsonHelper.toJson(resultList));
             // TODO: determine success/fail
-            listener.onTaskComplete(true);
+            listener.onTaskComplete(true, null);
         });
     }
 
@@ -594,10 +569,10 @@ public class DeviceManager {
             try {
                 log.debug("connectDevice: {}:{}", ip, port);
                 connection.connectToTcpDevice(new InetSocketAddress(ip, port));
-                listener.onTaskComplete(true);
+                listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("connectDevice: {}:{}, Exception:{}", ip, port, e.getMessage());
-                listener.onTaskComplete(false);
+                listener.onTaskComplete(false, null);
             }
         });
     }
@@ -614,10 +589,10 @@ public class DeviceManager {
                 int port = Integer.parseInt(deviceArr[1]);
                 log.debug("disconnectDevice: {}:{}", ip, port);
                 connection.disconnectFromTcpDevice(new InetSocketAddress(ip, port));
-                listener.onTaskComplete(true);
+                listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("connectDevice: {}, Exception:{}", serial, e.getMessage());
-                listener.onTaskComplete(false);
+                listener.onTaskComplete(false, null);
             }
         });
     }
@@ -627,10 +602,10 @@ public class DeviceManager {
             log.debug("sendInputText: {}", text);
             try {
                 device.jadbDevice.inputText(text);
-                if (listener != null) listener.onTaskComplete(true);
+                if (listener != null) listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("sendInputText: {}, Exception:{}", text, e.getMessage());
-                if (listener != null) listener.onTaskComplete(false);
+                if (listener != null) listener.onTaskComplete(false, null);
             }
         });
     }
@@ -640,10 +615,10 @@ public class DeviceManager {
             log.debug("sendInputKeyCode: {}", keyEvent);
             try {
                 device.jadbDevice.inputKeyEvent(keyEvent);
-                if (listener != null) listener.onTaskComplete(true);
+                if (listener != null) listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("sendInputKeyCode: {}, Exception:{}", keyEvent, e.getMessage());
-                if (listener != null) listener.onTaskComplete(false);
+                if (listener != null) listener.onTaskComplete(false, null);
             }
         });
     }
