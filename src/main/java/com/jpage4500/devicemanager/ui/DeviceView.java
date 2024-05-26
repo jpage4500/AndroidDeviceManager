@@ -8,7 +8,10 @@ import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
-import com.jpage4500.devicemanager.ui.views.*;
+import com.jpage4500.devicemanager.ui.views.CustomTable;
+import com.jpage4500.devicemanager.ui.views.EmptyView;
+import com.jpage4500.devicemanager.ui.views.HintTextField;
+import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -384,7 +387,9 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             if (rc != JOptionPane.YES_OPTION) return;
         }
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().openTerminal(device, this);
+            DeviceManager.getInstance().openTerminal(device, (isSuccess, error) -> {
+
+            });
         }
     }
 
@@ -418,6 +423,8 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         dialog.setAlwaysOnTop(true);
         int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
+
+        log.debug("handleFilesDropped: installing: {}", name);
 
         for (Device device : selectedDeviceList) {
             for (File file : fileList) {
@@ -463,7 +470,9 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
         for (Device device : selectedDeviceList) {
             String prop = "custom" + number;
-            DeviceManager.getInstance().setProperty(device, prop, result);
+            DeviceManager.getInstance().setProperty(device, prop, result, (isSuccess, error) -> {
+
+            });
             device.setCustomProperty(Device.CUSTOM_PROP_X + number, result);
             model.updateRowForDevice(device);
         }
@@ -636,8 +645,6 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         // TODO: add the 'add custom' button
         // createToolbarButton(toolbar, "icon_add.png", "add custom", "Run custom adb command", actionEvent -> handleAddCustomCommand());
 
-        loadCustomScripts(toolbar);
-
         toolbar.add(Box.createHorizontalGlue());
 
         filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
@@ -647,69 +654,15 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         toolbar.add(filterTextField);
 //        toolbar.add(Box.createHorizontalGlue());
 
-        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> handleRefreshCommand());
+        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshDevices());
         createToolbarButton(toolbar, "icon_settings.png", "Settings", "Settings", actionEvent -> handleSettingsClicked());
-    }
-
-    private void loadCustomScripts(JToolBar toolbar) {
-        String path = System.getProperty("user.home");
-        File folder = new File(path, ".device_manager");
-        if (!folder.exists()) {
-            boolean ok = folder.mkdir();
-            log.debug("loadCustomScripts: creating folder: {}, {}", ok, folder.getAbsolutePath());
-        } else {
-            File[] files = folder.listFiles();
-            if (files == null) return;
-            final JPopupMenu popup = new JPopupMenu();
-            int numScripts = 0;
-            for (File file : files) {
-                String name = file.getName();
-                if (!TextUtils.endsWith(name, ".sh")) return;
-                numScripts++;
-                ImageIcon icon = UiUtils.getImageIcon("icon_script.png", 20);
-                JMenuItem menuItem = new JMenuItem(name, icon);
-                menuItem.addActionListener(e -> {
-                    runCustomScript(file);
-                });
-                popup.add(menuItem);
-            }
-            if (numScripts > 0) {
-                ImageIcon imageIcon = UiUtils.getImageIcon("icon_script.png", 40, 40);
-                JSplitButton button = new JSplitButton(imageIcon);
-                button.setText("Custom");
-                button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
-                button.setToolTipText("View custom scripts");
-                button.setVerticalTextPosition(SwingConstants.BOTTOM);
-                button.setHorizontalTextPosition(SwingConstants.CENTER);
-                button.setPopupMenu(popup);
-                toolbar.add(button);
-                deviceButtonList.add(button);
-            }
-        }
-    }
-
-    private void runCustomScript(File file) {
-        log.debug("runCustomScript: run:{}", file.getAbsolutePath());
-
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        } else if (selectedDeviceList.size() > 1) {
-            // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(this, "Run script: " + file.getName() + " on selected devices?", "Run Script?", JOptionPane.YES_NO_OPTION);
-            if (rc != JOptionPane.YES_OPTION) return;
-        }
-        for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().runUserScript(device, file, this);
-        }
     }
 
     private void handleSettingsClicked() {
         SettingsScreen.showSettings(this, model);
     }
 
-    private void handleRefreshCommand() {
+    private void refreshDevices() {
         DeviceManager.getInstance().refreshDevices(this);
     }
 
@@ -744,7 +697,9 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         preferences.put(PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customList));
         log.debug("handleRunCustomCommand: {}", selectedItem);
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().runCustomCommand(device, selectedItem, this);
+            DeviceManager.getInstance().runCustomCommand(device, selectedItem, (isSuccess, error) -> {
+
+            });
         }
     }
 
@@ -762,7 +717,9 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().restartDevice(device, this);
+            DeviceManager.getInstance().restartDevice(device, (isSuccess, error) -> {
+                refreshDevices();
+            });
         }
     }
 
@@ -782,12 +739,25 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             showSelectDevicesDialog();
             return;
         }
-        FileDialog dialog = new FileDialog(this, "Select File to Install/Copy to selected devices");
-        dialog.setMode(FileDialog.LOAD);
-        dialog.setVisible(true);
-        File[] fileArr = dialog.getFiles();
-        if (fileArr == null || fileArr.length == 0) return;
-        handleFilesDropped(Arrays.asList(fileArr));
+
+        Preferences preferences = Preferences.userRoot();
+        String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
+
+        JFileChooser chooser = new NativeJFileChooser();
+        chooser.setCurrentDirectory(new File(downloadFolder));
+        chooser.setDialogTitle("Select File");
+        chooser.setApproveButtonText("OK");
+        chooser.setMultiSelectionEnabled(true);
+
+        int rc = chooser.showOpenDialog(this);
+        if (rc == JFileChooser.APPROVE_OPTION) {
+            File[] fileArr = chooser.getSelectedFiles();
+            if (fileArr == null || fileArr.length == 0) {
+                log.debug("handleInstallCommand: nothing selected");
+                return;
+            }
+            handleFilesDropped(Arrays.asList(fileArr));
+        }
     }
 
     public void handleBrowseCommand() {

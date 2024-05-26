@@ -19,6 +19,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -248,12 +249,17 @@ public class DeviceManager {
                 String customPropStr = outputStream.toString();
                 String[] customPropArr = customPropStr.split("\\n+");
                 for (String customProp : customPropArr) {
-                    String[] propArr = customProp.split("=");
+                    String[] propArr = customProp.split("=", 2);
+                    if (propArr.length < 2) continue;
+                    String propKey = propArr[0];
+                    String propValue = propArr[1];
+                    // old versions replaced spaces with "~"
+                    propValue = propValue.replaceAll("~", " ");
                     if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
-                    device.customPropertyMap.put(propArr[0], propArr[1]);
+                    device.customPropertyMap.put(propKey, propValue);
                 }
-                //log.trace("fetchDeviceDetails: {}", customPropStr);
             } catch (Exception e) {
+                // NOTE: this is normal as file won't exist unless set
                 //log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
             }
 
@@ -262,7 +268,7 @@ public class DeviceManager {
                 // shell dumpsys package $PACKAGE | grep versionName | sed 's/    versionName=//')
                 List<String> appResultList = runShell(device, "dumpsys package " + customApp);
                 for (String appLine : appResultList) {
-                    // "    versionName\u003d24.05.16.160",
+                    // "    versionName=24.05.16.160",
                     int index = appLine.indexOf("versionName=");
                     if (index > 0) {
                         String versionName = appLine.substring(index + "versionName=".length());
@@ -402,24 +408,27 @@ public class DeviceManager {
         });
     }
 
-    public void runUserScript(Device device, File file, DeviceListener listener) {
+    public void setProperty(Device device, String key, String value, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            // TODO
-            //ScriptResult result = runScript(file, false, true, device.serial, tempFolder);
-            //if (result.isSuccess) device.status = null;
-            //else device.status = GsonHelper.toJson(result.stdErr);
-            listener.handleDeviceUpdated(device);
-            log.debug("runUserScript: DONE");
-        });
-    }
-
-    public void setProperty(Device device, String key, String value) {
-        if (value == null) value = "";
-        String safeValue = value.replaceAll(" ", "~");
-        commandExecutorService.submit(() -> {
-            // TODO
-            // runScript(SCRIPT_SET_PROPERTY, device.serial, key, safeValue);
-            log.debug("setProperty: {}, key:{}, value:{}, DONE", device.serial, key, safeValue);
+            if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
+            // update property
+            device.customPropertyMap.put(key, value);
+            // turn into key=value string
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, String> entry : device.customPropertyMap.entrySet()) {
+                sb.append(entry.getKey()).append("=").append(entry.getValue()).append("\n");
+            }
+            RemoteFile remote = new RemoteFile(FILE_CUSTOM_PROP);
+            // write to properties file on device
+            try {
+                InputStream stream = new ByteArrayInputStream(sb.toString().getBytes(StandardCharsets.UTF_8));
+                device.jadbDevice.push(stream, System.currentTimeMillis() / 1000, JadbDevice.DEFAULT_MODE, remote);
+                log.debug("setProperty: {}, key:{}, value:{}, DONE", device.serial, key, value);
+                if (listener != null) listener.onTaskComplete(true, null);
+            } catch (Exception e) {
+                log.error("setProperty: {}, {}={}Exception:{}", device.serial, key, value, e.getMessage());
+                if (listener != null) listener.onTaskComplete(false, e.getMessage());
+            }
         });
     }
 
@@ -451,24 +460,22 @@ public class DeviceManager {
         });
     }
 
-    public void restartDevice(Device device, DeviceListener listener) {
+    public void restartDevice(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
             runShell(device, COMMAND_REBOOT);
-//            device.status = "restarting...";
-//            runScript(device, SCRIPT_RESTART, listener, true, device.serial);
-            listener.handleDeviceUpdated(device);
+            // TODO: detect success/fail
+            listener.onTaskComplete(true, null);
         });
     }
 
-    public void runCustomCommand(Device device, String customCommand, DeviceListener listener) {
+    public void runCustomCommand(Device device, String customCommand, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            device.status = "running...";
-            // TODO
-            // runScript(device, SCRIPT_CUSTOM_COMMAND, listener, true, device.serial);
+            runShell(device, customCommand);
+            if (listener != null) listener.onTaskComplete(true, null);
         });
     }
 
-    public void openTerminal(Device device, DeviceListener listener) {
+    public void openTerminal(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
             device.status = "terminal...";
             // TODO
