@@ -9,6 +9,7 @@ import com.jpage4500.devicemanager.ui.SettingsScreen;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Timer;
+import com.jpage4500.devicemanager.utils.Utils;
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
@@ -46,7 +47,11 @@ public class DeviceManager {
     public static final String COMMAND_DISK_SIZE = "df";
     public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS";
 
+    private static final String SCRIPT_TERMINAL = "terminal";
+
     public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
+    public static final String APP_ITERM = "/Applications/iTerm.app";
+    public static final String APP_TERMINAL = "/System/Applications/Utilities/Terminal.app";
 
     private static volatile DeviceManager instance;
 
@@ -477,9 +482,9 @@ public class DeviceManager {
 
     public void openTerminal(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            device.status = "terminal...";
-            // TODO
-            // runScript(device, SCRIPT_TERMINAL, listener, false, device.serial);
+            // TODO: linux/windows support
+            File scriptFile = getScriptFile(SCRIPT_TERMINAL);
+            runApp(scriptFile.getAbsolutePath(), true, device.serial);
         });
     }
 
@@ -767,7 +772,7 @@ public class DeviceManager {
                 while (entries.hasMoreElements()) {
                     JarEntry jarEntry = entries.nextElement();
                     String name = jarEntry.getName();
-                    if (name.endsWith(".sh")) {
+                    if (TextUtils.endsWith(name, ".sh", ".bat")) {
                         int pos = name.indexOf("scripts/");
                         if (pos >= 0) {
                             name = name.substring(pos + "scripts/".length());
@@ -784,7 +789,7 @@ public class DeviceManager {
                 Path path = Paths.get(url.toURI());
                 Files.walk(path, 1).forEach(p -> {
                     String filename = p.toString();
-                    if (filename.endsWith(".sh")) {
+                    if (TextUtils.endsWith(filename, ".sh", ".bat")) {
                         try {
                             String name = p.toFile().getName();
                             InputStream inputStream = Files.newInputStream(p);
@@ -821,6 +826,8 @@ public class DeviceManager {
     }
 
     public File getScriptFile(String scriptName) {
+        if (Utils.isWindows()) scriptName += ".bat";
+        else scriptName += ".sh";
         File tempFile = new File(tempFolder, scriptName);
         if (!tempFile.exists()) {
             log.error("runScript: script doesn't exist! {}", tempFile.getAbsoluteFile());
