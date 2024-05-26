@@ -333,6 +333,11 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
     }
 
     @Override
+    public void showHeaderPopupMenu(int column, MouseEvent e) {
+
+    }
+
+    @Override
     public void handleTableDoubleClick(int row, int column, MouseEvent e) {
         handleFileClicked();
     }

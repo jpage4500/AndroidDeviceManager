@@ -40,18 +40,18 @@ import java.util.prefs.Preferences;
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
 
+    // adb commands
     public static final String COMMAND_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 com.android.shell";
     public static final String COMMAND_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
     public static final String COMMAND_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
     public static final String COMMAND_REBOOT = "reboot";
     public static final String COMMAND_DISK_SIZE = "df";
-    public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS";
+    public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS"; // | grep u0_
 
+    // scripts that app will run
     private static final String SCRIPT_TERMINAL = "terminal";
 
     public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
-    public static final String APP_ITERM = "/Applications/iTerm.app";
-    public static final String APP_TERMINAL = "/System/Applications/Utilities/Terminal.app";
 
     private static volatile DeviceManager instance;
 

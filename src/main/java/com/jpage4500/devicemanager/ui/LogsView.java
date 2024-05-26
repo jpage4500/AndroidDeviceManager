@@ -419,6 +419,11 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
     }
 
     @Override
+    public void showHeaderPopupMenu(int column, MouseEvent e) {
+
+    }
+
+    @Override
     public void handleTableDoubleClick(int row, int column, MouseEvent e) {
 
     }

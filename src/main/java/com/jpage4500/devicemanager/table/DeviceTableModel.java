@@ -129,12 +129,13 @@ public class DeviceTableModel extends AbstractTableModel {
             return colType.name();
         } else {
             String appName = appList.get(i - visibleColumns.length);
-            String[] split = appName.split("\\.");
-            if (split.length >= 1) {
-                return split[split.length - 1].toUpperCase(Locale.ROOT);
-            } else {
-                return "?";
-            }
+            return appName;
+            //String[] split = appName.split("\\.");
+            //if (split.length >= 1) {
+            //    return split[split.length - 1].toUpperCase(Locale.ROOT);
+            //} else {
+            //    return "?";
+            //}
         }
     }
 

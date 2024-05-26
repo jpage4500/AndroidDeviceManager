@@ -204,10 +204,11 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         // restore previous settings
         List<String> appList = SettingsScreen.getCustomApps();
         model.setAppList(appList);
+
         List<String> hiddenColList = SettingsScreen.getHiddenColumnList();
         model.setHiddenColumns(hiddenColList);
 
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        //table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setModel(model);
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
 
@@ -318,6 +319,27 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
         popupMenu.show(e.getComponent(), e.getX(), e.getY());
         //table.setComponentPopupMenu(popupMenu);
+    }
+
+    @Override
+    public void showHeaderPopupMenu(int column, MouseEvent e) {
+        JPopupMenu popupMenu = new JPopupMenu();
+
+        JMenuItem hideItem = new JMenuItem("Hide Column");
+        hideItem.addActionListener(actionEvent -> handleHideColumn(column));
+        popupMenu.add(hideItem);
+
+        popupMenu.show(e.getComponent(), e.getX(), e.getY());
+    }
+
+    private void handleHideColumn(int column) {
+        DeviceTableModel.Columns columnType = model.getColumnType(column);
+        if (columnType == null) return;
+        List<String> hiddenColList = SettingsScreen.getHiddenColumnList();
+        hiddenColList.add(columnType.name());
+        Preferences preferences = Preferences.userRoot();
+        preferences.put(SettingsScreen.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
+        model.setHiddenColumns(hiddenColList);
     }
 
     @Override
