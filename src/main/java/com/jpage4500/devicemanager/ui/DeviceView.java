@@ -52,6 +52,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     // open windows (per device)
     private final Map<String, ExploreView> exploreViewMap = new HashMap<>();
     private final Map<String, LogsView> logsViewMap = new HashMap<>();
+    private final Map<String, InputScreen> inputViewMap = new HashMap<>();
 
     public DeviceView() {
         super("main");
@@ -504,7 +505,12 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         Device device = getFirstSelectedDevice();
         if (device == null) return;
 
-        new InputScreen(this, device).show();
+        InputScreen inputScreen = inputViewMap.get(device.serial);
+        if (inputScreen == null) {
+            inputScreen = new InputScreen(this, device);
+            inputViewMap.put(device.serial, inputScreen);
+        }
+        inputScreen.show();
     }
 
     private void handleScreenshotCommand() {
@@ -518,7 +524,11 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             if (rc != JOptionPane.YES_OPTION) return;
         }
         for (Device device : selectedDeviceList) {
+            device.isBusy = true;
+            model.updateRowForDevice(device);
             DeviceManager.getInstance().captureScreenshot(device, (isSuccess, error) -> {
+                device.isBusy = false;
+                model.updateRowForDevice(device);
                 if (!isSuccess && selectedDeviceList.size() == 1) {
                     // only show dialog if command was run on a single device
                     String msg = "RESULTS:\n\n" + error;
@@ -597,7 +607,11 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         }
 
         for (Device device : selectedDeviceList) {
+            device.isBusy = true;
+            model.updateRowForDevice(device);
             DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
+                device.isBusy = false;
+                model.updateRowForDevice(device);
                 // only show dialog if mirror was run on a single device
                 if (selectedDeviceList.size() == 1 && !isSuccess) {
                     String msg = "RESULTS:\n\n" + error;
@@ -702,24 +716,26 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         comboBox.setEditable(true);
         int rc = JOptionPane.showOptionDialog(this, comboBox, "Custom adb command", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return;
-        String selectedItem = comboBox.getSelectedItem().toString();
-        if (TextUtils.isEmpty(selectedItem)) return;
+        Object selectedItem = comboBox.getSelectedItem();
+        if (selectedItem == null) return;
+        String command = selectedItem.toString();
+        if (TextUtils.isEmpty(command)) return;
         // remove "adb " from commands
-        if (selectedItem.startsWith("adb ")) {
-            selectedItem = selectedItem.substring("adb ".length());
+        if (command.startsWith("adb ")) {
+            command = command.substring("adb ".length());
         }
         // remove from list
-        customList.remove(selectedItem);
+        customList.remove(command);
         // add to top of list
-        customList.add(0, selectedItem);
+        customList.add(0, command);
         // only save last 10 entries
         if (customList.size() > 10) {
             customList = customList.subList(0, 10);
         }
         preferences.put(PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customList));
-        log.debug("handleRunCustomCommand: {}", selectedItem);
+        log.debug("handleRunCustomCommand: {}", command);
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().runCustomCommand(device, selectedItem, (isSuccess, error) -> {
+            DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
 
             });
         }

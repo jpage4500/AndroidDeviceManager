@@ -364,10 +364,10 @@ public class CustomTable extends JTable {
             int col = columnAtPoint(p);
             int row = rowAtPoint(p);
             Rectangle bounds = getCellRect(row, col, false);
-            Component c = prepareRenderer(getCellRenderer(row, col), row, col);
-            if (c != null && c.getPreferredSize().width > bounds.width) {
-                return this.columnModel.getColumn(colIdx).getHeaderValue().toString();
-            }
+//            Component c = prepareRenderer(getCellRenderer(row, col), row, col);
+//            if (c != null && c.getPreferredSize().width > bounds.width) {
+//                return this.columnModel.getColumn(colIdx).getHeaderValue().toString();
+//            }
             return null;
         }
     }

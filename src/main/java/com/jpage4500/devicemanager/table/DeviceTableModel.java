@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import javax.swing.table.AbstractTableModel;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 public class DeviceTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(DeviceTableModel.class);
@@ -20,14 +19,13 @@ public class DeviceTableModel extends AbstractTableModel {
     private String searchText;
 
     public enum Columns {
+        NAME,
         SERIAL,
-        MODEL,
         PHONE,
         IMEI,
         FREE,
         CUSTOM1,
         CUSTOM2,
-        STATUS,
     }
 
     public DeviceTableModel() {
@@ -152,13 +150,12 @@ public class DeviceTableModel extends AbstractTableModel {
             DeviceTableModel.Columns colType = visibleColumns[column];
             return switch (colType) {
                 case SERIAL -> device.serial;
-                case MODEL -> device.getProperty(Device.PROP_MODEL);
+                case NAME -> device.getProperty(Device.PROP_MODEL);
                 case PHONE -> device.phone;
                 case IMEI -> device.imei;
                 case FREE -> FileUtils.bytesToDisplayString(device.freeSpace);
                 case CUSTOM1 -> device.getCustomProperty(Device.CUST_PROP_1);
                 case CUSTOM2 -> device.getCustomProperty(Device.CUST_PROP_2);
-                case STATUS -> device.status;
             };
         } else {
             // custom app version

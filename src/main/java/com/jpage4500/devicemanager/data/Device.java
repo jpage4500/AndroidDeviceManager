@@ -37,14 +37,20 @@ public class Device {
     @ExcludeFromSerialization
     public Map<String, String> customAppVersionList;
 
-    // to show device status (viewing, copying, installing, etc)
+    // optional status description (error message, etc)
     @ExcludeFromSerialization
     public String status;
 
     // true when device is online/ready
+    @ExcludeFromSerialization
     public boolean isOnline;
 
+    // true when mirroring device or other long-running tasks
+    @ExcludeFromSerialization
+    public boolean isBusy;
+
     // last time device was seen (online or offline)
+    @ExcludeFromSerialization
     public Long lastUpdateMs;
 
     @ExcludeFromSerialization
@@ -58,10 +64,10 @@ public class Device {
         String model = getProperty(PROP_MODEL);
         if (model != null) sb.append(model);
         if (phone != null) {
-            if (sb.length() > 0) sb.append(" - ");
+            if (!sb.isEmpty()) sb.append(" - ");
             sb.append(phone);
         } else if (serial != null) {
-            if (sb.length() > 0) sb.append(" - ");
+            if (!sb.isEmpty()) sb.append(" - ");
             sb.append(serial);
         }
         return sb.toString();

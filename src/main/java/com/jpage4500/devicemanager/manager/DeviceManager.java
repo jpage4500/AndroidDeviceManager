@@ -162,7 +162,6 @@ public class DeviceManager {
             }
             if (!isFound) {
                 // -- DEVICE REMOVED --
-                device.status = "OFFLINE";
                 device.isOnline = false;
                 device.lastUpdateMs = System.currentTimeMillis();
                 if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_REMOVED: {}", device.getDisplayName());

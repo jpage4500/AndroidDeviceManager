@@ -101,7 +101,7 @@ public class ConnectScreen extends JPanel {
 
         DefaultListModel<String> listModel = new DefaultListModel<>();
         for (WirelessDevice device : deviceList) {
-            listModel.addElement(device.serial + " - " + device.model);
+            listModel.addElement(device.model + " - " + device.serial);
         }
         JList<String> list = new JList<>(listModel);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
