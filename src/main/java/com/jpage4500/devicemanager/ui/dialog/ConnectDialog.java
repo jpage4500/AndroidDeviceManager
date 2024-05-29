@@ -1,4 +1,4 @@
-package com.jpage4500.devicemanager.ui;
+package com.jpage4500.devicemanager.ui.dialog;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
@@ -18,8 +18,8 @@ import java.awt.event.KeyEvent;
 import java.util.List;
 import java.util.prefs.Preferences;
 
-public class ConnectScreen extends JPanel {
-    private static final Logger log = LoggerFactory.getLogger(ConnectScreen.class);
+public class ConnectDialog extends JPanel {
+    private static final Logger log = LoggerFactory.getLogger(ConnectDialog.class);
     public static final String PREF_RECENT_WIRELESS_DEVICES = "PREF_RECENT_WIRELESS_DEVICES";
     public static final String PREF_LAST_DEVICE_IP = "PREF_LAST_DEVICE_IP";
     public static final String PREF_LAST_DEVICE_PORT = "PREF_LAST_DEVICE_PORT";
@@ -33,41 +33,8 @@ public class ConnectScreen extends JPanel {
         String model;
     }
 
-    public static List<WirelessDevice> getRecentWirelessDevices() {
-        Preferences preferences = Preferences.userRoot();
-        String recentDeviceStr = preferences.get(PREF_RECENT_WIRELESS_DEVICES, null);
-        return GsonHelper.stringToList(recentDeviceStr, WirelessDevice.class);
-    }
-
-    public static void addWirelessDevice(Device device) {
-        if (!device.isWireless()) return;
-        String model = device.getProperty(Device.PROP_MODEL);
-        if (TextUtils.isEmpty(model)) return;
-
-        List<WirelessDevice> deviceList = getRecentWirelessDevices();
-        deviceList.removeIf(wirelessDevice -> TextUtils.equals(wirelessDevice.serial, device.serial));
-        WirelessDevice wd = new WirelessDevice();
-        wd.serial = device.serial;
-        wd.model = model;
-        // add to top of list
-        deviceList.add(0, wd);
-
-        if (deviceList.size() > 10) {
-            deviceList.remove(deviceList.size() - 1);
-        }
-        Preferences preferences = Preferences.userRoot();
-        preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
-    }
-
-    public static void removeWirelessDevice(WirelessDevice wirelessDevice) {
-        List<WirelessDevice> deviceList = getRecentWirelessDevices();
-        deviceList.removeIf(device -> TextUtils.equals(device.serial, wirelessDevice.serial));
-        Preferences preferences = Preferences.userRoot();
-        preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
-    }
-
     public static void showConnectDialog(Component frame, DeviceManager.TaskListener listener) {
-        ConnectScreen screen = new ConnectScreen(frame);
+        ConnectDialog screen = new ConnectDialog();
         Object[] choices = {"Connect", "Cancel"};
         int rc = JOptionPane.showOptionDialog(frame, screen, "Connect to device", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, choices, null);
         if (rc != JOptionPane.YES_OPTION) return;
@@ -88,7 +55,7 @@ public class ConnectScreen extends JPanel {
         deviceManager.connectDevice(ip, port, listener);
     }
 
-    public ConnectScreen(Component frame) {
+    private ConnectDialog() {
         setLayout(new MigLayout("fillx", "[][]"));
 
         List<WirelessDevice> deviceList = getRecentWirelessDevices();
@@ -171,6 +138,39 @@ public class ConnectScreen extends JPanel {
             }
         });
         add(portField, "al right, width 100:150, wrap");
+    }
+
+    public static List<WirelessDevice> getRecentWirelessDevices() {
+        Preferences preferences = Preferences.userRoot();
+        String recentDeviceStr = preferences.get(PREF_RECENT_WIRELESS_DEVICES, null);
+        return GsonHelper.stringToList(recentDeviceStr, WirelessDevice.class);
+    }
+
+    public static void addWirelessDevice(Device device) {
+        if (!device.isWireless()) return;
+        String model = device.getProperty(Device.PROP_MODEL);
+        if (TextUtils.isEmpty(model)) return;
+
+        List<WirelessDevice> deviceList = getRecentWirelessDevices();
+        deviceList.removeIf(wirelessDevice -> TextUtils.equals(wirelessDevice.serial, device.serial));
+        WirelessDevice wd = new WirelessDevice();
+        wd.serial = device.serial;
+        wd.model = model;
+        // add to top of list
+        deviceList.add(0, wd);
+
+        if (deviceList.size() > 10) {
+            deviceList.remove(deviceList.size() - 1);
+        }
+        Preferences preferences = Preferences.userRoot();
+        preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
+    }
+
+    public static void removeWirelessDevice(WirelessDevice wirelessDevice) {
+        List<WirelessDevice> deviceList = getRecentWirelessDevices();
+        deviceList.removeIf(device -> TextUtils.equals(device.serial, wirelessDevice.serial));
+        Preferences preferences = Preferences.userRoot();
+        preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
     }
 }
 

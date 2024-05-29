@@ -8,6 +8,9 @@ import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
+import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
+import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.EmptyView;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
@@ -33,11 +36,10 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class DeviceView extends BaseFrame implements DeviceManager.DeviceListener, CustomTable.TableListener {
-    private static final Logger log = LoggerFactory.getLogger(DeviceView.class);
+public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceListener, CustomTable.TableListener {
+    private static final Logger log = LoggerFactory.getLogger(DeviceScreen.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
-    public static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -50,11 +52,11 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     private final List<JButton> deviceButtonList = new ArrayList<>();
 
     // open windows (per device)
-    private final Map<String, ExploreView> exploreViewMap = new HashMap<>();
-    private final Map<String, LogsView> logsViewMap = new HashMap<>();
+    private final Map<String, ExploreScreen> exploreViewMap = new HashMap<>();
+    private final Map<String, LogsScreen> logsViewMap = new HashMap<>();
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
 
-    public DeviceView() {
+    public DeviceScreen() {
         super("main");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         initalizeUi();
@@ -100,7 +102,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     public void handleException(Exception e) {
         SwingUtilities.invokeLater(() -> {
             Object[] choices = {"Retry", "Cancel"};
-            int rc = JOptionPane.showOptionDialog(DeviceView.this,
+            int rc = JOptionPane.showOptionDialog(DeviceScreen.this,
                     "Unable to connect to ADB server. Please check that it's running and re-try"
                     , "ADB Server", JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, choices, null);
             if (rc != JOptionPane.YES_OPTION) return;
@@ -203,10 +205,10 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         model = new DeviceTableModel();
 
         // restore previous settings
-        List<String> appList = SettingsScreen.getCustomApps();
+        List<String> appList = SettingsDialog.getCustomApps();
         model.setAppList(appList);
 
-        List<String> hiddenColList = SettingsScreen.getHiddenColumnList();
+        List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
         model.setHiddenColumns(hiddenColList);
 
         //table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
@@ -215,7 +217,13 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
         // default column sizes
         TableColumnModel columnModel = table.getColumnModel();
+        columnModel.getColumn(DeviceTableModel.Columns.NAME.ordinal()).setPreferredWidth(185);
         columnModel.getColumn(DeviceTableModel.Columns.SERIAL.ordinal()).setPreferredWidth(152);
+        columnModel.getColumn(DeviceTableModel.Columns.PHONE.ordinal()).setPreferredWidth(116);
+        columnModel.getColumn(DeviceTableModel.Columns.IMEI.ordinal()).setPreferredWidth(147);
+        columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setPreferredWidth(31);
+        columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setMaxWidth(31);
+        columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setPreferredWidth(66);
 
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);
@@ -230,21 +238,25 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     }
 
     private void updateDeviceState(Device device) {
-        ExploreView exploreView = exploreViewMap.get(device.serial);
-        if (exploreView != null) {
-            exploreView.updateDeviceState();
+        ExploreScreen exploreScreen = exploreViewMap.get(device.serial);
+        if (exploreScreen != null) {
+            exploreScreen.updateDeviceState();
         }
 
-        LogsView logsView = logsViewMap.get(device.serial);
-        if (logsView != null) {
-            logsView.updateDeviceState();
+        LogsScreen logsScreen = logsViewMap.get(device.serial);
+        if (logsScreen != null) {
+            logsScreen.updateDeviceState();
         }
     }
 
     private void refreshUi() {
         int selectedRowCount = table.getSelectedRowCount();
         int rowCount = table.getRowCount();
-        if (selectedRowCount > 0) {
+        String filterText = filterTextField.getCleanText();
+        if (TextUtils.notEmpty(filterText)) {
+            int totalDevices = model.getRowCount();
+            statusBar.setRightLabel("found: " + rowCount + " / " + totalDevices);
+        } else if (selectedRowCount > 0) {
             statusBar.setRightLabel("selected: " + selectedRowCount + " / " + rowCount);
         } else {
             statusBar.setRightLabel("total: " + rowCount);
@@ -263,7 +275,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         long usedMemory = totalMemory - freeMemory;
         String memUsage = FileUtils.bytesToDisplayString(usedMemory);
 
-        statusBar.setLeftLabel(MainApplication.version + " / " + memUsage);
+        statusBar.setLeftLabel("v" + MainApplication.version + " / " + memUsage);
     }
 
     @Override
@@ -325,21 +337,24 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     @Override
     public void showHeaderPopupMenu(int column, MouseEvent e) {
         JPopupMenu popupMenu = new JPopupMenu();
+        DeviceTableModel.Columns columnType = model.getColumnType(column);
+        if (columnType != null) {
+            JMenuItem hideItem = new JMenuItem("Hide Column " + columnType.name());
+            hideItem.addActionListener(actionEvent -> handleHideColumn(column));
+            popupMenu.add(hideItem);
 
-        JMenuItem hideItem = new JMenuItem("Hide Column");
-        hideItem.addActionListener(actionEvent -> handleHideColumn(column));
-        popupMenu.add(hideItem);
-
-        popupMenu.show(e.getComponent(), e.getX(), e.getY());
+            // NOTE: move out of if() block when more menu items are added
+            popupMenu.show(e.getComponent(), e.getX(), e.getY());
+        }
     }
 
     private void handleHideColumn(int column) {
         DeviceTableModel.Columns columnType = model.getColumnType(column);
         if (columnType == null) return;
-        List<String> hiddenColList = SettingsScreen.getHiddenColumnList();
+        List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
         hiddenColList.add(columnType.name());
         Preferences preferences = Preferences.userRoot();
-        preferences.put(SettingsScreen.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
+        preferences.put(SettingsDialog.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
         model.setHiddenColumns(hiddenColList);
     }
 
@@ -539,7 +554,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     }
 
     private void handleConnectDevice() {
-        ConnectScreen.showConnectDialog(this, (isSuccess, error) -> {
+        ConnectDialog.showConnectDialog(this, (isSuccess, error) -> {
             log.debug("handleConnectDevice: {}", isSuccess);
             if (!isSuccess) {
                 JOptionPane.showMessageDialog(this, "Unable to connect!\n\nCheck if the device is showing an prompt to authorize");
@@ -695,7 +710,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     }
 
     private void handleSettingsClicked() {
-        SettingsScreen.showSettings(this, model);
+        SettingsDialog.showSettings(this, model);
     }
 
     private void refreshDevices() {
@@ -708,37 +723,8 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             showSelectDevicesDialog();
             return;
         }
-        Preferences preferences = Preferences.userRoot();
-        String customCommands = preferences.get(PREF_CUSTOM_COMMAND_LIST, null);
-        List<String> customList = GsonHelper.stringToList(customCommands, String.class);
 
-        JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
-        comboBox.setEditable(true);
-        int rc = JOptionPane.showOptionDialog(this, comboBox, "Custom adb command", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
-        if (rc != JOptionPane.YES_OPTION) return;
-        Object selectedItem = comboBox.getSelectedItem();
-        if (selectedItem == null) return;
-        String command = selectedItem.toString();
-        if (TextUtils.isEmpty(command)) return;
-        // remove "adb " from commands
-        if (command.startsWith("adb ")) {
-            command = command.substring("adb ".length());
-        }
-        // remove from list
-        customList.remove(command);
-        // add to top of list
-        customList.add(0, command);
-        // only save last 10 entries
-        if (customList.size() > 10) {
-            customList = customList.subList(0, 10);
-        }
-        preferences.put(PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customList));
-        log.debug("handleRunCustomCommand: {}", command);
-        for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
-
-            });
-        }
+        CommandDialog.showCommandDialog(this, selectedDeviceList);
     }
 
     private void handleRestartCommand() {
@@ -769,6 +755,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
     private void filterDevices(String text) {
         if (sorter != null) sorter.setFilterText(text);
+        refreshUi();
     }
 
     private void handleInstallCommand() {
@@ -779,7 +766,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         }
 
         Preferences preferences = Preferences.userRoot();
-        String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
+        String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
 
         JFileChooser chooser = new NativeJFileChooser();
         chooser.setCurrentDirectory(new File(downloadFolder));
@@ -802,24 +789,24 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         Device selectedDevice = getFirstSelectedDevice();
         if (selectedDevice == null) return;
 
-        ExploreView exploreView = exploreViewMap.get(selectedDevice.serial);
-        if (exploreView == null) {
-            exploreView = new ExploreView(this, selectedDevice);
-            exploreViewMap.put(selectedDevice.serial, exploreView);
+        ExploreScreen exploreScreen = exploreViewMap.get(selectedDevice.serial);
+        if (exploreScreen == null) {
+            exploreScreen = new ExploreScreen(this, selectedDevice);
+            exploreViewMap.put(selectedDevice.serial, exploreScreen);
         }
-        exploreView.show();
+        exploreScreen.show();
     }
 
     public void handleLogsCommand() {
         Device selectedDevice = getFirstSelectedDevice();
         if (selectedDevice == null) return;
 
-        LogsView logsView = logsViewMap.get(selectedDevice.serial);
-        if (logsView == null) {
-            logsView = new LogsView(this, selectedDevice);
-            logsViewMap.put(selectedDevice.serial, logsView);
+        LogsScreen logsScreen = logsViewMap.get(selectedDevice.serial);
+        if (logsScreen == null) {
+            logsScreen = new LogsScreen(this, selectedDevice);
+            logsViewMap.put(selectedDevice.serial, logsScreen);
         }
-        logsView.show();
+        logsScreen.show();
     }
 
     private void handleVersionClicked() {

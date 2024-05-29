@@ -1,7 +1,9 @@
-package com.jpage4500.devicemanager.ui;
+package com.jpage4500.devicemanager.ui.dialog;
 
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
+import com.jpage4500.devicemanager.ui.DeviceScreen;
+import com.jpage4500.devicemanager.ui.ExploreScreen;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
@@ -22,8 +24,8 @@ import java.util.Map;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
-public class SettingsScreen extends JPanel {
-    private static final Logger log = LoggerFactory.getLogger(SettingsScreen.class);
+public class SettingsDialog extends JPanel {
+    private static final Logger log = LoggerFactory.getLogger(SettingsDialog.class);
     public static final String PREF_CUSTOM_APPS = "PREF_CUSTOM_APPS";
     public static final String PREF_DEBUG_MODE = "PREF_DEBUG_MODE";
     public static final String PREF_HIDDEN_COLUMNS = "PREF_HIDDEN_COLUMNS";
@@ -36,11 +38,11 @@ public class SettingsScreen extends JPanel {
     private JLabel resetLabel;
 
     public static int showSettings(Component frame, DeviceTableModel tableModel) {
-        SettingsScreen settingsScreen = new SettingsScreen(frame, tableModel);
+        SettingsDialog settingsScreen = new SettingsDialog(frame, tableModel);
         return JOptionPane.showOptionDialog(frame, settingsScreen, "Settings", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, null, null);
     }
 
-    public SettingsScreen(Component frame, DeviceTableModel tableModel) {
+    private SettingsDialog(Component frame, DeviceTableModel tableModel) {
         this.frame = frame;
         this.tableModel = tableModel;
         setLayout(new MigLayout("", "[][]"));
@@ -63,17 +65,6 @@ public class SettingsScreen extends JPanel {
             @Override
             public void mouseClicked(MouseEvent e) {
                 showAppsSettings();
-            }
-        });
-        add(appButton, "wrap");
-
-        // custom adb commands
-        add(new JLabel("Custom ADB Commands:"));
-        appButton = new JButton("EDIT");
-        appButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                showCommands();
             }
         });
         add(appButton, "wrap");
@@ -226,15 +217,6 @@ public class SettingsScreen extends JPanel {
         return GsonHelper.stringToList(appPrefs, String.class);
     }
 
-    private void showCommands() {
-        Preferences preferences = Preferences.userRoot();
-        String customCommands = preferences.get(DeviceView.PREF_CUSTOM_COMMAND_LIST, null);
-        List<String> customList = GsonHelper.stringToList(customCommands, String.class);
-        List<String> resultList = showMultilineEditDialog("Enter custom adb commands", "Enter adb custom command - 1 per line", customList);
-        if (resultList == null) return;
-        preferences.put(DeviceView.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(resultList));
-    }
-
     private List<String> showMultilineEditDialog(String title, String message, List<String> stringList) {
         StringBuilder sb = new StringBuilder();
         for (String app : stringList) {
@@ -283,7 +265,7 @@ public class SettingsScreen extends JPanel {
 
     private void showDownloadLocation() {
         Preferences preferences = Preferences.userRoot();
-        String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
+        String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
 
         JFileChooser chooser = new NativeJFileChooser();
         chooser.setCurrentDirectory(new File(downloadFolder));
@@ -297,7 +279,7 @@ public class SettingsScreen extends JPanel {
         if (rc == JFileChooser.APPROVE_OPTION) {
             File selectedFile = chooser.getSelectedFile();
             if (selectedFile != null && selectedFile.exists() && selectedFile.isDirectory()) {
-                preferences.put(ExploreView.PREF_DOWNLOAD_FOLDER, selectedFile.getAbsolutePath());
+                preferences.put(ExploreScreen.PREF_DOWNLOAD_FOLDER, selectedFile.getAbsolutePath());
             }
         }
 

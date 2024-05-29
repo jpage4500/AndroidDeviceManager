@@ -28,19 +28,20 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.prefs.Preferences;
 
 /**
  * create and manage device view
  */
-public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListener, CustomTable.TableListener {
-    private static final Logger log = LoggerFactory.getLogger(LogsView.class);
+public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogListener, CustomTable.TableListener {
+    private static final Logger log = LoggerFactory.getLogger(LogsScreen.class);
 
     private static final String HINT_FILTER = "Filter...";
     private static final String HINT_SEARCH = "Search...";
 
     private final Device device;
-    private final DeviceView deviceView;
+    private final DeviceScreen deviceScreen;
 
     public CustomTable table;
     public LogsTableModel model;
@@ -59,9 +60,9 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
 
-    public LogsView(DeviceView deviceView, Device device) {
+    public LogsScreen(DeviceScreen deviceScreen, Device device) {
         super("logs");
-        this.deviceView = deviceView;
+        this.deviceScreen = deviceScreen;
         this.device = device;
         initalizeUi();
         updateDeviceState();
@@ -202,12 +203,12 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
 
         // [CMD + 1] = show devices
         createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
-            deviceView.toFront();
+            deviceScreen.toFront();
         });
 
         // [CMD + 2] = show explorer
         createCmdAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> {
-            deviceView.handleBrowseCommand();
+            deviceScreen.handleBrowseCommand();
         });
 
         // [CMD + T] = hide toolbar
@@ -306,6 +307,11 @@ public class LogsView extends BaseFrame implements DeviceManager.DeviceLogListen
     private void startLogging() {
         if (!DeviceManager.getInstance().isLogging(device)) {
             Long startTime = model.getLastLogTime();
+            if (startTime == null) {
+                // by default only display logs from the last few hours
+                // - can speed up initial launch
+                startTime = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1);
+            }
             DeviceManager.getInstance().startLogging(device, startTime, this);
         }
     }

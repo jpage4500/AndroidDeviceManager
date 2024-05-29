@@ -116,7 +116,7 @@ public class CustomTable extends JTable {
             public void columnMarginChanged(ChangeEvent e) {
                 TableColumn resizingColumn = getTableHeader().getResizingColumn();
                 if (resizingColumn != null)
-                    log.debug("columnMarginChanged: {}, w:{}", resizingColumn.getModelIndex(), resizingColumn.getWidth());
+                    log.trace("columnMarginChanged: {}, w:{}", resizingColumn.getModelIndex(), resizingColumn.getWidth());
             }
 
             @Override
@@ -360,14 +360,16 @@ public class CustomTable extends JTable {
         @Override
         public String getToolTipText(MouseEvent e) {
             int colIdx = this.columnAtPoint(e.getPoint());
+            if (colIdx == -1) return null;
             Point p = e.getPoint();
             int col = columnAtPoint(p);
             int row = rowAtPoint(p);
+            if (row == -1 || col == -1) return null;
             Rectangle bounds = getCellRect(row, col, false);
-//            Component c = prepareRenderer(getCellRenderer(row, col), row, col);
-//            if (c != null && c.getPreferredSize().width > bounds.width) {
-//                return this.columnModel.getColumn(colIdx).getHeaderValue().toString();
-//            }
+            Component c = prepareRenderer(getCellRenderer(row, col), row, col);
+            if (c != null && c.getPreferredSize().width > bounds.width) {
+                return this.columnModel.getColumn(colIdx).getHeaderValue().toString();
+            }
             return null;
         }
     }

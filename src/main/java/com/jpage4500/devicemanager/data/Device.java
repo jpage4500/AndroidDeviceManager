@@ -20,10 +20,32 @@ public class Device {
     public final static String CUST_PROP_1 = "custom1";
     public final static String CUST_PROP_2 = "custom2";
 
+    public enum PowerStatus {
+        POWER_NONE,
+        POWER_AC,
+        POWER_USB,
+        POWER_WIRELESS,
+        POWER_DOCK,
+    }
+
     public String serial;
     public String phone;
     public String imei;
     public Long freeSpace;
+    public Integer batteryLevel;
+    public PowerStatus powerStatus;
+
+    // optional status description (error message, etc)
+    public String status;
+
+    // true when device is online/ready
+    public boolean isOnline;
+
+    // true when mirroring device or other long-running tasks
+    public boolean isBusy;
+
+    // last time device was seen (online or offline)
+    public Long lastUpdateMs;
 
     // map of property name -> key
     @ExcludeFromSerialization
@@ -36,22 +58,6 @@ public class Device {
     // user-defined map of applications and versions
     @ExcludeFromSerialization
     public Map<String, String> customAppVersionList;
-
-    // optional status description (error message, etc)
-    @ExcludeFromSerialization
-    public String status;
-
-    // true when device is online/ready
-    @ExcludeFromSerialization
-    public boolean isOnline;
-
-    // true when mirroring device or other long-running tasks
-    @ExcludeFromSerialization
-    public boolean isBusy;
-
-    // last time device was seen (online or offline)
-    @ExcludeFromSerialization
-    public Long lastUpdateMs;
 
     @ExcludeFromSerialization
     public JadbDevice jadbDevice;

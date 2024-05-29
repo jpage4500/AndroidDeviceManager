@@ -3,9 +3,8 @@ package com.jpage4500.devicemanager;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
-import com.jpage4500.devicemanager.ui.DeviceView;
-import com.jpage4500.devicemanager.ui.SettingsScreen;
-import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.ui.DeviceScreen;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +19,7 @@ import java.util.prefs.Preferences;
 public class MainApplication {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
-    private DeviceView deviceView;
+    private DeviceScreen deviceScreen;
     public static String version;
 
     public MainApplication() {
@@ -35,6 +34,7 @@ public class MainApplication {
         // required to run scripts when packaged as an app
         if (Utils.isMac()) {
             System.setProperty("jdk.lang.Process.launchMechanism", "FORK");
+            System.setProperty("com.apple.mrj.application.apple.menu.about.name", "Device Manager");
         }
         Properties prop = new Properties();
         try {
@@ -60,7 +60,7 @@ public class MainApplication {
         logger.setLogToFile(true);
 
         Preferences preferences = Preferences.userRoot();
-        boolean isDebugMode = preferences.getBoolean(SettingsScreen.PREF_DEBUG_MODE, false);
+        boolean isDebugMode = preferences.getBoolean(SettingsDialog.PREF_DEBUG_MODE, false);
         logger.setFileLogLevel(isDebugMode ? Log.DEBUG : Log.INFO);
     }
 
@@ -85,7 +85,7 @@ public class MainApplication {
             }
         }
 
-        deviceView = new DeviceView();
+        deviceScreen = new DeviceScreen();
     }
 
 }

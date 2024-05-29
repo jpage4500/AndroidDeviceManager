@@ -3,9 +3,9 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.ui.ConnectScreen;
-import com.jpage4500.devicemanager.ui.ExploreView;
-import com.jpage4500.devicemanager.ui.SettingsScreen;
+import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
+import com.jpage4500.devicemanager.ui.ExploreScreen;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Timer;
@@ -28,10 +28,7 @@ import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -47,6 +44,7 @@ public class DeviceManager {
     public static final String COMMAND_REBOOT = "reboot";
     public static final String COMMAND_DISK_SIZE = "df";
     public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS"; // | grep u0_
+    public static final String COMMAND_DUMPSYS_BATTERY = "dumpsys battery";
 
     // scripts that app will run
     private static final String SCRIPT_TERMINAL = "terminal";
@@ -62,6 +60,7 @@ public class DeviceManager {
     private final ExecutorService commandExecutorService;
     private final ScheduledExecutorService scheduledExecutorService;
     private final AtomicBoolean isLogging = new AtomicBoolean(false);
+    private ScheduledFuture<?> deviceRefreshRuture;
 
     private JadbConnection connection;
 
@@ -81,7 +80,7 @@ public class DeviceManager {
         processList = new ArrayList<>();
 
         commandExecutorService = Executors.newFixedThreadPool(10);
-        scheduledExecutorService = Executors.newScheduledThreadPool(1);
+        scheduledExecutorService = Executors.newScheduledThreadPool(3);
 
         tempFolder = System.getProperty("java.io.tmpdir");
         copyResourcesToFiles();
@@ -149,10 +148,8 @@ public class DeviceManager {
             }
         }
 
-        // 2) look for devices that have been removed
-        int numRemoved = 0;
-        for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
-            Device device = iterator.next();
+        // 2) look for devices that are now offline
+        for (Device device : deviceList) {
             boolean isFound = false;
             for (JadbDevice jadbDevice : devices) {
                 if (device.serial.equals(jadbDevice.getSerial())) {
@@ -164,14 +161,12 @@ public class DeviceManager {
                 // -- DEVICE REMOVED --
                 device.isOnline = false;
                 device.lastUpdateMs = System.currentTimeMillis();
-                if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_REMOVED: {}", device.getDisplayName());
-                //iterator.remove();
+                if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_OFFLINE: {}", device.getDisplayName());
                 listener.handleDeviceUpdated(device);
-                numRemoved++;
             }
         }
 
-        if (numRemoved > 0 || !addedDeviceList.isEmpty()) {
+        if (!addedDeviceList.isEmpty()) {
             // notify listener that device list changed
             listener.handleDevicesUpdated(deviceList);
 
@@ -185,9 +180,9 @@ public class DeviceManager {
                         listener.handleDeviceUpdated(addedDevice);
                         addedDevice.isOnline = true;
                         addedDevice.lastUpdateMs = System.currentTimeMillis();
-                        fetchDeviceDetails(addedDevice, listener);
+                        fetchDeviceDetails(addedDevice, true, listener);
                     } else {
-                        log.trace("handleDeviceUpdate: NOT_READY: {} -> {}", addedDevice.serial, state);
+                        log.debug("handleDeviceUpdate: NOT_READY: {} -> {}", addedDevice.serial, state);
                         addedDevice.status = state.name();
                         listener.handleDeviceUpdated(addedDevice);
                     }
@@ -197,10 +192,22 @@ public class DeviceManager {
                     //  This adb server's $ADB_VENDOR_KEYS is not set
                     //  Try 'adb kill-server' if that seems wrong.
                     //  Otherwise check for a confirmation dialog on your device.
-                    log.trace("handleDeviceUpdate: NOT_READY_EXCEPTION: {} -> {}", addedDevice.serial, e.getMessage());
+                    log.debug("handleDeviceUpdate: NOT_READY_EXCEPTION: {} -> {}", addedDevice.serial, e.getMessage());
                     addedDevice.status = e.getMessage();
                     listener.handleDeviceUpdated(addedDevice);
                 }
+            }
+
+            // run periodic task to update device state
+            if (deviceRefreshRuture == null) {
+                deviceRefreshRuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+                    log.trace("handleDeviceUpdate: REFRESH");
+                    for (Device device : deviceList) {
+                        if (device.isOnline) {
+                            fetchDeviceDetails(device, false, listener);
+                        }
+                    }
+                }, 5, 5, TimeUnit.MINUTES);
             }
         }
     }
@@ -208,22 +215,64 @@ public class DeviceManager {
     public void refreshDevices(DeviceListener listener) {
         synchronized (deviceList) {
             for (Device device : deviceList) {
-                fetchDeviceDetails(device, listener);
+                fetchDeviceDetails(device, true, listener);
             }
         }
     }
 
-    private void fetchDeviceDetails(Device device, DeviceListener listener) {
+    /**
+     * fetch device details (phone #, name, model, disk space, battery level, etc)
+     *
+     * @param fullRefresh - true to fetch everythign; false to only fetch values that would change often (battery, disk)
+     */
+    private void fetchDeviceDetails(Device device, boolean fullRefresh, DeviceListener listener) {
         commandExecutorService.submit(() -> {
+            Timer timer = new Timer();
             log.debug("fetchDeviceDetails: {}", device.serial);
-            device.status = "Fetch Details..";
-            listener.handleDeviceUpdated(device);
-            device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
-            if (TextUtils.isEmpty(device.phone)) {
-                device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
+            // only change isBusy flag if not already set (ie: user is mirring device)
+            boolean prevBusyState = device.isBusy;
+            if (!prevBusyState) {
+                device.isBusy = true;
+                listener.handleDeviceUpdated(device);
             }
-            device.imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
+            if (fullRefresh) {
+                // -- phone number --
+                device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
+                if (TextUtils.isEmpty(device.phone)) device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
+                // -- IMEI --
+                device.imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
 
+                // -- device properties (model, OS) --
+                try {
+                    device.propMap = new PropertyManager(device.jadbDevice).getprop();
+                } catch (Exception e) {
+                    log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
+                }
+
+                // -- custom properties --
+                OutputStream outputStream = new ByteArrayOutputStream();
+                RemoteFile file = new RemoteFile(FILE_CUSTOM_PROP);
+                try {
+                    device.jadbDevice.pull(file, outputStream);
+                    String customPropStr = outputStream.toString();
+                    String[] customPropArr = customPropStr.split("\\n+");
+                    for (String customProp : customPropArr) {
+                        String[] propArr = customProp.split("=", 2);
+                        if (propArr.length < 2) continue;
+                        String propKey = propArr[0];
+                        String propValue = propArr[1];
+                        // old versions replaced spaces with "~"
+                        propValue = propValue.replaceAll("~", " ");
+                        if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
+                        device.customPropertyMap.put(propKey, propValue);
+                    }
+                } catch (Exception e) {
+                    // NOTE: this is normal as file won't exist unless set
+                    //log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
+                }
+            }
+
+            // -- disk free space --
             List<String> sizeLines = runShell(device, COMMAND_DISK_SIZE);
             if (!sizeLines.isEmpty()) {
                 // only interested in last line
@@ -239,35 +288,8 @@ public class DeviceManager {
                 }
             }
 
-            try {
-                device.propMap = new PropertyManager(device.jadbDevice).getprop();
-            } catch (Exception e) {
-                log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
-            }
-
-            // fetch file app is using to persist custom properties
-            OutputStream outputStream = new ByteArrayOutputStream();
-            RemoteFile file = new RemoteFile(FILE_CUSTOM_PROP);
-            try {
-                device.jadbDevice.pull(file, outputStream);
-                String customPropStr = outputStream.toString();
-                String[] customPropArr = customPropStr.split("\\n+");
-                for (String customProp : customPropArr) {
-                    String[] propArr = customProp.split("=", 2);
-                    if (propArr.length < 2) continue;
-                    String propKey = propArr[0];
-                    String propValue = propArr[1];
-                    // old versions replaced spaces with "~"
-                    propValue = propValue.replaceAll("~", " ");
-                    if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
-                    device.customPropertyMap.put(propKey, propValue);
-                }
-            } catch (Exception e) {
-                // NOTE: this is normal as file won't exist unless set
-                //log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
-            }
-
-            List<String> customApps = SettingsScreen.getCustomApps();
+            // -- version of installed apps --
+            List<String> customApps = SettingsDialog.getCustomApps();
             for (String customApp : customApps) {
                 // shell dumpsys package $PACKAGE | grep versionName | sed 's/    versionName=//')
                 List<String> appResultList = runShell(device, "dumpsys package " + customApp);
@@ -283,14 +305,50 @@ public class DeviceManager {
                 }
             }
 
-            if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}", GsonHelper.toJson(device));
-
+            // -- battery level, charging status, etc --
+            List<String> batteryList = runShell(device, COMMAND_DUMPSYS_BATTERY);
+            for (String batteryLine : batteryList) {
+                String[] batteryArr = batteryLine.split(": ", 2);
+                if (batteryArr.length < 2) continue;
+                String name = batteryArr[0].trim();
+                String value = batteryArr[1].trim();
+                switch (name) {
+                    case "level":
+                        //  level: 100
+                        try {
+                            device.batteryLevel = Integer.parseInt(value);
+                        } catch (NumberFormatException e) {
+                            log.debug("fetchDeviceDetails: BAD_INT: {}, {}", value, e.getMessage());
+                        }
+                    case "AC powered":
+                        //  AC powered: true
+                        if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_AC;
+                        break;
+                    case "USB powered":
+                        //  USB powered: false
+                        if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_USB;
+                        break;
+                    case "Wireless powered":
+                        //  Wireless powered: false
+                        if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_WIRELESS;
+                        break;
+                    case "Dock powered":
+                        //  Dock powered: false
+                        if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_DOCK;
+                        break;
+                }
+            }
             device.lastUpdateMs = System.currentTimeMillis();
-            device.status = null;
+
+            if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}: full:{}, {}", timer, fullRefresh, GsonHelper.toJson(device));
+
+            if (!prevBusyState) device.isBusy = false;
             listener.handleDeviceUpdated(device);
 
-            // keep track of wireless devices
-            ConnectScreen.addWirelessDevice(device);
+            if (fullRefresh) {
+                // keep track of wireless devices
+                ConnectDialog.addWirelessDevice(device);
+            }
         });
     }
 
@@ -392,7 +450,7 @@ public class DeviceManager {
     public void captureScreenshot(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
             Preferences preferences = Preferences.userRoot();
-            String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
+            String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
             // 20211215-1441PM-1.png
             String name = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date()) + ".png";
             try {
@@ -474,8 +532,10 @@ public class DeviceManager {
 
     public void runCustomCommand(Device device, String customCommand, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            runShell(device, customCommand);
-            if (listener != null) listener.onTaskComplete(true, null);
+            List<String> results = runShell(device, customCommand);
+            log.debug("runCustomCommand: DONE:{}", GsonHelper.toJson(results));
+            String displayStr = TextUtils.join(results, "\n");
+            if (listener != null) listener.onTaskComplete(true, displayStr);
         });
     }
 
@@ -653,16 +713,16 @@ public class DeviceManager {
 
                 long lastUpdateMs = System.currentTimeMillis();
                 List<LogEntry> logList = new ArrayList<>();
-                // 10-16 11:34:17.824
-                SimpleDateFormat inputFormat = new SimpleDateFormat("MM-dd HH:mm:ss");
-                // display format
-                SimpleDateFormat outputFormat = new SimpleDateFormat("MM-dd HH:mm:ss");
-
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                int year = Calendar.getInstance().get(Calendar.YEAR);
                 String line;
                 while ((line = input.readLine()) != null) {
-                    LogEntry logEntry = new LogEntry(line, inputFormat, outputFormat);
+                    LogEntry logEntry = new LogEntry(line, dateFormat, year);
                     if (logEntry.date == null) continue;
-                    else if (startTime != null && logEntry.timestamp < startTime) continue;
+                    else if (startTime != null && startTime > logEntry.timestamp) {
+                        log.trace("startLogging: too old: {} ({}) vs {}", logEntry.timestamp, logEntry.date, startTime);
+                        continue;
+                    }
 
                     logList.add(logEntry);
 

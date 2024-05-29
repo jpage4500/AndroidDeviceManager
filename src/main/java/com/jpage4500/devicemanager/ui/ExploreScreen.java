@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -35,15 +36,15 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class ExploreView extends BaseFrame implements CustomTable.TableListener {
-    private static final Logger log = LoggerFactory.getLogger(ExploreView.class);
+public class ExploreScreen extends BaseScreen implements CustomTable.TableListener {
+    private static final Logger log = LoggerFactory.getLogger(ExploreScreen.class);
 
     public static final String PREF_DOWNLOAD_FOLDER = "PREF_DOWNLOAD_FOLDER";
     public static final String PREF_GO_TO_FOLDER_LIST = "PREF_GO_TO_FOLDER_LIST";
     private static final String HINT_FILTER_DEVICES = "Filter files...";
     public static final int MAX_PATH_SAVE = 10;
 
-    private final DeviceView deviceView;
+    private final DeviceScreen deviceScreen;
 
     public CustomTable table;
     public ExploreTableModel model;
@@ -60,9 +61,9 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
     private List<String> prevPathList = new ArrayList<>();
     private String errorMessage;
 
-    public ExploreView(DeviceView deviceView, Device device) {
+    public ExploreScreen(DeviceScreen deviceScreen, Device device) {
         super("browse");
-        this.deviceView = deviceView;
+        this.deviceScreen = deviceScreen;
         this.device = device;
         initalizeUi();
         updateDeviceState();
@@ -139,12 +140,12 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
 
         // [CMD + 1] = show devices
         createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
-            deviceView.toFront();
+            deviceScreen.toFront();
         });
 
         // [CMD + 3] = show logs
         createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> {
-            deviceView.handleLogsCommand();
+            deviceScreen.handleLogsCommand();
         });
 
         // [CMD + T] = hide toolbar
@@ -180,6 +181,10 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
         table.setModel(model);
         table.setDefaultRenderer(DeviceFile.class, new ExplorerCellRenderer());
         //table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer());
+
+        // default column sizes
+        TableColumnModel columnModel = table.getColumnModel();
+        columnModel.getColumn(ExploreTableModel.Columns.SIZE.ordinal()).setPreferredWidth(80);
 
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
         table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(enter, "Enter");
@@ -454,7 +459,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
         if (rc != JOptionPane.YES_OPTION) return;
 
         Preferences preferences = Preferences.userRoot();
-        String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, null);
+        String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, null);
         if (downloadFolder == null) {
             downloadFolder = System.getProperty("user.home") + "/Downloads";
         }

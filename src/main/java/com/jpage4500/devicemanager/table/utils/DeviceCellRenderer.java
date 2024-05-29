@@ -20,43 +20,70 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
     private final Icon statusOnlineIcon;
     private final Icon statusBusyIcon;
 
+    private final Icon batteryLevel4;
+    private final Icon batteryLevel3;
+    private final Icon batteryLevel2;
+    private final Icon batteryLevel1;
+
     public DeviceCellRenderer() {
         setOpaque(true);
         Border border = new EmptyBorder(0, 5, 0, 0);
         setBorder(border);
 
-        BufferedImage image = UiUtils.getImage("status_offline.png", 20, 20, Color.GRAY);
-        statusOfflineIcon = new ImageIcon(image);
+        BufferedImage image = UiUtils.getImage("device_status.png", 20, 20);
 
-        image = UiUtils.getImage("status_online.png", 20, 20, new Color(24, 134, 0));
-        statusOnlineIcon = new ImageIcon(image);
+        BufferedImage offlineImage = UiUtils.replaceColor(image, Color.GRAY);
+        statusOfflineIcon = new ImageIcon(offlineImage);
 
-        image = UiUtils.getImage("status_busy.png", 20, 20, new Color(251, 109, 8));
-        statusBusyIcon = new ImageIcon(image);
+        BufferedImage onlineImage = UiUtils.replaceColor(image, new Color(24, 134, 0));
+        statusOnlineIcon = new ImageIcon(onlineImage);
+
+        BufferedImage busyImage = UiUtils.replaceColor(image, new Color(251, 109, 8));
+        statusBusyIcon = new ImageIcon(busyImage);
+
+        batteryLevel4 = UiUtils.getImageIcon("battery_level4.png", 20);
+        batteryLevel3 = UiUtils.getImageIcon("battery_level3.png", 20);
+        batteryLevel2 = UiUtils.getImageIcon("battery_level2.png", 20);
+        batteryLevel1 = UiUtils.getImageIcon("battery_level1.png", 20);
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
         Device device = (Device) object;
         DeviceTableModel model = (DeviceTableModel) table.getModel();
-
         DeviceTableModel.Columns columnType = model.getColumnType(column);
-        if (columnType == DeviceTableModel.Columns.FREE) {
-            setHorizontalAlignment(SwingConstants.RIGHT);
-        } else {
-            setHorizontalAlignment(SwingConstants.LEFT);
-        }
 
         Icon icon = null;
-        if (columnType == DeviceTableModel.Columns.NAME) {
-            if (device.isBusy) {
-                icon = statusBusyIcon;
-            } else if (device.isOnline) {
-                icon = statusOnlineIcon;
-            } else {
-                icon = statusOfflineIcon;
+        String text = null;
+        int align = SwingConstants.LEFT;
+
+        if (columnType != null) {
+            switch (columnType) {
+                case BATTERY:
+                    if (device.batteryLevel != null) {
+                        if (device.batteryLevel > 95) icon = batteryLevel4;
+                        else if (device.batteryLevel > 50) icon = batteryLevel3;
+                        else if (device.batteryLevel > 25) icon = batteryLevel2;
+                        else icon = batteryLevel1;
+                    }
+                    text = ""; // no text just icon
+                    break;
+                case FREE:
+                    align = SwingConstants.RIGHT;
+                    break;
+                case NAME:
+                    if (device.isBusy) {
+                        icon = statusBusyIcon;
+                    } else if (device.isOnline) {
+                        icon = statusOnlineIcon;
+                    } else {
+                        icon = statusOfflineIcon;
+                    }
             }
         }
-        String text = model.deviceValue(device, column);
+
+        if (text == null) text = model.deviceValue(device, column);
+
+        setHorizontalAlignment(align);
         setIcon(icon);
         setText(text);
 

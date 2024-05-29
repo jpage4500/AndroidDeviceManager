@@ -23,6 +23,7 @@ public class DeviceTableModel extends AbstractTableModel {
         SERIAL,
         PHONE,
         IMEI,
+        BATTERY,
         FREE,
         CUSTOM1,
         CUSTOM2,
@@ -36,7 +37,6 @@ public class DeviceTableModel extends AbstractTableModel {
 
     public void setDeviceList(List<Device> deviceList) {
         this.deviceList.clear();
-        log.debug("setDeviceList: {}", deviceList.size());
         this.deviceList.addAll(deviceList);
         fireTableDataChanged();
     }
@@ -154,6 +154,11 @@ public class DeviceTableModel extends AbstractTableModel {
                 case PHONE -> device.phone;
                 case IMEI -> device.imei;
                 case FREE -> FileUtils.bytesToDisplayString(device.freeSpace);
+                case BATTERY -> {
+                    String level = device.batteryLevel != null ? String.valueOf(device.batteryLevel) : "";
+                    if (device.powerStatus != null) level += " - " + device.powerStatus;
+                    yield level;
+                }
                 case CUSTOM1 -> device.getCustomProperty(Device.CUST_PROP_1);
                 case CUSTOM2 -> device.getCustomProperty(Device.CUST_PROP_2);
             };
