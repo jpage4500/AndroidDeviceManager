@@ -29,7 +29,7 @@ public class CommandDialog extends JPanel {
     public static void showCommandDialog(Component frame, List<Device> selectedDeviceList) {
         CommandDialog screen = new CommandDialog(selectedDeviceList);
         int rc = JOptionPane.showOptionDialog(frame, screen, "Send ADB Command", JOptionPane.DEFAULT_OPTION,
-                JOptionPane.PLAIN_MESSAGE, null, null, null);
+                JOptionPane.PLAIN_MESSAGE, null, new Object[]{}, null);
         if (rc != JOptionPane.YES_OPTION) return;
     }
 
@@ -38,22 +38,20 @@ public class CommandDialog extends JPanel {
 
         setLayout(new MigLayout("fillx", "[][]"));
 
-        List<String> customCommandList = getCustomCommands();
-
         add(new JLabel("Recent Commands"), "growx, span 2, wrap");
 
         listModel = new DefaultListModel<>();
-        listModel.addAll(customCommandList);
+        populateRecent();
         JList<String> list = new JList<>(listModel);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new AlternatingBackgroundColorRenderer());
         list.setVisibleRowCount(5);
-        list.addFocusListener(new FocusAdapter() {
-            public void focusLost(FocusEvent e) {
-                JList list = (JList) e.getComponent();
-                list.clearSelection();
-            }
-        });
+//        list.addFocusListener(new FocusAdapter() {
+//            public void focusLost(FocusEvent e) {
+//                JList list = (JList) e.getComponent();
+//                list.clearSelection();
+//            }
+//        });
         list.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -88,6 +86,7 @@ public class CommandDialog extends JPanel {
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
                     handleEnterPressed();
+                    e.consume();
                 }
             }
 
@@ -102,15 +101,20 @@ public class CommandDialog extends JPanel {
 
         add(textField, "growx, span 2, wrap");
 
-        JButton sendButton = new JButton("Send");
+        JButton sendButton = new JButton("Send Command");
         sendButton.addActionListener(e -> {
             handleEnterPressed();
         });
         add(sendButton, "al right, span 2, wrap");
     }
 
-    private void deleteItem(String value) {
-        log.debug("deleteItem: {}", value);
+    private void deleteItem(String command) {
+        log.debug("deleteItem: {}", command);
+        List<String> customCommands = getCustomCommands();
+        customCommands.remove(command);
+        Preferences preferences = Preferences.userRoot();
+        preferences.put(PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
+        populateRecent();
     }
 
     private void handleEnterPressed() {
@@ -140,16 +144,27 @@ public class CommandDialog extends JPanel {
         preferences.put(PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
 
         // update displayed list
-        listModel.clear();
-        listModel.addAll(customCommands);
+        populateRecent();
 
         log.debug("handleRunCustomCommand: {}", command);
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
                 String msg = "RESULTS:\n\n" + error;
-                JOptionPane.showMessageDialog(getRootPane(), msg);
+                JTextArea textArea = new JTextArea(msg);
+                textArea.setEditable(false);
+                JScrollPane scrollPane = new JScrollPane(textArea);
+                //textArea.setLineWrap(true);
+                //textArea.setWrapStyleWord(true);
+
+                JOptionPane.showMessageDialog(getRootPane(), scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
             });
         }
+    }
+
+    private void populateRecent() {
+        List<String> customCommandList = getCustomCommands();
+        listModel.clear();
+        listModel.addAll(customCommandList);
     }
 
     private List<String> getCustomCommands() {
