@@ -1,60 +1,50 @@
 # AndroidDeviceManager
 
 ## Description ##
-Java desktop app to manage many connected Android devices
+Java desktop app to manage multiple Android devices via adb
 
 ## Features ##
 - View all connected (and wireless) devices
-- Populates device **phone number, free space, IMEI, carrier** (when available)
+- Populates device **phone number, free space, IMEI, carrier** (if available)
 - **Remote control** selected devices (requires [scrcpy](https://github.com/Genymobile/scrcpy))
 - Capture **screenshots** of selected devices
 - **Drag and drop an apk** to **install** on selected devices
 - **Drag and drop a file** to **copy** to selected devices
-- File Explorer / Browse filesystem of device
+- **File Explorer** / Browse filesystem of device
   - download and view folders/files
   - delete folders/files
+  - root mode supported
+- View **Device Logs**
 - **Restart** selected devices
 - Run **user-defined adb commands**
-- Set and display custom properties on each device (ie: label each device using device properties)
+- Set and display custom properties on each device
 - Start an **adb shell** session with selected devices
 - **View version** of user-defined list of apps
 
-## Why? ##
-
-Surprisingly there’s not a lot of existing software that does this. Here’s what I found:
-
-- **AndroidTool** - [https://github.com/mortenjust/androidtool-mac](https://github.com/Genymobile/scrcpy)
-  - PROS: Great UI!!
-  - CONS: 6+ years old; doesn’t handle many connected devices very well; crashes frequently
-
 ## Requirements
 
-- A **Mac** (the app can be modified to run on Windows but right now it relies on several bash/shell scripts)
-- **Brew** (homebrew - a package manager for the mac)
-  - `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
-- A recent Java Runtime Environment (**JRE**)
-  - install a JDK version 17
-  - `brew install openjdk@17`
-  - create a symlink to the JDK in the /Library/Java/JavaVirtualMachines folder, which is necessary for the app to run (NOTE: the exact command to run should be printed out by the brew install command above)
-  - `sudo ln -sfn /usr/local/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk`
-  - test out the JRE by running this command: `/usr/libexec/java_home`. It should return a result and not 'no java environment found'
-- **adb tools** (adb tools for connecting to devices)
-  - install using brew
-  - `brew cask install android-platform-tools`
-  - add 'adb' to PATH environment variable to make sure ADM can locate adb. This usually involves opening up ~/.profile and adding something along the lines of:
-  - `export PATH="/opt/homebrew/bin:$PATH"`
+- A recent Java Runtime Environment (**JRE**) (17+)
+  - NOTE: make sure java is in your system PATH
+    - to verify, open a terminal or command window and type `java --version`
+- **adb**
+  - standalone adb tools can be found [here](https://developer.android.com/tools/releases/platform-tools)
+    - Mac OSX can install using brew:
+      - `brew cask install android-platform-tools`
 - **scrcpy** - mirror a connected Android device ([https://github.com/Genymobile/scrcpy](https://github.com/Genymobile/scrcpy))
-  - `brew install scrcpy`
+  - Mac OSX can install using brew:
+    - `brew install scrcpy`
 
-## Installation
+## Run
 
 - Download the latest release from here: [https://github.com/jpage4500/AndroidDeviceManager/releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
-  - The file you want should look like this: `AndroidDeviceManager.app.zip`
-  - unzip/double-click on the file to extract `AndroidDeviceManager.app`
-- move `AndroidDeviceManager.app` to the `/Applications` folder on your Mac
-
+  - Mac OSX Users:
+    - get the packaged .app version: `AndroidDeviceManager-VERSION-OSX.zip`, extract and move to `/Applications` folder
+  - Windows/Linux Users:
+    - get the .jar version: `AndroidDeviceManager.jar`
+    - run via command-line: `java -jar AndroidDeviceManager.jar`
 
 ## Screenshots ##
+![](resources/screenshot-main.jpg)
 ![](resources/screenshot-mirror.jpg)
 ![](resources/screenshot-install.jpg)
 ![](resources/screenshot-rightclick.jpg)

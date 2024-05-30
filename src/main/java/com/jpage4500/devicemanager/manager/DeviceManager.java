@@ -48,6 +48,7 @@ public class DeviceManager {
 
     // scripts that app will run
     private static final String SCRIPT_TERMINAL = "terminal";
+    private static final String SCRIPT_MIRROR = "mirror";
 
     public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
 
@@ -427,24 +428,13 @@ public class DeviceManager {
      */
     public void mirrorDevice(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            int port = new Random().nextInt(9999);
-            log.debug("mirrorDevice: {}, port:{}", device.serial, port);
-            // # options:
-            //# --stay-awake
-            //# --always-on-top
-            //# --encoder ['OMX.qcom.video.encoder.avc', 'c2.android.avc.encoder', 'OMX.google.h264.encoder']
-            //
-            //${SCRCPY} -s "$ADB_DEVICE" -p $RANDOM --window-title "$DEVICE_NAME" --show-touches --stay-awake
-            String[] args = new String[]{
-                    "-s", device.serial, "-p", String.valueOf(port),
-                    "--window-title", device.getDisplayName(), "--show-touches", "--stay-awake"
-            };
-            String command = findApp("scrcpy");
-            AppResult result = runApp(command, true, args);
-            log.debug("mirrorDevice: DONE:{}", GsonHelper.toJson(result));
+            log.debug("mirrorDevice: {}", device.getDisplayName());
+            File scriptFile = getScriptFile(SCRIPT_MIRROR);
+            AppResult appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial);
+
             // TODO: figure out how to determine if scrcpy was run successfully..
             // - scrcpy will log to stderr even when successful
-            listener.onTaskComplete(result.isSuccess, TextUtils.join(result.stdErr, "\n"));
+            listener.onTaskComplete(appResult.isSuccess, TextUtils.join(appResult.stdErr, "\n"));
         });
     }
 
@@ -576,7 +566,6 @@ public class DeviceManager {
 
     public void openTerminal(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            // TODO: linux/windows support
             File scriptFile = getScriptFile(SCRIPT_TERMINAL);
             runApp(scriptFile.getAbsolutePath(), true, device.serial);
         });
