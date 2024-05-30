@@ -89,8 +89,7 @@ public class SettingsDialog extends JPanel {
             boolean updatedValue = debugCheckbox.isSelected();
             preferences.putBoolean(PREF_DEBUG_MODE, updatedValue);
             AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
-            logger.setFileLogLevel(updatedValue ? Log.VERBOSE : Log.DEBUG);
-
+            logger.setFileLogLevel(updatedValue ? Log.DEBUG : Log.INFO);
             refreshUi();
         });
         add(debugCheckbox, "span 2, al right, wrap");
