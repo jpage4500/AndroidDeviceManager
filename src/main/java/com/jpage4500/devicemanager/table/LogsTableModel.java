@@ -62,7 +62,7 @@ public class LogsTableModel extends AbstractTableModel {
      */
     public Long getLastLogTime() {
         if (logEntryList.isEmpty()) return null;
-        LogEntry last = logEntryList.getLast();
+        LogEntry last = logEntryList.get(logEntryList.size() - 1);
         return last.timestamp;
     }
 

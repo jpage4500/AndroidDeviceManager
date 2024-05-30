@@ -1,7 +1,6 @@
 package com.jpage4500.devicemanager.logging;
 
 import com.jpage4500.devicemanager.utils.FileUtils;
-
 import org.slf4j.helpers.FormattingTuple;
 import org.slf4j.helpers.MarkerIgnoringBase;
 import org.slf4j.helpers.MessageFormatter;
@@ -253,7 +252,7 @@ public class AppLogger extends MarkerIgnoringBase {
 
         // thread
         boolean isMainThread = SwingUtilities.isEventDispatchThread();
-        long threadId = Thread.currentThread().threadId();
+        long threadId = Thread.currentThread().getId();
         if (isMainThread) {
             System.out.print("[UI]: ");
         } else {

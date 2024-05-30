@@ -2,12 +2,10 @@ package com.jpage4500.devicemanager.ui.dialog;
 
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
-import com.jpage4500.devicemanager.ui.DeviceScreen;
+import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.ui.ExploreScreen;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
 import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.table.DeviceTableModel;
-import com.jpage4500.devicemanager.utils.NativeJFileChooser;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -267,7 +265,7 @@ public class SettingsDialog extends JPanel {
         Preferences preferences = Preferences.userRoot();
         String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
 
-        JFileChooser chooser = new NativeJFileChooser();
+        JFileChooser chooser = new JFileChooser();
         chooser.setCurrentDirectory(new File(downloadFolder));
         chooser.setDialogTitle("Select Folder");
         chooser.setMultiSelectionEnabled(false);

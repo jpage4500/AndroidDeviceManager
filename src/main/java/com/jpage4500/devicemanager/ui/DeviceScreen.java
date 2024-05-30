@@ -813,7 +813,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         Preferences preferences = Preferences.userRoot();
         String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
 
-        JFileChooser chooser = new NativeJFileChooser();
+        JFileChooser chooser = new JFileChooser();
         chooser.setCurrentDirectory(new File(downloadFolder));
         chooser.setDialogTitle("Select File");
         chooser.setApproveButtonText("OK");

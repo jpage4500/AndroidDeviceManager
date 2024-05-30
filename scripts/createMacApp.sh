@@ -20,9 +20,10 @@ fi
 
 cd target
 
-VERSION=$(ls -t ${APP}*.jar | head -1 | sed "s/${APP}-//g" | sed 's/.jar//g')
+VERSION=$(cat classes/app.properties | grep version | cut -d= -f2)
+echo "version: $VERSION"
 
-zip -r $APP-$VERSION.zip $APP.app
+zip -r $APP-$VERSION-OSX.zip $APP.app
 
 # copy to /Applications folder
 rm -rf /Applications/$APP.app
