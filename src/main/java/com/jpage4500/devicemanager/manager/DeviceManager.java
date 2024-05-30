@@ -439,12 +439,47 @@ public class DeviceManager {
                     "-s", device.serial, "-p", String.valueOf(port),
                     "--window-title", device.getDisplayName(), "--show-touches", "--stay-awake"
             };
-            AppResult result = runApp("scrcpy", true, args);
+            String command = findApp("scrcpy");
+            AppResult result = runApp(command, true, args);
             log.debug("mirrorDevice: DONE:{}", GsonHelper.toJson(result));
             // TODO: figure out how to determine if scrcpy was run successfully..
             // - scrcpy will log to stderr even when successful
             listener.onTaskComplete(result.isSuccess, TextUtils.join(result.stdErr, "\n"));
         });
+    }
+
+    private String findApp(String app) {
+        String path = System.getenv("PATH");
+        log.debug("findApp: PATH:{}", path);
+        String[] pathArr = path.split(":");
+        for (String p : pathArr) {
+            String fullPath = checkFile(p, app);
+            if (fullPath != null) return fullPath;
+        }
+        // default to just app name alone - no path.. hopefully ProcessBuilder will find it
+        log.debug("findApp: NOT_FOUND: {}", app);
+        // try some other common locations
+        if (Utils.isMac()) {
+            String[] arr = new String[]{
+                    "/opt/homebrew/bin",
+                    "/usr/local/bin",
+            };
+            for (String s : arr) {
+                String fullPath = checkFile(s, app);
+                if (fullPath != null) return fullPath;
+            }
+        }
+
+        return app;
+    }
+
+    private String checkFile(String path, String app) {
+        File f = new File(path, app);
+        if (f.exists()) {
+            log.debug("checkFile: GOT:{}", f.getAbsolutePath());
+            return f.getAbsolutePath();
+        }
+        return null;
     }
 
     public void captureScreenshot(Device device, TaskListener listener) {
