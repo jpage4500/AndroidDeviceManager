@@ -20,10 +20,32 @@ public class Device {
     public final static String CUST_PROP_1 = "custom1";
     public final static String CUST_PROP_2 = "custom2";
 
+    public enum PowerStatus {
+        POWER_NONE,
+        POWER_AC,
+        POWER_USB,
+        POWER_WIRELESS,
+        POWER_DOCK,
+    }
+
     public String serial;
     public String phone;
     public String imei;
     public Long freeSpace;
+    public Integer batteryLevel;
+    public PowerStatus powerStatus;
+
+    // optional status description (error message, etc)
+    public String status;
+
+    // true when device is online/ready
+    public boolean isOnline;
+
+    // true when mirroring device or other long-running tasks
+    public boolean isBusy;
+
+    // last time device was seen (online or offline)
+    public Long lastUpdateMs;
 
     // map of property name -> key
     @ExcludeFromSerialization
@@ -37,16 +59,6 @@ public class Device {
     @ExcludeFromSerialization
     public Map<String, String> customAppVersionList;
 
-    // to show device status (viewing, copying, installing, etc)
-    @ExcludeFromSerialization
-    public String status;
-
-    // true when device is online/ready
-    public boolean isOnline;
-
-    // last time device was seen (online or offline)
-    public Long lastUpdateMs;
-
     @ExcludeFromSerialization
     public JadbDevice jadbDevice;
 
@@ -58,10 +70,10 @@ public class Device {
         String model = getProperty(PROP_MODEL);
         if (model != null) sb.append(model);
         if (phone != null) {
-            if (sb.length() > 0) sb.append(" - ");
+            if (!sb.isEmpty()) sb.append(" - ");
             sb.append(phone);
         } else if (serial != null) {
-            if (sb.length() > 0) sb.append(" - ");
+            if (!sb.isEmpty()) sb.append(" - ");
             sb.append(serial);
         }
         return sb.toString();

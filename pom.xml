@@ -7,7 +7,6 @@
     <groupId>com.jpage</groupId>
     <artifactId>AndroidDeviceManager</artifactId>
     <version>${maven.build.timestamp}</version>
-
     <packaging>jar</packaging>
 
     <properties>
@@ -48,6 +47,24 @@
             <artifactId>miglayout</artifactId>
             <version>3.7.4</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/com.github.jai-imageio/jai-imageio-core -->
+        <dependency>
+            <groupId>com.github.jai-imageio</groupId>
+            <artifactId>jai-imageio-core</artifactId>
+            <version>1.4.0</version>
+        </dependency>
+        <!-- openjfx is used for file dialogs -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>22.0.1</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.openjfx/javafx-swing -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
+            <version>22.0.1</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -57,11 +74,12 @@
                 <filtering>true</filtering>
             </resource>
         </resources>
-        <finalName>AndroidDeviceManager-${maven.build.timestamp}</finalName>
+        <finalName>AndroidDeviceManager</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
                 <configuration>
                     <source>21</source>
                     <target>21</target>

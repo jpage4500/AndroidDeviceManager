@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.table.utils;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,36 +10,82 @@ import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableCellRenderer;
-import javax.swing.text.Highlighter;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 
-public class DeviceCellRenderer extends JTextField implements TableCellRenderer {
+public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
     private static final Logger log = LoggerFactory.getLogger(DeviceCellRenderer.class);
 
-    private Highlighter.HighlightPainter highlightPainter;
-    private Highlighter.HighlightPainter highlightPainter2;
-    private boolean isHighlighted = false;
+    private final Icon statusOfflineIcon;
+    private final Icon statusOnlineIcon;
+    private final Icon statusBusyIcon;
+
+    private final Icon batteryLevel4;
+    private final Icon batteryLevel3;
+    private final Icon batteryLevel2;
+    private final Icon batteryLevel1;
 
     public DeviceCellRenderer() {
         setOpaque(true);
-        setEditable(false);
         Border border = new EmptyBorder(0, 5, 0, 0);
         setBorder(border);
+
+        BufferedImage image = UiUtils.getImage("device_status.png", 20, 20);
+
+        BufferedImage offlineImage = UiUtils.replaceColor(image, Color.GRAY);
+        statusOfflineIcon = new ImageIcon(offlineImage);
+
+        BufferedImage onlineImage = UiUtils.replaceColor(image, new Color(24, 134, 0));
+        statusOnlineIcon = new ImageIcon(onlineImage);
+
+        BufferedImage busyImage = UiUtils.replaceColor(image, new Color(251, 109, 8));
+        statusBusyIcon = new ImageIcon(busyImage);
+
+        batteryLevel4 = UiUtils.getImageIcon("battery_level4.png", 20);
+        batteryLevel3 = UiUtils.getImageIcon("battery_level3.png", 20);
+        batteryLevel2 = UiUtils.getImageIcon("battery_level2.png", 20);
+        batteryLevel1 = UiUtils.getImageIcon("battery_level1.png", 20);
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
         Device device = (Device) object;
         DeviceTableModel model = (DeviceTableModel) table.getModel();
-
-        String text = model.deviceValue(device, column);
-        setText(text);
-
         DeviceTableModel.Columns columnType = model.getColumnType(column);
-        if (columnType == DeviceTableModel.Columns.FREE) {
-            setHorizontalAlignment(SwingConstants.RIGHT);
-        } else {
-            setHorizontalAlignment(SwingConstants.LEFT);
+
+        Icon icon = null;
+        String text = null;
+        int align = SwingConstants.LEFT;
+
+        if (columnType != null) {
+            switch (columnType) {
+                case BATTERY:
+                    if (device.batteryLevel != null) {
+                        if (device.batteryLevel > 95) icon = batteryLevel4;
+                        else if (device.batteryLevel > 50) icon = batteryLevel3;
+                        else if (device.batteryLevel > 25) icon = batteryLevel2;
+                        else icon = batteryLevel1;
+                    }
+                    text = ""; // no text just icon
+                    break;
+                case FREE:
+                    align = SwingConstants.RIGHT;
+                    break;
+                case NAME:
+                    if (device.isBusy) {
+                        icon = statusBusyIcon;
+                    } else if (device.isOnline) {
+                        icon = statusOnlineIcon;
+                    } else {
+                        icon = statusOfflineIcon;
+                    }
+            }
         }
+
+        if (text == null) text = model.deviceValue(device, column);
+
+        setHorizontalAlignment(align);
+        setIcon(icon);
+        setText(text);
 
         boolean isTableFocused = table.hasFocus();
         Color textColor = isSelected && isTableFocused ? Color.WHITE : Color.BLACK;
@@ -50,34 +97,6 @@ public class DeviceCellRenderer extends JTextField implements TableCellRenderer 
 
         setForeground(textColor);
         setBackground(backgroundColor);
-
-        // TODO: offer search to devices table
-//        int highlightStartPos = -1;
-//        String searchText = model.getSearchText();
-//        if (TextUtils.length(searchText) > 1 && text != null) {
-//            highlightStartPos = TextUtils.indexOfIgnoreCase(text, searchText);
-//        }
-//
-//        Highlighter highlighter = getHighlighter();
-//        boolean doHighlight = highlightStartPos >= 0;
-//        if (doHighlight || isHighlighted) {
-//            // something changed..
-//            highlighter.removeAllHighlights();
-//
-//            if (doHighlight) {
-//                isHighlighted = true;
-//                if (highlightPainter == null) {
-//                    highlightPainter = new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW);
-//                    highlightPainter2 = new DefaultHighlighter.DefaultHighlightPainter(new Color(251, 109, 8));
-//                }
-//                Highlighter.HighlightPainter highlight = isSelected ? highlightPainter2 : highlightPainter;
-//                try {
-//                    highlighter.addHighlight(highlightStartPos, highlightStartPos + searchText.length(), highlight);
-//                } catch (BadLocationException e) {
-//                    log.error("BadLocationException: {}", e.getMessage());
-//                }
-//            }
-//        }
 
         return this;
     }

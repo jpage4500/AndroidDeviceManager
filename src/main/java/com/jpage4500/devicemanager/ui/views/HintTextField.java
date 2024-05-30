@@ -36,7 +36,6 @@ public class HintTextField extends JTextField {
         addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
-                log.debug("focusGained: ");
                 setFont(origFont);
                 if (getText().equals(hintText)) {
                     setText("");
@@ -45,7 +44,6 @@ public class HintTextField extends JTextField {
 
             @Override
             public void focusLost(FocusEvent e) {
-                log.debug("focusLost: ");
                 if (getText().isEmpty()) {
                     setText(hintText);
                     setFont(hintFont);
@@ -98,6 +96,14 @@ public class HintTextField extends JTextField {
         String text = getText();
         if (TextUtils.equals(text, hintText)) return "";
         else return text;
+    }
+
+    /**
+     * clear text and replace with hint text
+     */
+    public void reset() {
+        String text = getText();
+        if (!TextUtils.equals(text, hintText)) setText(hintText);
     }
 
     @Override

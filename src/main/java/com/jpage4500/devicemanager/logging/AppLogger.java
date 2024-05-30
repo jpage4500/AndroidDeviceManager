@@ -6,6 +6,7 @@ import org.slf4j.helpers.FormattingTuple;
 import org.slf4j.helpers.MarkerIgnoringBase;
 import org.slf4j.helpers.MessageFormatter;
 
+import javax.swing.*;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
@@ -251,8 +252,8 @@ public class AppLogger extends MarkerIgnoringBase {
         System.out.print(": ");
 
         // thread
-        long threadId = Thread.currentThread().getId();
-        boolean isMainThread = appLoggerFactory.getMainThreadId() == threadId;
+        boolean isMainThread = SwingUtilities.isEventDispatchThread();
+        long threadId = Thread.currentThread().threadId();
         if (isMainThread) {
             System.out.print("[UI]: ");
         } else {

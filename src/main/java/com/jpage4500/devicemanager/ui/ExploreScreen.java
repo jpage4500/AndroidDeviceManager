@@ -14,17 +14,21 @@ import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.FileDragAndDropListener;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,15 +39,16 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class ExploreView extends BaseFrame implements CustomTable.TableListener {
-    private static final Logger log = LoggerFactory.getLogger(ExploreView.class);
+public class ExploreScreen extends BaseScreen implements CustomTable.TableListener {
+    private static final Logger log = LoggerFactory.getLogger(ExploreScreen.class);
 
     public static final String PREF_DOWNLOAD_FOLDER = "PREF_DOWNLOAD_FOLDER";
     public static final String PREF_GO_TO_FOLDER_LIST = "PREF_GO_TO_FOLDER_LIST";
     private static final String HINT_FILTER_DEVICES = "Filter files...";
     public static final int MAX_PATH_SAVE = 10;
+    public static final String PREF_USE_ROOT = "PREF_USE_ROOT";
 
-    private final DeviceView deviceView;
+    private final DeviceScreen deviceScreen;
 
     public CustomTable table;
     public ExploreTableModel model;
@@ -60,9 +65,13 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
     private List<String> prevPathList = new ArrayList<>();
     private String errorMessage;
 
-    public ExploreView(DeviceView deviceView, Device device) {
+    private HintTextField filterTextField;
+    private JButton rootButton;
+    private boolean useRoot;
+
+    public ExploreScreen(DeviceScreen deviceScreen, Device device) {
         super("browse");
-        this.deviceView = deviceView;
+        this.deviceScreen = deviceScreen;
         this.device = device;
         initalizeUi();
         updateDeviceState();
@@ -92,8 +101,9 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
 
         // -- statusbar --
         statusBar = new StatusBar();
-        statusBar.setLeftLabelListener(this::handleGoToFolder);
+        setupStatusBar();
         mainPanel.add(statusBar, BorderLayout.SOUTH);
+
         setContentPane(mainPanel);
 
         setupMenuBar();
@@ -115,6 +125,10 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
         emptyView.setVisible(true);
 
         table.requestFocus();
+    }
+
+    private void setupStatusBar() {
+        statusBar.setLeftLabelListener(this::handleGoToFolder);
     }
 
     @Override
@@ -139,12 +153,12 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
 
         // [CMD + 1] = show devices
         createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
-            deviceView.toFront();
+            deviceScreen.toFront();
         });
 
         // [CMD + 3] = show logs
         createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> {
-            deviceView.handleLogsCommand();
+            deviceScreen.handleLogsCommand();
         });
 
         // [CMD + T] = hide toolbar
@@ -180,6 +194,10 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
         table.setModel(model);
         table.setDefaultRenderer(DeviceFile.class, new ExplorerCellRenderer());
         //table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer());
+
+        // default column sizes
+        TableColumnModel columnModel = table.getColumnModel();
+        columnModel.getColumn(ExploreTableModel.Columns.SIZE.ordinal()).setPreferredWidth(80);
 
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
         table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(enter, "Enter");
@@ -217,12 +235,20 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
     }
 
     private void handleFileClicked() {
+        if (!device.isOnline) {
+            errorMessage = "device offline";
+            refreshUi();
+            return;
+        }
         List<DeviceFile> selectedFiles = getSelectedFiles();
         log.debug("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
         if (selectedFiles.isEmpty()) return;
         DeviceFile selectedFile = selectedFiles.get(0);
-        if (selectedFile.isReadOnly) return;
-        else if (selectedFile.isDirectory || selectedFile.isSymbolicLink) {
+        if (selectedFile.isReadOnly && !useRoot) {
+            errorMessage = "read-only";
+            refreshUi();
+            return;
+        } else if (selectedFile.isDirectory || selectedFile.isSymbolicLink) {
             if (TextUtils.equalsIgnoreCase(selectedFile.name, "..")) {
                 String prevPath = selectedPath;
                 int pos = selectedPath.lastIndexOf('/');
@@ -237,6 +263,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
                 // append selected folder to current path
                 setPath(selectedPath + "/" + selectedFile.name);
             }
+            errorMessage = null;
             refreshFiles();
         } else {
             handleDownload();
@@ -256,9 +283,18 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
     }
 
     private void refreshFiles() {
-        if (device == null || !device.isOnline) return;
-        DeviceManager.getInstance().listFiles(device, selectedPath, fileList -> {
+        if (!device.isOnline) return;
+        DeviceManager.getInstance().listFiles(device, selectedPath, useRoot, (fileList, error) -> {
             SwingUtilities.invokeLater(() -> {
+                if (error != null) {
+                    errorMessage = error;
+                    refreshUi();
+                    if (useRoot && TextUtils.contains(error, "su")) {
+                        JOptionPane.showMessageDialog(this, "ROOT not available!");
+                        toggleRoot();
+                    }
+                    return;
+                }
                 if (fileList == null) {
                     log.debug("refreshFiles: NO FILES");
                     errorMessage = "permission denied - " + selectedPath;
@@ -273,6 +309,8 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
                     }
                     log.trace("refreshFiles: selectedPath={}", selectedPath);
                 } else {
+                    // clear out any previous set filter and error
+                    filterTextField.reset();
                     errorMessage = null;
                     // TODO: add ".." to top of list
                     if (!TextUtils.isEmpty(selectedPath)) {
@@ -290,7 +328,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
 
     private void refreshUi() {
         // file path
-        statusBar.setLeftLabel(selectedPath);
+        statusBar.setLeftLabel(selectedPath.isEmpty() ? "/" : selectedPath);
 
         statusBar.setCenterLabel(errorMessage);
 
@@ -333,6 +371,11 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
     }
 
     @Override
+    public void showHeaderPopupMenu(int column, MouseEvent e) {
+
+    }
+
+    @Override
     public void handleTableDoubleClick(int row, int column, MouseEvent e) {
         handleFileClicked();
     }
@@ -358,6 +401,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
     }
 
     private void handleFilesDropped(List<File> fileList) {
+        if (!device.isOnline) return;
         boolean isApk = false;
         StringBuilder name = new StringBuilder();
         for (File file : fileList) {
@@ -388,7 +432,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
             if (filename.endsWith(".apk")) {
                 DeviceManager.getInstance().installApp(device, file, null);
             } else {
-                DeviceManager.getInstance().copyFile(device, file, selectedPath + "/", isSuccess -> {
+                DeviceManager.getInstance().copyFile(device, file, selectedPath + "/", (isSuccess, error) -> {
                     if (isSuccess) refreshFiles();
                 });
             }
@@ -406,16 +450,39 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
 
         toolbar.add(Box.createHorizontalGlue());
 
-        HintTextField textField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
-        textField.setPreferredSize(new Dimension(150, 40));
-        textField.setMinimumSize(new Dimension(10, 40));
-        textField.setMaximumSize(new Dimension(200, 40));
-        toolbar.add(textField);
+        filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
+        filterTextField.setPreferredSize(new Dimension(150, 40));
+        filterTextField.setMinimumSize(new Dimension(10, 40));
+        filterTextField.setMaximumSize(new Dimension(200, 40));
+        toolbar.add(filterTextField);
 
         createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Files", actionEvent -> refreshFiles());
+
+        // root toolbar button
+        Preferences preferences = Preferences.userRoot();
+        useRoot = preferences.getBoolean(PREF_USE_ROOT, false);
+        rootButton = createToolbarButton(toolbar, "root.png", "Root", "Root Mode", actionEvent -> {
+            toggleRoot();
+        });
+        refreshRootButton();
+    }
+
+    private void toggleRoot() {
+        Preferences preferences = Preferences.userRoot();
+        useRoot = !useRoot;
+        preferences.putBoolean(PREF_USE_ROOT, useRoot);
+        refreshRootButton();
+        refreshFiles();
+    }
+
+    private void refreshRootButton() {
+        ImageIcon icon = UiUtils.getImageIcon(useRoot ? "root_enabled.png" : "root.png", 40);
+        rootButton.setIcon(icon);
+        rootButton.setToolTipText(useRoot ? "Disable root mode" : "Enable root mode");
     }
 
     private void handleNewFolder() {
+        if (!device.isOnline) return;
         String result = (String) JOptionPane.showInputDialog(this,
                 "Enter Folder Name",
                 "New Folder",
@@ -425,12 +492,13 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
                 null);
         if (TextUtils.isEmpty(result)) return;
 
-        DeviceManager.getInstance().createFolder(device, selectedPath + "/" + result, isSuccess -> {
+        DeviceManager.getInstance().createFolder(device, selectedPath + "/" + result, (isSuccess, error) -> {
             refreshFiles();
         });
     }
 
     private void handleDownload() {
+        if (!device.isOnline) return;
         List<DeviceFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
@@ -449,7 +517,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
         if (rc != JOptionPane.YES_OPTION) return;
 
         Preferences preferences = Preferences.userRoot();
-        String downloadFolder = preferences.get(ExploreView.PREF_DOWNLOAD_FOLDER, null);
+        String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, null);
         if (downloadFolder == null) {
             downloadFolder = System.getProperty("user.home") + "/Downloads";
         }
@@ -459,7 +527,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
                 return;
             }
             File downloadFile = new File(downloadFolder, file.name);
-            DeviceManager.getInstance().downloadFile(device, selectedPath, file, downloadFile, isSuccess -> {
+            DeviceManager.getInstance().downloadFile(device, selectedPath, file, downloadFile, (isSuccess, error) -> {
                 if (isSuccess && isSingleFile) {
                     if (downloadFile.exists()) {
                         int openRc = JOptionPane.showConfirmDialog(this,
@@ -478,6 +546,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
     }
 
     private void handleDelete() {
+        if (!device.isOnline) return;
         List<DeviceFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
@@ -497,7 +566,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (DeviceFile file : selectedFileList) {
-            DeviceManager.getInstance().deleteFile(device, selectedPath, file, isSuccess -> {
+            DeviceManager.getInstance().deleteFile(device, selectedPath, file, (isSuccess, error) -> {
                 refreshFiles();
             });
         }
@@ -585,7 +654,7 @@ public class ExploreView extends BaseFrame implements CustomTable.TableListener 
     }
 
     private void filterDevices(String text) {
-        if (text.length() > 0 && !TextUtils.equals(text, HINT_FILTER_DEVICES)) {
+        if (TextUtils.notEmpty(text)) {
             rowFilter.searchFor = text;
             rowSorter.setRowFilter(rowFilter);
             //rowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));

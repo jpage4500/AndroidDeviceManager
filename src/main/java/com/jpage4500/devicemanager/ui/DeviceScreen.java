@@ -8,7 +8,13 @@ import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
-import com.jpage4500.devicemanager.ui.views.*;
+import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
+import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
+import com.jpage4500.devicemanager.ui.views.CustomTable;
+import com.jpage4500.devicemanager.ui.views.EmptyView;
+import com.jpage4500.devicemanager.ui.views.HintTextField;
+import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -22,6 +28,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 import java.util.*;
@@ -30,11 +37,10 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class DeviceView extends BaseFrame implements DeviceManager.DeviceListener, CustomTable.TableListener {
-    private static final Logger log = LoggerFactory.getLogger(DeviceView.class);
+public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceListener, CustomTable.TableListener {
+    private static final Logger log = LoggerFactory.getLogger(DeviceScreen.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
-    public static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -47,10 +53,11 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     private final List<JButton> deviceButtonList = new ArrayList<>();
 
     // open windows (per device)
-    private final Map<String, ExploreView> exploreViewMap = new HashMap<>();
-    private final Map<String, LogsView> logsViewMap = new HashMap<>();
+    private final Map<String, ExploreScreen> exploreViewMap = new HashMap<>();
+    private final Map<String, LogsScreen> logsViewMap = new HashMap<>();
+    private final Map<String, InputScreen> inputViewMap = new HashMap<>();
 
-    public DeviceView() {
+    public DeviceScreen() {
         super("main");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         initalizeUi();
@@ -96,7 +103,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     public void handleException(Exception e) {
         SwingUtilities.invokeLater(() -> {
             Object[] choices = {"Retry", "Cancel"};
-            int rc = JOptionPane.showOptionDialog(DeviceView.this,
+            int rc = JOptionPane.showOptionDialog(DeviceScreen.this,
                     "Unable to connect to ADB server. Please check that it's running and re-try"
                     , "ADB Server", JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, choices, null);
             if (rc != JOptionPane.YES_OPTION) return;
@@ -126,7 +133,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         updateVersionLabel();
 
         setupMenuBar();
-
+        setupSystemTray();
         setContentPane(panel);
         setVisible(true);
 
@@ -199,18 +206,25 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         model = new DeviceTableModel();
 
         // restore previous settings
-        List<String> appList = SettingsScreen.getCustomApps();
+        List<String> appList = SettingsDialog.getCustomApps();
         model.setAppList(appList);
-        List<String> hiddenColList = SettingsScreen.getHiddenColumnList();
+
+        List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
         model.setHiddenColumns(hiddenColList);
 
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        //table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setModel(model);
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
 
         // default column sizes
         TableColumnModel columnModel = table.getColumnModel();
+        columnModel.getColumn(DeviceTableModel.Columns.NAME.ordinal()).setPreferredWidth(185);
         columnModel.getColumn(DeviceTableModel.Columns.SERIAL.ordinal()).setPreferredWidth(152);
+        columnModel.getColumn(DeviceTableModel.Columns.PHONE.ordinal()).setPreferredWidth(116);
+        columnModel.getColumn(DeviceTableModel.Columns.IMEI.ordinal()).setPreferredWidth(147);
+        columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setPreferredWidth(31);
+        columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setMaxWidth(31);
+        columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setPreferredWidth(66);
 
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);
@@ -224,22 +238,73 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         });
     }
 
+    private void setupSystemTray() {
+        TrayIcon trayIcon;
+        if (SystemTray.isSupported()) {
+            // get the SystemTray instance
+            SystemTray tray = SystemTray.getSystemTray();
+
+            BufferedImage image = UiUtils.getImage("android.png", 40, 40);
+            PopupMenu popup = new PopupMenu();
+            MenuItem openItem = new MenuItem("Open");
+            openItem.addActionListener(e2 -> {
+                bringWindowToFront();
+            });
+            MenuItem quitItem = new MenuItem("Quit");
+            quitItem.addActionListener(e2 -> {
+                System.exit(0);
+            });
+            popup.add(openItem);
+            popup.add(quitItem);
+            trayIcon = new TrayIcon(image, "Android Device Manager", popup);
+            trayIcon.setImageAutoSize(true);
+            try {
+                tray.add(trayIcon);
+            } catch (AWTException e) {
+                log.error("initializeUI: Exception: {}", e.getMessage());
+            }
+        }
+    }
+
+    private void bringWindowToFront() {
+        if (isActive()) return;
+        // requires multiple steps otherwise this won't work..
+        SwingUtilities.invokeLater(() -> {
+            if (!isVisible()) {
+                setVisible(true);
+                setState(JFrame.NORMAL);
+                return;
+            }
+            setState(JFrame.ICONIFIED);
+            Utils.runDelayed(300, true, () -> {
+                setState(JFrame.NORMAL);
+                Utils.runDelayed(300, true, () -> {
+                    setState(JFrame.NORMAL);
+                });
+            });
+        });
+    }
+
     private void updateDeviceState(Device device) {
-        ExploreView exploreView = exploreViewMap.get(device.serial);
-        if (exploreView != null) {
-            exploreView.updateDeviceState();
+        ExploreScreen exploreScreen = exploreViewMap.get(device.serial);
+        if (exploreScreen != null) {
+            exploreScreen.updateDeviceState();
         }
 
-        LogsView logsView = logsViewMap.get(device.serial);
-        if (logsView != null) {
-            logsView.updateDeviceState();
+        LogsScreen logsScreen = logsViewMap.get(device.serial);
+        if (logsScreen != null) {
+            logsScreen.updateDeviceState();
         }
     }
 
     private void refreshUi() {
         int selectedRowCount = table.getSelectedRowCount();
         int rowCount = table.getRowCount();
-        if (selectedRowCount > 0) {
+        String filterText = filterTextField.getCleanText();
+        if (TextUtils.notEmpty(filterText)) {
+            int totalDevices = model.getRowCount();
+            statusBar.setRightLabel("found: " + rowCount + " / " + totalDevices);
+        } else if (selectedRowCount > 0) {
             statusBar.setRightLabel("selected: " + selectedRowCount + " / " + rowCount);
         } else {
             statusBar.setRightLabel("total: " + rowCount);
@@ -258,7 +323,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         long usedMemory = totalMemory - freeMemory;
         String memUsage = FileUtils.bytesToDisplayString(usedMemory);
 
-        statusBar.setLeftLabel(MainApplication.version + " / " + memUsage);
+        statusBar.setLeftLabel("v" + MainApplication.version + " / " + memUsage);
     }
 
     @Override
@@ -315,6 +380,30 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
         popupMenu.show(e.getComponent(), e.getX(), e.getY());
         //table.setComponentPopupMenu(popupMenu);
+    }
+
+    @Override
+    public void showHeaderPopupMenu(int column, MouseEvent e) {
+        JPopupMenu popupMenu = new JPopupMenu();
+        DeviceTableModel.Columns columnType = model.getColumnType(column);
+        if (columnType != null) {
+            JMenuItem hideItem = new JMenuItem("Hide Column " + columnType.name());
+            hideItem.addActionListener(actionEvent -> handleHideColumn(column));
+            popupMenu.add(hideItem);
+
+            // NOTE: move out of if() block when more menu items are added
+            popupMenu.show(e.getComponent(), e.getX(), e.getY());
+        }
+    }
+
+    private void handleHideColumn(int column) {
+        DeviceTableModel.Columns columnType = model.getColumnType(column);
+        if (columnType == null) return;
+        List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
+        hiddenColList.add(columnType.name());
+        Preferences preferences = Preferences.userRoot();
+        preferences.put(SettingsDialog.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
+        model.setHiddenColumns(hiddenColList);
     }
 
     @Override
@@ -384,7 +473,9 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             if (rc != JOptionPane.YES_OPTION) return;
         }
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().openTerminal(device, this);
+            DeviceManager.getInstance().openTerminal(device, (isSuccess, error) -> {
+
+            });
         }
     }
 
@@ -419,16 +510,18 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
+        log.debug("handleFilesDropped: installing: {}", name);
+
         for (Device device : selectedDeviceList) {
             for (File file : fileList) {
                 String filename = file.getName();
                 if (filename.endsWith(".apk")) {
-                    DeviceManager.getInstance().installApp(device, file, isSuccess -> {
+                    DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
 
                     });
                 } else {
                     // TODO: where to put files?
-                    DeviceManager.getInstance().copyFile(device, file, "/sdcard/Download/", isSuccess -> {
+                    DeviceManager.getInstance().copyFile(device, file, "/sdcard/Download/", (isSuccess, error) -> {
                     });
                 }
             }
@@ -463,7 +556,9 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
         for (Device device : selectedDeviceList) {
             String prop = "custom" + number;
-            DeviceManager.getInstance().setProperty(device, prop, result);
+            DeviceManager.getInstance().setProperty(device, prop, result, (isSuccess, error) -> {
+
+            });
             device.setCustomProperty(Device.CUSTOM_PROP_X + number, result);
             model.updateRowForDevice(device);
         }
@@ -473,7 +568,12 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         Device device = getFirstSelectedDevice();
         if (device == null) return;
 
-        new InputScreen(this, device).show();
+        InputScreen inputScreen = inputViewMap.get(device.serial);
+        if (inputScreen == null) {
+            inputScreen = new InputScreen(this, device);
+            inputViewMap.put(device.serial, inputScreen);
+        }
+        inputScreen.show();
     }
 
     private void handleScreenshotCommand() {
@@ -487,12 +587,22 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             if (rc != JOptionPane.YES_OPTION) return;
         }
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().captureScreenshot(device, this);
+            device.isBusy = true;
+            model.updateRowForDevice(device);
+            DeviceManager.getInstance().captureScreenshot(device, (isSuccess, error) -> {
+                device.isBusy = false;
+                model.updateRowForDevice(device);
+                if (!isSuccess && selectedDeviceList.size() == 1) {
+                    // only show dialog if command was run on a single device
+                    String msg = "RESULTS:\n\n" + error;
+                    JOptionPane.showMessageDialog(this, msg);
+                }
+            });
         }
     }
 
     private void handleConnectDevice() {
-        ConnectScreen.showConnectDialog(this, isSuccess -> {
+        ConnectDialog.showConnectDialog(this, (isSuccess, error) -> {
             log.debug("handleConnectDevice: {}", isSuccess);
             if (!isSuccess) {
                 JOptionPane.showMessageDialog(this, "Unable to connect!\n\nCheck if the device is showing an prompt to authorize");
@@ -501,7 +611,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
     }
 
     private void handleDisconnect(Device device) {
-        DeviceManager.getInstance().disconnectDevice(device.serial, isSuccess -> {
+        DeviceManager.getInstance().disconnectDevice(device.serial, (isSuccess, error) -> {
             if (!isSuccess) JOptionPane.showMessageDialog(this, "Unable to disconnect!");
         });
     }
@@ -560,7 +670,17 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         }
 
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().mirrorDevice(device, this);
+            device.isBusy = true;
+            model.updateRowForDevice(device);
+            DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
+                device.isBusy = false;
+                model.updateRowForDevice(device);
+                // only show dialog if mirror was run on a single device
+                if (selectedDeviceList.size() == 1 && !isSuccess) {
+                    String msg = "RESULTS:\n\n" + error;
+                    JOptionPane.showMessageDialog(this, msg);
+                }
+            });
         }
     }
 
@@ -621,11 +741,6 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         button = createToolbarButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
         deviceButtonList.add(button);
 
-        // TODO: add the 'add custom' button
-        // createToolbarButton(toolbar, "icon_add.png", "add custom", "Run custom adb command", actionEvent -> handleAddCustomCommand());
-
-        loadCustomScripts(toolbar);
-
         toolbar.add(Box.createHorizontalGlue());
 
         filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
@@ -635,69 +750,15 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         toolbar.add(filterTextField);
 //        toolbar.add(Box.createHorizontalGlue());
 
-        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> handleRefreshCommand());
+        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshDevices());
         createToolbarButton(toolbar, "icon_settings.png", "Settings", "Settings", actionEvent -> handleSettingsClicked());
     }
 
-    private void loadCustomScripts(JToolBar toolbar) {
-        String path = System.getProperty("user.home");
-        File folder = new File(path, ".device_manager");
-        if (!folder.exists()) {
-            boolean ok = folder.mkdir();
-            log.debug("loadCustomScripts: creating folder: {}, {}", ok, folder.getAbsolutePath());
-        } else {
-            File[] files = folder.listFiles();
-            if (files == null) return;
-            final JPopupMenu popup = new JPopupMenu();
-            int numScripts = 0;
-            for (File file : files) {
-                String name = file.getName();
-                if (!TextUtils.endsWith(name, ".sh")) return;
-                numScripts++;
-                ImageIcon icon = UiUtils.getImageIcon("icon_script.png", 20);
-                JMenuItem menuItem = new JMenuItem(name, icon);
-                menuItem.addActionListener(e -> {
-                    runCustomScript(file);
-                });
-                popup.add(menuItem);
-            }
-            if (numScripts > 0) {
-                ImageIcon imageIcon = UiUtils.getImageIcon("icon_script.png", 40, 40);
-                JSplitButton button = new JSplitButton(imageIcon);
-                button.setText("Custom");
-                button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
-                button.setToolTipText("View custom scripts");
-                button.setVerticalTextPosition(SwingConstants.BOTTOM);
-                button.setHorizontalTextPosition(SwingConstants.CENTER);
-                button.setPopupMenu(popup);
-                toolbar.add(button);
-                deviceButtonList.add(button);
-            }
-        }
-    }
-
-    private void runCustomScript(File file) {
-        log.debug("runCustomScript: run:{}", file.getAbsolutePath());
-
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        } else if (selectedDeviceList.size() > 1) {
-            // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(this, "Run script: " + file.getName() + " on selected devices?", "Run Script?", JOptionPane.YES_NO_OPTION);
-            if (rc != JOptionPane.YES_OPTION) return;
-        }
-        for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().runUserScript(device, file, this);
-        }
-    }
-
     private void handleSettingsClicked() {
-        SettingsScreen.showSettings(this, model);
+        SettingsDialog.showSettings(this, model);
     }
 
-    private void handleRefreshCommand() {
+    private void refreshDevices() {
         DeviceManager.getInstance().refreshDevices(this);
     }
 
@@ -707,33 +768,8 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             showSelectDevicesDialog();
             return;
         }
-        Preferences preferences = Preferences.userRoot();
-        String customCommands = preferences.get(PREF_CUSTOM_COMMAND_LIST, null);
-        List<String> customList = GsonHelper.stringToList(customCommands, String.class);
 
-        JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
-        comboBox.setEditable(true);
-        int rc = JOptionPane.showOptionDialog(this, comboBox, "Custom adb command", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
-        if (rc != JOptionPane.YES_OPTION) return;
-        String selectedItem = comboBox.getSelectedItem().toString();
-        if (TextUtils.isEmpty(selectedItem)) return;
-        // remove "adb " from commands
-        if (selectedItem.startsWith("adb ")) {
-            selectedItem = selectedItem.substring("adb ".length());
-        }
-        // remove from list
-        customList.remove(selectedItem);
-        // add to top of list
-        customList.add(0, selectedItem);
-        // only save last 10 entries
-        if (customList.size() > 10) {
-            customList = customList.subList(0, 10);
-        }
-        preferences.put(PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customList));
-        log.debug("handleRunCustomCommand: {}", selectedItem);
-        for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().runCustomCommand(device, selectedItem, this);
-        }
+        CommandDialog.showCommandDialog(this, selectedDeviceList);
     }
 
     private void handleRestartCommand() {
@@ -750,7 +786,9 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().restartDevice(device, this);
+            DeviceManager.getInstance().restartDevice(device, (isSuccess, error) -> {
+                refreshDevices();
+            });
         }
     }
 
@@ -762,6 +800,7 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
 
     private void filterDevices(String text) {
         if (sorter != null) sorter.setFilterText(text);
+        refreshUi();
     }
 
     private void handleInstallCommand() {
@@ -770,36 +809,49 @@ public class DeviceView extends BaseFrame implements DeviceManager.DeviceListene
             showSelectDevicesDialog();
             return;
         }
-        FileDialog dialog = new FileDialog(this, "Select File to Install/Copy to selected devices");
-        dialog.setMode(FileDialog.LOAD);
-        dialog.setVisible(true);
-        File[] fileArr = dialog.getFiles();
-        if (fileArr == null || fileArr.length == 0) return;
-        handleFilesDropped(Arrays.asList(fileArr));
+
+        Preferences preferences = Preferences.userRoot();
+        String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
+
+        JFileChooser chooser = new NativeJFileChooser();
+        chooser.setCurrentDirectory(new File(downloadFolder));
+        chooser.setDialogTitle("Select File");
+        chooser.setApproveButtonText("OK");
+        chooser.setMultiSelectionEnabled(true);
+
+        int rc = chooser.showOpenDialog(this);
+        if (rc == JFileChooser.APPROVE_OPTION) {
+            File[] fileArr = chooser.getSelectedFiles();
+            if (fileArr == null || fileArr.length == 0) {
+                log.debug("handleInstallCommand: nothing selected");
+                return;
+            }
+            handleFilesDropped(Arrays.asList(fileArr));
+        }
     }
 
     public void handleBrowseCommand() {
         Device selectedDevice = getFirstSelectedDevice();
         if (selectedDevice == null) return;
 
-        ExploreView exploreView = exploreViewMap.get(selectedDevice.serial);
-        if (exploreView == null) {
-            exploreView = new ExploreView(this, selectedDevice);
-            exploreViewMap.put(selectedDevice.serial, exploreView);
+        ExploreScreen exploreScreen = exploreViewMap.get(selectedDevice.serial);
+        if (exploreScreen == null) {
+            exploreScreen = new ExploreScreen(this, selectedDevice);
+            exploreViewMap.put(selectedDevice.serial, exploreScreen);
         }
-        exploreView.show();
+        exploreScreen.show();
     }
 
     public void handleLogsCommand() {
         Device selectedDevice = getFirstSelectedDevice();
         if (selectedDevice == null) return;
 
-        LogsView logsView = logsViewMap.get(selectedDevice.serial);
-        if (logsView == null) {
-            logsView = new LogsView(this, selectedDevice);
-            logsViewMap.put(selectedDevice.serial, logsView);
+        LogsScreen logsScreen = logsViewMap.get(selectedDevice.serial);
+        if (logsScreen == null) {
+            logsScreen = new LogsScreen(this, selectedDevice);
+            logsViewMap.put(selectedDevice.serial, logsScreen);
         }
-        logsView.show();
+        logsScreen.show();
     }
 
     private void handleVersionClicked() {

@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import javax.swing.table.AbstractTableModel;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 public class DeviceTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(DeviceTableModel.class);
@@ -20,14 +19,14 @@ public class DeviceTableModel extends AbstractTableModel {
     private String searchText;
 
     public enum Columns {
+        NAME,
         SERIAL,
-        MODEL,
         PHONE,
         IMEI,
+        BATTERY,
         FREE,
         CUSTOM1,
         CUSTOM2,
-        STATUS,
     }
 
     public DeviceTableModel() {
@@ -38,7 +37,6 @@ public class DeviceTableModel extends AbstractTableModel {
 
     public void setDeviceList(List<Device> deviceList) {
         this.deviceList.clear();
-        log.debug("setDeviceList: {}", deviceList.size());
         this.deviceList.addAll(deviceList);
         fireTableDataChanged();
     }
@@ -129,12 +127,13 @@ public class DeviceTableModel extends AbstractTableModel {
             return colType.name();
         } else {
             String appName = appList.get(i - visibleColumns.length);
-            String[] split = appName.split("\\.");
-            if (split.length >= 1) {
-                return split[split.length - 1].toUpperCase(Locale.ROOT);
-            } else {
-                return "?";
-            }
+            return appName;
+            //String[] split = appName.split("\\.");
+            //if (split.length >= 1) {
+            //    return split[split.length - 1].toUpperCase(Locale.ROOT);
+            //} else {
+            //    return "?";
+            //}
         }
     }
 
@@ -151,13 +150,17 @@ public class DeviceTableModel extends AbstractTableModel {
             DeviceTableModel.Columns colType = visibleColumns[column];
             return switch (colType) {
                 case SERIAL -> device.serial;
-                case MODEL -> device.getProperty(Device.PROP_MODEL);
+                case NAME -> device.getProperty(Device.PROP_MODEL);
                 case PHONE -> device.phone;
                 case IMEI -> device.imei;
                 case FREE -> FileUtils.bytesToDisplayString(device.freeSpace);
+                case BATTERY -> {
+                    String level = device.batteryLevel != null ? String.valueOf(device.batteryLevel) : "";
+                    if (device.powerStatus != null) level += " - " + device.powerStatus;
+                    yield level;
+                }
                 case CUSTOM1 -> device.getCustomProperty(Device.CUST_PROP_1);
                 case CUSTOM2 -> device.getCustomProperty(Device.CUST_PROP_2);
-                case STATUS -> device.status;
             };
         } else {
             // custom app version

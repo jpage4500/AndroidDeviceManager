@@ -6,9 +6,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.InputEvent;
 import java.awt.image.BufferedImage;
 
 public class UiUtils {
@@ -19,10 +16,17 @@ public class UiUtils {
     }
 
     public static BufferedImage getImage(String path, int w, int h) {
+        return getImage(path, w, h, null);
+    }
+
+    public static BufferedImage getImage(String path, int w, int h, Color color) {
         try {
             // library offers MUCH better image scaling than ImageIO
             BufferedImage image = Thumbnails.of(UiUtils.class.getResource("/images/" + path)).size(w, h).asBufferedImage();
-            if (image != null) return image;
+            if (image != null) {
+                if (color != null) return replaceColor(image, color);
+                else return image;
+            }
             log.error("getImage: image not found! {}", path);
         } catch (Exception e) {
             log.error("getImage: Exception:{}", e.getMessage());
@@ -40,7 +44,7 @@ public class UiUtils {
         else return null;
     }
 
-    private static BufferedImage replaceColor(BufferedImage image, Color color) {
+    public static BufferedImage replaceColor(BufferedImage image, Color color) {
         int w = image.getWidth();
         int h = image.getHeight();
         BufferedImage dyed = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
@@ -52,6 +56,4 @@ public class UiUtils {
         g.dispose();
         return dyed;
     }
-
-
 }

@@ -35,6 +35,7 @@ public class StatusBar extends JPanel {
     public void setLeftLabel(String text) {
         if (leftLabel == null) {
             leftLabel = createLabel("left");
+            leftLabel.setBackground(Color.BLUE);
             add(leftLabel, BorderLayout.WEST);
         }
         leftLabel.setText(text);
@@ -56,14 +57,16 @@ public class StatusBar extends JPanel {
         rightLabel.setText(text);
     }
 
+    public void setLeftComponent(JComponent component) {
+        add(component, BorderLayout.WEST);
+    }
+
     public void setRightComponent(JComponent component) {
         add(component, BorderLayout.EAST);
-//        component.addMouseListener(new MouseAdapter() {
-//            @Override
-//            public void mouseClicked(MouseEvent e) {
-//                if (rightListener != null) rightListener.onClicked();
-//            }
-//        });
+    }
+
+    public void setCenterComponent(JComponent component) {
+        add(component, BorderLayout.CENTER);
     }
 
     private JLabel createLabel(String desc) {

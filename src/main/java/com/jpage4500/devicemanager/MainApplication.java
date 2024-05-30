@@ -3,9 +3,9 @@ package com.jpage4500.devicemanager;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
-import com.jpage4500.devicemanager.ui.DeviceView;
-import com.jpage4500.devicemanager.ui.SettingsScreen;
-import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.ui.DeviceScreen;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
+import com.jpage4500.devicemanager.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,30 +19,30 @@ import java.util.prefs.Preferences;
 public class MainApplication {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
-    private DeviceView deviceView;
+    private DeviceScreen deviceScreen;
     public static String version;
 
     public MainApplication() {
         setupLogging();
         SwingUtilities.invokeLater(this::initializeUI);
+        log.debug("MainApplication: APP START: {}, java:{}, os:{}", version, Runtime.version(), System.getProperty("os.name"));
     }
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "Device Manager");
         System.setProperty("apple.laf.useScreenMenuBar", "true");
-        String os = System.getProperty("os.name");
         // required to run scripts when packaged as an app
-        if (TextUtils.containsIgnoreCase(os, "Mac")) {
+        if (Utils.isMac()) {
             System.setProperty("jdk.lang.Process.launchMechanism", "FORK");
+            System.setProperty("com.apple.mrj.application.apple.menu.about.name", "Device Manager");
         }
         Properties prop = new Properties();
         try {
             prop.load(MainApplication.class.getClassLoader().getResourceAsStream("app.properties"));
             version = prop.getProperty("version");
         } catch (IOException ex) {
-            log.error("MainApplication: property: {}", ex.getMessage());
+            System.out.println("Failed to load app.properties");
         }
-        log.debug("MainApplication: APP START: {}, java:{}", version, Runtime.version());
         new MainApplication();
     }
 
@@ -56,12 +56,11 @@ public class MainApplication {
         //logger.setTagPrefix("DM");
         // set log level that application should log at (and higher)
         logger.setDebugLevel(Log.VERBOSE);
-        logger.setMainThreadId(Thread.currentThread().getId());
         logger.setLogToFile(true);
 
         Preferences preferences = Preferences.userRoot();
-        boolean isDebugMode = preferences.getBoolean(SettingsScreen.PREF_DEBUG_MODE, false);
-        logger.setFileLogLevel(isDebugMode ? Log.VERBOSE : Log.DEBUG);
+        boolean isDebugMode = preferences.getBoolean(SettingsDialog.PREF_DEBUG_MODE, false);
+        logger.setFileLogLevel(isDebugMode ? Log.DEBUG : Log.INFO);
     }
 
     private void initializeUI() {
@@ -74,9 +73,8 @@ public class MainApplication {
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
 
-        String os = System.getProperty("os.name");
         // set docker app icon (mac)
-        if (TextUtils.containsIgnoreCase(os, "Mac")) {
+        if (Utils.isMac()) {
             final Taskbar taskbar = Taskbar.getTaskbar();
             try {
                 Image image = ImageIO.read(getClass().getResource("/images/logo.png"));
@@ -86,7 +84,7 @@ public class MainApplication {
             }
         }
 
-        deviceView = new DeviceView();
+        deviceScreen = new DeviceScreen();
     }
 
 }

@@ -376,4 +376,14 @@ public class TextUtils {
         }
         return value1.compareToIgnoreCase(value2);
     }
+
+    public static String join(List<String> list, String separator) {
+        if (list == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < list.size(); i++) {
+            if (i > 0) sb.append(separator);
+            sb.append(list.get(i));
+        }
+        return sb.toString();
+    }
 }

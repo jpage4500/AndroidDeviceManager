@@ -24,7 +24,7 @@ public class JadbDevice {
     }
 
     //noinspection OctalInteger
-    private static final int DEFAULT_MODE = 0664;
+    public static final int DEFAULT_MODE = 0664;
     private final String serial;
     private final ITransportFactory transportFactory;
     private static final int DEFAULT_TCPIP_PORT = 5555;

@@ -8,15 +8,14 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.image.BufferedImage;
 
 /**
  * create and manage device view
  */
-public class BaseFrame extends CustomFrame {
-    private static final Logger log = LoggerFactory.getLogger(BaseFrame.class);
+public class BaseScreen extends CustomFrame {
+    private static final Logger log = LoggerFactory.getLogger(BaseScreen.class);
 
-    public BaseFrame(String prefKey) {
+    public BaseScreen(String prefKey) {
         super(prefKey);
 
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
