@@ -56,7 +56,6 @@ public class MainApplication {
         //logger.setTagPrefix("DM");
         // set log level that application should log at (and higher)
         logger.setDebugLevel(Log.VERBOSE);
-        logger.setMainThreadId(Thread.currentThread().getId());
         logger.setLogToFile(true);
 
         Preferences preferences = Preferences.userRoot();

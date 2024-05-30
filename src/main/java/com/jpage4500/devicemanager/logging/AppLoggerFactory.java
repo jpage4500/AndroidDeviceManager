@@ -20,8 +20,6 @@ public class AppLoggerFactory implements ILoggerFactory {
     private String tagPrefix;
     private int logLevel = Log.VERBOSE;
     private String replaceNewlinesWith;
-    // if set, output will show "MAIN" instead of main thread ID
-    private long mainThreadId;
 
     private boolean logToFile;
     private int fileLogLevel = Log.DEBUG;
@@ -161,14 +159,6 @@ public class AppLoggerFactory implements ILoggerFactory {
 
     public SimpleDateFormat getDateFormat() {
         return sdf;
-    }
-
-    public long getMainThreadId() {
-        return mainThreadId;
-    }
-
-    public void setMainThreadId(long mainThreadId) {
-        this.mainThreadId = mainThreadId;
     }
 
     public boolean shouldLogToFile(int logLevel) {

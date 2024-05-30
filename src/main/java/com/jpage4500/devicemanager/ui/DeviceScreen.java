@@ -28,6 +28,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 import java.util.*;
@@ -132,7 +133,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         updateVersionLabel();
 
         setupMenuBar();
-
+        setupSystemTray();
         setContentPane(panel);
         setVisible(true);
 
@@ -234,6 +235,53 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         table.getSelectionModel().addListSelectionListener(e -> {
             if (e.getValueIsAdjusting()) return;
             refreshUi();
+        });
+    }
+
+    private void setupSystemTray() {
+        TrayIcon trayIcon;
+        if (SystemTray.isSupported()) {
+            // get the SystemTray instance
+            SystemTray tray = SystemTray.getSystemTray();
+
+            BufferedImage image = UiUtils.getImage("android.png", 40, 40);
+            PopupMenu popup = new PopupMenu();
+            MenuItem openItem = new MenuItem("Open");
+            openItem.addActionListener(e2 -> {
+                bringWindowToFront();
+            });
+            MenuItem quitItem = new MenuItem("Quit");
+            quitItem.addActionListener(e2 -> {
+                System.exit(0);
+            });
+            popup.add(openItem);
+            popup.add(quitItem);
+            trayIcon = new TrayIcon(image, "Android Device Manager", popup);
+            trayIcon.setImageAutoSize(true);
+            try {
+                tray.add(trayIcon);
+            } catch (AWTException e) {
+                log.error("initializeUI: Exception: {}", e.getMessage());
+            }
+        }
+    }
+
+    private void bringWindowToFront() {
+        if (isActive()) return;
+        // requires multiple steps otherwise this won't work..
+        SwingUtilities.invokeLater(() -> {
+            if (!isVisible()) {
+                setVisible(true);
+                setState(JFrame.NORMAL);
+                return;
+            }
+            setState(JFrame.ICONIFIED);
+            Utils.runDelayed(300, true, () -> {
+                setState(JFrame.NORMAL);
+                Utils.runDelayed(300, true, () -> {
+                    setState(JFrame.NORMAL);
+                });
+            });
         });
     }
 
@@ -692,9 +740,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // create custom action buttons
         button = createToolbarButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
         deviceButtonList.add(button);
-
-        // TODO: add the 'add custom' button
-        // createToolbarButton(toolbar, "icon_add.png", "add custom", "Run custom adb command", actionEvent -> handleAddCustomCommand());
 
         toolbar.add(Box.createHorizontalGlue());
 

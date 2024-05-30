@@ -53,6 +53,7 @@
             <artifactId>jai-imageio-core</artifactId>
             <version>1.4.0</version>
         </dependency>
+        <!-- openjfx is used for file dialogs -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
