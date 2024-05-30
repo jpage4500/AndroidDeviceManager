@@ -548,30 +548,39 @@ public class DeviceManager {
     }
 
     public interface DeviceFileListener {
-        void handleFiles(List<DeviceFile> fileList);
+        void handleFiles(List<DeviceFile> fileList, String error);
     }
 
-    public void listFiles(Device device, String path, DeviceFileListener listener) {
+    public void listFiles(Device device, String path, boolean useRoot, DeviceFileListener listener) {
         commandExecutorService.submit(() -> {
             try {
-                // TODO: offer root mode option ("su -c ls -al PATH")
                 String safePath = path + "/";
                 if (safePath.indexOf(' ') > 0) {
                     safePath = "\"" + safePath + "\"";
                 }
-                log.trace("listFiles: {}", safePath);
-                List<String> dirList = runShell(device, "ls -al " + safePath);
+                log.trace("listFiles: {} {}", safePath, useRoot ? "(ROOT)" : "");
+                String command = "ls -al " + safePath;
+                if (useRoot) command = "su -c " + command;
+                List<String> dirList = runShell(device, command);
                 List<DeviceFile> fileList = new ArrayList<>();
                 for (String dir : dirList) {
                     DeviceFile file = DeviceFile.fromEntry(dir);
                     if (file != null) fileList.add(file);
+                    else if (TextUtils.containsAny(dir, true, "inaccessible or not found", "permission denied")) {
+                        log.debug("listFiles: ERROR: {}", dir);
+                        // check for common errors:
+                        // <COMMAND>: inaccessible or not found
+                        // ls: <FOLDER>: Permission denied
+                        listener.handleFiles(null, dir);
+                        return;
+                    }
                 }
                 //log.trace("listFiles: FILES:{}, PATH:{}, {}", fileList.size(), safePath, GsonHelper.toJson(fileList));
-                listener.handleFiles(fileList);
+                listener.handleFiles(fileList, null);
             } catch (Exception e) {
                 log.error("listFiles: {}, Exception:{}", path, e.getMessage());
                 log.debug("listFiles: ", e);
-                listener.handleFiles(null);
+                listener.handleFiles(null, e.getMessage());
             }
         });
     }
@@ -599,7 +608,8 @@ public class DeviceManager {
             }
             // get list of files in folder
             String dirPath = path + "/" + file.name;
-            listFiles(device, dirPath, fileList -> {
+            listFiles(device, dirPath, false, (fileList, error) -> {
+                if (fileList == null || error != null) return;
                 for (DeviceFile deviceFile : fileList) {
                     File subFile = new File(saveFile, deviceFile.name);
                     downloadFileInternal(device, path, deviceFile, subFile);
@@ -619,8 +629,10 @@ public class DeviceManager {
 
     public void deleteFile(Device device, String path, DeviceFile file, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            List<String> resultList = runShell(device, "rm -rf " + path + file.name);
-            log.debug("deleteFile: {}/{} -> {}", path, file.name, GsonHelper.toJson(resultList));
+            String command = "rm -rf " + path + "/" + file.name;
+            if (file.isDirectory) command += "/";
+            List<String> resultList = runShell(device, command);
+            log.debug("deleteFile: {} -> {}", command, GsonHelper.toJson(resultList));
             // TODO: determine success/fail
             listener.onTaskComplete(true, null);
         });

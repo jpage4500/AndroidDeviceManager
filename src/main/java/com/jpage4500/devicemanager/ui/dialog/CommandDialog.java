@@ -13,6 +13,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.prefs.Preferences;
 
 public class CommandDialog extends JPanel {
@@ -146,17 +147,23 @@ public class CommandDialog extends JPanel {
         // update displayed list
         populateRecent();
 
-        log.debug("handleRunCustomCommand: {}", command);
+        log.debug("handleRunCustomCommand: {}, devices:{}", command, selectedDeviceList.size());
+        StringBuilder msg = new StringBuilder();
+        AtomicInteger counter = new AtomicInteger();
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
-                String msg = "RESULTS:\n\n" + error;
-                JTextArea textArea = new JTextArea(msg);
-                textArea.setEditable(false);
-                JScrollPane scrollPane = new JScrollPane(textArea);
-                //textArea.setLineWrap(true);
-                //textArea.setWrapStyleWord(true);
-
-                JOptionPane.showMessageDialog(getRootPane(), scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
+                // handle results on main UI thread
+                SwingUtilities.invokeLater(() -> {
+                    if (!msg.isEmpty()) msg.append("\n\n");
+                    msg.append("DEVICE: " + device.getDisplayName() + ":\n" + error);
+                    // show results when last command is complete
+                    if (counter.incrementAndGet() == selectedDeviceList.size()) {
+                        JTextArea textArea = new JTextArea(msg.toString());
+                        textArea.setEditable(false);
+                        JScrollPane scrollPane = new JScrollPane(textArea);
+                        JOptionPane.showMessageDialog(getRootPane(), scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
+                    }
+                });
             });
         }
     }

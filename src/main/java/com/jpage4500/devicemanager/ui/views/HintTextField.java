@@ -98,6 +98,14 @@ public class HintTextField extends JTextField {
         else return text;
     }
 
+    /**
+     * clear text and replace with hint text
+     */
+    public void reset() {
+        String text = getText();
+        if (!TextUtils.equals(text, hintText)) setText(hintText);
+    }
+
     @Override
     public void setText(String t) {
         super.setText(t);

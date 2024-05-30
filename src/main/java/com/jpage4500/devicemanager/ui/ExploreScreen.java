@@ -14,6 +14,7 @@ import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.FileDragAndDropListener;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +26,9 @@ import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +46,7 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
     public static final String PREF_GO_TO_FOLDER_LIST = "PREF_GO_TO_FOLDER_LIST";
     private static final String HINT_FILTER_DEVICES = "Filter files...";
     public static final int MAX_PATH_SAVE = 10;
+    public static final String PREF_USE_ROOT = "PREF_USE_ROOT";
 
     private final DeviceScreen deviceScreen;
 
@@ -60,6 +64,10 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
     private String selectedPath = "/sdcard";
     private List<String> prevPathList = new ArrayList<>();
     private String errorMessage;
+
+    private HintTextField filterTextField;
+    private JButton rootButton;
+    private boolean useRoot;
 
     public ExploreScreen(DeviceScreen deviceScreen, Device device) {
         super("browse");
@@ -93,8 +101,9 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
 
         // -- statusbar --
         statusBar = new StatusBar();
-        statusBar.setLeftLabelListener(this::handleGoToFolder);
+        setupStatusBar();
         mainPanel.add(statusBar, BorderLayout.SOUTH);
+
         setContentPane(mainPanel);
 
         setupMenuBar();
@@ -116,6 +125,10 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
         emptyView.setVisible(true);
 
         table.requestFocus();
+    }
+
+    private void setupStatusBar() {
+        statusBar.setLeftLabelListener(this::handleGoToFolder);
     }
 
     @Override
@@ -222,12 +235,20 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
     }
 
     private void handleFileClicked() {
+        if (!device.isOnline) {
+            errorMessage = "device offline";
+            refreshUi();
+            return;
+        }
         List<DeviceFile> selectedFiles = getSelectedFiles();
         log.debug("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
         if (selectedFiles.isEmpty()) return;
         DeviceFile selectedFile = selectedFiles.get(0);
-        if (selectedFile.isReadOnly) return;
-        else if (selectedFile.isDirectory || selectedFile.isSymbolicLink) {
+        if (selectedFile.isReadOnly && !useRoot) {
+            errorMessage = "read-only";
+            refreshUi();
+            return;
+        } else if (selectedFile.isDirectory || selectedFile.isSymbolicLink) {
             if (TextUtils.equalsIgnoreCase(selectedFile.name, "..")) {
                 String prevPath = selectedPath;
                 int pos = selectedPath.lastIndexOf('/');
@@ -242,6 +263,7 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
                 // append selected folder to current path
                 setPath(selectedPath + "/" + selectedFile.name);
             }
+            errorMessage = null;
             refreshFiles();
         } else {
             handleDownload();
@@ -261,9 +283,18 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
     }
 
     private void refreshFiles() {
-        if (device == null || !device.isOnline) return;
-        DeviceManager.getInstance().listFiles(device, selectedPath, fileList -> {
+        if (!device.isOnline) return;
+        DeviceManager.getInstance().listFiles(device, selectedPath, useRoot, (fileList, error) -> {
             SwingUtilities.invokeLater(() -> {
+                if (error != null) {
+                    errorMessage = error;
+                    refreshUi();
+                    if (useRoot && TextUtils.contains(error, "su")) {
+                        JOptionPane.showMessageDialog(this, "ROOT not available!");
+                        toggleRoot();
+                    }
+                    return;
+                }
                 if (fileList == null) {
                     log.debug("refreshFiles: NO FILES");
                     errorMessage = "permission denied - " + selectedPath;
@@ -278,6 +309,8 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
                     }
                     log.trace("refreshFiles: selectedPath={}", selectedPath);
                 } else {
+                    // clear out any previous set filter and error
+                    filterTextField.reset();
                     errorMessage = null;
                     // TODO: add ".." to top of list
                     if (!TextUtils.isEmpty(selectedPath)) {
@@ -295,7 +328,7 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
 
     private void refreshUi() {
         // file path
-        statusBar.setLeftLabel(selectedPath);
+        statusBar.setLeftLabel(selectedPath.isEmpty() ? "/" : selectedPath);
 
         statusBar.setCenterLabel(errorMessage);
 
@@ -368,6 +401,7 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
     }
 
     private void handleFilesDropped(List<File> fileList) {
+        if (!device.isOnline) return;
         boolean isApk = false;
         StringBuilder name = new StringBuilder();
         for (File file : fileList) {
@@ -416,16 +450,39 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
 
         toolbar.add(Box.createHorizontalGlue());
 
-        HintTextField textField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
-        textField.setPreferredSize(new Dimension(150, 40));
-        textField.setMinimumSize(new Dimension(10, 40));
-        textField.setMaximumSize(new Dimension(200, 40));
-        toolbar.add(textField);
+        filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
+        filterTextField.setPreferredSize(new Dimension(150, 40));
+        filterTextField.setMinimumSize(new Dimension(10, 40));
+        filterTextField.setMaximumSize(new Dimension(200, 40));
+        toolbar.add(filterTextField);
 
         createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Files", actionEvent -> refreshFiles());
+
+        // root toolbar button
+        Preferences preferences = Preferences.userRoot();
+        useRoot = preferences.getBoolean(PREF_USE_ROOT, false);
+        rootButton = createToolbarButton(toolbar, "root.png", "Root", "Root Mode", actionEvent -> {
+            toggleRoot();
+        });
+        refreshRootButton();
+    }
+
+    private void toggleRoot() {
+        Preferences preferences = Preferences.userRoot();
+        useRoot = !useRoot;
+        preferences.putBoolean(PREF_USE_ROOT, useRoot);
+        refreshRootButton();
+        refreshFiles();
+    }
+
+    private void refreshRootButton() {
+        ImageIcon icon = UiUtils.getImageIcon(useRoot ? "root_enabled.png" : "root.png", 40);
+        rootButton.setIcon(icon);
+        rootButton.setToolTipText(useRoot ? "Disable root mode" : "Enable root mode");
     }
 
     private void handleNewFolder() {
+        if (!device.isOnline) return;
         String result = (String) JOptionPane.showInputDialog(this,
                 "Enter Folder Name",
                 "New Folder",
@@ -441,6 +498,7 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
     }
 
     private void handleDownload() {
+        if (!device.isOnline) return;
         List<DeviceFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
@@ -488,6 +546,7 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
     }
 
     private void handleDelete() {
+        if (!device.isOnline) return;
         List<DeviceFile> selectedFileList = getSelectedFiles();
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
@@ -595,7 +654,7 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
     }
 
     private void filterDevices(String text) {
-        if (text.length() > 0 && !TextUtils.equals(text, HINT_FILTER_DEVICES)) {
+        if (TextUtils.notEmpty(text)) {
             rowFilter.searchFor = text;
             rowSorter.setRowFilter(rowFilter);
             //rowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
