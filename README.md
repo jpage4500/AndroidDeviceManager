@@ -15,11 +15,17 @@ Java desktop app to manage multiple Android devices via adb
   - delete folders/files
   - root mode supported
 - View **Device Logs**
+  - NOTE: this is a work in progress!
 - **Restart** selected devices
 - Run **user-defined adb commands**
 - Set and display custom properties on each device
 - Start an **adb shell** session with selected devices
 - **View version** of user-defined list of apps
+
+## Screenshots ##
+![](resources/screenshot-main.jpg)
+![](resources/screenshot-browse.jpg)
+![](resources/screenshot-logs.jpg)
 
 ## Requirements
 
@@ -43,12 +49,11 @@ Java desktop app to manage multiple Android devices via adb
     - get the .jar version: `AndroidDeviceManager.jar`
     - run via command-line: `java -jar AndroidDeviceManager.jar`
 
-## Screenshots ##
-![](resources/screenshot-main.jpg)
-![](resources/screenshot-mirror.jpg)
-![](resources/screenshot-install.jpg)
-![](resources/screenshot-rightclick.jpg)
-![](resources/browse1.jpg)
+## Build
+
+- sync this repo and build/run using the following maven commands:
+- `mvn install`
+- `mvn exec:java`
 
 ## Use Cases ##
 

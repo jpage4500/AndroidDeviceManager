@@ -20,9 +20,13 @@ if [[ ${SCRCPY} == "" ]]; then
     fi
 fi
 
-# options:
+# use random port to allow multiple instances
+PORT=$(jot -r 1  2000 65000)
+
+# options: https://github.com/Genymobile/scrcpy?tab=readme-ov-file#user-documentation
 # --stay-awake
 # --always-on-top
 # --encoder ['OMX.qcom.video.encoder.avc', 'c2.android.avc.encoder', 'OMX.google.h264.encoder']
 
-${SCRCPY} -s "$ADB_DEVICE" -p $RANDOM --window-title "$DEVICE_NAME" --show-touches --stay-awake
+# shellcheck disable=SC2086
+${SCRCPY} -s "${ADB_DEVICE}" -p ${PORT} --window-title "${DEVICE_NAME}" --show-touches --stay-awake --no-audio

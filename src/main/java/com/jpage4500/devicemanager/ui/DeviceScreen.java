@@ -32,6 +32,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.prefs.Preferences;
 
 /**
@@ -49,6 +50,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public StatusBar statusBar;
     public JToolBar toolbar;
     private HintTextField filterTextField;
+    private boolean hasSelectedDevice;
 
     private final List<JButton> deviceButtonList = new ArrayList<>();
 
@@ -76,9 +78,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 model.setDeviceList(deviceList);
 
                 // auto-select first device
-//                if (!deviceList.isEmpty() && table.getSelectedRow() == -1) {
-//                    table.changeSelection(0, 0, false, false);
-//                }
+                if (!hasSelectedDevice && !deviceList.isEmpty() && table.getSelectedRow() == -1) {
+                    table.changeSelection(0, 0, false, false);
+                    hasSelectedDevice = true;
+                }
 
                 refreshUi();
 
@@ -225,6 +228,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setPreferredWidth(31);
         columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setMaxWidth(31);
         columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setPreferredWidth(66);
+        table.restore();
 
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);
@@ -669,17 +673,29 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             if (rc != JOptionPane.YES_OPTION) return;
         }
 
+        StringBuilder msg = new StringBuilder();
+        AtomicInteger counter = new AtomicInteger();
         for (Device device : selectedDeviceList) {
             device.isBusy = true;
             model.updateRowForDevice(device);
             DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
-                device.isBusy = false;
-                model.updateRowForDevice(device);
-                // only show dialog if mirror was run on a single device
-                if (selectedDeviceList.size() == 1 && !isSuccess) {
-                    String msg = "RESULTS:\n\n" + error;
-                    JOptionPane.showMessageDialog(this, msg);
-                }
+                // handle results on main UI thread
+                SwingUtilities.invokeLater(() -> {
+                    log.debug("handleMirrorCommand: {}, {}", isSuccess, error);
+                    device.isBusy = false;
+                    model.updateRowForDevice(device);
+                    if (!isSuccess) {
+                        if (!msg.isEmpty()) msg.append("\n\n");
+                        msg.append("DEVICE: " + device.getDisplayName() + ":\n" + error);
+                    }
+                    // show results when last command is complete
+                    if (!msg.isEmpty() && counter.incrementAndGet() == selectedDeviceList.size()) {
+                        JTextArea textArea = new JTextArea(msg.toString());
+                        textArea.setEditable(false);
+                        JScrollPane scrollPane = new JScrollPane(textArea);
+                        JOptionPane.showMessageDialog(getRootPane(), scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
+                    }
+                });
             });
         }
     }
@@ -831,6 +847,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     public void handleBrowseCommand() {
+
         Device selectedDevice = getFirstSelectedDevice();
         if (selectedDevice == null) return;
 

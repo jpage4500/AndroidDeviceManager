@@ -178,7 +178,7 @@ public class CustomTable extends JTable {
     @Override
     public void setModel(TableModel dataModel) {
         super.setModel(dataModel);
-        restore();
+        //restore();
     }
 
     @Override
@@ -268,11 +268,11 @@ public class CustomTable extends JTable {
 
         for (int i = 0; i < detailsList.size(); i++) {
             ColumnDetails details = detailsList.get(i);
+            log.trace("restore: col:{}, w:{}", i, details.width);
             columnModel.getColumn(i).setPreferredWidth(details.width);
         }
 
-        for (int i = 0; i < detailsList.size(); i++) {
-            ColumnDetails details = detailsList.get(i);
+        for (ColumnDetails details : detailsList) {
             if (details.modelPos != details.userPos) {
                 log.trace("restore: move:{} to:{}", details.modelPos, details.userPos);
                 columnModel.moveColumn(details.modelPos, details.userPos);
