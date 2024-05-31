@@ -242,9 +242,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         new DropTarget(table, new FileDragAndDropListener(table, this::handleFilesDropped));
 
         table.setTooltipListener((row, col) -> {
-            DeviceTableModel.Columns columnType = model.getColumnType(col);
+            int modelCol = table.convertColumnIndexToModel(col);
+            DeviceTableModel.Columns columnType = model.getColumnType(modelCol);
             if (row >= 0 && columnType == DeviceTableModel.Columns.BATTERY) {
-                Device device = (Device) model.getValueAt(row, col);
+                int modelRow = table.convertRowIndexToModel(row);
+                Device device = (Device) model.getValueAt(modelRow, modelCol);
                 return device.batteryLevel + "%";
             } else {
                 return table.getTextIfTruncated(row, col);
