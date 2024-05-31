@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.ExploreTableModel;
 import com.jpage4500.devicemanager.table.utils.ExplorerCellRenderer;
 import com.jpage4500.devicemanager.table.utils.ExplorerRowComparator;
@@ -187,7 +188,6 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
     }
 
     private void setupTable() {
-        table.setShowTooltips(true);
         model = new ExploreTableModel();
         table.setModel(model);
         table.setDefaultRenderer(DeviceFile.class, new ExplorerCellRenderer());
@@ -229,6 +229,8 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
                 refreshUi();
             }
         });
+
+        table.setTooltipListener((row, col) -> table.getTextIfTruncated(row, col));
 
         // support drag and drop of files IN TO explorer window
         new DropTarget(table.getScrollPane(), new FileDragAndDropListener(table.getScrollPane(), this::handleFilesDropped));

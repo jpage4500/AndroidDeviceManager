@@ -313,7 +313,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
             if (startTime == null) {
                 // by default only display logs from the last few hours
                 // - can speed up initial launch
-                startTime = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1);
+                startTime = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(2);
             }
             DeviceManager.getInstance().startLogging(device, startTime, this);
         }

@@ -6,10 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.TableColumnModelEvent;
-import javax.swing.event.TableColumnModelListener;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.dnd.DropTarget;
@@ -34,9 +30,8 @@ public class CustomTable extends JTable {
 
     private String prefKey;
     private TableListener listener;
+    private TooltipListener tooltipListener;
     private JScrollPane scrollPane;
-
-    private boolean showTooltips = false;
 
     public int selectedColumn = -1;
 
@@ -57,6 +52,10 @@ public class CustomTable extends JTable {
          * @param column converted to model col
          */
         void handleTableDoubleClick(int row, int column, MouseEvent e);
+    }
+
+    public interface TooltipListener {
+        String getToolTipText(int row, int col);
     }
 
     public CustomTable(String prefKey, TableListener listener) {
@@ -94,36 +93,10 @@ public class CustomTable extends JTable {
                 }
             }
         });
+    }
 
-        // TODO: REMOVE ME
-        getColumnModel().addColumnModelListener(new TableColumnModelListener() {
-            @Override
-            public void columnAdded(TableColumnModelEvent e) {
-
-            }
-
-            @Override
-            public void columnRemoved(TableColumnModelEvent e) {
-
-            }
-
-            @Override
-            public void columnMoved(TableColumnModelEvent e) {
-
-            }
-
-            @Override
-            public void columnMarginChanged(ChangeEvent e) {
-                TableColumn resizingColumn = getTableHeader().getResizingColumn();
-                if (resizingColumn != null)
-                    log.trace("columnMarginChanged: {}, w:{}", resizingColumn.getModelIndex(), resizingColumn.getWidth());
-            }
-
-            @Override
-            public void columnSelectionChanged(ListSelectionEvent e) {
-
-            }
-        });
+    public void setTooltipListener(TooltipListener tooltipListener) {
+        this.tooltipListener = tooltipListener;
     }
 
     private void createScrollPane() {
@@ -160,10 +133,6 @@ public class CustomTable extends JTable {
         });
     }
 
-    public void setShowTooltips(boolean showTooltips) {
-        this.showTooltips = showTooltips;
-    }
-
     public void allowSorting(boolean allowSorting) {
         if (!allowSorting) return;
         setAutoCreateRowSorter(allowSorting);
@@ -193,25 +162,44 @@ public class CustomTable extends JTable {
 
     @Override
     public String getToolTipText(MouseEvent e) {
-        if (!showTooltips) return null;
-        // only show tooltip if value doesn't fit in column width
-        String toolTipText = null;
+        if (tooltipListener == null) return null;
         Point p = e.getPoint();
         int col = columnAtPoint(p);
         int row = rowAtPoint(p);
-        Rectangle bounds = getCellRect(row, col, false);
-        Component c = prepareRenderer(getCellRenderer(row, col), row, col);
-        if (c != null && c.getPreferredSize().width > bounds.width) {
-            if (c instanceof JLabel label) {
-                toolTipText = label.getText();
-            } else if (c instanceof JTextField textField) {
-                toolTipText = textField.getText();
-            } else {
-                Object value = getValueAt(row, col);
-                toolTipText = value.toString();
+        return tooltipListener.getToolTipText(row, col);
+    }
+
+    /**
+     * get text for value at row/col *ONLY* if it doesn't fit
+     */
+    public String getTextIfTruncated(int row, int col) {
+        if (row == -1) {
+            // header
+            JTableHeader header = getTableHeader();
+            TableColumn column = header.getColumnModel().getColumn(col);
+            Object value = column.getHeaderValue();
+            int width = column.getWidth();
+            Component c = header.getDefaultRenderer().getTableCellRendererComponent(this, value, false, false, row, col);
+            if (c != null && c.getPreferredSize().width > width) {
+                if (c instanceof JLabel label) {
+                    return label.getText();
+                }
+            }
+        } else {
+            Rectangle bounds = getCellRect(row, col, false);
+            Component c = prepareRenderer(getCellRenderer(row, col), row, col);
+            if (c != null && c.getPreferredSize().width > bounds.width) {
+                if (c instanceof JLabel label) {
+                    return label.getText();
+                } else if (c instanceof JTextField textField) {
+                    return textField.getText();
+                } else {
+                    Object value = getValueAt(row, col);
+                    return value.toString();
+                }
             }
         }
-        return toolTipText;
+        return null;
     }
 
     public void scrollToBottom() {
@@ -359,18 +347,10 @@ public class CustomTable extends JTable {
 
         @Override
         public String getToolTipText(MouseEvent e) {
-            int colIdx = this.columnAtPoint(e.getPoint());
-            if (colIdx == -1) return null;
+            if (tooltipListener == null) return null;
             Point p = e.getPoint();
             int col = columnAtPoint(p);
-            int row = rowAtPoint(p);
-            if (row == -1 || col == -1) return null;
-            Rectangle bounds = getCellRect(row, col, false);
-            Component c = prepareRenderer(getCellRenderer(row, col), row, col);
-            if (c != null && c.getPreferredSize().width > bounds.width) {
-                return this.columnModel.getColumn(colIdx).getHeaderValue().toString();
-            }
-            return null;
+            return tooltipListener.getToolTipText(-1, col);
         }
     }
 

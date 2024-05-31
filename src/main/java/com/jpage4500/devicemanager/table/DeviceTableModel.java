@@ -85,6 +85,9 @@ public class DeviceTableModel extends AbstractTableModel {
         return null;
     }
 
+    /**
+     * return one of the predefined columns or NULL if this is an app version column
+     */
     public Columns getColumnType(int colIndex) {
         if (colIndex < visibleColumns.length) {
             return visibleColumns[colIndex];
@@ -153,7 +156,7 @@ public class DeviceTableModel extends AbstractTableModel {
                 case NAME -> device.getProperty(Device.PROP_MODEL);
                 case PHONE -> device.phone;
                 case IMEI -> device.imei;
-                case FREE -> FileUtils.bytesToDisplayString(device.freeSpace);
+                case FREE -> FileUtils.bytesToGigDisplayString(device.freeSpace);
                 case BATTERY -> {
                     String level = device.batteryLevel != null ? String.valueOf(device.batteryLevel) : "";
                     if (device.powerStatus != null) level += " - " + device.powerStatus;

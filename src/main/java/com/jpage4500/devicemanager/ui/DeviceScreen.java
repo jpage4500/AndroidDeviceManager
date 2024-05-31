@@ -209,7 +209,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void setupTable() {
-        table.setShowTooltips(true);
         model = new DeviceTableModel();
 
         // restore previous settings
@@ -241,6 +240,16 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         // support drag and drop of files IN TO deviceView
         new DropTarget(table, new FileDragAndDropListener(table, this::handleFilesDropped));
+
+        table.setTooltipListener((row, col) -> {
+            DeviceTableModel.Columns columnType = model.getColumnType(col);
+            if (row >= 0 && columnType == DeviceTableModel.Columns.BATTERY) {
+                Device device = (Device) model.getValueAt(row, col);
+                return device.batteryLevel + "%";
+            } else {
+                return table.getTextIfTruncated(row, col);
+            }
+        });
 
         table.getSelectionModel().addListSelectionListener(e -> {
             if (e.getValueIsAdjusting()) return;

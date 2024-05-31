@@ -430,7 +430,7 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             log.debug("mirrorDevice: {}", device.getDisplayName());
             File scriptFile = getScriptFile(SCRIPT_MIRROR);
-            AppResult appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial);
+            AppResult appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
 
             // TODO: figure out how to determine if scrcpy was run successfully..
             // - scrcpy will log to stderr even when successful
@@ -756,7 +756,7 @@ public class DeviceManager {
                     LogEntry logEntry = new LogEntry(line, dateFormat, year);
                     if (logEntry.date == null) continue;
                     else if (startTime != null && startTime > logEntry.timestamp) {
-                        log.trace("startLogging: too old: {} ({}) vs {}", logEntry.timestamp, logEntry.date, startTime);
+                        //log.trace("startLogging: too old: {} ({}) vs {}", logEntry.timestamp, logEntry.date, startTime);
                         continue;
                     }
 
