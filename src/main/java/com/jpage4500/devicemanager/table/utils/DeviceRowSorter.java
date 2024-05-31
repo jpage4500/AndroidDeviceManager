@@ -47,6 +47,10 @@ public class DeviceRowSorter extends TableRowSorter<TableModel> {
             }
 
             DeviceTableModel model = (DeviceTableModel) getModel();
+            DeviceTableModel.Columns columnType = model.getColumnType(c);
+            if (columnType == DeviceTableModel.Columns.BATTERY) {
+                return Integer.compare(d1.batteryLevel, d2.batteryLevel);
+            }
             String value1 = model.deviceValue(d1, c);
             String value2 = model.deviceValue(d2, c);
             int rc = TextUtils.compareToIgnoreCase(value1, value2);

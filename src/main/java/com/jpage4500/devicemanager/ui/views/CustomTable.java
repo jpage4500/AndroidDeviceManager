@@ -29,37 +29,50 @@ public class CustomTable extends JTable {
     private static final Color COLOR_ALTERNATE_ROW = new Color(246, 246, 246);
 
     private String prefKey;
-    private TableListener listener;
+    private ClickListener listener;
     private TooltipListener tooltipListener;
+    private ClickListener clickListener;
+    private PopupMenuListener popupMenuListener;
     private JScrollPane scrollPane;
 
-    public int selectedColumn = -1;
+    private int selectedColumn = -1;
 
-    public interface TableListener {
+    public interface ClickListener {
         /**
          * @param row    converted to model row
          * @param column converted to model col
          */
-        void showPopupMenu(int row, int column, MouseEvent e);
+        void handleDoubleClick(int row, int column, MouseEvent e);
+    }
 
+    public interface PopupMenuListener {
         /**
-         * @param column converted to model col
+         * show popup menu on right-click
+         *
+         * @param row    table row (-1 for header)
+         * @param column table column
+         * @return popup menu to display or null for no action
          */
-        void showHeaderPopupMenu(int column, MouseEvent e);
-
-        /**
-         * @param row    converted to model row
-         * @param column converted to model col
-         */
-        void handleTableDoubleClick(int row, int column, MouseEvent e);
+        JPopupMenu getPopupMenu(int row, int column);
     }
 
     public interface TooltipListener {
+        /**
+         * return tooltip text to display
+         *
+         * @param row table row, converted to model data (-1 for header)
+         * @param col table column, converted to model data
+         * @see #getTextIfTruncated to show a tooltip only if value doesn't fit
+         */
         String getToolTipText(int row, int col);
     }
 
-    public CustomTable(String prefKey, TableListener listener) {
-        this.listener = listener;
+    @Override
+    public int getSelectedColumn() {
+        return selectedColumn;
+    }
+
+    public CustomTable(String prefKey) {
         this.prefKey = prefKey;
 
         createScrollPane();
@@ -78,25 +91,37 @@ public class CustomTable extends JTable {
                     if (getSelectedRowCount() <= 1) {
                         changeSelection(row, column, false, false);
                     }
-                    // convert table row/col to model row/col
-                    row = convertRowIndexToModel(row);
-                    column = convertColumnIndexToModel(column);
                     selectedColumn = column;
-                    if (listener != null) listener.showPopupMenu(row, column, e);
+                    if (popupMenuListener != null) {
+                        // convert table row/col to model row/col
+                        row = convertRowIndexToModel(row);
+                        column = convertColumnIndexToModel(column);
+                        JPopupMenu popupMenu = popupMenuListener.getPopupMenu(row, column);
+                        if (popupMenu != null) {
+                            popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                        }
+                    }
                 } else if (e.getClickCount() == 2) {
                     // double-click
-                    selectedColumn = -1;
                     // convert table row/col to model row/col
                     row = convertRowIndexToModel(row);
                     column = convertColumnIndexToModel(column);
-                    if (listener != null) listener.handleTableDoubleClick(row, column, e);
+                    if (listener != null) listener.handleDoubleClick(row, column, e);
                 }
             }
         });
     }
 
+    public void setClickListener(ClickListener listener) {
+        this.listener = listener;
+    }
+
     public void setTooltipListener(TooltipListener tooltipListener) {
         this.tooltipListener = tooltipListener;
+    }
+
+    public void setPopupMenuListener(PopupMenuListener popupMenuListener) {
+        this.popupMenuListener = popupMenuListener;
     }
 
     private void createScrollPane() {
@@ -310,12 +335,15 @@ public class CustomTable extends JTable {
                 @Override
                 public void mouseClicked(MouseEvent e) {
                     if (SwingUtilities.isRightMouseButton(e)) {
-                        Point point = e.getPoint();
-                        int row = rowAtPoint(point);
-                        int column = columnAtPoint(point);
-                        // convert table row/col to model row/col
-                        column = convertColumnIndexToModel(column);
-                        if (listener != null) listener.showHeaderPopupMenu(column, e);
+                        if (popupMenuListener != null) {
+                            Point point = e.getPoint();
+                            int row = rowAtPoint(point);
+                            int column = columnAtPoint(point);
+                            // convert table row/col to model row/col
+                            column = convertColumnIndexToModel(column);
+                            JPopupMenu popupMenu = popupMenuListener.getPopupMenu(-1, column);
+                            if (popupMenu != null) popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                        }
                     }
                 }
             });

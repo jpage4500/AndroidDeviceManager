@@ -24,7 +24,6 @@ import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +33,7 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogListener, CustomTable.TableListener {
+public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogListener {
     private static final Logger log = LoggerFactory.getLogger(LogsScreen.class);
 
     private static final String HINT_FILTER = "Filter...";
@@ -103,7 +102,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         JPanel rightPanel = new JPanel(new BorderLayout());
 
         // -- table --
-        table = new CustomTable("logs", this);
+        table = new CustomTable("logs");
         setupTable();
         rightPanel.add(table.getScrollPane(), BorderLayout.CENTER);
 
@@ -422,18 +421,4 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         });
     }
 
-    @Override
-    public void showPopupMenu(int row, int column, MouseEvent e) {
-
-    }
-
-    @Override
-    public void showHeaderPopupMenu(int column, MouseEvent e) {
-
-    }
-
-    @Override
-    public void handleTableDoubleClick(int row, int column, MouseEvent e) {
-
-    }
 }

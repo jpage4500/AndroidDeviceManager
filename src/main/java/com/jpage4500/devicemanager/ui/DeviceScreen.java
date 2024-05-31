@@ -27,7 +27,6 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
@@ -38,7 +37,7 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceListener, CustomTable.TableListener {
+public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceListener {
     private static final Logger log = LoggerFactory.getLogger(DeviceScreen.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
@@ -125,7 +124,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         panel.add(toolbar, BorderLayout.NORTH);
 
         // -- table --
-        table = new CustomTable("devices", this);
+        table = new CustomTable("devices");
         setupTable();
         panel.add(table.getScrollPane(), BorderLayout.CENTER);
 
@@ -150,9 +149,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         table.requestFocus();
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            handleAppExit();
-        }));
+        Runtime.getRuntime().addShutdownHook(new Thread(this::handleAppExit));
     }
 
     private void handleAppExit() {
@@ -238,16 +235,95 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);
 
+        table.setClickListener((row, column, e) -> {
+            if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
+                // edit custom 1 field
+                handleSetProperty(1);
+            } else if (column == DeviceTableModel.Columns.CUSTOM2.ordinal()) {
+                // edit custom 1 field
+                handleSetProperty(2);
+            } else {
+                handleMirrorCommand();
+            }
+        });
+
         // support drag and drop of files IN TO deviceView
         new DropTarget(table, new FileDragAndDropListener(table, this::handleFilesDropped));
+
+        table.setPopupMenuListener((row, column) -> {
+            if (row == -1) {
+                JPopupMenu popupMenu = new JPopupMenu();
+                DeviceTableModel.Columns columnType = model.getColumnType(column);
+                if (columnType != null) {
+                    JMenuItem hideItem = new JMenuItem("Hide Column " + columnType.name());
+                    hideItem.addActionListener(actionEvent -> handleHideColumn(column));
+                    popupMenu.add(hideItem);
+                    return popupMenu;
+                }
+                return null;
+            }
+            Device device = model.getDeviceAtRow(row);
+            if (device == null) return null;
+
+            JPopupMenu popupMenu = new JPopupMenu();
+
+            JMenuItem copyFieldItem = new JMenuItem("Copy Field to Clipboard");
+            copyFieldItem.addActionListener(actionEvent -> handleCopyClipboardFieldCommand());
+            popupMenu.add(copyFieldItem);
+
+            JMenuItem copyItem = new JMenuItem("Copy Line to Clipboard");
+            copyItem.addActionListener(actionEvent -> handleCopyClipboardCommand());
+            popupMenu.add(copyItem);
+
+            popupMenu.addSeparator();
+
+            JMenuItem detailsItem = new JMenuItem("Device Details");
+            detailsItem.addActionListener(actionEvent -> handleDeviceDetails());
+            popupMenu.add(detailsItem);
+
+            JMenuItem mirrorItem = new JMenuItem("Mirror Device");
+            mirrorItem.addActionListener(actionEvent -> handleMirrorCommand());
+            popupMenu.add(mirrorItem);
+
+            JMenuItem screenshotItem = new JMenuItem("Capture Screenshot");
+            screenshotItem.addActionListener(actionEvent -> handleScreenshotCommand());
+            popupMenu.add(screenshotItem);
+
+            JMenuItem restartDevice = new JMenuItem("Restart Device");
+            restartDevice.addActionListener(actionEvent -> handleRestartCommand());
+            popupMenu.add(restartDevice);
+
+            JMenuItem termItem = new JMenuItem("Open Terminal");
+            termItem.addActionListener(actionEvent -> handleTermCommand());
+            popupMenu.add(termItem);
+
+            JMenuItem serverItem = new JMenuItem("Edit Custom Field 1...");
+            serverItem.addActionListener(actionEvent -> handleSetProperty(1));
+            popupMenu.add(serverItem);
+
+            JMenuItem notesItem = new JMenuItem("Edit Custom Field 2...");
+            notesItem.addActionListener(actionEvent -> handleSetProperty(2));
+            popupMenu.add(notesItem);
+
+            if (device.isWireless()) {
+                popupMenu.addSeparator();
+                JMenuItem disconnectItem = new JMenuItem("Disconnect " + device.getDisplayName());
+                disconnectItem.addActionListener(actionEvent -> handleDisconnect(device));
+                popupMenu.add(disconnectItem);
+            }
+            return popupMenu;
+        });
 
         table.setTooltipListener((row, col) -> {
             int modelCol = table.convertColumnIndexToModel(col);
             DeviceTableModel.Columns columnType = model.getColumnType(modelCol);
             if (row >= 0 && columnType == DeviceTableModel.Columns.BATTERY) {
+                // always show battery level and power status in tooltip
                 int modelRow = table.convertRowIndexToModel(row);
                 Device device = (Device) model.getValueAt(modelRow, modelCol);
-                return device.batteryLevel + "%";
+                String tooltip = device.batteryLevel + "%";
+                if (device.powerStatus != Device.PowerStatus.POWER_NONE) tooltip += " (" + device.powerStatus + ")";
+                return tooltip;
             } else {
                 return table.getTextIfTruncated(row, col);
             }
@@ -347,76 +423,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         statusBar.setLeftLabel("v" + MainApplication.version + " / " + memUsage);
     }
 
-    @Override
-    public void showPopupMenu(int row, int column, MouseEvent e) {
-        Device device = model.getDeviceAtRow(row);
-        if (device == null) return;
-
-        JPopupMenu popupMenu = new JPopupMenu();
-
-        JMenuItem copyFieldItem = new JMenuItem("Copy Field to Clipboard");
-        copyFieldItem.addActionListener(actionEvent -> handleCopyClipboardFieldCommand());
-        popupMenu.add(copyFieldItem);
-
-        JMenuItem copyItem = new JMenuItem("Copy Line to Clipboard");
-        copyItem.addActionListener(actionEvent -> handleCopyClipboardCommand());
-        popupMenu.add(copyItem);
-
-        popupMenu.addSeparator();
-
-        JMenuItem detailsItem = new JMenuItem("Device Details");
-        detailsItem.addActionListener(actionEvent -> handleDeviceDetails());
-        popupMenu.add(detailsItem);
-
-        JMenuItem mirrorItem = new JMenuItem("Mirror Device");
-        mirrorItem.addActionListener(actionEvent -> handleMirrorCommand());
-        popupMenu.add(mirrorItem);
-
-        JMenuItem screenshotItem = new JMenuItem("Capture Screenshot");
-        screenshotItem.addActionListener(actionEvent -> handleScreenshotCommand());
-        popupMenu.add(screenshotItem);
-
-        JMenuItem restartDevice = new JMenuItem("Restart Device");
-        restartDevice.addActionListener(actionEvent -> handleRestartCommand());
-        popupMenu.add(restartDevice);
-
-        JMenuItem termItem = new JMenuItem("Open Terminal");
-        termItem.addActionListener(actionEvent -> handleTermCommand());
-        popupMenu.add(termItem);
-
-        JMenuItem serverItem = new JMenuItem("Edit Custom Field 1...");
-        serverItem.addActionListener(actionEvent -> handleSetProperty(1));
-        popupMenu.add(serverItem);
-
-        JMenuItem notesItem = new JMenuItem("Edit Custom Field 2...");
-        notesItem.addActionListener(actionEvent -> handleSetProperty(2));
-        popupMenu.add(notesItem);
-
-        if (device.isWireless()) {
-            popupMenu.addSeparator();
-            JMenuItem disconnectItem = new JMenuItem("Disconnect " + device.getDisplayName());
-            disconnectItem.addActionListener(actionEvent -> handleDisconnect(device));
-            popupMenu.add(disconnectItem);
-        }
-
-        popupMenu.show(e.getComponent(), e.getX(), e.getY());
-        //table.setComponentPopupMenu(popupMenu);
-    }
-
-    @Override
-    public void showHeaderPopupMenu(int column, MouseEvent e) {
-        JPopupMenu popupMenu = new JPopupMenu();
-        DeviceTableModel.Columns columnType = model.getColumnType(column);
-        if (columnType != null) {
-            JMenuItem hideItem = new JMenuItem("Hide Column " + columnType.name());
-            hideItem.addActionListener(actionEvent -> handleHideColumn(column));
-            popupMenu.add(hideItem);
-
-            // NOTE: move out of if() block when more menu items are added
-            popupMenu.show(e.getComponent(), e.getX(), e.getY());
-        }
-    }
-
     private void handleHideColumn(int column) {
         DeviceTableModel.Columns columnType = model.getColumnType(column);
         if (columnType == null) return;
@@ -425,19 +431,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         Preferences preferences = Preferences.userRoot();
         preferences.put(SettingsDialog.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
         model.setHiddenColumns(hiddenColList);
-    }
-
-    @Override
-    public void handleTableDoubleClick(int row, int column, MouseEvent e) {
-        if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
-            // edit custom 1 field
-            handleSetProperty(1);
-        } else if (column == DeviceTableModel.Columns.CUSTOM2.ordinal()) {
-            // edit custom 1 field
-            handleSetProperty(2);
-        } else {
-            handleMirrorCommand();
-        }
     }
 
     private void handleCopyClipboardFieldCommand() {
@@ -449,12 +442,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             return;
         }
 
-        if (table.selectedColumn < 0) return;
+        if (table.getSelectedColumn() < 0) return;
 
         StringBuilder sb = new StringBuilder();
         for (Device device : selectedDeviceList) {
             if (!sb.isEmpty()) sb.append("\n");
-            String value = model.deviceValue(device, table.selectedColumn);
+            String value = model.deviceValue(device, table.getSelectedColumn());
             sb.append(value != null ? value : "");
         }
         StringSelection stringSelection = new StringSelection(sb.toString());

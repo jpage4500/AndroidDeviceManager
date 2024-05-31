@@ -3,7 +3,6 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.ExploreTableModel;
 import com.jpage4500.devicemanager.table.utils.ExplorerCellRenderer;
 import com.jpage4500.devicemanager.table.utils.ExplorerRowComparator;
@@ -29,19 +28,17 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.prefs.Preferences;
 
 /**
  * create and manage device view
  */
-public class ExploreScreen extends BaseScreen implements CustomTable.TableListener {
+public class ExploreScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(ExploreScreen.class);
 
     public static final String PREF_DOWNLOAD_FOLDER = "PREF_DOWNLOAD_FOLDER";
@@ -97,7 +94,7 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
         mainPanel.add(toolbar, BorderLayout.NORTH);
 
         // -- table --
-        table = new CustomTable("browse", this);
+        table = new CustomTable("browse");
         setupTable();
         mainPanel.add(table.getScrollPane(), BorderLayout.CENTER);
 
@@ -228,6 +225,13 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
             if (!listSelectionEvent.getValueIsAdjusting()) {
                 refreshUi();
             }
+        });
+
+        table.setClickListener((row, column, e) -> handleFileClicked());
+
+        table.setPopupMenuListener((row, column) -> {
+            // TODO
+            return null;
         });
 
         table.setTooltipListener((row, col) -> table.getTextIfTruncated(row, col));
@@ -365,41 +369,6 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
         popupMenu.add(copyPathItem);
 
         table.setComponentPopupMenu(popupMenu);
-    }
-
-    @Override
-    public void showPopupMenu(int row, int column, MouseEvent e) {
-
-    }
-
-    @Override
-    public void showHeaderPopupMenu(int column, MouseEvent e) {
-
-    }
-
-    @Override
-    public void handleTableDoubleClick(int row, int column, MouseEvent e) {
-        handleFileClicked();
-    }
-
-    private String getDeviceField(DeviceFile deviceFile, ExploreTableModel.Columns column) {
-        String val;
-        switch (column) {
-            case NAME:
-                val = deviceFile.name;
-                break;
-            case SIZE:
-                val = String.valueOf(deviceFile.size);
-                break;
-            case DATE:
-                val = String.valueOf(deviceFile.dateMs);
-                break;
-            default:
-                val = column.name();
-                break;
-        }
-        if (TextUtils.isEmpty(val)) return "";
-        else return val;
     }
 
     private void handleFilesDropped(List<File> fileList) {
