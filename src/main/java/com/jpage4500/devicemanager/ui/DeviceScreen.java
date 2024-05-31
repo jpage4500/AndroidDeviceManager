@@ -151,10 +151,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         table.requestFocus();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            //log.debug("initializeUI: EXIT");
-            table.persist();
-            DeviceManager.getInstance().handleExit();
+            handleAppExit();
         }));
+    }
+
+    private void handleAppExit() {
+        table.persist();
+
+        DeviceManager.getInstance().handleExit();
     }
 
     private void setupMenuBar() {
@@ -228,6 +232,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setPreferredWidth(31);
         columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setMaxWidth(31);
         columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setPreferredWidth(66);
+
+        // restore user-defined column sizes
         table.restore();
 
         sorter = new DeviceRowSorter(model);

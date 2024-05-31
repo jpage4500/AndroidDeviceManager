@@ -283,6 +283,9 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         columnModel.getColumn(LogsTableModel.Columns.APP.ordinal()).setPreferredWidth(150);
         columnModel.getColumn(LogsTableModel.Columns.MSG.ordinal()).setPreferredWidth(700);
 
+        // restore user-defined column sizes
+        table.restore();
+
         table.getSelectionModel().addListSelectionListener(event -> {
             if (event.getValueIsAdjusting()) return;
 

@@ -51,9 +51,17 @@ Java desktop app to manage multiple Android devices via adb
 
 ## Build
 
-- sync this repo and build/run using the following maven commands:
-- `mvn install`
-- `mvn exec:java`
+NOTE: requires Maven installed and `mvn` available in PATH
+  - MacOSX can use brew to install:
+    - `brew install maven`
+ 
+
+- sync this repo
+  - `git clone https://github.com/jpage4500/AndroidDeviceManager.git`
+- build:
+  - `mvn install`
+- run:
+  - `mvn exec:java`
 
 ## Use Cases ##
 

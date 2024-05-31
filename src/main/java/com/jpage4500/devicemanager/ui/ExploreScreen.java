@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.prefs.Preferences;
 
 /**
@@ -134,11 +135,8 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
     @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
-        switch (state) {
-            case CLOSED -> table.persist();
-            case ACTIVATED -> {
-                //refreshFiles();
-            }
+        if (state == WindowState.CLOSED) {
+            table.persist();
         }
     }
 
@@ -198,6 +196,8 @@ public class ExploreScreen extends BaseScreen implements CustomTable.TableListen
         // default column sizes
         TableColumnModel columnModel = table.getColumnModel();
         columnModel.getColumn(ExploreTableModel.Columns.SIZE.ordinal()).setPreferredWidth(80);
+        // restore user-defined column sizes
+        table.restore();
 
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
         table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(enter, "Enter");
