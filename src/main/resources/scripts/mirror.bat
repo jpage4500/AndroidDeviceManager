@@ -8,5 +8,7 @@ REM --encoder ['OMX.qcom.video.encoder.avc', 'c2.android.avc.encoder', 'OMX.goog
 
 REM ${SCRCPY} -s "$ADB_DEVICE" -p $RANDOM --window-title "$DEVICE_NAME" --show-touches --stay-awake
 
+echo "running scrcpy with DEVICE:%ADB_DEVICE%, NAME:%DEVICE_NAME%"
+
 start cmd /C scrcpy -s %ADB_DEVICE% --window-title "%DEVICE_NAME%" --show-touches --stay-awake --no-audio
 

@@ -979,18 +979,17 @@ public class DeviceManager {
                 }
             }
             result.isSuccess = exitValue == 0;
-            if (!result.isSuccess) {
-                log.error("runScript: {}: ERROR: {}, rc:{}, args:{}", timer, app, exitValue, GsonHelper.toJson(args));
-            }
-
             result.stdOut = readInputStream(process.getInputStream());
-            //log.trace("runScript: {}: {}, RESULTS: {}", timer, app, GsonHelper.toJson(result.stdOut));
             result.stdErr = readInputStream(process.getErrorStream());
             synchronized (processList) {
                 processList.remove(process);
             }
-            if (!result.stdErr.isEmpty()) {
-                log.error("runScript: {}: ERROR: {}, {}", timer, app, GsonHelper.toJson(result.stdErr));
+
+            if (result.isSuccess) {
+                if (log.isTraceEnabled())
+                    log.trace("runScript: DONE: {}: {}, STDOUT:{}, STDERR:{}", timer, app, GsonHelper.toJson(result.stdOut), GsonHelper.toJson(result.stdErr));
+            } else {
+                log.error("runScript: {}: ERROR: {}, rc:{}, STDOUT:{}, STDERR:{}", timer, app, exitValue, GsonHelper.toJson(result.stdOut), GsonHelper.toJson(result.stdErr));
             }
             return result;
         } catch (Exception e) {

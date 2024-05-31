@@ -28,5 +28,7 @@ PORT=$(jot -r 1  2000 65000)
 # --always-on-top
 # --encoder ['OMX.qcom.video.encoder.avc', 'c2.android.avc.encoder', 'OMX.google.h264.encoder']
 
+echo "running scrcpy with DEVICE:${ADB_DEVICE}, PORT:${PORT}, NAME:${DEVICE_NAME}"
+
 # shellcheck disable=SC2086
 ${SCRCPY} -s "${ADB_DEVICE}" -p ${PORT} --window-title "${DEVICE_NAME}" --show-touches --stay-awake --no-audio
