@@ -49,8 +49,8 @@ public class CustomTable extends JTable {
         /**
          * show popup menu on right-click
          *
-         * @param row    table row (-1 for header)
-         * @param column table column
+         * @param row    table row, converted to model data (-1 for header)
+         * @param column table column, converted to model data
          * @return popup menu to display or null for no action
          */
         JPopupMenu getPopupMenu(int row, int column);

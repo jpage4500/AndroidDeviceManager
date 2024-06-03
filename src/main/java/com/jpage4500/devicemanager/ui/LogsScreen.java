@@ -6,7 +6,7 @@ import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
-import com.jpage4500.devicemanager.table.utils.LogsRowFilter;
+import com.jpage4500.devicemanager.table.utils.LogsRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.EmptyView;
@@ -21,7 +21,6 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableColumnModel;
-import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -46,7 +45,6 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     public CustomTable table;
     public LogsTableModel model;
 
-    public EmptyView emptyView;
     public StatusBar statusBar;
     public JToolBar toolbar;
     private JCheckBox autoScrollCheckBox;
@@ -54,8 +52,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     private HintTextField filterField;
     private JList<FilterItem> filterList;
 
-    private LogsRowFilter rowFilter;
-    private TableRowSorter<LogsTableModel> sorter;
+    private LogsRowSorter sorter;
 
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
@@ -69,7 +66,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     }
 
     public void updateDeviceState() {
-        log.debug("updateDeviceState: ONLINE:{}", device.isOnline);
+        //log.trace("updateDeviceState: ONLINE:{}", device.isOnline);
         if (device.isOnline) {
             setTitle("Logs: [" + device.getDisplayName() + "]");
             startLogging();
@@ -118,7 +115,6 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         mainPanel.add(splitPane, BorderLayout.CENTER);
 
         setupMenuBar();
-        setupPopupMenu();
 
         setContentPane(mainPanel);
         setVisible(true);
@@ -143,10 +139,9 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         filterList.addListSelectionListener(e -> {
             FilterItem selectedFilter = filterList.getSelectedValue();
             if (selectedFilter == null) {
-                rowFilter.setFilter(null);
+                sorter.setFilterText(null);
                 statusBar.setCenterLabel(null);
             } else {
-
                 filterDevices(selectedFilter.filter);
                 statusBar.setCenterLabel(selectedFilter.name);
             }
@@ -266,9 +261,6 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     }
 
     private void setupTable() {
-        // prevent sorting
-        table.getTableHeader().setEnabled(false);
-
         model = new LogsTableModel();
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setModel(model);
@@ -279,7 +271,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         columnModel.getColumn(LogsTableModel.Columns.LEVEL.ordinal()).setPreferredWidth(28);
         columnModel.getColumn(LogsTableModel.Columns.PID.ordinal()).setPreferredWidth(60);
         columnModel.getColumn(LogsTableModel.Columns.TID.ordinal()).setPreferredWidth(60);
-        columnModel.getColumn(LogsTableModel.Columns.DATE.ordinal()).setPreferredWidth(130);
+        columnModel.getColumn(LogsTableModel.Columns.DATE.ordinal()).setPreferredWidth(159);
         columnModel.getColumn(LogsTableModel.Columns.APP.ordinal()).setPreferredWidth(150);
         columnModel.getColumn(LogsTableModel.Columns.MSG.ordinal()).setPreferredWidth(700);
 
@@ -302,8 +294,9 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                 JPopupMenu popupMenu = new JPopupMenu();
                 JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
                 sizeToFitItem.addActionListener(actionEvent -> {
-                    TableColumnAdjuster adjuster = new TableColumnAdjuster(table, column);
-                    adjuster.adjustColumn(column);
+                    TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
+                    int tableCol = table.convertColumnIndexToView(column);
+                    adjuster.adjustColumn(tableCol);
                 });
                 popupMenu.add(sizeToFitItem);
                 return popupMenu;
@@ -311,9 +304,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
             return null;
         });
 
-        rowFilter = new LogsRowFilter();
-        sorter = new TableRowSorter<>(model);
-        sorter.setRowFilter(rowFilter);
+        sorter = new LogsRowSorter(model);
         table.setRowSorter(sorter);
 
         table.getScrollPane().addMouseWheelListener(event -> {
@@ -338,7 +329,6 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                 }
             }
         });
-
     }
 
     private int getLastVisibleRow() {
@@ -351,7 +341,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     }
 
     private void startLogging() {
-        if (!DeviceManager.getInstance().isLogging(device)) {
+        if (device.isOnline && !DeviceManager.getInstance().isLogging(device)) {
             Long startTime = model.getLastLogTime();
             if (startTime == null) {
                 // by default only display logs from the last few hours
@@ -377,11 +367,6 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
             msg += " / " + totalRows;
         }
         statusBar.setLeftLabel(msg);
-    }
-
-    private void setupPopupMenu() {
-        JPopupMenu popupMenu = new JPopupMenu();
-        table.setComponentPopupMenu(popupMenu);
     }
 
     private void setupToolbar() {
@@ -437,11 +422,10 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     }
 
     private void filterDevices(String text) {
+        sorter.setFilterText(text);
         if (TextUtils.isEmpty(text)) {
-            rowFilter.setFilter(null);
             statusBar.setCenterLabel(null);
         } else {
-            rowFilter.setFilter(text);
             statusBar.setCenterLabel("Filter: " + text);
         }
         model.fireTableDataChanged();

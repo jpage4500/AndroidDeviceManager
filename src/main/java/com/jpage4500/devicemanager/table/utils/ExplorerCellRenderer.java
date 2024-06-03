@@ -44,6 +44,8 @@ public class ExplorerCellRenderer extends JLabel implements TableCellRenderer {
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
         DeviceFile deviceFile = (DeviceFile) object;
+        // convert table column to model column
+        column = table.convertColumnIndexToModel(column);
 
         ExploreTableModel.Columns col = ExploreTableModel.Columns.values()[column];
         Icon icon = null;

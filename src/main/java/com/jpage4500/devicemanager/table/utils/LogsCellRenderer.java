@@ -38,12 +38,17 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
         LogEntry logEntry = (LogEntry) object;
         LogsTableModel model = (LogsTableModel) table.getModel();
+        // convert table column to model column
+        column = table.convertColumnIndexToModel(column);
 
         LogsTableModel.Columns col = LogsTableModel.Columns.values()[column];
         String text = switch (col) {
             case DATE -> logEntry.date;
             case APP -> model.getAppForPid(logEntry.pid);
-            case TID -> logEntry.tid;
+            case TID -> {
+                if (TextUtils.equals(logEntry.tid, logEntry.pid)) yield "-";
+                yield logEntry.tid;
+            }
             case PID -> logEntry.pid;
             case LEVEL -> logEntry.level;
             case MSG -> logEntry.message;

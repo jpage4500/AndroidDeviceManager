@@ -264,7 +264,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
                     JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
                     sizeToFitItem.addActionListener(actionEvent -> {
-                        TableColumnAdjuster adjuster = new TableColumnAdjuster(table, column);
+                        TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                         adjuster.adjustColumn(column);
                     });
                     popupMenu.add(sizeToFitItem);
@@ -757,22 +757,23 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         createToolbarButton(toolbar, "icon_add.png", "Connect", "Connect Device", actionEvent -> handleConnectDevice());
         toolbar.addSeparator();
 
+        button = createToolbarButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
+        deviceButtonList.add(button);
+
+        button = createToolbarButton(toolbar, "icon_edit.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+        deviceButtonList.add(button);
+
+        button = createToolbarButton(toolbar, "keyboard.png", "Input", "Enter text", actionEvent -> handleInputCommand());
+        deviceButtonList.add(button);
+
+        toolbar.addSeparator();
+
         button = createToolbarButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
         deviceButtonList.add(button);
 
         button = createToolbarButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
         deviceButtonList.add(button);
 
-        button = createToolbarButton(toolbar, "icon_edit.png", "Input", "Enter text", actionEvent -> handleInputCommand());
-        deviceButtonList.add(button);
-
-        toolbar.addSeparator();
-
-        button = createToolbarButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
-        deviceButtonList.add(button);
-
-        button = createToolbarButton(toolbar, "icon_browse.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
-        deviceButtonList.add(button);
         button = createToolbarButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
         deviceButtonList.add(button);
         button = createToolbarButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());

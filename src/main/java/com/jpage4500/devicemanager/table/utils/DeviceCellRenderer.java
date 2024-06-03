@@ -50,6 +50,8 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
         Device device = (Device) object;
         DeviceTableModel model = (DeviceTableModel) table.getModel();
+        // convert table column to model column
+        column = table.convertColumnIndexToModel(column);
         DeviceTableModel.Columns columnType = model.getColumnType(column);
 
         Icon icon = null;

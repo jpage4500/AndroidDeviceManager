@@ -54,7 +54,8 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
     public TableColumnAdjuster(JTable table, int spacing) {
         this.table = table;
         this.spacing = spacing;
-        setColumnHeaderIncluded(true);
+        // don't include header when sizing data
+        setColumnHeaderIncluded(false);
         setColumnDataIncluded(true);
         setOnlyAdjustLarger(false);
         setDynamicAdjustment(false);
@@ -80,7 +81,7 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
 
         if (!tableColumn.getResizable()) return;
 
-        int columnHeaderWidth = 0;//getColumnHeaderWidth(column);
+        int columnHeaderWidth = getColumnHeaderWidth(column);
         int columnDataWidth = getColumnDataWidth(column);
         int preferredWidth = Math.max(columnHeaderWidth, columnDataWidth);
 
@@ -119,9 +120,7 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
             preferredWidth = Math.max(preferredWidth, getCellDataWidth(row, column));
 
             //  We've exceeded the maximum width, no need to check other rows
-
-            if (preferredWidth >= maxWidth)
-                break;
+            if (preferredWidth >= maxWidth) break;
         }
 
         return preferredWidth;
@@ -132,12 +131,9 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
      */
     private int getCellDataWidth(int row, int column) {
         //  Inovke the renderer for the cell to calculate the preferred width
-
         TableCellRenderer cellRenderer = table.getCellRenderer(row, column);
         Component c = table.prepareRenderer(cellRenderer, row, column);
-        int width = c.getPreferredSize().width + table.getIntercellSpacing().width;
-
-        return width;
+        return c.getPreferredSize().width + table.getIntercellSpacing().width;
     }
 
     /*
@@ -145,7 +141,7 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
      */
     private void updateTableColumn(int column, int width) {
         final TableColumn tableColumn = table.getColumnModel().getColumn(column);
-        log.debug("updateTableColumn: col:{}, wid:{}", column, width);
+        log.trace("updateTableColumn: col:{}, wid:{}", column, width);
         if (!tableColumn.getResizable()) return;
 
         width += spacing;
