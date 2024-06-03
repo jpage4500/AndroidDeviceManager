@@ -8,6 +8,7 @@ import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
+import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
@@ -27,6 +28,8 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
@@ -258,6 +261,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                     JMenuItem hideItem = new JMenuItem("Hide Column " + columnType.name());
                     hideItem.addActionListener(actionEvent -> handleHideColumn(column));
                     popupMenu.add(hideItem);
+
+                    JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
+                    sizeToFitItem.addActionListener(actionEvent -> {
+                        TableColumnAdjuster adjuster = new TableColumnAdjuster(table, column);
+                        adjuster.adjustColumn(column);
+                    });
+                    popupMenu.add(sizeToFitItem);
                     return popupMenu;
                 }
                 return null;
@@ -355,6 +365,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             popup.add(quitItem);
             trayIcon = new TrayIcon(image, "Android Device Manager", popup);
             trayIcon.setImageAutoSize(true);
+            trayIcon.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent mouseEvent) {
+                    if (SwingUtilities.isRightMouseButton(mouseEvent)) {
+                        bringWindowToFront();
+                    }
+                }
+            });
             try {
                 tray.add(trayIcon);
             } catch (AWTException e) {

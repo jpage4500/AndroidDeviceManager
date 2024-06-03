@@ -11,7 +11,6 @@ import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.HashMap;
@@ -59,7 +58,6 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
         setColumnDataIncluded(true);
         setOnlyAdjustLarger(false);
         setDynamicAdjustment(false);
-        installActions();
     }
 
     /*
@@ -82,7 +80,7 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
 
         if (!tableColumn.getResizable()) return;
 
-        int columnHeaderWidth = getColumnHeaderWidth(column);
+        int columnHeaderWidth = 0;//getColumnHeaderWidth(column);
         int columnDataWidth = getColumnDataWidth(column);
         int preferredWidth = Math.max(columnHeaderWidth, columnDataWidth);
 
@@ -290,99 +288,4 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
         });
     }
 
-    /*
-     *  Install Actions to give user control of certain functionality.
-     */
-    private void installActions() {
-        installColumnAction(true, true, "adjustColumn", "control ADD");
-        installColumnAction(false, true, "adjustColumns", "control shift ADD");
-        installColumnAction(true, false, "restoreColumn", "control SUBTRACT");
-        installColumnAction(false, false, "restoreColumns", "control shift SUBTRACT");
-
-        installToggleAction(true, false, "toggleDynamic", "control MULTIPLY");
-        installToggleAction(false, true, "toggleLarger", "control DIVIDE");
-    }
-
-    /*
-     *  Update the input and action maps with a new ColumnAction
-     */
-    private void installColumnAction(
-            boolean isSelectedColumn, boolean isAdjust, String key, String keyStroke) {
-        Action action = new ColumnAction(isSelectedColumn, isAdjust);
-        KeyStroke ks = KeyStroke.getKeyStroke(keyStroke);
-        table.getInputMap().put(ks, key);
-        table.getActionMap().put(key, action);
-    }
-
-    /*
-     *  Update the input and action maps with new ToggleAction
-     */
-    private void installToggleAction(
-            boolean isToggleDynamic, boolean isToggleLarger, String key, String keyStroke) {
-        Action action = new ToggleAction(isToggleDynamic, isToggleLarger);
-        KeyStroke ks = KeyStroke.getKeyStroke(keyStroke);
-        table.getInputMap().put(ks, key);
-        table.getActionMap().put(key, action);
-    }
-
-    /*
-     *  Action to adjust or restore the width of a single column or all columns
-     */
-    class ColumnAction extends AbstractAction {
-        private boolean isSelectedColumn;
-        private boolean isAdjust;
-
-        public ColumnAction(boolean isSelectedColumn, boolean isAdjust) {
-            this.isSelectedColumn = isSelectedColumn;
-            this.isAdjust = isAdjust;
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            //  Handle selected column(s) width change actions
-
-            if (isSelectedColumn) {
-                int[] columns = table.getSelectedColumns();
-
-                for (int i = 0; i < columns.length; i++) {
-                    if (isAdjust)
-                        adjustColumn(columns[i]);
-                    else
-                        restoreColumn(columns[i]);
-                }
-            } else {
-                if (isAdjust)
-                    adjustColumns();
-                else
-                    restoreColumns();
-            }
-        }
-    }
-
-    /*
-     *  Toggle properties of the TableColumnAdjuster so the user can
-     *  customize the functionality to their preferences
-     */
-    class ToggleAction extends AbstractAction {
-        private boolean isToggleDynamic;
-        private boolean isToggleLarger;
-
-        public ToggleAction(boolean isToggleDynamic, boolean isToggleLarger) {
-            this.isToggleDynamic = isToggleDynamic;
-            this.isToggleLarger = isToggleLarger;
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            if (isToggleDynamic) {
-                setDynamicAdjustment(!isDynamicAdjustment);
-                return;
-            }
-
-            if (isToggleLarger) {
-                setOnlyAdjustLarger(!isOnlyAdjustLarger);
-                return;
-            }
-        }
-    }
 }

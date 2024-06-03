@@ -7,6 +7,7 @@ import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowFilter;
+import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.EmptyView;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
@@ -296,10 +297,53 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
             }
         });
 
+        table.setPopupMenuListener((row, column) -> {
+            if (row == -1) {
+                JPopupMenu popupMenu = new JPopupMenu();
+                JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
+                sizeToFitItem.addActionListener(actionEvent -> {
+                    TableColumnAdjuster adjuster = new TableColumnAdjuster(table, column);
+                    adjuster.adjustColumn(column);
+                });
+                popupMenu.add(sizeToFitItem);
+                return popupMenu;
+            }
+            return null;
+        });
+
         rowFilter = new LogsRowFilter();
         sorter = new TableRowSorter<>(model);
         sorter.setRowFilter(rowFilter);
         table.setRowSorter(sorter);
+
+        table.getScrollPane().addMouseWheelListener(event -> {
+            int wheelRotation = event.getWheelRotation();
+            if (wheelRotation == -1) {
+                // scrolling UP - disable auto-scroll
+                if (autoScrollCheckBox.isSelected()) {
+                    // only if user scrolls past last few lines
+                    int lastVisibleRow = getLastVisibleRow();
+                    if (lastVisibleRow > 0) {
+                        autoScrollCheckBox.setSelected(false);
+                    }
+                }
+            } else if (wheelRotation == 1) {
+                // scrolling DOWN
+                if (!autoScrollCheckBox.isSelected()) {
+                    int lastVisibleRow = getLastVisibleRow();
+                    if (lastVisibleRow == -1) {
+                        autoScrollCheckBox.setSelected(true);
+                        scrollToFollow();
+                    }
+                }
+            }
+        });
+
+    }
+
+    private int getLastVisibleRow() {
+        Rectangle visibleRect = table.getVisibleRect();
+        return table.rowAtPoint(new Point(visibleRect.x, visibleRect.y + visibleRect.height));
     }
 
     private void stopLogging() {
