@@ -113,17 +113,18 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
     private int getColumnDataWidth(int column) {
         if (!isColumnDataIncluded) return 0;
 
-        int preferredWidth = 0;
+        int maxDataWidth = 0;
         int maxWidth = table.getColumnModel().getColumn(column).getMaxWidth();
 
         for (int row = 0; row < table.getRowCount(); row++) {
-            preferredWidth = Math.max(preferredWidth, getCellDataWidth(row, column));
+            int preferredWidth = getCellDataWidth(row, column);
+            maxDataWidth = Math.max(maxDataWidth, preferredWidth);
 
             //  We've exceeded the maximum width, no need to check other rows
-            if (preferredWidth >= maxWidth) break;
+            if (maxDataWidth >= maxWidth) break;
         }
 
-        return preferredWidth;
+        return maxDataWidth;
     }
 
     /*

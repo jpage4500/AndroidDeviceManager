@@ -27,6 +27,7 @@ public class LogsTableModel extends AbstractTableModel {
         TID,
         PID,
         LEVEL,
+        TAG,
         MSG,
     }
 
@@ -73,7 +74,6 @@ public class LogsTableModel extends AbstractTableModel {
             //log.trace("checkSizeAndUpdate: removing:{}, size:{}", numRemove, logEntryList.size());
             logEntryList.subList(0, numRemove).clear();
             fireTableRowsDeleted(0, numRemove - 1);
-            //fireTableDataChanged();
         } else {
             int startPos = logEntryList.size() - numAdded;
             int endPos = logEntryList.size() - 1;

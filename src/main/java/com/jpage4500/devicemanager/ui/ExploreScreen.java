@@ -253,7 +253,6 @@ public class ExploreScreen extends BaseScreen {
         if (selectedFile.isReadOnly && !useRoot) {
             errorMessage = "read-only";
             refreshUi();
-            return;
         } else if (selectedFile.isDirectory || selectedFile.isSymbolicLink) {
             if (TextUtils.equalsIgnoreCase(selectedFile.name, "..")) {
                 String prevPath = selectedPath;
@@ -279,6 +278,9 @@ public class ExploreScreen extends BaseScreen {
     private void setPath(String path) {
         // selectedPath should never end with "/"
         if (path.endsWith("/")) path = path.substring(0, path.length() - 1);
+        else if (TextUtils.isEmpty(path)) path = "/";
+
+        if (!path.startsWith("/")) path = "/" + path;
 
         prevPathList.add(path);
         if (prevPathList.size() > MAX_PATH_SAVE) {
@@ -318,8 +320,8 @@ public class ExploreScreen extends BaseScreen {
                     // clear out any previous set filter and error
                     filterTextField.reset();
                     errorMessage = null;
-                    // TODO: add ".." to top of list
-                    if (!TextUtils.isEmpty(selectedPath)) {
+                    // add ".." to top of list
+                    if (!TextUtils.isEmpty(selectedPath) && !selectedPath.equals("/")) {
                         DeviceFile upFile = new DeviceFile();
                         upFile.name = "..";
                         upFile.isDirectory = true;
@@ -548,10 +550,18 @@ public class ExploreScreen extends BaseScreen {
         String folders = preferences.get(PREF_GO_TO_FOLDER_LIST, null);
         List<String> customList = GsonHelper.stringToList(folders, String.class);
 
+//        List<String> selectedList = new ArrayList<>();
+//        String[] pathArr = selectedPath.split("/");
+//        for (String path : pathArr) {
+//            selectedList.add(path);
+//        }
+//        selectedList.addAll(customList);
+
         JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
         comboBox.setEditable(true);
         int rc = JOptionPane.showOptionDialog(this, comboBox, "Go to folder", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return;
+
         Object selectedObj = comboBox.getSelectedItem();
         if (selectedObj == null) return;
         String selectedItem = (String) selectedObj;

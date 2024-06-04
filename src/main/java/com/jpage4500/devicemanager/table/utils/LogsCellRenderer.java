@@ -44,13 +44,18 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
         LogsTableModel.Columns col = LogsTableModel.Columns.values()[column];
         String text = switch (col) {
             case DATE -> logEntry.date;
-            case APP -> model.getAppForPid(logEntry.pid);
+            case APP -> {
+                // set app using app <-> pid list
+                logEntry.app = model.getAppForPid(logEntry.pid);
+                yield logEntry.app;
+            }
             case TID -> {
                 if (TextUtils.equals(logEntry.tid, logEntry.pid)) yield "-";
                 yield logEntry.tid;
             }
             case PID -> logEntry.pid;
             case LEVEL -> logEntry.level;
+            case TAG -> logEntry.tag;
             case MSG -> logEntry.message;
         };
 

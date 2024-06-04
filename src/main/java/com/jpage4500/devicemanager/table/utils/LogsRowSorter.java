@@ -1,17 +1,13 @@
 package com.jpage4500.devicemanager.table.utils;
 
-import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.table.DeviceTableModel;
-import com.jpage4500.devicemanager.table.LogsTableModel;
-import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.data.LogFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
-import java.util.Comparator;
 
 public class LogsRowSorter extends TableRowSorter<TableModel> {
     private static final Logger log = LoggerFactory.getLogger(LogsRowSorter.class);
@@ -33,8 +29,12 @@ public class LogsRowSorter extends TableRowSorter<TableModel> {
         return false;
     }
 
-    public void setFilterText(String text) {
-        logsRowFilter.setFilterText(text);
+    public void setFilter(LogFilter logFilter) {
+        logsRowFilter.setFilter(logFilter);
+    }
+
+    public LogFilter getFilter() {
+        return logsRowFilter.logFilter;
     }
 
     @Override
@@ -43,20 +43,18 @@ public class LogsRowSorter extends TableRowSorter<TableModel> {
     }
 
     private class LogsRowFilter extends RowFilter<Object, Object> {
-        private String filterText;
+        private LogFilter logFilter;
 
         @Override
         public boolean include(Entry<?, ?> entry) {
-            if (filterText == null) return true;
+            if (logFilter == null) return true;
 
             LogEntry logEntry = (LogEntry) entry.getValue(0);
-            if (TextUtils.containsIgnoreCase(logEntry.message, filterText)) return true;
-
-            return false;
+            return logFilter.isMatch(logEntry);
         }
 
-        public void setFilterText(String text) {
-            filterText = text;
+        public void setFilter(LogFilter logFilter) {
+            this.logFilter = logFilter;
             sort();
         }
     }

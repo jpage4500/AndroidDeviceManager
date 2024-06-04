@@ -3,13 +3,13 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.FilterItem;
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
-import com.jpage4500.devicemanager.ui.views.EmptyView;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.GsonHelper;
@@ -129,23 +129,15 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
 
         // add basic log level filters
         addLogLevel(filterItemList, "All Messages", null);
-        addLogLevel(filterItemList, "Log Level Debug+", "level:D");
-        addLogLevel(filterItemList, "Log Level Info+", "level:I");
-        addLogLevel(filterItemList, "Log Level Warn+", "level:W");
-        addLogLevel(filterItemList, "Log Level Error+", "level:E");
+        addLogLevel(filterItemList, "Log Level Debug+", "level:D+");
+        addLogLevel(filterItemList, "Log Level Info+", "level:I+");
+        addLogLevel(filterItemList, "Log Level Warn+", "level:W+");
+        addLogLevel(filterItemList, "Log Level Error+", "level:E+");
 
         filterList.setListData(filterItemList.toArray(new FilterItem[0]));
         filterList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         filterList.addListSelectionListener(e -> {
-            FilterItem selectedFilter = filterList.getSelectedValue();
-            if (selectedFilter == null) {
-                sorter.setFilterText(null);
-                statusBar.setCenterLabel(null);
-            } else {
-                filterDevices(selectedFilter.filter);
-                statusBar.setCenterLabel(selectedFilter.name);
-            }
-            model.fireTableDataChanged();
+            filterDevices(filterField.getCleanText());
         });
     }
 
@@ -422,7 +414,22 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     }
 
     private void filterDevices(String text) {
-        sorter.setFilterText(text);
+        FilterItem selectedFilter = filterList.getSelectedValue();
+        if (selectedFilter == null) {
+            sorter.setFilter(null);
+            statusBar.setCenterLabel(null);
+        } else {
+            filterDevices(selectedFilter.filter);
+            statusBar.setCenterLabel(selectedFilter.name);
+        }
+        model.fireTableDataChanged();
+
+        // user is typing in filter box
+        LogFilter filter = sorter.getFilter();
+        if (filter == null) {
+
+        }
+        sorter.setFilter(text);
         if (TextUtils.isEmpty(text)) {
             statusBar.setCenterLabel(null);
         } else {
