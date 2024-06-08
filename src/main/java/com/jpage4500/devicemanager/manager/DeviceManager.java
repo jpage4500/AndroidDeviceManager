@@ -3,8 +3,8 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.ExploreScreen;
+import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
@@ -15,7 +15,6 @@ import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
 import javax.imageio.ImageIO;
-import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -26,7 +25,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
-import java.util.List;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -117,6 +115,7 @@ public class DeviceManager {
                 }).run();
             } catch (Exception e) {
                 log.error("Exception: {}", e.getMessage());
+                listener.handleException(e);
             }
         });
     }
@@ -177,7 +176,6 @@ public class DeviceManager {
                     JadbDevice.State state = addedDevice.jadbDevice.getState();
                     if (state == JadbDevice.State.Device) {
                         log.trace("handleDeviceUpdate: ONLINE: {} -> {}", addedDevice.serial, state);
-                        addedDevice.status = "fetching details..";
                         listener.handleDeviceUpdated(addedDevice);
                         addedDevice.isOnline = true;
                         addedDevice.lastUpdateMs = System.currentTimeMillis();
@@ -227,15 +225,12 @@ public class DeviceManager {
      * @param fullRefresh - true to fetch everythign; false to only fetch values that would change often (battery, disk)
      */
     private void fetchDeviceDetails(Device device, boolean fullRefresh, DeviceListener listener) {
+        if (!device.isOnline) return;
         commandExecutorService.submit(() -> {
             Timer timer = new Timer();
-            log.debug("fetchDeviceDetails: {}", device.serial);
-            // only change isBusy flag if not already set (ie: user is mirring device)
-            boolean prevBusyState = device.isBusy;
-            if (!prevBusyState) {
-                device.isBusy = true;
-                listener.handleDeviceUpdated(device);
-            }
+            log.trace("fetchDeviceDetails: {}, full:{}", device.serial, fullRefresh);
+            device.busyCounter.incrementAndGet();
+            listener.handleDeviceUpdated(device);
             if (fullRefresh) {
                 // -- phone number --
                 device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
@@ -343,8 +338,8 @@ public class DeviceManager {
 
             if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}: full:{}, {}", timer, fullRefresh, GsonHelper.toJson(device));
 
-            if (!prevBusyState) device.isBusy = false;
-            listener.handleDeviceUpdated(device);
+            int busyCount = device.busyCounter.decrementAndGet();
+            if (busyCount == 0) listener.handleDeviceUpdated(device);
 
             if (fullRefresh) {
                 // keep track of wireless devices
@@ -486,7 +481,7 @@ public class DeviceManager {
                 ImageIO.write(image, "png", outputfile);
                 log.debug("captureScreenshot: DONE:{}, {}x{}, {}", timer, image.getWidth(), image.getHeight(), outputfile.getAbsolutePath());
                 // open with default viewer
-                Desktop.getDesktop().open(outputfile);
+                Utils.openFile(outputfile);
                 listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("captureScreenshot: {}", e.getMessage());
@@ -528,7 +523,7 @@ public class DeviceManager {
             } catch (Exception e) {
                 log.error("installApp: {}, {}", file.getAbsolutePath(), e.getMessage());
                 device.status = "failed: " + e.getMessage();
-                if (listener != null) listener.onTaskComplete(true, null);
+                if (listener != null) listener.onTaskComplete(false, e.getMessage());
             }
         });
     }
@@ -542,7 +537,7 @@ public class DeviceManager {
                 listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
-                listener.onTaskComplete(false, null);
+                listener.onTaskComplete(false, e.getMessage());
             }
         });
     }
@@ -578,25 +573,29 @@ public class DeviceManager {
     public void listFiles(Device device, String path, boolean useRoot, DeviceFileListener listener) {
         commandExecutorService.submit(() -> {
             try {
-                String safePath = path + "/";
+                String safePath = path;// + "/";
+                if (!TextUtils.endsWith(safePath, "/")) safePath += "/";
                 if (safePath.indexOf(' ') > 0) {
                     safePath = "\"" + safePath + "\"";
                 }
                 log.trace("listFiles: {} {}", safePath, useRoot ? "(ROOT)" : "");
-                String command = "ls -al " + safePath;
+                String command = "ls -alZ " + safePath;
                 if (useRoot) command = "su -c " + command;
                 List<String> dirList = runShell(device, command);
                 List<DeviceFile> fileList = new ArrayList<>();
-                for (String dir : dirList) {
+                for (int i = 0; i < dirList.size(); i++) {
+                    String dir = dirList.get(i);
                     DeviceFile file = DeviceFile.fromEntry(dir);
                     if (file != null) fileList.add(file);
-                    else if (TextUtils.containsAny(dir, true, "inaccessible or not found", "permission denied")) {
-                        log.debug("listFiles: ERROR: {}", dir);
-                        // check for common errors:
-                        // <COMMAND>: inaccessible or not found
-                        // ls: <FOLDER>: Permission denied
-                        listener.handleFiles(null, dir);
-                        return;
+                    else if (i == 0) {
+                        // not a valid file/dir listing; check for known errors
+                        if (TextUtils.containsAny(dir, true, "permission denied")) {
+                            listener.handleFiles(null, "permission denied");
+                            return;
+                        } else if (TextUtils.containsAny(dir, true, "Not a directory", "No such file or directory")) {
+                            listener.handleFiles(null, "Not a directory");
+                            return;
+                        }
                     }
                 }
                 //log.trace("listFiles: FILES:{}, PATH:{}, {}", fileList.size(), safePath, GsonHelper.toJson(fileList));
@@ -624,7 +623,7 @@ public class DeviceManager {
      * recursive method to download a file or folder
      */
     private void downloadFileInternal(Device device, String path, DeviceFile file, File saveFile) {
-        if (file.isDirectory || file.isSymbolicLink) {
+        if (file.isDirectory) {
             // create local folder
             if (!saveFile.exists()) {
                 boolean isOk = saveFile.mkdir();

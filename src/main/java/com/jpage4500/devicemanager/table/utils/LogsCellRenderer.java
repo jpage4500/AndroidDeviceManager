@@ -39,26 +39,9 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
         LogEntry logEntry = (LogEntry) object;
         LogsTableModel model = (LogsTableModel) table.getModel();
         // convert table column to model column
+        row = table.convertRowIndexToModel(row);
         column = table.convertColumnIndexToModel(column);
-
-        LogsTableModel.Columns col = LogsTableModel.Columns.values()[column];
-        String text = switch (col) {
-            case DATE -> logEntry.date;
-            case APP -> {
-                // set app using app <-> pid list
-                logEntry.app = model.getAppForPid(logEntry.pid);
-                yield logEntry.app;
-            }
-            case TID -> {
-                if (TextUtils.equals(logEntry.tid, logEntry.pid)) yield "-";
-                yield logEntry.tid;
-            }
-            case PID -> logEntry.pid;
-            case LEVEL -> logEntry.level;
-            case TAG -> logEntry.tag;
-            case MSG -> logEntry.message;
-        };
-
+        String text = model.getTextValue(row, column);
         setText(text);
 
         int highlightStartPos = -1;

@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.ResultWatcher;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -11,9 +12,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.prefs.Preferences;
 
 public class CommandDialog extends JPanel {
@@ -148,22 +151,11 @@ public class CommandDialog extends JPanel {
         populateRecent();
 
         log.debug("handleRunCustomCommand: {}, devices:{}", command, selectedDeviceList.size());
-        StringBuilder msg = new StringBuilder();
-        AtomicInteger counter = new AtomicInteger();
+        ResultWatcher resultWatcher = new ResultWatcher(selectedDeviceList.size());
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
-                // handle results on main UI thread
-                SwingUtilities.invokeLater(() -> {
-                    if (!msg.isEmpty()) msg.append("\n\n");
-                    msg.append("DEVICE: " + device.getDisplayName() + ":\n" + error);
-                    // show results when last command is complete
-                    if (counter.incrementAndGet() == selectedDeviceList.size()) {
-                        JTextArea textArea = new JTextArea(msg.toString());
-                        textArea.setEditable(false);
-                        JScrollPane scrollPane = new JScrollPane(textArea);
-                        JOptionPane.showMessageDialog(getRootPane(), scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
-                    }
-                });
+                String result = "DEVICE: " + device.getDisplayName() + ":\n" + error;
+                resultWatcher.handleResult(getRootPane(), result);
             });
         }
     }

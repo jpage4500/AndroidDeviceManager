@@ -2,21 +2,24 @@ package com.jpage4500.devicemanager.data;
 
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.utils.TextUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class LogFilter {
+    private static final Logger log = LoggerFactory.getLogger(LogFilter.class);
     List<FilterExpression> filterList;
 
     public enum Expression {
-        STARTS_WITH, ENDS_WITH, CONTAINS
+        EQUALS, CONTAINS, STARTS_WITH, ENDS_WITH
     }
 
     public static class FilterExpression {
         public LogsTableModel.Columns column;
         public boolean isNotExpression;
-        public Expression expression;
+        public Expression expression = Expression.EQUALS;
         public String value;
 
         @Override
@@ -40,25 +43,42 @@ public class LogFilter {
                     sb.append(value);
                     sb.append("*");
                     break;
+                default:
+                    sb.append(value);
+                    break;
             }
             return sb.toString();
         }
 
         public boolean isMatch(LogEntry logEntry) {
-            boolean isMatch = false;
+            boolean isMatch;
             if (column != null) {
-                String searchField = null;
+                String logValue = null;
                 switch (column) {
-                    case DATE -> searchField = logEntry.date;
-                    case APP -> searchField = logEntry.app;
-                    case TID -> searchField = logEntry.tid;
-                    case PID -> searchField = logEntry.pid;
-                    case LEVEL -> searchField = logEntry.level;
-                    case TAG -> searchField = logEntry.tag;
-                    case MSG -> searchField = logEntry.message;
+                    case DATE -> logValue = logEntry.date;
+                    case APP -> logValue = logEntry.app;
+                    case TID -> logValue = logEntry.tid;
+                    case PID -> logValue = logEntry.pid;
+                    case LEVEL -> {
+                        logValue = logEntry.level;
+                        if (value != null && expression == Expression.ENDS_WITH) {
+                            //log.trace("isMatch: {}", logValue);
+                            switch (value) {
+                                case "D":
+                                    return TextUtils.equalsIgnoreCaseAny(logValue, "D", "I", "W", "E");
+                                case "I":
+                                    return TextUtils.equalsIgnoreCaseAny(logValue, "I", "W", "E");
+                                case "W":
+                                    return TextUtils.equalsIgnoreCaseAny(logValue, "W", "E");
+                            }
+                        }
+                    }
+                    case TAG -> logValue = logEntry.tag;
+                    case MSG -> logValue = logEntry.message;
                 }
-                isMatch = evaluateExpression(expression, searchField);
+                isMatch = evaluateExpression(expression, logValue);
             } else {
+                // match text from one of: message, app, tag
                 isMatch = evaluateExpression(expression, logEntry.message) ||
                         evaluateExpression(expression, logEntry.app) ||
                         evaluateExpression(expression, logEntry.tag);
@@ -68,10 +88,12 @@ public class LogFilter {
 
         private boolean evaluateExpression(Expression expression, String searchField) {
             boolean isMatch = false;
+            if (expression == null) return false;
             switch (expression) {
+                case EQUALS -> isMatch = TextUtils.equalsIgnoreCase(searchField, value);
+                case CONTAINS -> isMatch = TextUtils.containsAny(searchField, true, value);
                 case STARTS_WITH -> isMatch = TextUtils.startsWithAny(searchField, true, value);
                 case ENDS_WITH -> isMatch = TextUtils.endsWithAny(searchField, true, value);
-                case CONTAINS -> isMatch = TextUtils.containsAny(searchField, true, value);
             }
             return isMatch;
         }
@@ -105,7 +127,11 @@ public class LogFilter {
         for (String entry : filterArr) {
             String[] entryArr = entry.split(":", 2);
             LogFilter.FilterExpression expr = new LogFilter.FilterExpression();
-            expr.column = LogsTableModel.Columns.valueOf(entryArr[0].toUpperCase());
+            String colName = entryArr[0].toUpperCase();
+            try {
+                expr.column = LogsTableModel.Columns.valueOf(colName);
+            } catch (IllegalArgumentException e) {
+            }
             String value = entryArr[1].trim();
             if (TextUtils.isEmpty(value)) continue;
             char firstChar = value.charAt(0);
@@ -117,7 +143,7 @@ public class LogFilter {
                 expr.expression = Expression.STARTS_WITH;
             }
             char lastChar = value.charAt(value.length() - 1);
-            if (lastChar == '*') {
+            if (lastChar == '*' || (expr.column == LogsTableModel.Columns.LEVEL && lastChar == '+')) {
                 if (expr.expression == Expression.STARTS_WITH) expr.expression = Expression.CONTAINS;
                 else expr.expression = Expression.ENDS_WITH;
             }
@@ -125,8 +151,8 @@ public class LogFilter {
             if (expr.isNotExpression) stPos++;
             if (expr.expression == Expression.STARTS_WITH || expr.expression == Expression.CONTAINS) stPos++;
 
-            int endPos = value.length() - 1;
-            if (expr.expression == Expression.ENDS_WITH) endPos--;
+            int endPos = value.length();
+            if (expr.expression == Expression.ENDS_WITH || expr.expression == Expression.CONTAINS) endPos--;
 
             expr.value = value.substring(stPos, endPos);
 

@@ -61,6 +61,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         super("logs");
         this.deviceScreen = deviceScreen;
         this.device = device;
+        //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         initalizeUi();
         updateDeviceState();
     }
@@ -120,32 +121,6 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         setVisible(true);
         table.requestFocus();
         autoScrollCheckBox.setSelected(true);
-    }
-
-    private void setupFilterList() {
-        Preferences preferences = Preferences.userRoot();
-        String prefListStr = preferences.get("PREF_FILTER_LIST", null);
-        List<FilterItem> filterItemList = GsonHelper.stringToList(prefListStr, FilterItem.class);
-
-        // add basic log level filters
-        addLogLevel(filterItemList, "All Messages", null);
-        addLogLevel(filterItemList, "Log Level Debug+", "level:D+");
-        addLogLevel(filterItemList, "Log Level Info+", "level:I+");
-        addLogLevel(filterItemList, "Log Level Warn+", "level:W+");
-        addLogLevel(filterItemList, "Log Level Error+", "level:E+");
-
-        filterList.setListData(filterItemList.toArray(new FilterItem[0]));
-        filterList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        filterList.addListSelectionListener(e -> {
-            filterDevices(filterField.getCleanText());
-        });
-    }
-
-    private void addLogLevel(List<FilterItem> filterItemList, String label, String filter) {
-        FilterItem item = new FilterItem();
-        item.name = label;
-        item.filter = filter;
-        filterItemList.add(item);
     }
 
     @Override
@@ -293,6 +268,23 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                 popupMenu.add(sizeToFitItem);
                 return popupMenu;
             }
+
+            LogsTableModel.Columns columnType = model.getColumnType(column);
+            switch (columnType) {
+                case APP:
+                case TID:
+                case PID:
+                case LEVEL:
+                case TAG:
+                    // filter by value
+                    String text = model.getTextValue(row, column);
+                    JPopupMenu popupMenu = new JPopupMenu();
+                    JMenuItem copyFieldItem = new JMenuItem("Add Filter");
+                    copyFieldItem.addActionListener(actionEvent -> handleAddFilter(columnType, text));
+                    popupMenu.add(copyFieldItem);
+                    break;
+            }
+
             return null;
         });
 
@@ -321,6 +313,11 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                 }
             }
         });
+    }
+
+    private void handleAddFilter(LogsTableModel.Columns columnType, String text) {
+        LogFilter filter = LogFilter.parse(columnType.name().toLowerCase() + ":" + text);
+        filterField.setText(filter.toString());
     }
 
     private int getLastVisibleRow() {
@@ -413,28 +410,60 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         }
     }
 
+    private void setupFilterList() {
+        Preferences preferences = Preferences.userRoot();
+        String prefListStr = preferences.get("PREF_FILTER_LIST", null);
+        List<FilterItem> filterItemList = GsonHelper.stringToList(prefListStr, FilterItem.class);
+
+        // add basic log level filters
+        addLogLevel(filterItemList, "All Messages", null);
+        addLogLevel(filterItemList, "Log Level Debug+", "level:D+");
+        addLogLevel(filterItemList, "Log Level Info+", "level:I+");
+        addLogLevel(filterItemList, "Log Level Warn+", "level:W+");
+        addLogLevel(filterItemList, "Log Level Error+", "level:E");
+
+        // sort A-Z (name)
+        filterItemList.sort((lhs, rhs) -> TextUtils.compareToIgnoreCase(lhs.name, rhs.name));
+
+        filterList.setListData(filterItemList.toArray(new FilterItem[0]));
+        filterList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        filterList.addListSelectionListener(e -> {
+            filterDevices(filterField.getCleanText());
+        });
+    }
+
+    private void addLogLevel(List<FilterItem> filterItemList, String label, String filter) {
+        FilterItem item = new FilterItem();
+        item.name = label;
+        item.filter = LogFilter.parse(filter);
+        log.debug("addLogLevel: {}, {}", label, item.filter);
+        filterItemList.add(item);
+    }
+
     private void filterDevices(String text) {
-        FilterItem selectedFilter = filterList.getSelectedValue();
-        if (selectedFilter == null) {
-            sorter.setFilter(null);
-            statusBar.setCenterLabel(null);
-        } else {
-            filterDevices(selectedFilter.filter);
-            statusBar.setCenterLabel(selectedFilter.name);
-        }
-        model.fireTableDataChanged();
+        List<LogFilter> list = new ArrayList<>();
 
-        // user is typing in filter box
-        LogFilter filter = sorter.getFilter();
-        if (filter == null) {
+        // get currently selected filter
+        List<FilterItem> selectedList = filterList.getSelectedValuesList();
+        StringBuilder sb = new StringBuilder();
+        for (FilterItem item : selectedList) {
+            if (item.filter != null) list.add(item.filter);
+            if (!sb.isEmpty()) sb.append(" && ");
+            sb.append(item.name);
+        }
 
+        if (TextUtils.notEmpty(text)) {
+            LogFilter searchFilter = LogFilter.parse("*:*" + text + "*");
+            log.debug("filterDevices: {}", searchFilter);
+            list.add(searchFilter);
+            if (!sb.isEmpty()) sb.append(" && ");
+            sb.append(text);
         }
-        sorter.setFilter(text);
-        if (TextUtils.isEmpty(text)) {
-            statusBar.setCenterLabel(null);
-        } else {
-            statusBar.setCenterLabel("Filter: " + text);
-        }
+
+        sorter.setFilter(list.toArray(new LogFilter[0]));
+
+        // TODO: set label
+        statusBar.setCenterLabel(sb.toString());
         model.fireTableDataChanged();
     }
 

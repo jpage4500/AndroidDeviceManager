@@ -26,7 +26,8 @@ public class ExplorerCellRenderer extends JLabel implements TableCellRenderer {
     private final Icon folderReadonlyIcon;
     private final Icon fileIcon;
     private final Icon fileReadonlyIcon;
-    private final Icon linkIcon;
+    private final Icon folderLinkIcon;
+    private final Icon fileLinkIcon;
 
     public ExplorerCellRenderer() {
         setOpaque(true);
@@ -39,7 +40,8 @@ public class ExplorerCellRenderer extends JLabel implements TableCellRenderer {
         folderReadonlyIcon = UiUtils.getImageIcon("icon_folder_readonly.png", 20);
         fileIcon = UiUtils.getImageIcon("icon_file.png", 20);
         fileReadonlyIcon = UiUtils.getImageIcon("icon_file_readonly.png", 20);
-        linkIcon = UiUtils.getImageIcon("icon_link.png", 20);
+        folderLinkIcon = UiUtils.getImageIcon("icon_folder_link.png", 20);
+        fileLinkIcon = UiUtils.getImageIcon("icon_file_link.png", 20);
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -54,18 +56,18 @@ public class ExplorerCellRenderer extends JLabel implements TableCellRenderer {
         switch (col) {
             case NAME:
                 text = deviceFile.name;
-                if (deviceFile.isDirectory) {
+                if (deviceFile.isSymbolicLink) icon = deviceFile.isDirectory ? folderLinkIcon : fileLinkIcon;
+                else if (deviceFile.isDirectory) {
                     if (TextUtils.equals(deviceFile.name, "..")) icon = folderUpIcon;
                     else if (deviceFile.isReadOnly) icon = folderReadonlyIcon;
                     else icon = folderIcon;
-                } else if (deviceFile.isSymbolicLink) icon = linkIcon;
-                else if (deviceFile.isReadOnly) icon = fileReadonlyIcon;
+                } else if (deviceFile.isReadOnly) icon = fileReadonlyIcon;
                 else icon = fileIcon;
                 break;
             case SIZE:
                 // right-align size column
                 align = SwingConstants.RIGHT;
-                if (!deviceFile.isDirectory && !deviceFile.isSymbolicLink) {
+                if (!deviceFile.isDirectory) {
                     text = FileUtils.bytesToDisplayString(deviceFile.size);
                 } else {
                     text = "-";
@@ -90,11 +92,6 @@ public class ExplorerCellRenderer extends JLabel implements TableCellRenderer {
         setText(text);
         setHorizontalAlignment(align);
 
-        if (isSelected) {
-            setBackground(table.getSelectionBackground());
-        } else {
-            setBackground(Color.WHITE);
-        }
         return this;
     }
 }

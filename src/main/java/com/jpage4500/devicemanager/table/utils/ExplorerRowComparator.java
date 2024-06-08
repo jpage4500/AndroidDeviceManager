@@ -67,8 +67,8 @@ public class ExplorerRowComparator implements Comparator<DeviceFile> {
 
     private int sortDir(DeviceFile o1, DeviceFile o2) {
         // always sort folders on top
-        boolean o1DirOrLink = o1.isDirectory || o1.isSymbolicLink;
-        boolean o2DirOrLink = o2.isDirectory || o2.isSymbolicLink;
+        boolean o1DirOrLink = o1.isDirectory;
+        boolean o2DirOrLink = o2.isDirectory;
         if (o1DirOrLink != o2DirOrLink) {
             // dir/link on top always
             if (o1DirOrLink) return -1;

@@ -6,6 +6,7 @@ import se.vidstige.jadb.JadbDevice;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Device {
     // common device properties
@@ -41,8 +42,9 @@ public class Device {
     // true when device is online/ready
     public boolean isOnline;
 
-    // true when mirroring device or other long-running tasks
-    public boolean isBusy;
+    // counter of running tasks like mirroring a device; used to show a 'busy' icon
+    @ExcludeFromSerialization
+    public AtomicInteger busyCounter = new AtomicInteger(0);
 
     // last time device was seen (online or offline)
     public Long lastUpdateMs;

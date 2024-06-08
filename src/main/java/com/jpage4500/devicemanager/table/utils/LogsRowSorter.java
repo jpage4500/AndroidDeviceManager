@@ -29,12 +29,8 @@ public class LogsRowSorter extends TableRowSorter<TableModel> {
         return false;
     }
 
-    public void setFilter(LogFilter logFilter) {
-        logsRowFilter.setFilter(logFilter);
-    }
-
-    public LogFilter getFilter() {
-        return logsRowFilter.logFilter;
+    public void setFilter(LogFilter... logFilterArr) {
+        logsRowFilter.setFilter(logFilterArr);
     }
 
     @Override
@@ -43,18 +39,24 @@ public class LogsRowSorter extends TableRowSorter<TableModel> {
     }
 
     private class LogsRowFilter extends RowFilter<Object, Object> {
-        private LogFilter logFilter;
+        private LogFilter[] logFilterArr;
 
         @Override
         public boolean include(Entry<?, ?> entry) {
-            if (logFilter == null) return true;
+            // if no filter set, include log row
+            if (logFilterArr == null || logFilterArr.length == 0) return true;
 
+            // ALL filters must match in order to include this row
             LogEntry logEntry = (LogEntry) entry.getValue(0);
-            return logFilter.isMatch(logEntry);
+            for (LogFilter filter : logFilterArr) {
+                if (filter == null || !filter.isMatch(logEntry)) return false;
+            }
+            // all match!
+            return true;
         }
 
-        public void setFilter(LogFilter logFilter) {
-            this.logFilter = logFilter;
+        public void setFilter(LogFilter... logFilterArr) {
+            this.logFilterArr = logFilterArr;
             sort();
         }
     }

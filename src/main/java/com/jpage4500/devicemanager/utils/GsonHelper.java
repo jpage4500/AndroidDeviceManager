@@ -35,6 +35,8 @@ public class GsonHelper {
         GsonBuilder gsonBuilder = new GsonBuilder();
         gsonBuilder.setLenient();
         gsonBuilder.setExclusionStrategies(new AnnotationExclusionStrategy());
+        // auto convert between server naming convention (var_one) and Java naming convention (varOne)
+        // gsonBuilder.setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES);
         return gsonBuilder;
     }
 
@@ -95,7 +97,7 @@ public class GsonHelper {
      * NOTE: **can** be null
      */
     public static <T> T fromJson(String json, Class<T> classOfT) {
-        if (json == null || json.length() == 0) return null;
+        if (json == null || json.isEmpty()) return null;
         try {
             Object object = getInstance().fromJson(json, (Type) classOfT);
             return Primitives.wrap(classOfT).cast(object);
