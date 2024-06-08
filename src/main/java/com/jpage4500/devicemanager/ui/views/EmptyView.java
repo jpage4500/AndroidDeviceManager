@@ -30,7 +30,7 @@ public class EmptyView extends JComponent {
             try {
                 emptyImage = ImageIO.read(getClass().getResource("/images/logo.png"));
             } catch (IOException e) {
-                log.debug("paintComponent: {}", e.getMessage());
+                log.error("paintComponent: {}", e.getMessage());
             }
         }
 
@@ -40,12 +40,14 @@ public class EmptyView extends JComponent {
         int imageH = emptyImage.getHeight(null);
         int x = w / 2 - (imageW / 2);
         int y = h / 2 - (imageH / 2);
-        if (imageW > w || imageH > h || y + 30 + imageH > h) return;
+        if (imageW <= w && imageH+30 <= h ) {
+            y += 30;
+            g.drawImage(emptyImage, x, y, null);
+            y += imageH;
+        } else {
+            y = h/2;
+        }
 
-        y += 30;
-        g.drawImage(emptyImage, x, y, null);
-
-        y += imageH;
         int textW = g.getFontMetrics().stringWidth(emptyText);
         x = w / 2 - (textW / 2);
         g.drawString(emptyText, x, y);

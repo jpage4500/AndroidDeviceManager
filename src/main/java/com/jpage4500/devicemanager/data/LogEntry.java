@@ -1,17 +1,11 @@
 package com.jpage4500.devicemanager.data;
 
-import com.jpage4500.devicemanager.logging.Log;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.text.SimpleDateFormat;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-import java.time.temporal.ChronoField;
-import java.util.Calendar;
 import java.util.Date;
-import java.util.Locale;
 
 public class LogEntry {
     private static final Logger log = LoggerFactory.getLogger(LogEntry.class);
@@ -19,7 +13,9 @@ public class LogEntry {
     public String date;     // formatted date
     public String tid;
     public String pid;
+    public String app;      // set dynamically while logging is running
     public String level;
+    public String tag;
     public String message;
 
     public Long timestamp;
@@ -52,5 +48,10 @@ public class LogEntry {
         tid = lineArr[3];
         level = lineArr[4];
         message = lineArr[5];
+        int tagPos = TextUtils.indexOf(message, ':');
+        if (tagPos > 0) {
+            tag = message.substring(0, tagPos).trim();
+            message = message.substring(tagPos + 1).trim();
+        }
     }
 }

@@ -8,13 +8,9 @@ import com.jpage4500.devicemanager.table.utils.ExplorerCellRenderer;
 import com.jpage4500.devicemanager.table.utils.ExplorerRowComparator;
 import com.jpage4500.devicemanager.table.utils.ExplorerRowFilter;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
-import com.jpage4500.devicemanager.ui.views.EmptyView;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
-import com.jpage4500.devicemanager.utils.FileDragAndDropListener;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.TextUtils;
-import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +25,6 @@ import java.awt.dnd.DropTarget;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -54,11 +49,11 @@ public class ExploreScreen extends BaseScreen {
     public TableRowSorter<TableModel> rowSorter;
     private ExplorerRowFilter rowFilter;
 
-    public EmptyView emptyView;
     public StatusBar statusBar;
     public JToolBar toolbar;
 
     private final Device device;
+    private boolean wasOffline = true;
 
     private String selectedPath = "/sdcard";
     private List<String> prevPathList = new ArrayList<>();
@@ -72,6 +67,7 @@ public class ExploreScreen extends BaseScreen {
         super("browse");
         this.deviceScreen = deviceScreen;
         this.device = device;
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         initalizeUi();
         updateDeviceState();
     }
@@ -79,9 +75,13 @@ public class ExploreScreen extends BaseScreen {
     public void updateDeviceState() {
         if (device.isOnline) {
             setTitle("Browse [" + device.getDisplayName() + "]");
-            refreshFiles();
+            if (wasOffline) {
+                refreshFiles();
+                wasOffline = false;
+            }
         } else {
             setTitle("OFFLINE [" + device.getDisplayName() + "]");
+            wasOffline = true;
         }
     }
 
@@ -111,17 +111,9 @@ public class ExploreScreen extends BaseScreen {
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-                table.persist();
+                closeWindow();
             }
         });
-
-        //setVisible(true);
-
-        JRootPane rootPane = SwingUtilities.getRootPane(table);
-        emptyView = new EmptyView("No Files");
-        rootPane.setGlassPane(emptyView);
-        emptyView.setOpaque(false);
-        emptyView.setVisible(true);
 
         table.requestFocus();
     }
@@ -143,8 +135,7 @@ public class ExploreScreen extends BaseScreen {
 
         // [CMD + W] = close window
         createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
-            setVisible(false);
-            dispose();
+            closeWindow();
         });
 
         // [CMD + 1] = show devices
@@ -180,6 +171,13 @@ public class ExploreScreen extends BaseScreen {
         setJMenuBar(menubar);
     }
 
+    private void closeWindow() {
+        log.trace("closeWindow: {}", device.getDisplayName());
+        table.persist();
+        deviceScreen.handleBrowseClosed(device.serial);
+        dispose();
+    }
+
     private void hideToolbar() {
         toolbar.setVisible(!toolbar.isVisible());
     }
@@ -189,6 +187,7 @@ public class ExploreScreen extends BaseScreen {
         table.setModel(model);
         table.setDefaultRenderer(DeviceFile.class, new ExplorerCellRenderer());
         //table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer());
+        table.setEmptyText("No Files!");
 
         // default column sizes
         TableColumnModel columnModel = table.getColumnModel();
@@ -247,14 +246,10 @@ public class ExploreScreen extends BaseScreen {
             return;
         }
         List<DeviceFile> selectedFiles = getSelectedFiles();
-        log.debug("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
+        if (log.isTraceEnabled()) log.trace("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
         if (selectedFiles.isEmpty()) return;
         DeviceFile selectedFile = selectedFiles.get(0);
-        if (selectedFile.isReadOnly && !useRoot) {
-            errorMessage = "read-only";
-            refreshUi();
-            return;
-        } else if (selectedFile.isDirectory || selectedFile.isSymbolicLink) {
+        if (selectedFile.isDirectory) {
             if (TextUtils.equalsIgnoreCase(selectedFile.name, "..")) {
                 String prevPath = selectedPath;
                 int pos = selectedPath.lastIndexOf('/');
@@ -264,10 +259,11 @@ public class ExploreScreen extends BaseScreen {
                     // root folder
                     setPath("");
                 }
-                log.debug("mouseClicked: UP: {} -> {}", prevPath, selectedPath);
+                log.debug("handleFileClicked: UP: {} -> {}", prevPath, selectedPath);
             } else {
                 // append selected folder to current path
-                setPath(selectedPath + "/" + selectedFile.name);
+                if (TextUtils.equals(selectedPath, "/")) setPath(selectedFile.name);
+                else setPath(selectedPath + "/" + selectedFile.name);
             }
             errorMessage = null;
             refreshFiles();
@@ -276,9 +272,31 @@ public class ExploreScreen extends BaseScreen {
         }
     }
 
+    /**
+     * set *next* path to list files
+     *
+     * @param path path or null to remove current path and revert to previously set one
+     */
     private void setPath(String path) {
+        if (path == null) {
+            if (!prevPathList.isEmpty()) {
+                // remove bad path
+                prevPathList.remove(prevPathList.size() - 1);
+            }
+            // reset good path
+            if (!prevPathList.isEmpty()) {
+                path = prevPathList.get(prevPathList.size() - 1);
+            } else {
+                path = "";
+            }
+        }
+
         // selectedPath should never end with "/"
-        if (path.endsWith("/")) path = path.substring(0, path.length() - 1);
+        if (path.length() > 1 && path.endsWith("/")) path = path.substring(0, path.length() - 1);
+        else if (TextUtils.isEmpty(path)) path = "/";
+
+        // path should always start with "/"
+        if (!path.startsWith("/")) path = "/" + path;
 
         prevPathList.add(path);
         if (prevPathList.size() > MAX_PATH_SAVE) {
@@ -294,38 +312,37 @@ public class ExploreScreen extends BaseScreen {
             SwingUtilities.invokeLater(() -> {
                 if (error != null) {
                     errorMessage = error;
-                    refreshUi();
-                    if (useRoot && TextUtils.contains(error, "su")) {
+                    if (useRoot && TextUtils.equals(error, DeviceManager.ERR_ROOT_NOT_AVAILABLE)) {
                         JOptionPane.showMessageDialog(this, "ROOT not available!");
                         toggleRoot();
+                    } else if (TextUtils.equals(error, DeviceManager.ERR_PERMISSION_DENIED)) {
+                        errorMessage = "permission denied";
+                        // revert to previous directory
+                        setPath(null);
                     }
+                    refreshUi();
                     return;
                 }
                 if (fileList == null) {
                     log.debug("refreshFiles: NO FILES");
                     errorMessage = "permission denied - " + selectedPath;
-                    // remove bad path
-                    prevPathList.remove(prevPathList.size() - 1);
-                    if (!prevPathList.isEmpty()) {
-                        // reset good path
-                        selectedPath = prevPathList.get(prevPathList.size() - 1);
-                        if (selectedPath.endsWith("/")) selectedPath = selectedPath.substring(0, selectedPath.length() - 1);
-                    } else {
-                        selectedPath = "";
-                    }
+                    setPath(null);
                     log.trace("refreshFiles: selectedPath={}", selectedPath);
                 } else {
                     // clear out any previous set filter and error
                     filterTextField.reset();
                     errorMessage = null;
-                    // TODO: add ".." to top of list
-                    if (!TextUtils.isEmpty(selectedPath)) {
+                    // add ".." to top of list
+                    if (!TextUtils.isEmpty(selectedPath) && !selectedPath.equals("/")) {
                         DeviceFile upFile = new DeviceFile();
                         upFile.name = "..";
                         upFile.isDirectory = true;
                         fileList.add(0, upFile);
                     }
+                    // TODO: backup selected file(s)
                     model.setFileList(fileList);
+                    // TODO: re-select previously selected file(s)
+                    table.changeSelection(0, 0, true, false);
                 }
                 refreshUi();
             });
@@ -346,7 +363,6 @@ public class ExploreScreen extends BaseScreen {
         } else {
             statusBar.setRightLabel("total: " + rowCount);
         }
-        emptyView.setVisible(rowCount == 0);
     }
 
     private void setupPopupMenu() {
@@ -505,11 +521,7 @@ public class ExploreScreen extends BaseScreen {
                                 "Open " + downloadFile.getName() + "?",
                                 "Open File?", JOptionPane.YES_NO_OPTION);
                         if (openRc != JOptionPane.YES_OPTION) return;
-                        try {
-                            Desktop.getDesktop().open(downloadFile);
-                        } catch (IOException e) {
-                            log.error("handleDownload " + e.getMessage());
-                        }
+                        Utils.openFile(downloadFile);
                     }
                 }
             });
@@ -548,10 +560,18 @@ public class ExploreScreen extends BaseScreen {
         String folders = preferences.get(PREF_GO_TO_FOLDER_LIST, null);
         List<String> customList = GsonHelper.stringToList(folders, String.class);
 
+//        List<String> selectedList = new ArrayList<>();
+//        String[] pathArr = selectedPath.split("/");
+//        for (String path : pathArr) {
+//            selectedList.add(path);
+//        }
+//        selectedList.addAll(customList);
+
         JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
         comboBox.setEditable(true);
         int rc = JOptionPane.showOptionDialog(this, comboBox, "Go to folder", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return;
+
         Object selectedObj = comboBox.getSelectedItem();
         if (selectedObj == null) return;
         String selectedItem = (String) selectedObj;

@@ -1,17 +1,13 @@
 package com.jpage4500.devicemanager.table.utils;
 
-import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.table.DeviceTableModel;
-import com.jpage4500.devicemanager.table.LogsTableModel;
-import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.data.LogFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
-import java.util.Comparator;
 
 public class LogsRowSorter extends TableRowSorter<TableModel> {
     private static final Logger log = LoggerFactory.getLogger(LogsRowSorter.class);
@@ -33,8 +29,8 @@ public class LogsRowSorter extends TableRowSorter<TableModel> {
         return false;
     }
 
-    public void setFilterText(String text) {
-        logsRowFilter.setFilterText(text);
+    public void setFilter(LogFilter... logFilterArr) {
+        logsRowFilter.setFilter(logFilterArr);
     }
 
     @Override
@@ -43,20 +39,24 @@ public class LogsRowSorter extends TableRowSorter<TableModel> {
     }
 
     private class LogsRowFilter extends RowFilter<Object, Object> {
-        private String filterText;
+        private LogFilter[] logFilterArr;
 
         @Override
         public boolean include(Entry<?, ?> entry) {
-            if (filterText == null) return true;
+            // if no filter set, include log row
+            if (logFilterArr == null || logFilterArr.length == 0) return true;
 
+            // ALL filters must match in order to include this row
             LogEntry logEntry = (LogEntry) entry.getValue(0);
-            if (TextUtils.containsIgnoreCase(logEntry.message, filterText)) return true;
-
-            return false;
+            for (LogFilter filter : logFilterArr) {
+                if (filter == null || !filter.isMatch(logEntry)) return false;
+            }
+            // all match!
+            return true;
         }
 
-        public void setFilterText(String text) {
-            filterText = text;
+        public void setFilter(LogFilter... logFilterArr) {
+            this.logFilterArr = logFilterArr;
             sort();
         }
     }

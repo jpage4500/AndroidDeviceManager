@@ -98,24 +98,24 @@ public class BaseScreen extends CustomFrame {
     /**
      * create shortcut key using CMD key
      */
-    protected Action createCmdAction(JMenu menu, String label, int key, CustomActionListener listener) {
+    protected JMenuItem createCmdAction(JMenu menu, String label, int key, CustomActionListener listener) {
         Action action = new AbstractAction(label) {
             @Override
             public void actionPerformed(ActionEvent e) {
                 listener.actionPerformed(e);
             }
         };
-        int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
-        KeyStroke keyStroke = KeyStroke.getKeyStroke(key, mask);
-        action.putValue(Action.ACCELERATOR_KEY, keyStroke);
-
-        if (menu != null) {
-            JMenuItem closeItem = new JMenuItem(label);
-            closeItem.setAction(action);
-            menu.add(closeItem);
+        if (key != 0) {
+            int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+            KeyStroke keyStroke = KeyStroke.getKeyStroke(key, mask);
+            action.putValue(Action.ACCELERATOR_KEY, keyStroke);
         }
 
-        return action;
+        JMenuItem menuItem = new JMenuItem(label);
+        menuItem.setAction(action);
+        menu.add(menuItem);
+
+        return menuItem;
     }
 
     /**

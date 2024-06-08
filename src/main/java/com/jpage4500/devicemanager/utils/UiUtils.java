@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.net.URL;
 
 public class UiUtils {
     private static final Logger log = LoggerFactory.getLogger(UiUtils.class);
@@ -22,14 +23,16 @@ public class UiUtils {
     public static BufferedImage getImage(String path, int w, int h, Color color) {
         try {
             // library offers MUCH better image scaling than ImageIO
-            BufferedImage image = Thumbnails.of(UiUtils.class.getResource("/images/" + path)).size(w, h).asBufferedImage();
+            Thumbnails.Builder<URL> imageBuilder = Thumbnails.of(UiUtils.class.getResource("/images/" + path));
+            imageBuilder = imageBuilder.size(w, h);
+            BufferedImage image = imageBuilder.asBufferedImage();
             if (image != null) {
                 if (color != null) return replaceColor(image, color);
                 else return image;
             }
             log.error("getImage: image not found! {}", path);
         } catch (Exception e) {
-            log.error("getImage: Exception:{}", e.getMessage());
+            log.error("getImage: Exception: url:{}, {}", path, e.getMessage());
         }
         return null;
     }

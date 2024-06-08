@@ -6,6 +6,7 @@ import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.ui.ExploreScreen;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.Utils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -146,20 +147,11 @@ public class SettingsDialog extends JPanel {
         // show logs
         AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
         File logsFile = logger.getFileLog();
-        try {
-            Desktop desktop = Desktop.getDesktop();
-            if (desktop.isSupported(Desktop.Action.EDIT)) {
-                desktop.edit(logsFile);
-                return;
-            } else if (desktop.isSupported(Desktop.Action.OPEN)) {
-                desktop.open(logsFile);
-                return;
-            }
-        } catch (Exception e) {
-            log.error("handleVersionClicked: Exception: {}, {}", logsFile.getAbsolutePath(), e.getMessage());
+        boolean rc = Utils.editFile(logsFile);
+        if (!rc) {
+            // open failed
+            JOptionPane.showConfirmDialog(frame, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
         }
-        // open failed
-        JOptionPane.showConfirmDialog(frame, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
     }
 
     public static List<String> getHiddenColumnList() {

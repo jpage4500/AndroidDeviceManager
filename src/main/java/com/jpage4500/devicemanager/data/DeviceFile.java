@@ -15,8 +15,12 @@ import java.util.Date;
 public class DeviceFile {
     private static final Logger log = LoggerFactory.getLogger(DeviceFile.class);
 
+    // list of common groups an Android adb user can belong to
+    // -- altertiave would be to run 'groups' command to get actual groups
+    // Pixel 7:   shell input log adb sdcard_rw sdcard_r ext_data_rw ext_obb_rw net_bt_admin net_bt inet net_bw_stats readproc uhid readtracefs
+    // Shield TV: shell input log adb sdcard_rw sdcard_r ext_data_rw ext_obb_rw net_bt_admin net_bt inet net_bw_stats readproc uhid
     public static final String[] GROUP_ARR = new String[]{
-            "shell", "everybody", "media_rw"
+            "shell", "everybody", "media_rw", "sdcard_rw", "ext_data_rw", "ext_obb_rw"
     };
     public static final String DEFAULT_USER = "shell";
 
@@ -28,6 +32,7 @@ public class DeviceFile {
     public String permissions;
     public String user;
     public String group;
+    public String security;
 
     public boolean isDirectory;
     public boolean isSymbolicLink;
@@ -50,19 +55,25 @@ public class DeviceFile {
         //l?????????   ? ?      ?             ?                ? init -> ?
         //lrw-r--r--   1 root   root         21 2008-12-31 19:00 sdcard -> /storage/self/primary
         //drwx--x---   4 shell  everybody    80 2024-05-22 10:00 storage
+
+        // NOTE: using "ls -alZ" produces:
+        // lrwxrwxrwx  1 root shell u:object_r:system_file:s0                       6 2024-06-05 10:00 brctl -> toybox
+        // drwx--x---   4 shell  everybody u:object_r:mnt_user_file:s0             80 2024-06-05 10:00 storage
+
         if (line == null) return null;
-        String[] lineArr = line.split("\\s+", 8);
-        if (lineArr.length < 8) {
+        String[] lineArr = line.split("\\s+", 9);
+        if (lineArr.length < 9) {
             //log.trace("fromEntry: invalid line:{}", line);
             return null;
         }
         String permissions = lineArr[0];
         String user = lineArr[2];
         String group = lineArr[3];
-        String size = lineArr[4];
-        String date = lineArr[5];
-        String time = lineArr[6];
-        String name = lineArr[7];
+        String security = lineArr[4];
+        String size = lineArr[5];
+        String date = lineArr[6];
+        String time = lineArr[7];
+        String name = lineArr[8];
 
         // make sure these fields are not empty
         if (TextUtils.isEmptyAny(group, user, size, date, time, name)) return null;
@@ -110,7 +121,14 @@ public class DeviceFile {
             // look at other permissions (chars 7-9)
             permissions.getChars(7, 10, checkPermissions, 0);
         }
+        char executePermission = checkPermissions[2];
         if (checkPermissions[0] != 'r') file.isReadOnly = true;
+        // TODO: better understand permissions needed to view a folder
+        // folders: check execute bit for either 'x' or 's' (setuid)
+        if (file.isDirectory && (executePermission != 'x' && executePermission != 's')) file.isReadOnly = true;
+
+        file.security = security;
+        String securityType = TextUtils.split(security, ":", 2);
 
         // -- name --
         file.name = name.replaceAll("\\\\", "");
@@ -118,8 +136,16 @@ public class DeviceFile {
             // sdcard -> /storage/self/primary
             int index = file.name.indexOf(" -> ");
             if (index > 0) file.name = file.name.substring(0, index);
-        }
 
+            // security context for files:
+            // system_file, toolbox_exec
+            if (TextUtils.equalsIgnoreCaseAny(securityType, "system_file", "toolbox_exec", "system_linker_exec")) {
+                file.isDirectory = false;
+            } else {
+                file.isDirectory = true;
+            }
+
+        }
         return file;
     }
 

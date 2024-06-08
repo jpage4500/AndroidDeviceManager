@@ -143,6 +143,19 @@ public class TextUtils {
         return src.regionMatches(true, src.length() - suffixLength, endsWith, 0, suffixLength);
     }
 
+    public static boolean endsWithAny(String message, boolean ignoreCase, String... endsWithArr) {
+        if (message == null) return false;
+        for (String str : endsWithArr) {
+            if (ignoreCase) {
+                boolean endsWith = endsWithIgnoreCase(message, str);
+                if (endsWith) return true;
+            } else {
+                if (message.endsWith(str)) return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean startsWith(String message, String prefixAttachment) {
         if (message == null) return false;
         else return message.startsWith(prefixAttachment);
@@ -159,7 +172,7 @@ public class TextUtils {
                     if (isFound) return true;
                 }
             } else {
-                if (str.startsWith(str)) return true;
+                if (message.startsWith(str)) return true;
             }
         }
         return false;

@@ -37,6 +37,9 @@ public class CustomTable extends JTable {
 
     private int selectedColumn = -1;
 
+    private String emptyText;
+    private Image emptyImage;
+
     public interface ClickListener {
         /**
          * @param row    converted to model row
@@ -74,6 +77,7 @@ public class CustomTable extends JTable {
 
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
+        setOpaque(false);
 
         createScrollPane();
 
@@ -125,7 +129,40 @@ public class CustomTable extends JTable {
     }
 
     private void createScrollPane() {
-        scrollPane = new JScrollPane(this);
+        scrollPane = new JScrollPane(this) {
+            @Override
+            public void paint(Graphics graphics) {
+                super.paint(graphics);
+                if (emptyImage != null) {
+                    int headerH = getTableHeader().getHeight();
+                    int width = getWidth();
+                    int imgW = emptyImage.getWidth(null);
+                    int imgH = emptyImage.getHeight(null);
+                    double aspectRatio = width / (double) imgW;
+                    double drawImageH = imgH * aspectRatio;
+                    // make image semi-transparent
+                    Graphics2D g2d = (Graphics2D) graphics.create();
+                    g2d.setComposite(AlphaComposite.SrcOver.derive(0.2f));
+                    g2d.drawImage(emptyImage, 0, headerH, width, (int) drawImageH, null);
+                    g2d.dispose();
+                }
+                if (getRowCount() == 0 && emptyText != null) {
+                    Font font = graphics.getFont().deriveFont(Font.BOLD, 22);
+                    graphics.setFont(font);
+                    int textW = graphics.getFontMetrics().stringWidth(emptyText);
+                    int width = getWidth();
+                    int headerH = getTableHeader().getHeight();
+                    int x = width / 2 - (textW / 2);
+                    int y = headerH * 2;
+                    if (x >= 0 && y >= 0) {
+                        graphics.drawString(emptyText, x, y);
+                    }
+                }
+            }
+        };
+        scrollPane.setOpaque(false);
+        scrollPane.getViewport().setOpaque(false);
+
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scrollPane.addMouseListener(new MouseAdapter() {
             @Override
@@ -172,7 +209,6 @@ public class CustomTable extends JTable {
     @Override
     public void setModel(TableModel dataModel) {
         super.setModel(dataModel);
-        //restore();
     }
 
     @Override
@@ -256,6 +292,12 @@ public class CustomTable extends JTable {
             scrollToRow = Math.min(lastRow + numRows, getRowCount() - 1);
         }
         scrollRectToVisible(getCellRect(scrollToRow, 0, true));
+    }
+
+    public void setEmptyText(String emptyText) {
+        this.emptyText = emptyText;
+
+        emptyImage = UiUtils.getImage("empty_image.png", 500);
     }
 
     public static class ColumnDetails {

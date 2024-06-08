@@ -21,12 +21,39 @@ public class LogsTableModel extends AbstractTableModel {
     private final Map<String, String> processMap;
     private String searchText;
 
+    /**
+     * get text value for a given LogEntry and column
+     */
+    public String getTextValue(int row, int column) {
+        LogEntry logEntry = (LogEntry) getValueAt(row, column);
+        if (logEntry == null) return null;
+        LogsTableModel.Columns col = LogsTableModel.Columns.values()[column];
+        return switch (col) {
+            case DATE -> logEntry.date;
+            case APP -> {
+                // set app using app <-> pid list
+                logEntry.app = getAppForPid(logEntry.pid);
+                yield logEntry.app;
+            }
+            case TID -> {
+                if (TextUtils.equals(logEntry.tid, logEntry.pid)) yield "-";
+                yield logEntry.tid;
+            }
+            case PID -> logEntry.pid;
+            case LEVEL -> logEntry.level;
+            case TAG -> logEntry.tag;
+            case MSG -> logEntry.message;
+        };
+
+    }
+
     public enum Columns {
         DATE,
         APP,
         TID,
         PID,
         LEVEL,
+        TAG,
         MSG,
     }
 
@@ -73,7 +100,6 @@ public class LogsTableModel extends AbstractTableModel {
             //log.trace("checkSizeAndUpdate: removing:{}, size:{}", numRemove, logEntryList.size());
             logEntryList.subList(0, numRemove).clear();
             fireTableRowsDeleted(0, numRemove - 1);
-            //fireTableDataChanged();
         } else {
             int startPos = logEntryList.size() - numAdded;
             int endPos = logEntryList.size() - 1;
@@ -88,6 +114,17 @@ public class LogsTableModel extends AbstractTableModel {
     @Override
     public Class<?> getColumnClass(int columnIndex) {
         return LogEntry.class;
+    }
+
+    /**
+     * return one of the predefined columns
+     */
+    public LogsTableModel.Columns getColumnType(int colIndex) {
+        Columns[] values = Columns.values();
+        if (colIndex < values.length) {
+            return values[colIndex];
+        }
+        return null;
     }
 
     public String getColumnName(int i) {
