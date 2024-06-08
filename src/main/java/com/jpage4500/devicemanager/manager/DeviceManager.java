@@ -50,6 +50,10 @@ public class DeviceManager {
 
     public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
 
+    public static final String ERR_ROOT_NOT_AVAILABLE = "root not available";
+    public static final String ERR_PERMISSION_DENIED = "permission denied";
+    public static final String ERR_NOT_A_DIRECTORY = "Not a directory";
+
     private static volatile DeviceManager instance;
 
     private final List<Device> deviceList;
@@ -589,12 +593,17 @@ public class DeviceManager {
                     if (file != null) fileList.add(file);
                     else if (i == 0) {
                         // not a valid file/dir listing; check for known errors
-                        if (TextUtils.containsAny(dir, true, "permission denied")) {
-                            listener.handleFiles(null, "permission denied");
+                        if (TextUtils.contains(dir, "su:")) {
+                            listener.handleFiles(null, ERR_ROOT_NOT_AVAILABLE);
+                            return;
+                        } else if (TextUtils.containsAny(dir, true, "permission denied")) {
+                            listener.handleFiles(null, ERR_PERMISSION_DENIED);
                             return;
                         } else if (TextUtils.containsAny(dir, true, "Not a directory", "No such file or directory")) {
-                            listener.handleFiles(null, "Not a directory");
+                            listener.handleFiles(null, ERR_NOT_A_DIRECTORY);
                             return;
+                        } else {
+                            log.trace("listFiles: {}", dir);
                         }
                     }
                 }

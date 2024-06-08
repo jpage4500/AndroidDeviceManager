@@ -246,7 +246,7 @@ public class ExploreScreen extends BaseScreen {
             return;
         }
         List<DeviceFile> selectedFiles = getSelectedFiles();
-        log.debug("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
+        if (log.isTraceEnabled()) log.trace("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
         if (selectedFiles.isEmpty()) return;
         DeviceFile selectedFile = selectedFiles.get(0);
         if (selectedFile.isDirectory) {
@@ -259,7 +259,7 @@ public class ExploreScreen extends BaseScreen {
                     // root folder
                     setPath("");
                 }
-                log.debug("mouseClicked: UP: {} -> {}", prevPath, selectedPath);
+                log.debug("handleFileClicked: UP: {} -> {}", prevPath, selectedPath);
             } else {
                 // append selected folder to current path
                 if (TextUtils.equals(selectedPath, "/")) setPath(selectedFile.name);
@@ -292,7 +292,7 @@ public class ExploreScreen extends BaseScreen {
         }
 
         // selectedPath should never end with "/"
-        if (path.endsWith("/")) path = path.substring(0, path.length() - 1);
+        if (path.length() > 1 && path.endsWith("/")) path = path.substring(0, path.length() - 1);
         else if (TextUtils.isEmpty(path)) path = "/";
 
         // path should always start with "/"
@@ -312,11 +312,12 @@ public class ExploreScreen extends BaseScreen {
             SwingUtilities.invokeLater(() -> {
                 if (error != null) {
                     errorMessage = error;
-                    if (useRoot && TextUtils.contains(error, "su")) {
+                    if (useRoot && TextUtils.equals(error, DeviceManager.ERR_ROOT_NOT_AVAILABLE)) {
                         JOptionPane.showMessageDialog(this, "ROOT not available!");
                         toggleRoot();
-                    } else if (TextUtils.containsAny(error, true, "permission denied")) {
+                    } else if (TextUtils.equals(error, DeviceManager.ERR_PERMISSION_DENIED)) {
                         errorMessage = "permission denied";
+                        // revert to previous directory
                         setPath(null);
                     }
                     refreshUi();
