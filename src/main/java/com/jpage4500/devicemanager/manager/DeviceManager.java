@@ -36,6 +36,7 @@ public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
 
     // adb commands
+    public static final String COMMAND_DEVICE_NICKNAME = "settings get global device_name";
     public static final String COMMAND_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 com.android.shell";
     public static final String COMMAND_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
     public static final String COMMAND_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
@@ -241,6 +242,12 @@ public class DeviceManager {
             device.busyCounter.incrementAndGet();
             listener.handleDeviceUpdated(device);
             if (fullRefresh) {
+                // -- device nickname --
+                List<String> nicknameLines = runShell(device, COMMAND_DEVICE_NICKNAME);
+                if (!nicknameLines.isEmpty()) {
+                    device.nickname = nicknameLines.get(0).trim();
+                }
+
                 // -- phone number --
                 device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
                 if (TextUtils.isEmpty(device.phone)) device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);

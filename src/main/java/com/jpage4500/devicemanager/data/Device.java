@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.data;
 
 import com.jpage4500.devicemanager.utils.ExcludeFromSerialization;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import se.vidstige.jadb.JadbDevice;
 
 import java.util.HashMap;
@@ -30,6 +31,7 @@ public class Device {
     }
 
     public String serial;
+    public String nickname;
     public String phone;
     public String imei;
     public Long freeSpace;
@@ -69,8 +71,11 @@ public class Device {
      */
     public String getDisplayName() {
         StringBuilder sb = new StringBuilder();
-        String model = getProperty(PROP_MODEL);
-        if (model != null) sb.append(model);
+        if (TextUtils.notEmpty(nickname)) sb.append(nickname);
+        else {
+            String model = getProperty(PROP_MODEL);
+            if (model != null) sb.append(model);
+        }
         if (phone != null) {
             if (!sb.isEmpty()) sb.append(" - ");
             sb.append(phone);

@@ -21,6 +21,7 @@ public class DeviceTableModel extends AbstractTableModel {
     public enum Columns {
         NAME,
         SERIAL,
+        MODEL,
         PHONE,
         IMEI,
         BATTERY,
@@ -153,7 +154,8 @@ public class DeviceTableModel extends AbstractTableModel {
             DeviceTableModel.Columns colType = visibleColumns[column];
             return switch (colType) {
                 case SERIAL -> device.serial;
-                case NAME -> device.getProperty(Device.PROP_MODEL);
+                case NAME -> TextUtils.firstValid(device.nickname, device.getProperty(Device.PROP_MODEL));
+                case MODEL -> device.getProperty(Device.PROP_MODEL);
                 case PHONE -> device.phone;
                 case IMEI -> device.imei;
                 case FREE -> FileUtils.bytesToGigDisplayString(device.freeSpace);
