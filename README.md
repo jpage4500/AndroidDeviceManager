@@ -23,9 +23,14 @@ Java desktop app to manage multiple Android devices via adb
 - **View version** of user-defined list of apps
 
 ## Screenshots ##
-![](resources/screenshot-main.jpg)
-![](resources/screenshot-browse.jpg)
-![](resources/screenshot-logs.jpg)
+<img src="resources/screenshot-main.jpg" width="600" alt="devices">
+<br>
+<img src="resources/screenshot-mirror.jpg" width="600" alt="devices">
+<br>
+<img src="resources/screenshot-browse.jpg" width="300" alt="file explorer">
+<br>
+<img src="resources/screenshot-logs.jpg" width="600" alt="logs">
+<br>
 
 ## Requirements
 

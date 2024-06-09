@@ -28,6 +28,7 @@ public class SettingsDialog extends JPanel {
     public static final String PREF_CUSTOM_APPS = "PREF_CUSTOM_APPS";
     public static final String PREF_DEBUG_MODE = "PREF_DEBUG_MODE";
     public static final String PREF_HIDDEN_COLUMNS = "PREF_HIDDEN_COLUMNS";
+    public static final String PREF_CHECK_UPDATES = "PREF_CHECK_UPDATES";
 
     private Component frame;
     private DeviceTableModel tableModel;
@@ -44,6 +45,8 @@ public class SettingsDialog extends JPanel {
     private SettingsDialog(Component frame, DeviceTableModel tableModel) {
         this.frame = frame;
         this.tableModel = tableModel;
+
+        Preferences preferences = Preferences.userRoot();
         setLayout(new MigLayout("", "[][]"));
 
         // columns
@@ -79,9 +82,20 @@ public class SettingsDialog extends JPanel {
         });
         add(appButton, "wrap");
 
+        JCheckBox updateCheckbox = new JCheckBox("Check for updates");
+        boolean checkUpdates = preferences.getBoolean(SettingsDialog.PREF_CHECK_UPDATES, true);
+        updateCheckbox.setSelected(checkUpdates);
+        updateCheckbox.setHorizontalTextPosition(SwingConstants.LEFT);
+        updateCheckbox.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                preferences.putBoolean(PREF_CHECK_UPDATES, updateCheckbox.isSelected());
+            }
+        });
+        add(updateCheckbox, "span 2, al right, wrap");
+
         add(new JSeparator(), "growx, spanx, wrap");
 
-        Preferences preferences = Preferences.userRoot();
         boolean isDebugMode = preferences.getBoolean(PREF_DEBUG_MODE, false);
         debugCheckbox = new JCheckBox("Debug Mode");
         debugCheckbox.setHorizontalTextPosition(SwingConstants.LEFT);

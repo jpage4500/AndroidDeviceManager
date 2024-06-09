@@ -67,11 +67,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         connectAdbServer();
 
-        checkForUpdates();
+        Preferences preferences = Preferences.userRoot();
+        if (preferences.getBoolean(SettingsDialog.PREF_CHECK_UPDATES, true)) {
+            checkForUpdates();
+        }
     }
 
     private void connectAdbServer() {
-        DeviceManager.getInstance().connectAdbServer(this);
+        DeviceManager.getInstance().connectAdbServer(true, this);
     }
 
     @Override
@@ -240,6 +243,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setPreferredWidth(31);
         columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setMaxWidth(31);
         columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setPreferredWidth(66);
+        columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setMaxWidth(80);
 
         // restore user-defined column sizes
         table.restore();
@@ -690,6 +694,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         JPanel panel = new JPanel(new MigLayout());
         addDeviceDetail(panel, "Serial", device.serial);
+        addDeviceDetail(panel, "Nickname", device.nickname);
         addDeviceDetail(panel, "Model", device.getProperty(Device.PROP_MODEL));
         addDeviceDetail(panel, "Phone", device.phone);
         addDeviceDetail(panel, "IMEI", device.imei);

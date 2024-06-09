@@ -36,6 +36,7 @@ public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
 
     // adb commands
+    public static final String COMMAND_DEVICE_NICKNAME = "settings get global device_name";
     public static final String COMMAND_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 com.android.shell";
     public static final String COMMAND_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
     public static final String COMMAND_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
@@ -45,6 +46,7 @@ public class DeviceManager {
     public static final String COMMAND_DUMPSYS_BATTERY = "dumpsys battery";
 
     // scripts that app will run
+    private static final String SCRIPT_START_SERVER = "start-server";
     private static final String SCRIPT_TERMINAL = "terminal";
     private static final String SCRIPT_MIRROR = "mirror";
 
@@ -99,7 +101,7 @@ public class DeviceManager {
         void handleException(Exception e);
     }
 
-    public void connectAdbServer(DeviceManager.DeviceListener listener) {
+    public void connectAdbServer(boolean allowRetry, DeviceManager.DeviceListener listener) {
         connection = new JadbConnection();
         commandExecutorService.submit(() -> {
             try {
@@ -119,7 +121,11 @@ public class DeviceManager {
                 }).run();
             } catch (Exception e) {
                 log.error("Exception: {}", e.getMessage());
-                listener.handleException(e);
+                // likley because adb server isn't running.. try to start it now
+                startServer((isSuccess, error) -> {
+                    if (isSuccess && allowRetry) connectAdbServer(false, listener);
+                    else listener.handleException(e);
+                });
             }
         });
     }
@@ -236,6 +242,12 @@ public class DeviceManager {
             device.busyCounter.incrementAndGet();
             listener.handleDeviceUpdated(device);
             if (fullRefresh) {
+                // -- device nickname --
+                List<String> nicknameLines = runShell(device, COMMAND_DEVICE_NICKNAME);
+                if (!nicknameLines.isEmpty()) {
+                    device.nickname = nicknameLines.get(0).trim();
+                }
+
                 // -- phone number --
                 device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
                 if (TextUtils.isEmpty(device.phone)) device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
@@ -567,6 +579,17 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             File scriptFile = getScriptFile(SCRIPT_TERMINAL);
             runApp(scriptFile.getAbsolutePath(), true, device.serial);
+        });
+    }
+
+    /**
+     * start ADB server
+     */
+    public void startServer(TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            File scriptFile = getScriptFile(SCRIPT_START_SERVER);
+            AppResult appResult = runApp(scriptFile.getAbsolutePath(), false);
+            listener.onTaskComplete(appResult.isSuccess, GsonHelper.toJson(appResult.stdErr));
         });
     }
 
@@ -983,7 +1006,7 @@ public class DeviceManager {
                 if (isExited) {
                     exitValue = process.exitValue();
                 } else {
-                    log.error("runScript: {}: NOT FINISHED: {}, args:{}", timer, app, GsonHelper.toJson(args));
+                    log.error("runApp: {}: NOT FINISHED: {}, args:{}", timer, app, GsonHelper.toJson(args));
                 }
             }
             result.isSuccess = exitValue == 0;
@@ -995,15 +1018,15 @@ public class DeviceManager {
 
             if (result.isSuccess) {
                 if (log.isTraceEnabled())
-                    log.trace("runScript: DONE: {}: {}, STDOUT:{}, STDERR:{}", timer, app, GsonHelper.toJson(result.stdOut), GsonHelper.toJson(result.stdErr));
+                    log.trace("runApp: SUCCESS: {}: {}, STDOUT:{}, STDERR:{}", timer, app, GsonHelper.toJson(result.stdOut), GsonHelper.toJson(result.stdErr));
             } else {
-                log.error("runScript: {}: ERROR: {}, rc:{}, STDOUT:{}, STDERR:{}", timer, app, exitValue, GsonHelper.toJson(result.stdOut), GsonHelper.toJson(result.stdErr));
+                log.error("runApp: {}: ERROR: {}, rc:{}, STDOUT:{}, STDERR:{}", timer, app, exitValue, GsonHelper.toJson(result.stdOut), GsonHelper.toJson(result.stdErr));
             }
             return result;
         } catch (Exception e) {
             result.isSuccess = false;
             result.stdErr = List.of("Exception: " + e.getMessage());
-            log.error("runScript: {}: Exception: {}, {}, {}", timer, app, e.getClass().getSimpleName(), e.getMessage());
+            log.error("runApp: {}: Exception: {}, {}, {}", timer, app, e.getClass().getSimpleName(), e.getMessage());
         }
         return result;
     }
