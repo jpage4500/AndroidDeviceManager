@@ -36,7 +36,7 @@ public class Device {
     public String imei;
     public Long freeSpace;
     public Integer batteryLevel;
-    public PowerStatus powerStatus;
+    public PowerStatus powerStatus = PowerStatus.POWER_NONE;
 
     // optional status description (error message, etc)
     public String status;

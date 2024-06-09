@@ -161,7 +161,7 @@ public class DeviceTableModel extends AbstractTableModel {
                 case FREE -> FileUtils.bytesToGigDisplayString(device.freeSpace);
                 case BATTERY -> {
                     String level = device.batteryLevel != null ? String.valueOf(device.batteryLevel) : "";
-                    if (device.powerStatus != null) level += " - " + device.powerStatus;
+                    if (device.powerStatus != Device.PowerStatus.POWER_NONE) level += " - " + device.powerStatus;
                     yield level;
                 }
                 case CUSTOM1 -> device.getCustomProperty(Device.CUST_PROP_1);
