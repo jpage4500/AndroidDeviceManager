@@ -67,7 +67,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         connectAdbServer();
 
-        checkForUpdates();
+        Preferences preferences = Preferences.userRoot();
+        if (preferences.getBoolean(SettingsDialog.PREF_CHECK_UPDATES, true)) {
+            checkForUpdates();
+        }
     }
 
     private void connectAdbServer() {
