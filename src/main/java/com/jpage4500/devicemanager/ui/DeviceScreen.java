@@ -71,7 +71,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void connectAdbServer() {
-        DeviceManager.getInstance().connectAdbServer(this);
+        DeviceManager.getInstance().connectAdbServer(true, this);
     }
 
     @Override
