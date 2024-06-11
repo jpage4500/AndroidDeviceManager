@@ -4,7 +4,7 @@ import com.formdev.flatlaf.FlatLightLaf;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
-import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,7 +14,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.IOException;
 import java.util.Properties;
-import java.util.prefs.Preferences;
 
 public class MainApplication {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
@@ -58,8 +57,7 @@ public class MainApplication {
         logger.setDebugLevel(Log.VERBOSE);
         logger.setLogToFile(true);
 
-        Preferences preferences = Preferences.userRoot();
-        boolean isDebugMode = preferences.getBoolean(SettingsDialog.PREF_DEBUG_MODE, false);
+        boolean isDebugMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false);
         logger.setFileLogLevel(isDebugMode ? Log.DEBUG : Log.INFO);
     }
 

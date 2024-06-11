@@ -152,9 +152,7 @@ public class InputScreen {
         panel.add(textField, "growx, span 2, wrap");
 
         JButton sendButton = new JButton("Send");
-        sendButton.addActionListener(e -> {
-            handleEnterPressed();
-        });
+        sendButton.addActionListener(e -> handleEnterPressed());
         panel.add(sendButton, "al right, span 2, wrap");
 
         frame.setContentPane(panel);

@@ -6,10 +6,8 @@ import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.ExploreScreen;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.*;
 import com.jpage4500.devicemanager.utils.Timer;
-import com.jpage4500.devicemanager.utils.Utils;
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
@@ -485,8 +483,7 @@ public class DeviceManager {
 
     public void captureScreenshot(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            Preferences preferences = Preferences.userRoot();
-            String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
+            String downloadFolder = Utils.getDownloadFolder();
             // 20211215-1441PM-1.png
             String name = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date()) + ".png";
             try {
@@ -646,9 +643,7 @@ public class DeviceManager {
 
     public void downloadFile(Device device, String path, DeviceFile file, File saveFile, TaskListener listener) {
         log.debug("downloadFile: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
-        commandExecutorService.submit(() -> {
-            downloadFileInternal(device, path, file, saveFile);
-        });
+        commandExecutorService.submit(() -> downloadFileInternal(device, path, file, saveFile));
     }
 
     /**

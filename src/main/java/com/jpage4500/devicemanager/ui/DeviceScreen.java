@@ -35,7 +35,6 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 import java.util.*;
-import java.util.prefs.Preferences;
 
 /**
  * create and manage device view
@@ -44,7 +43,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private static final Logger log = LoggerFactory.getLogger(DeviceScreen.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
-    public static final String PREF_ALWAYS_ON_TOP = "PREF_ALWAYS_ON_TOP";
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -67,8 +65,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         connectAdbServer();
 
-        Preferences preferences = Preferences.userRoot();
-        if (preferences.getBoolean(SettingsDialog.PREF_CHECK_UPDATES, true)) {
+        // check for updates (default: true)
+        boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
+        if (checkUpdates) {
             checkForUpdates();
         }
     }
@@ -167,24 +166,17 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         });
 
         // [CMD + 2] = show explorer
-        createCmdAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> {
-            handleBrowseCommand();
-        });
+        createCmdAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> handleBrowseCommand());
 
         // [CMD + 3] = show logs
-        createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> {
-            handleLogsCommand();
-        });
+        createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> handleLogsCommand());
 
         // [CMD + T] = hide toolbar
-        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> {
-            hideToolbar();
-        });
+        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
         // always on top
         JCheckBoxMenuItem onTopItem = new JCheckBoxMenuItem();
-        Preferences preferences = Preferences.userRoot();
-        boolean isAlwaysOnTop = preferences.getBoolean(PREF_ALWAYS_ON_TOP, false);
+        boolean isAlwaysOnTop = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_ALWAYS_ON_TOP, false);
         setAlwaysOnTop(isAlwaysOnTop);
         onTopItem.setState(isAlwaysOnTop);
         onTopItem.setAction(new AbstractAction("Always on top") {
@@ -192,7 +184,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             public void actionPerformed(ActionEvent actionEvent) {
                 boolean alwaysOnTop = !isAlwaysOnTop();
                 setAlwaysOnTop(alwaysOnTop);
-                preferences.putBoolean(PREF_ALWAYS_ON_TOP, alwaysOnTop);
+                PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_ALWAYS_ON_TOP, alwaysOnTop);
             }
         });
         windowMenu.add(onTopItem);
@@ -200,14 +192,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JMenu deviceMenu = new JMenu("Devices");
 
         // [CMD + F] = focus search box
-        createCmdAction(deviceMenu, "Filter", KeyEvent.VK_F, e -> {
-            filterTextField.requestFocus();
-        });
+        createCmdAction(deviceMenu, "Filter", KeyEvent.VK_F, e -> filterTextField.requestFocus());
 
         // [CMD + N] = connect device
-        createCmdAction(deviceMenu, "Connect Device", KeyEvent.VK_N, e -> {
-            handleConnectDevice();
-        });
+        createCmdAction(deviceMenu, "Connect Device", KeyEvent.VK_N, e -> handleConnectDevice());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -367,13 +355,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             BufferedImage image = UiUtils.getImage("android.png", 40, 40);
             PopupMenu popup = new PopupMenu();
             MenuItem openItem = new MenuItem("Open");
-            openItem.addActionListener(e2 -> {
-                bringWindowToFront();
-            });
+            openItem.addActionListener(e2 -> bringWindowToFront());
             MenuItem quitItem = new MenuItem("Quit");
-            quitItem.addActionListener(e2 -> {
-                System.exit(0);
-            });
+            quitItem.addActionListener(e2 -> System.exit(0));
             popup.add(openItem);
             popup.add(quitItem);
             trayIcon = new TrayIcon(image, "Android Device Manager", popup);
@@ -406,9 +390,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             setState(JFrame.ICONIFIED);
             Utils.runDelayed(300, true, () -> {
                 setState(JFrame.NORMAL);
-                Utils.runDelayed(300, true, () -> {
-                    setState(JFrame.NORMAL);
-                });
+                Utils.runDelayed(300, true, () -> setState(JFrame.NORMAL));
             });
         });
     }
@@ -462,8 +444,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (columnType == null) return;
         List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
         hiddenColList.add(columnType.name());
-        Preferences preferences = Preferences.userRoot();
-        preferences.put(SettingsDialog.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
         model.setHiddenColumns(hiddenColList);
     }
 
@@ -533,11 +514,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             showSelectDevicesDialog();
             return;
         }
+        installOrCopyFiles(selectedDeviceList, fileList, null);
+    }
 
+    public void installOrCopyFiles(List<Device> selectedDeviceList, List<File> fileList, DeviceManager.TaskListener listener) {
         boolean isApk = false;
         StringBuilder name = new StringBuilder();
         for (File file : fileList) {
-            if (name.length() > 0) name.append(", ");
+            if (!name.isEmpty()) name.append(", ");
             String filename = file.getName();
             name.append(filename);
             if (filename.endsWith(".apk")) {
@@ -561,6 +545,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         log.debug("handleFilesDropped: installing: {}", name);
 
         ResultWatcher resultWatcher = new ResultWatcher(selectedDeviceList.size() * fileList.size());
+        resultWatcher.setListener(listener);
         for (Device device : selectedDeviceList) {
             for (File file : fileList) {
                 String filename = file.getName();
@@ -574,7 +559,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                         resultWatcher.handleResult(getRootPane(), result);
                     });
                 } else {
-                    // TODO: where to put files?
+                    // TODO: where to put files on device?
                     DeviceManager.getInstance().copyFile(device, file, "/sdcard/Download/", (isSuccess, error) -> {
                         setDeviceBusy(device, false);
                         String result = "COPY: " + filename + " -> " +
@@ -849,9 +834,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().restartDevice(device, (isSuccess, error) -> {
-                refreshDevices();
-            });
+            DeviceManager.getInstance().restartDevice(device, (isSuccess, error) -> refreshDevices());
         }
     }
 
@@ -873,8 +856,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             return;
         }
 
-        Preferences preferences = Preferences.userRoot();
-        String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
+        String downloadFolder = Utils.getDownloadFolder();
 
         JFileChooser chooser = new JFileChooser();
         chooser.setCurrentDirectory(new File(downloadFolder));

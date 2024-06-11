@@ -164,19 +164,13 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         });
 
         // [CMD + 1] = show devices
-        createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
-            deviceScreen.toFront();
-        });
+        createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
 
         // [CMD + 2] = show explorer
-        createCmdAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> {
-            deviceScreen.handleBrowseCommand();
-        });
+        createCmdAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand());
 
         // [CMD + T] = hide toolbar
-        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> {
-            hideToolbar();
-        });
+        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
         JMenu logsMenu = new JMenu("Logs");
 
@@ -193,29 +187,19 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         });
 
         // [CMD + KEY_DOWN] = scroll to bottom
-        createCmdAction(logsMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> {
-            table.scrollToBottom();
-        });
+        createCmdAction(logsMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
 
         // [CMD + KEY_UP] = page up
-        createOptionAction(logsMenu, "Page Up", KeyEvent.VK_UP, e -> {
-            table.pageUp();
-        });
+        createOptionAction(logsMenu, "Page Up", KeyEvent.VK_UP, e -> table.pageUp());
 
         // [CMD + KE_DOWN] = page down
-        createOptionAction(logsMenu, "Page Down", KeyEvent.VK_DOWN, e -> {
-            table.pageDown();
-        });
+        createOptionAction(logsMenu, "Page Down", KeyEvent.VK_DOWN, e -> table.pageDown());
 
         // [CMD + K] = clear logs
-        createCmdAction(logsMenu, "Clear logs", KeyEvent.VK_K, e -> {
-            model.clearLogs();
-        });
+        createCmdAction(logsMenu, "Clear logs", KeyEvent.VK_K, e -> model.clearLogs());
 
         // [CMD + F] = focus search field
-        createCmdAction(windowMenu, "Search for...", KeyEvent.VK_1, e -> {
-            searchField.requestFocus();
-        });
+        createCmdAction(windowMenu, "Search for...", KeyEvent.VK_1, e -> searchField.requestFocus());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -361,9 +345,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     private void setupToolbar() {
         toolbar.setRollover(true);
 
-        logButton = createSmallToolbarButton(toolbar, null, null, "Start Logging", actionEvent -> {
-            toggleLoggingButton();
-        });
+        logButton = createSmallToolbarButton(toolbar, null, null, "Start Logging", actionEvent -> toggleLoggingButton());
         updateLoggingButton();
 
         toolbar.add(Box.createHorizontalGlue());
@@ -427,9 +409,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
 
         filterList.setListData(filterItemList.toArray(new FilterItem[0]));
         filterList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        filterList.addListSelectionListener(e -> {
-            filterDevices(filterField.getCleanText());
-        });
+        filterList.addListSelectionListener(e -> filterDevices(filterField.getCleanText()));
     }
 
     private void addLogLevel(List<FilterItem> filterItemList, String label, String filter) {
@@ -480,9 +460,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
 
     @Override
     public void handleProcessMap(Map<String, String> processMap) {
-        SwingUtilities.invokeLater(() -> {
-            model.setProcessMap(processMap);
-        });
+        SwingUtilities.invokeLater(() -> model.setProcessMap(processMap));
     }
 
 }

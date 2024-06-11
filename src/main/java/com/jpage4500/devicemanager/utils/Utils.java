@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.utils;
 
+import com.jpage4500.devicemanager.ui.ExploreScreen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,6 +10,7 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.prefs.Preferences;
 
 public class Utils {
     private static final Logger log = LoggerFactory.getLogger(Utils.class);
@@ -74,6 +76,15 @@ public class Utils {
             log.error("editFile: Exception: {}, {}", file.getAbsolutePath(), e.getMessage());
             return false;
         }
+    }
+
+    public static String getDownloadFolder() {
+        String downloadFolder = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_DOWNLOAD_FOLDER);
+        if (TextUtils.isEmpty(downloadFolder)) {
+            // default download folder = ~/Downloads
+            downloadFolder = System.getProperty("user.home") + "/Downloads";
+        }
+        return downloadFolder;
     }
 
     public enum CompareResult {

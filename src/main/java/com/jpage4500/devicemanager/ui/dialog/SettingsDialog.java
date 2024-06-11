@@ -3,9 +3,9 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
-import com.jpage4500.devicemanager.ui.ExploreScreen;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.Utils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -25,10 +25,6 @@ import java.util.prefs.Preferences;
 
 public class SettingsDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(SettingsDialog.class);
-    public static final String PREF_CUSTOM_APPS = "PREF_CUSTOM_APPS";
-    public static final String PREF_DEBUG_MODE = "PREF_DEBUG_MODE";
-    public static final String PREF_HIDDEN_COLUMNS = "PREF_HIDDEN_COLUMNS";
-    public static final String PREF_CHECK_UPDATES = "PREF_CHECK_UPDATES";
 
     private Component frame;
     private DeviceTableModel tableModel;
@@ -46,7 +42,6 @@ public class SettingsDialog extends JPanel {
         this.frame = frame;
         this.tableModel = tableModel;
 
-        Preferences preferences = Preferences.userRoot();
         setLayout(new MigLayout("", "[][]"));
 
         // columns
@@ -83,26 +78,26 @@ public class SettingsDialog extends JPanel {
         add(appButton, "wrap");
 
         JCheckBox updateCheckbox = new JCheckBox("Check for updates");
-        boolean checkUpdates = preferences.getBoolean(SettingsDialog.PREF_CHECK_UPDATES, true);
+        boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
         updateCheckbox.setSelected(checkUpdates);
         updateCheckbox.setHorizontalTextPosition(SwingConstants.LEFT);
         updateCheckbox.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                preferences.putBoolean(PREF_CHECK_UPDATES, updateCheckbox.isSelected());
+                PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, updateCheckbox.isSelected());
             }
         });
         add(updateCheckbox, "span 2, al right, wrap");
 
         add(new JSeparator(), "growx, spanx, wrap");
 
-        boolean isDebugMode = preferences.getBoolean(PREF_DEBUG_MODE, false);
+        boolean isDebugMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false);
         debugCheckbox = new JCheckBox("Debug Mode");
         debugCheckbox.setHorizontalTextPosition(SwingConstants.LEFT);
         debugCheckbox.setSelected(isDebugMode);
         debugCheckbox.addChangeListener(e -> {
             boolean updatedValue = debugCheckbox.isSelected();
-            preferences.putBoolean(PREF_DEBUG_MODE, updatedValue);
+            PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, updatedValue);
             AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
             logger.setFileLogLevel(updatedValue ? Log.DEBUG : Log.INFO);
             refreshUi();
@@ -169,8 +164,7 @@ public class SettingsDialog extends JPanel {
     }
 
     public static List<String> getHiddenColumnList() {
-        Preferences preferences = Preferences.userRoot();
-        String hiddenColsStr = preferences.get(PREF_HIDDEN_COLUMNS, null);
+        String hiddenColsStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS);
         return GsonHelper.stringToList(hiddenColsStr, String.class);
     }
 
@@ -196,8 +190,7 @@ public class SettingsDialog extends JPanel {
         // save columns that are NOT selected
         List<String> selectedItems = checkBoxList.getUnSelectedItems();
         log.debug("HIDDEN: {}", GsonHelper.toJson(selectedItems));
-        Preferences preferences = Preferences.userRoot();
-        preferences.put(PREF_HIDDEN_COLUMNS, GsonHelper.toJson(selectedItems));
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(selectedItems));
         tableModel.setHiddenColumns(selectedItems);
     }
 
@@ -206,8 +199,7 @@ public class SettingsDialog extends JPanel {
         List<String> resultList = showMultilineEditDialog("Custom Apps", "Enter package name(s) to track - 1 per line", appList);
         if (resultList == null) return;
 
-        Preferences preferences = Preferences.userRoot();
-        preferences.put(PREF_CUSTOM_APPS, GsonHelper.toJson(resultList));
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_CUSTOM_APPS, GsonHelper.toJson(resultList));
         tableModel.setAppList(resultList);
     }
 
@@ -215,8 +207,7 @@ public class SettingsDialog extends JPanel {
      * get list of custom monitored apps
      */
     public static List<String> getCustomApps() {
-        Preferences preferences = Preferences.userRoot();
-        String appPrefs = preferences.get(PREF_CUSTOM_APPS, null);
+        String appPrefs = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_CUSTOM_APPS);
         return GsonHelper.stringToList(appPrefs, String.class);
     }
 
@@ -267,8 +258,7 @@ public class SettingsDialog extends JPanel {
     }
 
     private void showDownloadLocation() {
-        Preferences preferences = Preferences.userRoot();
-        String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, System.getProperty("user.home"));
+        String downloadFolder = Utils.getDownloadFolder();
 
         JFileChooser chooser = new JFileChooser();
         chooser.setCurrentDirectory(new File(downloadFolder));
@@ -282,7 +272,7 @@ public class SettingsDialog extends JPanel {
         if (rc == JFileChooser.APPROVE_OPTION) {
             File selectedFile = chooser.getSelectedFile();
             if (selectedFile != null && selectedFile.exists() && selectedFile.isDirectory()) {
-                preferences.put(ExploreScreen.PREF_DOWNLOAD_FOLDER, selectedFile.getAbsolutePath());
+                PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_DOWNLOAD_FOLDER, selectedFile.getAbsolutePath());
             }
         }
 

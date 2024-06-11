@@ -28,7 +28,6 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.prefs.Preferences;
 
 /**
  * create and manage device view
@@ -36,11 +35,8 @@ import java.util.prefs.Preferences;
 public class ExploreScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(ExploreScreen.class);
 
-    public static final String PREF_DOWNLOAD_FOLDER = "PREF_DOWNLOAD_FOLDER";
-    public static final String PREF_GO_TO_FOLDER_LIST = "PREF_GO_TO_FOLDER_LIST";
     private static final String HINT_FILTER_DEVICES = "Filter files...";
     public static final int MAX_PATH_SAVE = 10;
-    public static final String PREF_USE_ROOT = "PREF_USE_ROOT";
 
     private final DeviceScreen deviceScreen;
 
@@ -134,36 +130,24 @@ public class ExploreScreen extends BaseScreen {
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
-            closeWindow();
-        });
+        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
         // [CMD + 1] = show devices
-        createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> {
-            deviceScreen.toFront();
-        });
+        createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
 
         // [CMD + 3] = show logs
-        createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> {
-            deviceScreen.handleLogsCommand();
-        });
+        createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> deviceScreen.handleLogsCommand());
 
         // [CMD + T] = hide toolbar
-        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> {
-            hideToolbar();
-        });
+        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
         JMenu fileMenu = new JMenu("Files");
 
         // [CMD + BACKSPACE] = delete files
-        createCmdAction(fileMenu, "Delete", KeyEvent.VK_BACK_SPACE, e -> {
-            handleDelete();
-        });
+        createCmdAction(fileMenu, "Delete", KeyEvent.VK_BACK_SPACE, e -> handleDelete());
 
         // [CMD + G] = go to folder
-        createCmdAction(fileMenu, "Go to folder..", KeyEvent.VK_G, e -> {
-            handleGoToFolder();
-        });
+        createCmdAction(fileMenu, "Go to folder..", KeyEvent.VK_G, e -> handleGoToFolder());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -308,45 +292,43 @@ public class ExploreScreen extends BaseScreen {
 
     private void refreshFiles() {
         if (!device.isOnline) return;
-        DeviceManager.getInstance().listFiles(device, selectedPath, useRoot, (fileList, error) -> {
-            SwingUtilities.invokeLater(() -> {
-                if (error != null) {
-                    errorMessage = error;
-                    if (useRoot && TextUtils.equals(error, DeviceManager.ERR_ROOT_NOT_AVAILABLE)) {
-                        JOptionPane.showMessageDialog(this, "ROOT not available!");
-                        toggleRoot();
-                    } else if (TextUtils.equals(error, DeviceManager.ERR_PERMISSION_DENIED)) {
-                        errorMessage = "permission denied";
-                        // revert to previous directory
-                        setPath(null);
-                    }
-                    refreshUi();
-                    return;
-                }
-                if (fileList == null) {
-                    log.debug("refreshFiles: NO FILES");
-                    errorMessage = "permission denied - " + selectedPath;
+        DeviceManager.getInstance().listFiles(device, selectedPath, useRoot, (fileList, error) -> SwingUtilities.invokeLater(() -> {
+            if (error != null) {
+                errorMessage = error;
+                if (useRoot && TextUtils.equals(error, DeviceManager.ERR_ROOT_NOT_AVAILABLE)) {
+                    JOptionPane.showMessageDialog(this, "ROOT not available!");
+                    toggleRoot();
+                } else if (TextUtils.equals(error, DeviceManager.ERR_PERMISSION_DENIED)) {
+                    errorMessage = "permission denied";
+                    // revert to previous directory
                     setPath(null);
-                    log.trace("refreshFiles: selectedPath={}", selectedPath);
-                } else {
-                    // clear out any previous set filter and error
-                    filterTextField.reset();
-                    errorMessage = null;
-                    // add ".." to top of list
-                    if (!TextUtils.isEmpty(selectedPath) && !selectedPath.equals("/")) {
-                        DeviceFile upFile = new DeviceFile();
-                        upFile.name = "..";
-                        upFile.isDirectory = true;
-                        fileList.add(0, upFile);
-                    }
-                    // TODO: backup selected file(s)
-                    model.setFileList(fileList);
-                    // TODO: re-select previously selected file(s)
-                    table.changeSelection(0, 0, true, false);
                 }
                 refreshUi();
-            });
-        });
+                return;
+            }
+            if (fileList == null) {
+                log.debug("refreshFiles: NO FILES");
+                errorMessage = "permission denied - " + selectedPath;
+                setPath(null);
+                log.trace("refreshFiles: selectedPath={}", selectedPath);
+            } else {
+                // clear out any previous set filter and error
+                filterTextField.reset();
+                errorMessage = null;
+                // add ".." to top of list
+                if (!TextUtils.isEmpty(selectedPath) && !selectedPath.equals("/")) {
+                    DeviceFile upFile = new DeviceFile();
+                    upFile.name = "..";
+                    upFile.isDirectory = true;
+                    fileList.add(0, upFile);
+                }
+                // TODO: backup selected file(s)
+                model.setFileList(fileList);
+                // TODO: re-select previously selected file(s)
+                table.changeSelection(0, 0, true, false);
+            }
+            refreshUi();
+        }));
     }
 
     private void refreshUi() {
@@ -389,41 +371,11 @@ public class ExploreScreen extends BaseScreen {
 
     private void handleFilesDropped(List<File> fileList) {
         if (!device.isOnline) return;
-        boolean isApk = false;
-        StringBuilder name = new StringBuilder();
-        for (File file : fileList) {
-            if (name.length() > 0) name.append(", ");
-            String filename = file.getName();
-            name.append(filename);
-            if (filename.endsWith(".apk")) {
-                isApk = true;
-                break;
-            }
-        }
-
-        String title = isApk ? "Install App" : "Copy File";
-        String msg = isApk ? "Install " : "Copy ";
-        msg += name.toString();
-        msg += " to " + selectedPath;
-        msg += "?";
-
-        // prompt to install/copy
-        // NOTE: using JDialog.setAlwaysOnTap to bring app to foreground on drag and drop operations
-        final JDialog dialog = new JDialog();
-        dialog.setAlwaysOnTop(true);
-        int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
-        if (rc != JOptionPane.YES_OPTION) return;
-
-        for (File file : fileList) {
-            String filename = file.getName();
-            if (filename.endsWith(".apk")) {
-                DeviceManager.getInstance().installApp(device, file, null);
-            } else {
-                DeviceManager.getInstance().copyFile(device, file, selectedPath + "/", (isSuccess, error) -> {
-                    if (isSuccess) refreshFiles();
-                });
-            }
-        }
+        List<Device> deviceList = new ArrayList<>();
+        deviceList.add(device);
+        deviceScreen.installOrCopyFiles(deviceList, fileList, (isSuccess, error) -> {
+            if (isSuccess) refreshFiles();
+        });
     }
 
     private void setupToolbar() {
@@ -446,18 +398,14 @@ public class ExploreScreen extends BaseScreen {
         createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Files", actionEvent -> refreshFiles());
 
         // root toolbar button
-        Preferences preferences = Preferences.userRoot();
-        useRoot = preferences.getBoolean(PREF_USE_ROOT, false);
-        rootButton = createToolbarButton(toolbar, "root.png", "Root", "Root Mode", actionEvent -> {
-            toggleRoot();
-        });
+        useRoot = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_USE_ROOT, false);
+        rootButton = createToolbarButton(toolbar, "root.png", "Root", "Root Mode", actionEvent -> toggleRoot());
         refreshRootButton();
     }
 
     private void toggleRoot() {
-        Preferences preferences = Preferences.userRoot();
         useRoot = !useRoot;
-        preferences.putBoolean(PREF_USE_ROOT, useRoot);
+        PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_USE_ROOT, useRoot);
         refreshRootButton();
         refreshFiles();
     }
@@ -479,9 +427,7 @@ public class ExploreScreen extends BaseScreen {
                 null);
         if (TextUtils.isEmpty(result)) return;
 
-        DeviceManager.getInstance().createFolder(device, selectedPath + "/" + result, (isSuccess, error) -> {
-            refreshFiles();
-        });
+        DeviceManager.getInstance().createFolder(device, selectedPath + "/" + result, (isSuccess, error) -> refreshFiles());
     }
 
     private void handleDownload() {
@@ -503,11 +449,7 @@ public class ExploreScreen extends BaseScreen {
                 "Download?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
-        Preferences preferences = Preferences.userRoot();
-        String downloadFolder = preferences.get(ExploreScreen.PREF_DOWNLOAD_FOLDER, null);
-        if (downloadFolder == null) {
-            downloadFolder = System.getProperty("user.home") + "/Downloads";
-        }
+        String downloadFolder = Utils.getDownloadFolder();
         for (DeviceFile file : selectedFileList) {
             if (file.isReadOnly) {
                 JOptionPane.showMessageDialog(this, "File is read-only!", "Read-only", JOptionPane.ERROR_MESSAGE);
@@ -549,15 +491,12 @@ public class ExploreScreen extends BaseScreen {
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (DeviceFile file : selectedFileList) {
-            DeviceManager.getInstance().deleteFile(device, selectedPath, file, (isSuccess, error) -> {
-                refreshFiles();
-            });
+            DeviceManager.getInstance().deleteFile(device, selectedPath, file, (isSuccess, error) -> refreshFiles());
         }
     }
 
     private void handleGoToFolder() {
-        Preferences preferences = Preferences.userRoot();
-        String folders = preferences.get(PREF_GO_TO_FOLDER_LIST, null);
+        String folders = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_GO_TO_FOLDER_LIST);
         List<String> customList = GsonHelper.stringToList(folders, String.class);
 
 //        List<String> selectedList = new ArrayList<>();
@@ -584,7 +523,7 @@ public class ExploreScreen extends BaseScreen {
         if (customList.size() > 10) {
             customList = customList.subList(0, 10);
         }
-        preferences.put(PREF_GO_TO_FOLDER_LIST, GsonHelper.toJson(customList));
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_GO_TO_FOLDER_LIST, GsonHelper.toJson(customList));
         log.debug("handleGoToFolder: {}", selectedItem);
         setPath(selectedItem);
         refreshFiles();
