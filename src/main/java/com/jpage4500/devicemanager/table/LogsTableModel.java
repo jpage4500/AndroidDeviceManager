@@ -75,7 +75,9 @@ public class LogsTableModel extends AbstractTableModel {
     public void setProcessMap(Map<String, String> processMap) {
         this.processMap.clear();
         this.processMap.putAll(processMap);
-        fireTableDataChanged();
+
+        // NOTE: is it worth refreshing all rows just to update old log entries?
+        //fireTableDataChanged();
     }
 
     public void setSearchText(String text) {

@@ -21,6 +21,8 @@ public class PreferenceUtils {
         PREF_LAST_DEVICE_IP,
         PREF_CUSTOM_COMMAND_LIST,
         PREF_RECENT_INPUT,
+        PREF_RECENT_MESSAGE_FILTER,
+        PREF_MESSAGE_FILTERS,
     }
 
     /**
@@ -33,6 +35,7 @@ public class PreferenceUtils {
         PREF_USE_ROOT,
         PREF_SHOW_BACKGROUND,
         PREF_AUTO_FORMAT_MESSAGE,
+        PREF_WRAP_MESSAGE,
     }
 
     /**
@@ -44,6 +47,10 @@ public class PreferenceUtils {
 
     public static String getPreference(Pref pref) {
         return getPreference(pref.name());
+    }
+
+    public static boolean getPreference(PrefBoolean pref) {
+        return getPreference(pref, false);
     }
 
     public static boolean getPreference(PrefBoolean pref, boolean defaultValue) {
@@ -64,6 +71,16 @@ public class PreferenceUtils {
 
     public static void setPreference(PrefInt key, int value) {
         setPreference(key.name(), value);
+    }
+
+    public static boolean togglePreference(PrefBoolean prefBoolean) {
+        return togglePreference(prefBoolean, false);
+    }
+
+    public static boolean togglePreference(PrefBoolean prefBoolean, boolean defaultValue) {
+        boolean toggleValue = !getPreference(prefBoolean, defaultValue);
+        setPreference(prefBoolean, toggleValue);
+        return toggleValue;
     }
 
     public static void resetAll() {

@@ -211,7 +211,7 @@ public class ExploreScreen extends BaseScreen {
             }
         });
 
-        table.setClickListener((row, column, e) -> handleFileClicked());
+        table.setDoubleClickListener((row, column, e) -> handleFileClicked());
 
         table.setPopupMenuListener((row, column) -> {
             // TODO

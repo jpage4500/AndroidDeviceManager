@@ -7,7 +7,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.table.*;
+import javax.swing.table.JTableHeader;
+import javax.swing.table.TableCellRenderer;
+import javax.swing.table.TableColumn;
+import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.dnd.DropTarget;
 import java.awt.dnd.DropTargetDragEvent;
@@ -30,9 +33,8 @@ public class CustomTable extends JTable {
     private static final Color COLOR_ALTERNATE_ROW = new Color(246, 246, 246);
 
     private String prefKey;
-    private ClickListener listener;
     private TooltipListener tooltipListener;
-    private ClickListener clickListener;
+    private DoubleClickListener doubleClickListener;
     private PopupMenuListener popupMenuListener;
     private JScrollPane scrollPane;
 
@@ -42,7 +44,7 @@ public class CustomTable extends JTable {
     private String emptyText;
     private Image emptyImage;
 
-    public interface ClickListener {
+    public interface DoubleClickListener {
         /**
          * @param row    converted to model row
          * @param column converted to model col
@@ -114,14 +116,14 @@ public class CustomTable extends JTable {
                     // convert table row/col to model row/col
                     row = convertRowIndexToModel(row);
                     column = convertColumnIndexToModel(column);
-                    if (listener != null) listener.handleDoubleClick(row, column, e);
+                    if (doubleClickListener != null) doubleClickListener.handleDoubleClick(row, column, e);
                 }
             }
         });
     }
 
-    public void setClickListener(ClickListener listener) {
-        this.listener = listener;
+    public void setDoubleClickListener(DoubleClickListener doubleClickListener) {
+        this.doubleClickListener = doubleClickListener;
     }
 
     public void setTooltipListener(TooltipListener tooltipListener) {
@@ -327,7 +329,7 @@ public class CustomTable extends JTable {
             // lookup column by name
             TableColumn column = getColumnByName(details.header);
             if (column == null) continue;
-            log.trace("restore: {}: w:{}, max:{}", details.header, details.width, details.maxWidth);
+            //log.trace("restore: {}: w:{}, max:{}", details.header, details.width, details.maxWidth);
             column.setPreferredWidth(details.width);
             if (details.maxWidth > 0) column.setMaxWidth(details.maxWidth);
 
@@ -380,7 +382,7 @@ public class CustomTable extends JTable {
             // only need to set maxWidth if one is defined (and it won't typicically be very large if it is)
             if (maxWidth < 500) details.maxWidth = maxWidth;
             detailList.add(details);
-            log.trace("persist: {}", GsonHelper.toJson(details));
+            //log.trace("persist: {}", GsonHelper.toJson(details));
         }
 
         Preferences prefs = Preferences.userRoot();
@@ -411,10 +413,10 @@ public class CustomTable extends JTable {
                     if (SwingUtilities.isRightMouseButton(e)) {
                         if (popupMenuListener != null) {
                             Point point = e.getPoint();
-                            int row = rowAtPoint(point);
                             int column = columnAtPoint(point);
                             // convert table row/col to model row/col
                             column = convertColumnIndexToModel(column);
+                            // NOTE: row fixed at -1 for header
                             JPopupMenu popupMenu = popupMenuListener.getPopupMenu(-1, column);
                             if (popupMenu != null) popupMenu.show(e.getComponent(), e.getX(), e.getY());
                         }

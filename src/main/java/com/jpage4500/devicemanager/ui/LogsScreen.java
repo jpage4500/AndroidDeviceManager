@@ -9,10 +9,12 @@ import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
+import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
@@ -22,14 +24,13 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.prefs.Preferences;
 
 /**
  * create and manage device view
@@ -50,8 +51,11 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     public JToolBar toolbar;
     private JCheckBox autoScrollCheckBox;
     private HintTextField searchField;
+
+    // filter logs
     private HintTextField filterField;
     private JList<FilterItem> filterList;
+    private int numSystemFilters;
 
     private LogsRowSorter sorter;
     private MessageViewScreen viewScreen;
@@ -91,14 +95,23 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         setupToolbar();
         mainPanel.add(toolbar, BorderLayout.NORTH);
 
-        // -- left panel --
+        // ** left panel **
         JPanel leftPanel = new JPanel(new BorderLayout());
+
+        // -- filter text --
         filterField = new HintTextField(HINT_FILTER, this::filterDevices);
         leftPanel.add(filterField, BorderLayout.NORTH);
 
+        // -- filter list --
         filterList = new JList<>();
         setupFilterList();
         leftPanel.add(filterList, BorderLayout.CENTER);
+
+        // -- add filter button --
+        JButton addFilterButton = new JButton("Add Filter");
+        addFilterButton.setIcon(UiUtils.getImageIcon("icon_add.png", 20));
+        addFilterButton.addActionListener(this::handleAddFilterClicked);
+        leftPanel.add(addFilterButton, BorderLayout.SOUTH);
 
         JPanel rightPanel = new JPanel(new BorderLayout());
 
@@ -123,6 +136,15 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         setVisible(true);
         table.requestFocus();
         autoScrollCheckBox.setSelected(true);
+
+        // restore previous filter
+        String recentFilterText = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_RECENT_MESSAGE_FILTER);
+        filterField.setText(recentFilterText);
+    }
+
+    private void handleAddFilterClicked(ActionEvent actionEvent) {
+        // TODO...
+        AddFilterDialog.showAddFilterDialog(this, null);
     }
 
     @Override
@@ -198,7 +220,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         createCmdAction(logsMenu, "Clear logs", KeyEvent.VK_K, e -> model.clearLogs());
 
         // [CMD + F] = focus search field
-        createCmdAction(windowMenu, "Search for...", KeyEvent.VK_1, e -> searchField.requestFocus());
+        createCmdAction(logsMenu, "Search for...", KeyEvent.VK_F, e -> searchField.requestFocus());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -208,6 +230,9 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
 
     private void closeWindow() {
         log.trace("closeWindow: {}", device.getDisplayName());
+        // save last filter
+        String filterText = filterField.getCleanText();
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_RECENT_MESSAGE_FILTER, filterText);
         //stopLogging();
         deviceScreen.handleLogsClosed(device.serial);
         dispose();
@@ -228,8 +253,11 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
             // default column sizes
             TableColumnModel columnModel = table.getColumnModel();
             columnModel.getColumn(LogsTableModel.Columns.LEVEL.ordinal()).setPreferredWidth(28);
+            columnModel.getColumn(LogsTableModel.Columns.LEVEL.ordinal()).setMaxWidth(35);
             columnModel.getColumn(LogsTableModel.Columns.PID.ordinal()).setPreferredWidth(60);
+            columnModel.getColumn(LogsTableModel.Columns.PID.ordinal()).setMaxWidth(100);
             columnModel.getColumn(LogsTableModel.Columns.TID.ordinal()).setPreferredWidth(60);
+            columnModel.getColumn(LogsTableModel.Columns.TID.ordinal()).setMaxWidth(100);
             columnModel.getColumn(LogsTableModel.Columns.DATE.ordinal()).setPreferredWidth(159);
             columnModel.getColumn(LogsTableModel.Columns.APP.ordinal()).setPreferredWidth(150);
             columnModel.getColumn(LogsTableModel.Columns.MSG.ordinal()).setPreferredWidth(700);
@@ -261,13 +289,13 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
             // if row selected, stop auto-scroll
             int numSelected = table.getSelectedRowCount();
             if (numSelected > 0 && autoScrollCheckBox.isSelected()) {
-                log.debug("setupTable: disabled auto scroll");
+                log.trace("setupTable: disabled auto scroll");
                 autoScrollCheckBox.setSelected(false);
             }
         });
 
         table.setPopupMenuListener((row, column) -> {
-            JPopupMenu popupMenu = null;
+            JPopupMenu popupMenu = new JPopupMenu();
             if (row == -1) {
                 JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
                 sizeToFitItem.addActionListener(actionEvent -> {
@@ -275,30 +303,40 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                     int tableCol = table.convertColumnIndexToView(column);
                     adjuster.adjustColumn(tableCol);
                 });
-                popupMenu = new JPopupMenu();
                 popupMenu.add(sizeToFitItem);
                 return popupMenu;
             }
 
-            LogsTableModel.Columns columnType = model.getColumnType(column);
-            switch (columnType) {
-                case APP:
-                case TID:
-                case PID:
-                case LEVEL:
-                case TAG:
-                    // filter by value
-                    String text = model.getTextValue(row, column);
-                    JMenuItem copyFieldItem = new JMenuItem("Add Filter");
-                    copyFieldItem.addActionListener(actionEvent -> handleAddFilter(columnType, text));
-                    popupMenu = new JPopupMenu();
-                    popupMenu.add(copyFieldItem);
+            int selectedRows = table.getSelectedRowCount();
+            if (selectedRows == 1) {
+                LogsTableModel.Columns columnType = model.getColumnType(column);
+                switch (columnType) {
+                    case APP:
+                    case TID:
+                    case PID:
+                    case LEVEL:
+                    case TAG:
+                        // filter by value
+                        String text = model.getTextValue(row, column);
+                        JMenuItem copyFieldItem = new JMenuItem("Add Filter");
+                        copyFieldItem.addActionListener(actionEvent -> handleQuickAddFilter(columnType, text));
+                        popupMenu.add(copyFieldItem);
+                }
             }
+
+            // copy line(s)
+            JMenuItem copyItem = new JMenuItem("Copy");
+            copyItem.addActionListener(actionEvent -> handleCopyClicked());
+            popupMenu.add(copyItem);
+
+            // copy message
+            JMenuItem copyMessageItem = new JMenuItem("Copy Message");
+            copyMessageItem.addActionListener(actionEvent -> handleCopyMessageClicked());
+            popupMenu.add(copyMessageItem);
 
             // view message
             JMenuItem viewItem = new JMenuItem("View Message");
             viewItem.addActionListener(actionEvent -> handleLogClicked());
-            if (popupMenu == null) popupMenu = new JPopupMenu();
             popupMenu.add(viewItem);
 
             return popupMenu;
@@ -307,7 +345,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         sorter = new LogsRowSorter(model);
         table.setRowSorter(sorter);
 
-        table.setClickListener((row, column, e) -> {
+        table.setDoubleClickListener((row, column, e) -> {
             LogEntry logEntry = (LogEntry) model.getValueAt(row, column);
             if (logEntry == null) return;
             viewMessage(logEntry);
@@ -337,7 +375,54 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         });
     }
 
+    private void handleCopyMessageClicked() {
+        List<LogEntry> logEntryList = getSelectedLogEntries();
+        StringBuilder sb = new StringBuilder();
+        for (LogEntry logEntry : logEntryList) {
+            if (!sb.isEmpty()) sb.append("\n");
+            sb.append(logEntry.message);
+        }
+        if (sb.isEmpty()) return;
+
+        StringSelection stringSelection = new StringSelection(sb.toString());
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        clipboard.setContents(stringSelection, null);
+    }
+
+    private void handleCopyClicked() {
+        List<LogEntry> logEntryList = getSelectedLogEntries();
+        StringBuilder sb = new StringBuilder();
+        for (LogEntry logEntry : logEntryList) {
+            if (!sb.isEmpty()) sb.append("\n");
+            sb.append(logEntry.date);
+            sb.append(", ");
+            sb.append(logEntry.app);
+            sb.append(", ");
+            sb.append(logEntry.tid);
+            sb.append(", ");
+            sb.append(logEntry.pid);
+            sb.append(", ");
+            sb.append(logEntry.level);
+            sb.append(", ");
+            sb.append(logEntry.tag);
+            sb.append(", ");
+            sb.append(logEntry.message);
+        }
+        if (sb.isEmpty()) return;
+
+        StringSelection stringSelection = new StringSelection(sb.toString());
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        clipboard.setContents(stringSelection, null);
+    }
+
     private void handleLogClicked() {
+        List<LogEntry> logEntryList = getSelectedLogEntries();
+        if (!logEntryList.isEmpty()) {
+            viewMessage(logEntryList.toArray(new LogEntry[0]));
+        }
+    }
+
+    private List<LogEntry> getSelectedLogEntries() {
         List<LogEntry> logEntryList = new ArrayList<>();
         int[] selectedRows = table.getSelectedRows();
         for (int selectedRow : selectedRows) {
@@ -345,18 +430,16 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
             LogEntry logEntry = (LogEntry) model.getValueAt(realRow, 0);
             logEntryList.add(logEntry);
         }
-        if (!logEntryList.isEmpty()) {
-            viewMessage(logEntryList.toArray(new LogEntry[0]));
-        }
+        return logEntryList;
     }
 
     private void viewMessage(LogEntry... logEntry) {
-        if (viewScreen == null) viewScreen = new MessageViewScreen();
+        if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
         viewScreen.setLogEntry(logEntry);
         viewScreen.setVisible(true);
     }
 
-    private void handleAddFilter(LogsTableModel.Columns columnType, String text) {
+    private void handleQuickAddFilter(LogsTableModel.Columns columnType, String text) {
         LogFilter filter = LogFilter.parse(columnType.name().toLowerCase() + ":" + text);
         filterField.setText(filter.toString());
     }
@@ -450,23 +533,61 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     }
 
     private void setupFilterList() {
-        Preferences preferences = Preferences.userRoot();
-        String prefListStr = preferences.get("PREF_FILTER_LIST", null);
-        List<FilterItem> filterItemList = GsonHelper.stringToList(prefListStr, FilterItem.class);
+        populateFilters();
+        filterList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        filterList.addListSelectionListener(e -> filterDevices(filterField.getCleanText()));
+        filterList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                // single click
+                Point point = e.getPoint();
+                int i = filterList.locationToIndex(point);
+                if (i < 0) return;
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    // select item
+                    filterList.setSelectedIndex(i);
 
-        // add basic log level filters
+                    // only show popup menu for user filters
+                    if (i < numSystemFilters) return;
+
+                    JPopupMenu popupMenu = new JPopupMenu();
+                    JMenuItem editItem = new JMenuItem("Edit Filter");
+                    editItem.addActionListener(actionEvent -> handleEditFilterClicked());
+                    popupMenu.add(editItem);
+                    JMenuItem deleteItem = new JMenuItem("Delete Filter");
+                    deleteItem.addActionListener(actionEvent -> handleDeleteFilterClicked());
+                    popupMenu.add(deleteItem);
+                }
+            }
+        });
+    }
+
+    private void populateFilters() {
+        List<FilterItem> filterItemList = new ArrayList<>();
+        // -- system filteres --
         addLogLevel(filterItemList, "All Messages", null);
         addLogLevel(filterItemList, "Log Level Debug+", "level:D+");
         addLogLevel(filterItemList, "Log Level Info+", "level:I+");
         addLogLevel(filterItemList, "Log Level Warn+", "level:W+");
         addLogLevel(filterItemList, "Log Level Error+", "level:E");
+        numSystemFilters = filterItemList.size();
 
+        // -- user filters --
+        String filterStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS);
+        List<FilterItem> userFilterList = GsonHelper.stringToList(filterStr, FilterItem.class);
         // sort A-Z (name)
-        filterItemList.sort((lhs, rhs) -> TextUtils.compareToIgnoreCase(lhs.name, rhs.name));
+        userFilterList.sort((lhs, rhs) -> TextUtils.compareToIgnoreCase(lhs.name, rhs.name));
 
+        filterItemList.addAll(userFilterList);
         filterList.setListData(filterItemList.toArray(new FilterItem[0]));
-        filterList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        filterList.addListSelectionListener(e -> filterDevices(filterField.getCleanText()));
+    }
+
+    private void handleDeleteFilterClicked() {
+
+    }
+
+    private void handleEditFilterClicked() {
+
     }
 
     private void addLogLevel(List<FilterItem> filterItemList, String label, String filter) {

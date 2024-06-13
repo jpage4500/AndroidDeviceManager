@@ -430,29 +430,22 @@ public class TextUtils {
                 tabCount--;
                 trimEnd(sb);
                 sb.append("\n");
-
                 addTabs(sb, tabCount);
                 sb.append(ch);
-                if (tabCount > 0) {
-                    sb.append("\n");
-                    addTabs(sb, tabCount);
-                }
             } else if (ch == '[') {
                 sb.append("\n");
                 addTabs(sb, tabCount);
                 sb.append(ch);
                 sb.append("\n");
                 tabCount++;
-                addTabs(sb, tabCount);
             } else if (ch == ']') {
                 tabCount--;
                 trimEnd(sb);
                 sb.append("\n");
                 addTabs(sb, tabCount);
                 sb.append(ch);
-                sb.append("\n");
-                addTabs(sb, tabCount);
             } else if (ch == ',') {
+                sb.append(ch);
                 trimEnd(sb);
                 sb.append("\n");
                 addTabs(sb, tabCount);
@@ -460,13 +453,7 @@ public class TextUtils {
                 sb.append(" : ");
             } else if ((ch == ' ' || ch == '\t')) {
                 // discard extra spaces
-                if (tabCount == 0) {
-                    sb.append(ch);
-                }
             } else if ((ch == '\n' || ch == '\r')) {
-                if (tabCount == 0) {
-                    sb.append(ch);
-                }
                 // discard extra CR and LF
             } else {
                 sb.append(ch);
@@ -475,6 +462,23 @@ public class TextUtils {
             prevChar = ch;
         }
         return sb.toString();
+    }
+
+    /**
+     * check if text string contains valid JSON data
+     * NOTE: very simple logic.. if a single set of "{}" or "[]" are found - return true
+     */
+    public static boolean containsJson(String text) {
+        boolean openParagraph = false;
+        boolean openBracket = false;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (ch == '{') openParagraph = true;
+            else if (ch == '[') openBracket = true;
+            else if (ch == '}' && openParagraph) return true;
+            else if (ch == ']' && openBracket) return true;
+        }
+        return false;
     }
 
     private static void trimEnd(StringBuilder sb) {

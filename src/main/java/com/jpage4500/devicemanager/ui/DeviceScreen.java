@@ -242,7 +242,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);
 
-        table.setClickListener((row, column, e) -> {
+        table.setDoubleClickListener((row, column, e) -> {
             if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
                 // edit custom 1 field
                 handleSetProperty(1);
@@ -426,11 +426,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void updateVersionLabel() {
-        long totalMemory = Runtime.getRuntime().totalMemory();
-        long freeMemory = Runtime.getRuntime().freeMemory();
-        long usedMemory = totalMemory - freeMemory;
-        String memUsage = FileUtils.bytesToDisplayString(usedMemory);
-
         String versionText;
         if (newerRelease != null) {
             versionText = "Update Available: " + newerRelease.tagName;
@@ -438,7 +433,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             versionText = "v" + MainApplication.version;
         }
 
-        statusBar.setLeftLabel(versionText + " / " + memUsage);
+        boolean debugMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false);
+        if (debugMode) {
+            long totalMemory = Runtime.getRuntime().totalMemory();
+            long freeMemory = Runtime.getRuntime().freeMemory();
+            long usedMemory = totalMemory - freeMemory;
+            versionText += " / " + FileUtils.bytesToDisplayString(usedMemory);
+        }
+
+        statusBar.setLeftLabel(versionText);
     }
 
     private void handleHideColumn(int column) {
@@ -774,7 +777,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         createToolbarButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
 
-        createToolbarButton(toolbar, "logs.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+        createToolbarButton(toolbar, "icon_script.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
 
         createToolbarButton(toolbar, "keyboard.png", "Input", "Enter text", actionEvent -> handleInputCommand());
 
