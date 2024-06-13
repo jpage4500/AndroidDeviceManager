@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
+import com.jpage4500.devicemanager.ui.DeviceScreen;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
@@ -12,126 +13,98 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.font.TextAttribute;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.prefs.BackingStoreException;
-import java.util.prefs.Preferences;
 
 public class SettingsDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(SettingsDialog.class);
 
-    private Component frame;
-    private DeviceTableModel tableModel;
+    private DeviceScreen deviceScreen;
 
-    private JCheckBox debugCheckbox;
-    private JLabel viewLogsLabel;
-    private JLabel resetLabel;
-
-    public static int showSettings(Component frame, DeviceTableModel tableModel) {
-        SettingsDialog settingsScreen = new SettingsDialog(frame, tableModel);
-        return JOptionPane.showOptionDialog(frame, settingsScreen, "Settings", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, null, null);
+    public static int showSettings(DeviceScreen deviceScreen) {
+        SettingsDialog settingsScreen = new SettingsDialog(deviceScreen);
+        return JOptionPane.showOptionDialog(deviceScreen, settingsScreen, "Settings", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, null, null);
     }
 
-    private SettingsDialog(Component frame, DeviceTableModel tableModel) {
-        this.frame = frame;
-        this.tableModel = tableModel;
+    private SettingsDialog(DeviceScreen deviceScreen) {
+        this.deviceScreen = deviceScreen;
 
         setLayout(new MigLayout("", "[][]"));
+        initalizeUi();
+    }
 
-        // columns
-        add(new JLabel("Columns:"));
-        JButton colsButton = new JButton("EDIT");
-        colsButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                showColumns();
-            }
+    private void initalizeUi() {
+        addButton("Visible Columns", "EDIT", this::showColumns);
+        addButton("Custom Apps", "EDIT", this::showAppsSettings);
+        addButton("Download Location", "EDIT", this::showDownloadLocation);
+
+        addCheckbox("Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, null);
+        addCheckbox("Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
+            // force table background to be repainted
+            deviceScreen.model.fireTableDataChanged();
         });
-        add(colsButton, "wrap");
-
-        // custom apps
-        add(new JLabel("Custom Apps:"));
-        JButton appButton = new JButton("EDIT");
-        appButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                showAppsSettings();
-            }
-        });
-        add(appButton, "wrap");
-
-        // download location
-        add(new JLabel("Download Location:"));
-        appButton = new JButton("EDIT");
-        appButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                showDownloadLocation();
-            }
-        });
-        add(appButton, "wrap");
-
-        JCheckBox updateCheckbox = new JCheckBox("Check for updates");
-        boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
-        updateCheckbox.setSelected(checkUpdates);
-        updateCheckbox.setHorizontalTextPosition(SwingConstants.LEFT);
-        updateCheckbox.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, updateCheckbox.isSelected());
-            }
-        });
-        add(updateCheckbox, "span 2, al right, wrap");
-
-        add(new JSeparator(), "growx, spanx, wrap");
-
-        boolean isDebugMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false);
-        debugCheckbox = new JCheckBox("Debug Mode");
-        debugCheckbox.setHorizontalTextPosition(SwingConstants.LEFT);
-        debugCheckbox.setSelected(isDebugMode);
-        debugCheckbox.addChangeListener(e -> {
-            boolean updatedValue = debugCheckbox.isSelected();
-            PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, updatedValue);
+        addCheckbox("Debug Mode", PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false, isChecked -> {
             AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
-            logger.setFileLogLevel(updatedValue ? Log.DEBUG : Log.INFO);
-            refreshUi();
+            logger.setFileLogLevel(isChecked ? Log.DEBUG : Log.INFO);
         });
-        add(debugCheckbox, "span 2, al right, wrap");
 
-        viewLogsLabel = new JLabel("View Logs");
-        viewLogsLabel.setForeground(Color.BLUE);
-        Font font = viewLogsLabel.getFont();
-        Map attributes = font.getAttributes();
-        attributes.put(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON);
-        viewLogsLabel.setFont(font.deriveFont(attributes));
-        viewLogsLabel.setHorizontalTextPosition(SwingConstants.LEFT);
-        viewLogsLabel.addMouseListener(new MouseAdapter() {
+        addButton("View Logs", "VIEW", this::viewLogs);
+        addButton("Reset Preferences", "RESET", this::resetPreferences);
+
+        doLayout();
+        invalidate();
+    }
+
+    public interface ButtonListener {
+        void onClicked();
+    }
+
+    private void addButton(String label, String action, ButtonListener listener) {
+        add(new JLabel(label));
+        JButton button = new JButton(action);
+        button.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                viewLogs();
+                listener.onClicked();
             }
         });
-        add(viewLogsLabel, "span 2, al right, wrap");
+        add(button, "wrap");
+    }
 
-        resetLabel = new JLabel("Reset Preferences");
-        resetLabel.setForeground(Color.BLUE);
-        resetLabel.setFont(font.deriveFont(attributes));
-        resetLabel.setHorizontalTextPosition(SwingConstants.LEFT);
-        resetLabel.addMouseListener(new MouseAdapter() {
+    public interface CheckBoxListener {
+        void onChecked(boolean isChecked);
+    }
+
+    private void addCheckbox(String label, PreferenceUtils.PrefBoolean pref, boolean defaultValue, CheckBoxListener listener) {
+        JLabel textLabel = new JLabel(label);
+        add(textLabel);
+
+        JCheckBox checkbox = new JCheckBox();
+        boolean currentChecked = PreferenceUtils.getPreference(pref, defaultValue);
+        checkbox.setSelected(currentChecked);
+        checkbox.setHorizontalTextPosition(SwingConstants.LEFT);
+        add(checkbox, "align center, wrap");
+
+        checkbox.addActionListener(actionEvent -> {
+            boolean selected = checkbox.isSelected();
+            PreferenceUtils.setPreference(pref, selected);
+            if (listener != null) listener.onChecked(selected);
+        });
+
+        textLabel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                resetPreferences();
+            public void mouseClicked(MouseEvent mouseEvent) {
+                // TODO: fire checkbox action listener directly
+                boolean selected = !checkbox.isSelected();
+                checkbox.setSelected(selected);
+                PreferenceUtils.setPreference(pref, selected);
+                if (listener != null) listener.onChecked(selected);
             }
         });
-        add(resetLabel, "span 2, al right, wrap");
 
-        refreshUi();
     }
 
     private void resetPreferences() {
@@ -139,17 +112,12 @@ public class SettingsDialog extends JPanel {
         if (rc != JOptionPane.YES_OPTION) return;
 
         log.debug("resetPreferences: ");
-        Preferences preferences = Preferences.userRoot();
-        try {
-            preferences.clear();
-        } catch (BackingStoreException e) {
-        }
+        PreferenceUtils.resetAll();
 
-    }
-
-    private void refreshUi() {
-        boolean isDebugMode = debugCheckbox.isSelected();
-        viewLogsLabel.setVisible(isDebugMode);
+        removeAll();
+        initalizeUi();
+        // force table background to be repainted
+        deviceScreen.model.fireTableDataChanged();
     }
 
     private void viewLogs() {
@@ -159,7 +127,7 @@ public class SettingsDialog extends JPanel {
         boolean rc = Utils.editFile(logsFile);
         if (!rc) {
             // open failed
-            JOptionPane.showConfirmDialog(frame, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
+            JOptionPane.showConfirmDialog(deviceScreen, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
         }
     }
 
@@ -184,14 +152,16 @@ public class SettingsDialog extends JPanel {
         JScrollPane scroll = new JScrollPane(checkBoxList);
         panel.add(scroll, "grow, span, wrap");
 
-        int rc = JOptionPane.showOptionDialog(frame, panel, "Visible Columns", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        int rc = JOptionPane.showOptionDialog(deviceScreen, panel, "Visible Columns", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return;
 
         // save columns that are NOT selected
         List<String> selectedItems = checkBoxList.getUnSelectedItems();
         log.debug("HIDDEN: {}", GsonHelper.toJson(selectedItems));
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(selectedItems));
-        tableModel.setHiddenColumns(selectedItems);
+        deviceScreen.table.persist();
+        deviceScreen.model.setHiddenColumns(selectedItems);
+        deviceScreen.table.restore();
     }
 
     private void showAppsSettings() {
@@ -200,7 +170,7 @@ public class SettingsDialog extends JPanel {
         if (resultList == null) return;
 
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_CUSTOM_APPS, GsonHelper.toJson(resultList));
-        tableModel.setAppList(resultList);
+        deviceScreen.model.setAppList(resultList);
     }
 
     /**
@@ -226,7 +196,7 @@ public class SettingsDialog extends JPanel {
         JScrollPane scroll = new JScrollPane(inputField);
         panel.add(scroll, "grow, span, wrap");
 
-        int rc = JOptionPane.showOptionDialog(frame, panel, title, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        int rc = JOptionPane.showOptionDialog(deviceScreen, panel, title, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return null;
 
         String results = inputField.getText();
@@ -249,7 +219,7 @@ public class SettingsDialog extends JPanel {
         JScrollPane scroll = new JScrollPane(inputField);
         panel.add(scroll, "grow, span, wrap");
 
-        int rc = JOptionPane.showOptionDialog(frame, panel, title, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        int rc = JOptionPane.showOptionDialog(deviceScreen, panel, title, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return null;
 
         String results = inputField.getText().trim();

@@ -3,12 +3,11 @@ package com.jpage4500.devicemanager.ui.views;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.util.prefs.Preferences;
-
-import javax.swing.*;
 
 /**
  *
@@ -49,7 +48,7 @@ public class CustomFrame extends JFrame {
         });
     }
 
-    private void saveFrameSize() {
+    protected void saveFrameSize() {
         Preferences prefs = Preferences.userRoot();
         prefs.putInt(prefKey + "-" + FRAME_X, getX());
         prefs.putInt(prefKey + "-" + FRAME_Y, getY());
@@ -68,6 +67,5 @@ public class CustomFrame extends JFrame {
         setLocation(x, y);
         setSize(w, h);
     }
-
 
 }

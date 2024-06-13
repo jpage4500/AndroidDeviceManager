@@ -179,6 +179,7 @@ public class ExploreScreen extends BaseScreen {
         // restore user-defined column sizes
         table.restore();
 
+        // ENTER -> click on file
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
         table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(enter, "Enter");
         table.getActionMap().put("Enter", new AbstractAction() {

@@ -281,36 +281,24 @@ public class JadbDevice {
         }
     }
 
-    public void tap(int x, int y) throws IOException, JadbException {
+    public InputStream tap(int x, int y) throws IOException, JadbException {
         String cmd = String.format("input tap %s %s", x, y);
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            InputStream is = this.executeShell(cmd);
-            Stream.copy(is, baos);
-        }
+        return executeShell(cmd);
     }
 
-    public void swipe(int startX, int startY, int endX, int endY, int duration) throws IOException, JadbException {
+    public InputStream swipe(int startX, int startY, int endX, int endY, int duration) throws IOException, JadbException {
         String cmd = String.format("input swipe %s %s %s %s %s", startX, startY, endX, endY, duration);
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            InputStream is = this.executeShell(cmd);
-            Stream.copy(is, baos);
-        }
+        return executeShell(cmd);
     }
 
-    public void inputText(String text) throws IOException, JadbException {
+    public InputStream inputText(String text) throws IOException, JadbException {
         String cmd = String.format("input text %s", text);
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            InputStream is = this.executeShell(cmd);
-            Stream.copy(is, baos);
-        }
+        return executeShell(cmd);
     }
 
-    public void inputKeyEvent(int keyEvent) throws IOException, JadbException {
+    public InputStream inputKeyEvent(int keyEvent) throws IOException, JadbException {
         String cmd = String.format("input keyevent %s", keyEvent);
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            InputStream is = this.executeShell(cmd);
-            Stream.copy(is, baos);
-        }
+        return executeShell(cmd);
     }
 
     public Boolean isInstalled(String pkgName) throws IOException, JadbException {

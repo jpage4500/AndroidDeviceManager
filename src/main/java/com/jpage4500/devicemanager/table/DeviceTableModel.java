@@ -16,7 +16,6 @@ public class DeviceTableModel extends AbstractTableModel {
     private final List<Device> deviceList;
     private final List<String> appList;
     private Columns[] visibleColumns;
-    private String searchText;
 
     public enum Columns {
         NAME,
@@ -62,17 +61,6 @@ public class DeviceTableModel extends AbstractTableModel {
             }
         }
         fireTableStructureChanged();
-    }
-
-    public void setSearchText(String text) {
-        if (TextUtils.equals(searchText, text)) return;
-        searchText = text;
-        // force re-draw table so we can highlight any matches
-        fireTableDataChanged();
-    }
-
-    public String getSearchText() {
-        return searchText;
     }
 
     /**
@@ -130,14 +118,7 @@ public class DeviceTableModel extends AbstractTableModel {
             Columns colType = visibleColumns[i];
             return colType.name();
         } else {
-            String appName = appList.get(i - visibleColumns.length);
-            return appName;
-            //String[] split = appName.split("\\.");
-            //if (split.length >= 1) {
-            //    return split[split.length - 1].toUpperCase(Locale.ROOT);
-            //} else {
-            //    return "?";
-            //}
+            return appList.get(i - visibleColumns.length);
         }
     }
 

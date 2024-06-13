@@ -171,6 +171,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // [CMD + 3] = show logs
         createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> handleLogsCommand());
 
+        // [CMD + ,] = settings
+        createCmdAction(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> handleSettingsClicked());
+
         // [CMD + T] = hide toolbar
         createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
@@ -222,19 +225,19 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
         table.setEmptyText("No Android Devices!");
 
-        // default column sizes
-        TableColumnModel columnModel = table.getColumnModel();
-        columnModel.getColumn(DeviceTableModel.Columns.NAME.ordinal()).setPreferredWidth(185);
-        columnModel.getColumn(DeviceTableModel.Columns.SERIAL.ordinal()).setPreferredWidth(152);
-        columnModel.getColumn(DeviceTableModel.Columns.PHONE.ordinal()).setPreferredWidth(116);
-        columnModel.getColumn(DeviceTableModel.Columns.IMEI.ordinal()).setPreferredWidth(147);
-        columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setPreferredWidth(31);
-        columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setMaxWidth(31);
-        columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setPreferredWidth(66);
-        columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setMaxWidth(80);
-
         // restore user-defined column sizes
-        table.restore();
+        if (!table.restore()) {
+            // first-time running - use some default column sizes
+            TableColumnModel columnModel = table.getColumnModel();
+            columnModel.getColumn(DeviceTableModel.Columns.NAME.ordinal()).setPreferredWidth(185);
+            columnModel.getColumn(DeviceTableModel.Columns.SERIAL.ordinal()).setPreferredWidth(152);
+            columnModel.getColumn(DeviceTableModel.Columns.PHONE.ordinal()).setPreferredWidth(116);
+            columnModel.getColumn(DeviceTableModel.Columns.IMEI.ordinal()).setPreferredWidth(147);
+            columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setPreferredWidth(31);
+            columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setMaxWidth(31);
+            columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setPreferredWidth(66);
+            columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setMaxWidth(80);
+        }
 
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);
@@ -397,14 +400,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void updateDeviceState(Device device) {
         ExploreScreen exploreScreen = exploreViewMap.get(device.serial);
-        if (exploreScreen != null) {
-            exploreScreen.updateDeviceState();
-        }
+        if (exploreScreen != null) exploreScreen.updateDeviceState();
 
         LogsScreen logsScreen = logsViewMap.get(device.serial);
-        if (logsScreen != null) {
-            logsScreen.updateDeviceState();
-        }
+        if (logsScreen != null) logsScreen.updateDeviceState();
+
+        InputScreen inputScreen = inputViewMap.get(device.serial);
+        if (inputScreen != null) inputScreen.updateDeviceState();
     }
 
     private void refreshUi() {
@@ -445,7 +447,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
         hiddenColList.add(columnType.name());
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
+        table.persist();
         model.setHiddenColumns(hiddenColList);
+        table.restore();
     }
 
     private void handleCopyClipboardFieldCommand() {
@@ -752,7 +756,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             // convert view row to data row (in case user changed sort order)
             int dataRow = table.convertRowIndexToModel(selectedRow);
             Device device = model.getDeviceAtRow(dataRow);
-            if (device != null) selectedDeviceList.add(device);
+            if (device != null && device.isOnline) selectedDeviceList.add(device);
         }
         if (selectedDeviceList.isEmpty() && model.getRowCount() == 1) {
             Device device = model.getDeviceAtRow(0);
@@ -770,7 +774,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         createToolbarButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand());
 
-        createToolbarButton(toolbar, "icon_edit.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+        createToolbarButton(toolbar, "logs.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
 
         createToolbarButton(toolbar, "keyboard.png", "Input", "Enter text", actionEvent -> handleInputCommand());
 
@@ -803,7 +807,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleSettingsClicked() {
-        SettingsDialog.showSettings(this, model);
+        SettingsDialog.showSettings(this);
     }
 
     private void refreshDevices() {
@@ -889,6 +893,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     public void handleBrowseClosed(String serial) {
         exploreViewMap.remove(serial);
+    }
+
+    public void handleLogsClosed(String serial) {
+        logsViewMap.remove(serial);
+    }
+
+    public void handleInputClosed(String serial) {
+        inputViewMap.remove(serial);
     }
 
     public void handleLogsCommand() {

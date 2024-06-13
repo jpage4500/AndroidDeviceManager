@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui.views;
 
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ public class CustomTable extends JTable {
 
     private int selectedColumn = -1;
 
+    private boolean showBackground;
     private String emptyText;
     private Image emptyImage;
 
@@ -78,6 +80,8 @@ public class CustomTable extends JTable {
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
         setOpaque(false);
+
+        showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
 
         createScrollPane();
 
@@ -128,12 +132,17 @@ public class CustomTable extends JTable {
         this.popupMenuListener = popupMenuListener;
     }
 
+    public void setEmptyText(String emptyText) {
+        this.emptyText = emptyText;
+        emptyImage = UiUtils.getImage("empty_image.png", 500);
+    }
+
     private void createScrollPane() {
         scrollPane = new JScrollPane(this) {
             @Override
             public void paint(Graphics graphics) {
                 super.paint(graphics);
-                if (emptyImage != null) {
+                if (emptyImage != null && showBackground) {
                     int headerH = getTableHeader().getHeight();
                     int width = getWidth();
                     int imgW = emptyImage.getWidth(null);
@@ -209,6 +218,11 @@ public class CustomTable extends JTable {
     @Override
     public void setModel(TableModel dataModel) {
         super.setModel(dataModel);
+
+        dataModel.addTableModelListener(tableModelEvent -> {
+            showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
+            scrollPane.repaint();
+        });
     }
 
     @Override
@@ -294,45 +308,59 @@ public class CustomTable extends JTable {
         scrollRectToVisible(getCellRect(scrollToRow, 0, true));
     }
 
-    public void setEmptyText(String emptyText) {
-        this.emptyText = emptyText;
-
-        emptyImage = UiUtils.getImage("empty_image.png", 500);
-    }
-
     public static class ColumnDetails {
         Object header;
         int width;
+        int maxWidth;
         int userPos;
         int modelPos;
     }
 
-    public void restore() {
-        if (prefKey == null) return;
+    public boolean restore() {
+        if (prefKey == null) return false;
         Preferences prefs = Preferences.userRoot();
         String detailsStr = prefs.get(prefKey + "-details", null);
-        if (detailsStr == null) return;
+        if (detailsStr == null) return false;
         List<ColumnDetails> detailsList = GsonHelper.stringToList(detailsStr, ColumnDetails.class);
-        //log.debug("restore: {}", GsonHelper.toJson(detailsList));
-
-        TableColumnModel columnModel = getColumnModel();
-        if (detailsList.size() != columnModel.getColumnCount()) {
-            log.debug("restore: wrong number of columns! {} vs {}", detailsList.size(), columnModel.getColumnCount());
-            return;
-        }
-
         for (int i = 0; i < detailsList.size(); i++) {
             ColumnDetails details = detailsList.get(i);
-            //log.trace("restore: col:{}, w:{}", i, details.width);
-            columnModel.getColumn(i).setPreferredWidth(details.width);
-        }
+            // lookup column by name
+            TableColumn column = getColumnByName(details.header);
+            if (column == null) continue;
+            log.trace("restore: {}: w:{}, max:{}", details.header, details.width, details.maxWidth);
+            column.setPreferredWidth(details.width);
+            if (details.maxWidth > 0) column.setMaxWidth(details.maxWidth);
 
-        for (ColumnDetails details : detailsList) {
-            if (details.modelPos != details.userPos) {
-                //log.trace("restore: move:{} to:{}", details.modelPos, details.userPos);
-                columnModel.moveColumn(details.modelPos, details.userPos);
+            int modelIndex = column.getModelIndex();
+            if (modelIndex != details.userPos) {
+                log.trace("restore: moving: {}, from:{}, to:{}", details.header, modelIndex, details.userPos);
+                getColumnModel().moveColumn(modelIndex, details.userPos);
             }
         }
+
+//        TableColumnModel columnModel = getColumnModel();
+//        for (ColumnDetails details : detailsList) {
+//            if (details.modelPos != details.userPos) {
+//                log.trace("restore: move:{} to:{}", details.modelPos, details.userPos);
+//                columnModel.moveColumn(details.modelPos, details.userPos);
+//            }
+//        }
+        return true;
+    }
+
+    /**
+     * get column by header name (NOTE: will return null and not throw an Exception when not found)
+     */
+    public TableColumn getColumnByName(Object header) {
+        Enumeration<TableColumn> columns = getColumnModel().getColumns();
+        Iterator<TableColumn> iterator = columns.asIterator();
+        while (iterator.hasNext()) {
+            TableColumn column = iterator.next();
+            if (column.getHeaderValue().equals(header)) {
+                return column;
+            }
+        }
+        return null;
     }
 
     public void persist() {
@@ -348,7 +376,11 @@ public class CustomTable extends JTable {
             details.userPos = i;
             details.modelPos = column.getModelIndex();
             details.width = column.getWidth();
+            int maxWidth = column.getMaxWidth();
+            // only need to set maxWidth if one is defined (and it won't typicically be very large if it is)
+            if (maxWidth < 500) details.maxWidth = maxWidth;
             detailList.add(details);
+            log.trace("persist: {}", GsonHelper.toJson(details));
         }
 
         Preferences prefs = Preferences.userRoot();

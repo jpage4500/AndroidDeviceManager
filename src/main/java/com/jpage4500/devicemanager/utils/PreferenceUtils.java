@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
 public class PreferenceUtils {
@@ -19,6 +20,7 @@ public class PreferenceUtils {
         PREF_RECENT_WIRELESS_DEVICES,
         PREF_LAST_DEVICE_IP,
         PREF_CUSTOM_COMMAND_LIST,
+        PREF_RECENT_INPUT,
     }
 
     /**
@@ -29,6 +31,8 @@ public class PreferenceUtils {
         PREF_CHECK_UPDATES,
         PREF_ALWAYS_ON_TOP,
         PREF_USE_ROOT,
+        PREF_SHOW_BACKGROUND,
+        PREF_AUTO_FORMAT_MESSAGE,
     }
 
     /**
@@ -62,30 +66,39 @@ public class PreferenceUtils {
         setPreference(key.name(), value);
     }
 
+    public static void resetAll() {
+        Preferences preferences = Preferences.userRoot();
+        try {
+            preferences.clear();
+        } catch (BackingStoreException e) {
+            log.error("resetAll: Exception: {}", e.getMessage());
+        }
+    }
+
     // ------------------------------------------------------------------------
     // ------------------------------------------------------------------------
 
-    public static String getPreference(String pref) {
+    private static String getPreference(String pref) {
         return getPreferences().get(pref, null);
     }
 
-    public static boolean getPreferenceBool(String pref, boolean defaultValue) {
+    private static boolean getPreferenceBool(String pref, boolean defaultValue) {
         return getPreferences().getBoolean(pref, defaultValue);
     }
 
-    public static int getPreferenceInt(String pref, int defaultValue) {
+    private static int getPreferenceInt(String pref, int defaultValue) {
         return getPreferences().getInt(pref, defaultValue);
     }
 
-    public static void setPreference(String key, String value) {
+    private static void setPreference(String key, String value) {
         getPreferences().put(key, value);
     }
 
-    public static void setPreference(String key, boolean value) {
+    private static void setPreference(String key, boolean value) {
         getPreferences().putBoolean(key, value);
     }
 
-    public static void setPreference(String key, int value) {
+    private static void setPreference(String key, int value) {
         getPreferences().putInt(key, value);
     }
 

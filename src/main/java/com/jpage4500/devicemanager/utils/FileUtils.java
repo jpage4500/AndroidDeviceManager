@@ -70,7 +70,7 @@ public class FileUtils {
         return sizeDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + SIZE_UNITS[digitGroups];
     }
 
-    private static final DecimalFormat sizeGigDisplayFormat = new DecimalFormat("#.0");
+    private static final DecimalFormat sizeGigDisplayFormat = new DecimalFormat("0.0");
 
     /**
      * return string description of number of bytes (in X.X gig)

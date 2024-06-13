@@ -23,6 +23,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,6 +54,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     private JList<FilterItem> filterList;
 
     private LogsRowSorter sorter;
+    private MessageViewScreen viewScreen;
 
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
@@ -61,7 +63,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         super("logs");
         this.deviceScreen = deviceScreen;
         this.device = device;
-        //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         initalizeUi();
         updateDeviceState();
     }
@@ -158,10 +160,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
-            setVisible(false);
-            dispose();
-        });
+        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
         // [CMD + 1] = show devices
         createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
@@ -207,6 +206,13 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         setJMenuBar(menubar);
     }
 
+    private void closeWindow() {
+        log.trace("closeWindow: {}", device.getDisplayName());
+        //stopLogging();
+        deviceScreen.handleLogsClosed(device.serial);
+        dispose();
+    }
+
     private void hideToolbar() {
         toolbar.setVisible(!toolbar.isVisible());
     }
@@ -217,17 +223,37 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         table.setModel(model);
         table.setDefaultRenderer(LogEntry.class, new LogsCellRenderer());
 
-        // default column sizes
-        TableColumnModel columnModel = table.getColumnModel();
-        columnModel.getColumn(LogsTableModel.Columns.LEVEL.ordinal()).setPreferredWidth(28);
-        columnModel.getColumn(LogsTableModel.Columns.PID.ordinal()).setPreferredWidth(60);
-        columnModel.getColumn(LogsTableModel.Columns.TID.ordinal()).setPreferredWidth(60);
-        columnModel.getColumn(LogsTableModel.Columns.DATE.ordinal()).setPreferredWidth(159);
-        columnModel.getColumn(LogsTableModel.Columns.APP.ordinal()).setPreferredWidth(150);
-        columnModel.getColumn(LogsTableModel.Columns.MSG.ordinal()).setPreferredWidth(700);
-
         // restore user-defined column sizes
-        table.restore();
+        if (!table.restore()) {
+            // default column sizes
+            TableColumnModel columnModel = table.getColumnModel();
+            columnModel.getColumn(LogsTableModel.Columns.LEVEL.ordinal()).setPreferredWidth(28);
+            columnModel.getColumn(LogsTableModel.Columns.PID.ordinal()).setPreferredWidth(60);
+            columnModel.getColumn(LogsTableModel.Columns.TID.ordinal()).setPreferredWidth(60);
+            columnModel.getColumn(LogsTableModel.Columns.DATE.ordinal()).setPreferredWidth(159);
+            columnModel.getColumn(LogsTableModel.Columns.APP.ordinal()).setPreferredWidth(150);
+            columnModel.getColumn(LogsTableModel.Columns.MSG.ordinal()).setPreferredWidth(700);
+        }
+
+        // ENTER -> view message
+        KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
+        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(enter, "Enter");
+        table.getActionMap().put("Enter", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleLogClicked();
+            }
+        });
+
+        // CMD+SHIFT+V -> view message
+        KeyStroke view = KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.META_DOWN_MASK + InputEvent.SHIFT_DOWN_MASK);
+        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(view, "View");
+        table.getActionMap().put("View", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleLogClicked();
+            }
+        });
 
         table.getSelectionModel().addListSelectionListener(event -> {
             if (event.getValueIsAdjusting()) return;
@@ -241,14 +267,15 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         });
 
         table.setPopupMenuListener((row, column) -> {
+            JPopupMenu popupMenu = null;
             if (row == -1) {
-                JPopupMenu popupMenu = new JPopupMenu();
                 JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
                 sizeToFitItem.addActionListener(actionEvent -> {
                     TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                     int tableCol = table.convertColumnIndexToView(column);
                     adjuster.adjustColumn(tableCol);
                 });
+                popupMenu = new JPopupMenu();
                 popupMenu.add(sizeToFitItem);
                 return popupMenu;
             }
@@ -262,18 +289,29 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                 case TAG:
                     // filter by value
                     String text = model.getTextValue(row, column);
-                    JPopupMenu popupMenu = new JPopupMenu();
                     JMenuItem copyFieldItem = new JMenuItem("Add Filter");
                     copyFieldItem.addActionListener(actionEvent -> handleAddFilter(columnType, text));
+                    popupMenu = new JPopupMenu();
                     popupMenu.add(copyFieldItem);
-                    break;
             }
 
-            return null;
+            // view message
+            JMenuItem viewItem = new JMenuItem("View Message");
+            viewItem.addActionListener(actionEvent -> handleLogClicked());
+            if (popupMenu == null) popupMenu = new JPopupMenu();
+            popupMenu.add(viewItem);
+
+            return popupMenu;
         });
 
         sorter = new LogsRowSorter(model);
         table.setRowSorter(sorter);
+
+        table.setClickListener((row, column, e) -> {
+            LogEntry logEntry = (LogEntry) model.getValueAt(row, column);
+            if (logEntry == null) return;
+            viewMessage(logEntry);
+        });
 
         table.getScrollPane().addMouseWheelListener(event -> {
             int wheelRotation = event.getWheelRotation();
@@ -297,6 +335,25 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                 }
             }
         });
+    }
+
+    private void handleLogClicked() {
+        List<LogEntry> logEntryList = new ArrayList<>();
+        int[] selectedRows = table.getSelectedRows();
+        for (int selectedRow : selectedRows) {
+            int realRow = table.convertRowIndexToModel(selectedRow);
+            LogEntry logEntry = (LogEntry) model.getValueAt(realRow, 0);
+            logEntryList.add(logEntry);
+        }
+        if (!logEntryList.isEmpty()) {
+            viewMessage(logEntryList.toArray(new LogEntry[0]));
+        }
+    }
+
+    private void viewMessage(LogEntry... logEntry) {
+        if (viewScreen == null) viewScreen = new MessageViewScreen();
+        viewScreen.setLogEntry(logEntry);
+        viewScreen.setVisible(true);
     }
 
     private void handleAddFilter(LogsTableModel.Columns columnType, String text) {
@@ -433,7 +490,12 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         }
 
         if (TextUtils.notEmpty(text)) {
-            LogFilter searchFilter = LogFilter.parse("*:*" + text + "*");
+            LogFilter searchFilter;
+            if (TextUtils.indexOf(text, ':') >= 0) {
+                searchFilter = LogFilter.parse(text);
+            } else {
+                searchFilter = LogFilter.parse("*:*" + text + "*");
+            }
             log.debug("filterDevices: {}", searchFilter);
             list.add(searchFilter);
             if (!sb.isEmpty()) sb.append(" && ");
