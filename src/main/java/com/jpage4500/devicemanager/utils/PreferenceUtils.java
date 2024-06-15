@@ -43,6 +43,7 @@ public class PreferenceUtils {
      */
     public enum PrefInt {
         PREF_LAST_DEVICE_PORT,
+        PREF_FONT_SIZE_OFFSET,
     }
 
     public static String getPreference(Pref pref) {

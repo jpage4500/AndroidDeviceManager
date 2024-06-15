@@ -62,12 +62,7 @@ public class MainApplication {
     }
 
     private void initializeUI() {
-        try {
-            UIManager.setLookAndFeel(new FlatLightLaf());
-        } catch (Exception e) {
-            log.error("initializeUI: {}", e.getMessage());
-        }
-
+        FlatLightLaf.setup();
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
 

@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.table.utils;
 
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.table.LogsTableModel;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,11 +29,16 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
     private Highlighter.HighlightPainter highlightPainter2;
     private boolean isHighlighted = false;
 
+    private int fontSize;
+
     public LogsCellRenderer() {
         setOpaque(true);
         setEditable(false);
         Border border = new EmptyBorder(0, 10, 0, 0);
         setBorder(border);
+
+        fontSize = getFont().getSize();
+        notifyFontChanged();
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -95,5 +101,10 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
         setBackground(isSelected ? table.getSelectionBackground() : Color.WHITE);
 
         return this;
+    }
+
+    public void notifyFontChanged() {
+        int fontOffset = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, 0);
+        setFont(getFont().deriveFont(Font.PLAIN, fontOffset + fontSize));
     }
 }

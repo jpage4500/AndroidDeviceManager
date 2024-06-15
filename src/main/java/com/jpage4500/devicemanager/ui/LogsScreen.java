@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -201,31 +202,60 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
             scrollToFollow();
         });
 
+        // [CMD + K] = clear logs
+        createCmdAction(logsMenu, "Clear logs", KeyEvent.VK_K, e -> model.clearLogs());
+
         // [CMD + KEY_UP] = scroll to top
         createCmdAction(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
             autoScrollCheckBox.setSelected(false);
             table.scrollToTop();
         });
 
+        JMenu editMenu = new JMenu("Edit");
+
         // [CMD + KEY_DOWN] = scroll to bottom
-        createCmdAction(logsMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
+        createCmdAction(editMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
 
         // [CMD + KEY_UP] = page up
-        createOptionAction(logsMenu, "Page Up", KeyEvent.VK_UP, e -> table.pageUp());
+        createOptionAction(editMenu, "Page Up", KeyEvent.VK_UP, e -> table.pageUp());
 
         // [CMD + KE_DOWN] = page down
-        createOptionAction(logsMenu, "Page Down", KeyEvent.VK_DOWN, e -> table.pageDown());
+        createOptionAction(editMenu, "Page Down", KeyEvent.VK_DOWN, e -> table.pageDown());
 
-        // [CMD + K] = clear logs
-        createCmdAction(logsMenu, "Clear logs", KeyEvent.VK_K, e -> model.clearLogs());
+        // [CMD + +] = increase font size
+        createCmdAction(editMenu, "Increase Font Size", KeyEvent.VK_EQUALS, e -> increaseFontSize());
+
+        // [CMD + -] = increase font size
+        createCmdAction(editMenu, "Decrease Font Size", KeyEvent.VK_MINUS, e -> decreaseFontSize());
 
         // [CMD + F] = focus search field
-        createCmdAction(logsMenu, "Search for...", KeyEvent.VK_F, e -> searchField.requestFocus());
+        createCmdAction(editMenu, "Search for...", KeyEvent.VK_F, e -> searchField.requestFocus());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
+        menubar.add(editMenu);
         menubar.add(logsMenu);
         setJMenuBar(menubar);
+    }
+
+    public void increaseFontSize() {
+        int fontOffset = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, 0);
+        fontOffset++;
+        setFontSize(fontOffset);
+    }
+
+    private void setFontSize(int fontOffset) {
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, fontOffset);
+
+        LogsCellRenderer cellRenderer = (LogsCellRenderer) table.getDefaultRenderer(LogEntry.class);
+        cellRenderer.notifyFontChanged();
+        model.fireTableDataChanged();
+    }
+
+    public void decreaseFontSize() {
+        int fontOffset = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, 0);
+        fontOffset--;
+        setFontSize(fontOffset);
     }
 
     private void closeWindow() {
@@ -282,6 +312,26 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                 handleLogClicked();
             }
         });
+
+//        // CMD+PLUS -> inceaase font
+//        KeyStroke increaseFont = KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, InputEvent.META_DOWN_MASK);
+//        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(increaseFont, "Increase Font Size");
+//        table.getActionMap().put("Increase Font Size", new AbstractAction() {
+//            @Override
+//            public void actionPerformed(ActionEvent e) {
+//                increaseFontSize();
+//            }
+//        });
+//
+//        // CMD+MINUS -> decrease font
+//        KeyStroke decreaseFont = KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, InputEvent.META_DOWN_MASK);
+//        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(decreaseFont, "Decrease Font Size");
+//        table.getActionMap().put("Decrease Font Size", new AbstractAction() {
+//            @Override
+//            public void actionPerformed(ActionEvent e) {
+//                decreaseFontSize();
+//            }
+//        });
 
         table.getSelectionModel().addListSelectionListener(event -> {
             if (event.getValueIsAdjusting()) return;
