@@ -66,8 +66,8 @@ public class LogFilter {
                     case PID -> logValue = logEntry.pid;
                     case LEVEL -> {
                         logValue = logEntry.level;
-                        if (value != null && expression == Expression.ENDS_WITH) {
-                            //log.trace("isMatch: {}", logValue);
+                        //log.trace("isMatch: {}, val:{}, expr:{}", logValue, value, expression);
+                        if (value != null && expression == Expression.STARTS_WITH) {
                             switch (value) {
                                 case "D":
                                     return TextUtils.equalsIgnoreCaseAny(logValue, "D", "I", "W", "E");

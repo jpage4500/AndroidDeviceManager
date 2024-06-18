@@ -41,10 +41,6 @@ public class DeviceTableModel extends AbstractTableModel {
         fireTableDataChanged();
     }
 
-    public List<Device> getDeviceList() {
-        return deviceList;
-    }
-
     public void setHiddenColumns(List<String> hiddenColumns) {
         Columns[] columns = Columns.values();
         int numColumns = columns.length;
@@ -84,15 +80,28 @@ public class DeviceTableModel extends AbstractTableModel {
         return null;
     }
 
-    public void updateRowForDevice(Device device) {
-        if (device == null) return;
+    public void updateDevice(Device device) {
+        int row = getRowForDevice(device);
+        if (row >= 0) fireTableRowsUpdated(row, row);
+    }
+
+    public void removeDevice(Device device) {
+        int row = getRowForDevice(device);
+        if (row >= 0) {
+            deviceList.remove(row);
+            fireTableRowsDeleted(row, row);
+        }
+    }
+
+    public int getRowForDevice(Device device) {
+        if (device == null) return -1;
         for (int row = 0; row < deviceList.size(); row++) {
             Device d = deviceList.get(row);
             if (TextUtils.equals(d.serial, device.serial)) {
-                fireTableRowsUpdated(row, row);
-                break;
+                return row;
             }
         }
+        return -1;
     }
 
     public void setAppList(List<String> appList) {

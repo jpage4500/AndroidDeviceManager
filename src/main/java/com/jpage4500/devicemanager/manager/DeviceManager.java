@@ -208,7 +208,7 @@ public class DeviceManager {
             // run periodic task to update device state
             if (deviceRefreshRuture == null) {
                 deviceRefreshRuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
-                    log.trace("handleDeviceUpdate: REFRESH");
+                    //log.trace("handleDeviceUpdate: REFRESH");
                     for (Device device : deviceList) {
                         if (device.isOnline) {
                             fetchDeviceDetails(device, false, listener);
@@ -272,9 +272,8 @@ public class DeviceManager {
 
             device.lastUpdateMs = System.currentTimeMillis();
 
-            if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}: full:{}, {}", timer, fullRefresh, GsonHelper.toJson(device));
-
             if (fullRefresh) {
+                if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}: full:{}, {}", timer, fullRefresh, GsonHelper.toJson(device));
                 // keep track of wireless devices
                 ConnectDialog.addWirelessDevice(device);
             }

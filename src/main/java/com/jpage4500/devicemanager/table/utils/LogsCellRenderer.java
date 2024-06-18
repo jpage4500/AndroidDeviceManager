@@ -29,7 +29,7 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
     private Highlighter.HighlightPainter highlightPainter2;
     private boolean isHighlighted = false;
 
-    private int fontSize;
+    private final int defaultFontSize;
 
     public LogsCellRenderer() {
         setOpaque(true);
@@ -37,7 +37,7 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
         Border border = new EmptyBorder(0, 10, 0, 0);
         setBorder(border);
 
-        fontSize = getFont().getSize();
+        defaultFontSize = getFont().getSize();
         notifyFontChanged();
     }
 
@@ -105,6 +105,6 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
 
     public void notifyFontChanged() {
         int fontOffset = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, 0);
-        setFont(getFont().deriveFont(Font.PLAIN, fontOffset + fontSize));
+        setFont(getFont().deriveFont(Font.PLAIN, fontOffset + defaultFontSize));
     }
 }

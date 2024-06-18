@@ -100,7 +100,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     @Override
     public void handleDeviceUpdated(Device device) {
         SwingUtilities.invokeLater(() -> {
-            model.updateRowForDevice(device);
+            model.updateDevice(device);
             updateDeviceState(device);
             sorter.sort();
         });
@@ -258,29 +258,59 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         new DropTarget(table, new FileDragAndDropListener(table, this::handleFilesDropped));
 
         table.setPopupMenuListener((row, column) -> {
-            if (row == -1) {
-                JPopupMenu popupMenu = new JPopupMenu();
-                DeviceTableModel.Columns columnType = model.getColumnType(column);
-                if (columnType != null) {
-                    JMenuItem hideItem = new JMenuItem("Hide Column " + columnType.name());
-                    hideItem.addActionListener(actionEvent -> handleHideColumn(column));
-                    popupMenu.add(hideItem);
+            return getPopupMenu(row, column);
+        });
 
-                    JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
-                    sizeToFitItem.addActionListener(actionEvent -> {
-                        TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
-                        adjuster.adjustColumn(column);
-                    });
-                    popupMenu.add(sizeToFitItem);
-                    return popupMenu;
-                }
-                return null;
+        table.setTooltipListener((row, col) -> {
+            int modelCol = table.convertColumnIndexToModel(col);
+            DeviceTableModel.Columns columnType = model.getColumnType(modelCol);
+            if (row >= 0 && columnType == DeviceTableModel.Columns.BATTERY) {
+                // always show battery level and power status in tooltip
+                int modelRow = table.convertRowIndexToModel(row);
+                Device device = (Device) model.getValueAt(modelRow, modelCol);
+                String tooltip = device.batteryLevel + "%";
+                if (device.powerStatus != Device.PowerStatus.POWER_NONE) tooltip += " (" + device.powerStatus + ")";
+                return tooltip;
+            } else {
+                return table.getTextIfTruncated(row, col);
             }
-            Device device = model.getDeviceAtRow(row);
-            if (device == null) return null;
+        });
 
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            refreshUi();
+        });
+    }
+
+    /**
+     * @return PopupMenu to display or null
+     */
+    private JPopupMenu getPopupMenu(int row, int column) {
+        if (row == -1) {
+            // header
             JPopupMenu popupMenu = new JPopupMenu();
+            DeviceTableModel.Columns columnType = model.getColumnType(column);
+            if (columnType != null) {
+                JMenuItem hideItem = new JMenuItem("Hide Column " + columnType.name());
+                hideItem.addActionListener(actionEvent -> handleHideColumn(column));
+                popupMenu.add(hideItem);
 
+                JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
+                sizeToFitItem.addActionListener(actionEvent -> {
+                    TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
+                    adjuster.adjustColumn(column);
+                });
+                popupMenu.add(sizeToFitItem);
+                return popupMenu;
+            }
+            return null;
+        }
+        Device device = model.getDeviceAtRow(row);
+        if (device == null) return null;
+
+        JPopupMenu popupMenu = new JPopupMenu();
+
+        if (device.isOnline) {
             JMenuItem copyFieldItem = new JMenuItem("Copy Field to Clipboard");
             copyFieldItem.addActionListener(actionEvent -> handleCopyClipboardFieldCommand());
             popupMenu.add(copyFieldItem);
@@ -325,28 +355,18 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 disconnectItem.addActionListener(actionEvent -> handleDisconnect(device));
                 popupMenu.add(disconnectItem);
             }
-            return popupMenu;
-        });
-
-        table.setTooltipListener((row, col) -> {
-            int modelCol = table.convertColumnIndexToModel(col);
-            DeviceTableModel.Columns columnType = model.getColumnType(modelCol);
-            if (row >= 0 && columnType == DeviceTableModel.Columns.BATTERY) {
-                // always show battery level and power status in tooltip
-                int modelRow = table.convertRowIndexToModel(row);
-                Device device = (Device) model.getValueAt(modelRow, modelCol);
-                String tooltip = device.batteryLevel + "%";
-                if (device.powerStatus != Device.PowerStatus.POWER_NONE) tooltip += " (" + device.powerStatus + ")";
-                return tooltip;
-            } else {
-                return table.getTextIfTruncated(row, col);
+        } else {
+            // offline device
+            if (device.isWireless()) {
+                JMenuItem reconnectItem = new JMenuItem("Reconnect");
+                reconnectItem.addActionListener(actionEvent -> handleReconnectDevice(device));
+                popupMenu.add(reconnectItem);
             }
-        });
-
-        table.getSelectionModel().addListSelectionListener(e -> {
-            if (e.getValueIsAdjusting()) return;
-            refreshUi();
-        });
+            JMenuItem removeItem = new JMenuItem("Remove");
+            removeItem.addActionListener(actionEvent -> handleRemoveDevice(device));
+            popupMenu.add(removeItem);
+        }
+        return popupMenu;
     }
 
     private void setupSystemTray() {
@@ -611,7 +631,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
             });
             device.setCustomProperty(Device.CUSTOM_PROP_X + number, result);
-            model.updateRowForDevice(device);
+            model.updateDevice(device);
         }
     }
 
@@ -661,8 +681,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
 
         if (SwingUtilities.isEventDispatchThread()) {
-            model.updateRowForDevice(device);
-        } else SwingUtilities.invokeLater(() -> model.updateRowForDevice(device));
+            model.updateDevice(device);
+        } else SwingUtilities.invokeLater(() -> model.updateDevice(device));
     }
 
     private void handleConnectDevice() {
@@ -677,6 +697,28 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void handleDisconnect(Device device) {
         DeviceManager.getInstance().disconnectDevice(device.serial, (isSuccess, error) -> {
             if (!isSuccess) JOptionPane.showMessageDialog(this, "Unable to disconnect!");
+        });
+    }
+
+    private void handleRemoveDevice(Device device) {
+        model.removeDevice(device);
+    }
+
+    private void handleReconnectDevice(Device device) {
+        String[] deviceSplit = device.serial.split(":");
+        if (deviceSplit.length < 2) return;
+
+        String ip = deviceSplit[0];
+        int port;
+        try {
+            port = Integer.parseInt(deviceSplit[1]);
+        } catch (NumberFormatException e) {
+            log.error("Invalid port: " + deviceSplit[1]);
+            return;
+        }
+
+        DeviceManager.getInstance().connectDevice(ip, port, (isSuccess, error) -> {
+            if (!isSuccess) JOptionPane.showMessageDialog(this, "Unable to connect!");
         });
     }
 
