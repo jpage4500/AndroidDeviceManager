@@ -62,8 +62,9 @@ public class DeviceManager {
 
     private final ExecutorService commandExecutorService;
     private final ScheduledExecutorService scheduledExecutorService;
-    private final AtomicBoolean isLogging = new AtomicBoolean(false);
     private ScheduledFuture<?> deviceRefreshRuture;
+
+    private final AtomicBoolean isLogging = new AtomicBoolean(false);
 
     private JadbConnection connection;
 
@@ -913,6 +914,10 @@ public class DeviceManager {
                 process.destroy();
             }
         }
+
+        if (deviceRefreshRuture != null) deviceRefreshRuture.cancel(true);
+        commandExecutorService.shutdownNow();
+        scheduledExecutorService.shutdownNow();
     }
 
     /**

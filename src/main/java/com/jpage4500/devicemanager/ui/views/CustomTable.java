@@ -318,14 +318,13 @@ public class CustomTable extends JTable {
         int modelPos;
     }
 
-    public boolean restore() {
+    public boolean restoreTable() {
         if (prefKey == null) return false;
         Preferences prefs = Preferences.userRoot();
         String detailsStr = prefs.get(prefKey + "-details", null);
         if (detailsStr == null) return false;
         List<ColumnDetails> detailsList = GsonHelper.stringToList(detailsStr, ColumnDetails.class);
-        for (int i = 0; i < detailsList.size(); i++) {
-            ColumnDetails details = detailsList.get(i);
+        for (ColumnDetails details : detailsList) {
             // lookup column by name
             TableColumn column = getColumnByName(details.header);
             if (column == null) continue;
@@ -335,8 +334,8 @@ public class CustomTable extends JTable {
 
             int modelIndex = column.getModelIndex();
             if (modelIndex != details.userPos) {
-                log.trace("restore: moving: {}, from:{}, to:{}", details.header, modelIndex, details.userPos);
-                getColumnModel().moveColumn(modelIndex, details.userPos);
+                //log.trace("restore: moving: {}, from:{}, to:{}", details.header, modelIndex, details.userPos);
+                //getColumnModel().moveColumn(modelIndex, details.userPos);
             }
         }
 
@@ -365,7 +364,7 @@ public class CustomTable extends JTable {
         return null;
     }
 
-    public void persist() {
+    public void saveTable() {
         if (prefKey == null) return;
 
         Enumeration<TableColumn> columns = getColumnModel().getColumns();

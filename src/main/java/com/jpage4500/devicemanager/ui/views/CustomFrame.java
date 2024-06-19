@@ -5,8 +5,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.util.prefs.Preferences;
 
 /**
@@ -33,37 +31,56 @@ public class CustomFrame extends JFrame {
     }
 
     private void init() {
-        restoreFrame();
+        restoreFrameSize();
 
-        addComponentListener(new ComponentAdapter() {
-            @Override
-            public void componentResized(ComponentEvent e) {
-                saveFrameSize();
-            }
-
-            @Override
-            public void componentMoved(ComponentEvent e) {
-                saveFrameSize();
-            }
-        });
+        //addComponentListener(new ComponentAdapter() {
+        //    @Override
+        //    public void componentResized(ComponentEvent e) {
+        //        //saveFrameSize();
+        //        //log.trace("componentResized: w:{}, h:{}", getWidth(), getHeight());
+        //    }
+        //
+        //    @Override
+        //    public void componentMoved(ComponentEvent e) {
+        //        //saveFrameSize();
+        //        //log.trace("componentMoved: x:{}, y:{}", getX(), getY());
+        //    }
+        //});
     }
 
+    /**
+     * save current frame size
+     */
     protected void saveFrameSize() {
         Preferences prefs = Preferences.userRoot();
         prefs.putInt(prefKey + "-" + FRAME_X, getX());
         prefs.putInt(prefKey + "-" + FRAME_Y, getY());
         prefs.putInt(prefKey + "-" + FRAME_W, getWidth());
         prefs.putInt(prefKey + "-" + FRAME_H, getHeight());
+        //log.trace("saveFrameSize: {}: x:{}, y:{}, w:{}, h:{}", prefKey, getX(), getY(), getWidth(), getHeight());
     }
 
-    private void restoreFrame() {
+    /**
+     * restore frame size
+     */
+    private void restoreFrameSize() {
         Preferences prefs = Preferences.userRoot();
-        int x = prefs.getInt(prefKey + "-" + FRAME_X, 200);
-        int y = prefs.getInt(prefKey + "-" + FRAME_Y, 200);
-        int w = prefs.getInt(prefKey + "-" + FRAME_W, 500);
-        int h = prefs.getInt(prefKey + "-" + FRAME_H, 300);
+        int x = prefs.getInt(prefKey + "-" + FRAME_X, -1);
+        int y = prefs.getInt(prefKey + "-" + FRAME_Y, -1);
+        int w = prefs.getInt(prefKey + "-" + FRAME_W, -1);
+        int h = prefs.getInt(prefKey + "-" + FRAME_H, -1);
 
-        //log.debug("restoreFrame: x:{}, y:{}, w:{}, h:{}", x, y, w, h);
+        if (w == -1 || h == -1) {
+            w = 800;
+            h = 300;
+        }
+        if (x == -1 || y == -1) {
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            x = (screenSize.width - w) / 2;
+            y = (screenSize.height - h) / 2;
+        }
+
+        //log.trace("restoreFrame: {}: x:{}, y:{}, w:{}, h:{}", prefKey, x, y, w, h);
         setLocation(x, y);
         setSize(w, h);
     }

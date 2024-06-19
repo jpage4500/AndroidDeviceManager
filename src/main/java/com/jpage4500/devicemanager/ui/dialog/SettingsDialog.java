@@ -159,9 +159,9 @@ public class SettingsDialog extends JPanel {
         List<String> selectedItems = checkBoxList.getUnSelectedItems();
         log.debug("HIDDEN: {}", GsonHelper.toJson(selectedItems));
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(selectedItems));
-        deviceScreen.table.persist();
+        deviceScreen.table.saveTable();
         deviceScreen.model.setHiddenColumns(selectedItems);
-        deviceScreen.table.restore();
+        deviceScreen.table.restoreTable();
     }
 
     private void showAppsSettings() {

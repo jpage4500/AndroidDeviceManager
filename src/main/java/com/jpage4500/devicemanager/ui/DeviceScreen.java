@@ -26,6 +26,9 @@ import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
+import java.awt.desktop.QuitEvent;
+import java.awt.desktop.QuitHandler;
+import java.awt.desktop.QuitResponse;
 import java.awt.dnd.DropTarget;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -146,11 +149,25 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         table.requestFocus();
 
-        Runtime.getRuntime().addShutdownHook(new Thread(this::handleAppExit));
+        if (Desktop.isDesktopSupported()) {
+            Desktop desktop = Desktop.getDesktop();
+            desktop.setQuitHandler((quitEvent, quitResponse) -> {
+                handleAppExit();
+                quitResponse.performQuit();
+            });
+        } else {
+            Runtime.getRuntime().addShutdownHook(new Thread(this::handleAppExit));
+        }
     }
 
     private void handleAppExit() {
-        table.persist();
+        saveFrameSize();
+        table.saveTable();
+
+        // save positions/sizes of any other open windows (only save position of
+        if (!exploreViewMap.isEmpty()) (exploreViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
+        if (!logsViewMap.isEmpty()) (logsViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
+        if (!inputViewMap.isEmpty()) (inputViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
 
         DeviceManager.getInstance().handleExit();
     }
@@ -237,7 +254,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setMaxWidth(80);
 
         // restore user-defined column sizes
-        table.restore();
+        table.restoreTable();
 
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);
@@ -373,7 +390,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             // get the SystemTray instance
             SystemTray tray = SystemTray.getSystemTray();
 
-            BufferedImage image = UiUtils.getImage("android.png", 40, 40);
+            BufferedImage image = UiUtils.getImage("logo.png", 40, 40);
             PopupMenu popup = new PopupMenu();
             MenuItem openItem = new MenuItem("Open");
             openItem.addActionListener(e2 -> bringWindowToFront());
@@ -468,9 +485,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
         hiddenColList.add(columnType.name());
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
-        table.persist();
+        table.saveTable();
         model.setHiddenColumns(hiddenColList);
-        table.restore();
+        table.restoreTable();
     }
 
     private void handleCopyClipboardFieldCommand() {
@@ -634,13 +651,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleInputCommand() {
-        Device device = getFirstSelectedDevice();
-        if (device == null) return;
+        Device selectedDevice = getFirstSelectedDevice();
+        if (selectedDevice == null) return;
 
-        InputScreen inputScreen = inputViewMap.get(device.serial);
+        InputScreen inputScreen = inputViewMap.get(selectedDevice.serial);
         if (inputScreen == null) {
-            inputScreen = new InputScreen(this, device);
-            inputViewMap.put(device.serial, inputScreen);
+            if (!selectedDevice.isOnline) return;
+            inputScreen = new InputScreen(this, selectedDevice);
+            inputViewMap.put(selectedDevice.serial, inputScreen);
         }
         inputScreen.show();
     }
@@ -928,6 +946,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         ExploreScreen exploreScreen = exploreViewMap.get(selectedDevice.serial);
         if (exploreScreen == null) {
+            if (!selectedDevice.isOnline) return;
             exploreScreen = new ExploreScreen(this, selectedDevice);
             exploreViewMap.put(selectedDevice.serial, exploreScreen);
         }
@@ -952,6 +971,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         LogsScreen logsScreen = logsViewMap.get(selectedDevice.serial);
         if (logsScreen == null) {
+            if (!selectedDevice.isOnline) return;
             logsScreen = new LogsScreen(this, selectedDevice);
             logsViewMap.put(selectedDevice.serial, logsScreen);
         }

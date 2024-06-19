@@ -22,7 +22,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -155,7 +154,8 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
             case CLOSED -> {
                 // stop logging when window is closed
                 stopLogging();
-                table.persist();
+                saveFrameSize();
+                table.saveTable();
             }
             case ACTIVATED -> {
                 // start logging if user didn't stop
@@ -291,7 +291,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         columnModel.getColumn(LogsTableModel.Columns.MSG.ordinal()).setPreferredWidth(700);
 
         // restore user-defined column sizes
-        table.restore();
+        table.restoreTable();
 
         // ENTER -> view message
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);

@@ -122,7 +122,8 @@ public class ExploreScreen extends BaseScreen {
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
         if (state == WindowState.CLOSED) {
-            table.persist();
+            saveFrameSize();
+            table.saveTable();
         }
     }
 
@@ -157,7 +158,7 @@ public class ExploreScreen extends BaseScreen {
 
     private void closeWindow() {
         log.trace("closeWindow: {}", device.getDisplayName());
-        table.persist();
+        table.saveTable();
         deviceScreen.handleBrowseClosed(device.serial);
         dispose();
     }
@@ -177,7 +178,7 @@ public class ExploreScreen extends BaseScreen {
         TableColumnModel columnModel = table.getColumnModel();
         columnModel.getColumn(ExploreTableModel.Columns.SIZE.ordinal()).setPreferredWidth(80);
         // restore user-defined column sizes
-        table.restore();
+        table.restoreTable();
 
         // ENTER -> click on file
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
