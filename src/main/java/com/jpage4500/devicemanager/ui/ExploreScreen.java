@@ -296,15 +296,20 @@ public class ExploreScreen extends BaseScreen {
         DeviceManager.getInstance().listFiles(device, selectedPath, useRoot, (fileList, error) -> SwingUtilities.invokeLater(() -> {
             if (error != null) {
                 errorMessage = error;
+                boolean doRefresh = false;
                 if (useRoot && TextUtils.equals(error, DeviceManager.ERR_ROOT_NOT_AVAILABLE)) {
                     JOptionPane.showMessageDialog(this, "ROOT not available!");
                     toggleRoot();
-                } else if (TextUtils.equals(error, DeviceManager.ERR_PERMISSION_DENIED)) {
-                    errorMessage = "permission denied";
-                    // revert to previous directory
-                    setPath(null);
+                } else if (TextUtils.equals(error, DeviceManager.ERR_NOT_A_DIRECTORY)) {
+                    if (prevPathList.isEmpty() && TextUtils.equals(selectedPath, "/sdcard")) {
+                        // some devices don't allow browsing /sdcard (Samsung S10) --
+                        doRefresh = true;
+                    }
                 }
+                // revert to previous directory
+                setPath(null);
                 refreshUi();
+                if (doRefresh) refreshFiles();
                 return;
             }
             if (fileList == null) {

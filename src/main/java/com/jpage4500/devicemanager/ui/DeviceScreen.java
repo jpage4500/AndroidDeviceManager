@@ -225,19 +225,19 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
         table.setEmptyText("No Android Devices!");
 
+        // use some default column sizes
+        TableColumnModel columnModel = table.getColumnModel();
+        columnModel.getColumn(DeviceTableModel.Columns.NAME.ordinal()).setPreferredWidth(185);
+        columnModel.getColumn(DeviceTableModel.Columns.SERIAL.ordinal()).setPreferredWidth(152);
+        columnModel.getColumn(DeviceTableModel.Columns.PHONE.ordinal()).setPreferredWidth(116);
+        columnModel.getColumn(DeviceTableModel.Columns.IMEI.ordinal()).setPreferredWidth(147);
+        columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setPreferredWidth(31);
+        columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setMaxWidth(31);
+        columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setPreferredWidth(66);
+        columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setMaxWidth(80);
+
         // restore user-defined column sizes
-        if (!table.restore()) {
-            // first-time running - use some default column sizes
-            TableColumnModel columnModel = table.getColumnModel();
-            columnModel.getColumn(DeviceTableModel.Columns.NAME.ordinal()).setPreferredWidth(185);
-            columnModel.getColumn(DeviceTableModel.Columns.SERIAL.ordinal()).setPreferredWidth(152);
-            columnModel.getColumn(DeviceTableModel.Columns.PHONE.ordinal()).setPreferredWidth(116);
-            columnModel.getColumn(DeviceTableModel.Columns.IMEI.ordinal()).setPreferredWidth(147);
-            columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setPreferredWidth(31);
-            columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setMaxWidth(31);
-            columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setPreferredWidth(66);
-            columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setMaxWidth(80);
-        }
+        table.restore();
 
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);
@@ -257,9 +257,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // support drag and drop of files IN TO deviceView
         new DropTarget(table, new FileDragAndDropListener(table, this::handleFilesDropped));
 
-        table.setPopupMenuListener((row, column) -> {
-            return getPopupMenu(row, column);
-        });
+        table.setPopupMenuListener((row, column) -> getPopupMenu(row, column));
 
         table.setTooltipListener((row, col) -> {
             int modelCol = table.convertColumnIndexToModel(col);
@@ -701,6 +699,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleRemoveDevice(Device device) {
+        log.debug("handleRemoveDevice: {}", device.serial);
         model.removeDevice(device);
     }
 
@@ -812,7 +811,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void setupToolbar() {
         toolbar.setRollover(true);
-        JButton button;
 
         createToolbarButton(toolbar, "icon_add.png", "Connect", "Connect Device", actionEvent -> handleConnectDevice());
         toolbar.addSeparator();

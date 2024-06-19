@@ -18,15 +18,26 @@ public class DeviceTableModel extends AbstractTableModel {
     private Columns[] visibleColumns;
 
     public enum Columns {
-        NAME,
-        SERIAL,
-        MODEL,
-        PHONE,
-        IMEI,
-        BATTERY,
-        FREE,
-        CUSTOM1,
-        CUSTOM2,
+        NAME("Name"),
+        SERIAL("Serial"),
+        MODEL("Model"),
+        PHONE("Phone"),
+        IMEI("IMEI"),
+        BATTERY("Battery"),
+        FREE("Free"),
+        CUSTOM1("Custom 1"),
+        CUSTOM2("Custom 2"),
+        ;
+        String desc;
+
+        Columns(String desc) {
+            this.desc = desc;
+        }
+
+        @Override
+        public String toString() {
+            return desc;
+        }
     }
 
     public DeviceTableModel() {
@@ -125,7 +136,7 @@ public class DeviceTableModel extends AbstractTableModel {
     public String getColumnName(int i) {
         if (i < visibleColumns.length) {
             Columns colType = visibleColumns[i];
-            return colType.name();
+            return colType.toString();
         } else {
             return appList.get(i - visibleColumns.length);
         }

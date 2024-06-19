@@ -2,23 +2,32 @@ package com.jpage4500.devicemanager.ui.dialog;
 
 import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.table.LogsTableModel;
+import com.jpage4500.devicemanager.ui.views.HintTextField;
+import com.jpage4500.devicemanager.utils.ArrayUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class AddFilterDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(AddFilterDialog.class);
 
     private LogFilter logFilter;
+    private HintTextField nameTextField;
+    private List<FilterPanel> filterList;
 
     public static LogFilter showAddFilterDialog(Component frame, LogFilter logFilter) {
+        String okButton = logFilter == null ? "Save" : "Update";
         AddFilterDialog screen = new AddFilterDialog(logFilter);
         int rc = JOptionPane.showOptionDialog(frame, screen, "Add Filter", JOptionPane.DEFAULT_OPTION,
-                JOptionPane.PLAIN_MESSAGE, null, new Object[]{}, null);
+                JOptionPane.PLAIN_MESSAGE, null, new String[]{okButton, "Cancel"}, null);
         if (rc != JOptionPane.YES_OPTION) return null;
+
+        // SAVE/UPDATE filter
 
         return screen.logFilter;
     }
@@ -26,37 +35,58 @@ public class AddFilterDialog extends JPanel {
     public AddFilterDialog(LogFilter logFilter) {
         if (logFilter == null) logFilter = new LogFilter();
         this.logFilter = logFilter;
+        filterList = new ArrayList<>();
 
         initalizeUi();
     }
 
     protected void initalizeUi() {
-        setLayout(new MigLayout("fillx", "[][][]"));
+        setLayout(new MigLayout("fillx", "[][][][]"));
 
-        add(new JLabel("Filter Name"));
-        JTextField nameField = new JTextField();
-        add(nameField);
+        nameTextField = new HintTextField("Filter Name", null);
+        add(nameTextField, "span 4, grow, wrap 2");
 
-        // column
-        LogsTableModel.Columns[] columns = LogsTableModel.Columns.values();
-        JComboBox<LogsTableModel.Columns> columnComboBox = new JComboBox<>(columns);
-        add(columnComboBox, "");
+        addFilter();
 
-        LogFilter.Expression[] expressions = LogFilter.Expression.values();
-        JComboBox<LogFilter.Expression> expressionComboBox = new JComboBox<>(expressions);
-        add(expressionComboBox, "");
-
-        JTextField valueField = new JTextField();
-        add(valueField, "");
-
+        // add/update filter
         JButton addButton = new JButton("Add Filter");
         addButton.addActionListener(e -> handleAddClicked());
-        add(addButton, "al right, span 2, wrap");
+        add(addButton, "skip 2, wrap");
+    }
 
+    private void addFilter() {
+        FilterPanel filterPanel = new FilterPanel();
+
+        add(filterPanel.columnComboBox, "");
+        add(filterPanel.expressionComboBox, "");
+        add(filterPanel.valueField, "grow, wrap");
+
+        filterList.add(filterPanel);
     }
 
     private void handleAddClicked() {
 
+    }
+
+    public static class FilterPanel {
+        private JComboBox<LogsTableModel.Columns> columnComboBox;
+        private JComboBox<LogFilter.Expression> expressionComboBox;
+        private JTextField valueField;
+
+        public FilterPanel() {
+            // column
+            LogsTableModel.Columns[] columns = LogsTableModel.Columns.values();
+            columnComboBox = new JComboBox<>(columns);
+            int colIndex = ArrayUtils.indexOf(columns, LogsTableModel.Columns.TAG);
+            columnComboBox.setSelectedIndex(colIndex);
+
+            LogFilter.Expression[] expressions = LogFilter.Expression.values();
+            expressionComboBox = new JComboBox<>(expressions);
+            int exprIndex = ArrayUtils.indexOf(expressions, LogFilter.Expression.STARTS_WITH);
+            expressionComboBox.setSelectedIndex(exprIndex);
+
+            valueField = new JTextField();
+        }
     }
 
 }

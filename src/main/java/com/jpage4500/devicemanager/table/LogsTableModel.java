@@ -48,13 +48,24 @@ public class LogsTableModel extends AbstractTableModel {
     }
 
     public enum Columns {
-        DATE,
-        APP,
-        TID,
-        PID,
-        LEVEL,
-        TAG,
-        MSG,
+        DATE("Date"),
+        APP("App"),
+        TID("TID"),
+        PID("PID"),
+        LEVEL("Level"),
+        TAG("Tag"),
+        MSG("Message"),
+        ;
+        String desc;
+
+        Columns(String desc) {
+            this.desc = desc;
+        }
+
+        @Override
+        public String toString() {
+            return desc;
+        }
     }
 
     public LogsTableModel() {
@@ -133,7 +144,7 @@ public class LogsTableModel extends AbstractTableModel {
         Columns[] columns = Columns.values();
         if (i < columns.length) {
             Columns colType = columns[i];
-            return colType.name();
+            return colType.toString();
         }
         return null;
     }

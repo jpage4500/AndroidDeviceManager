@@ -278,20 +278,20 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         table.setModel(model);
         table.setDefaultRenderer(LogEntry.class, new LogsCellRenderer());
 
+        // default column sizes
+        TableColumnModel columnModel = table.getColumnModel();
+        columnModel.getColumn(LogsTableModel.Columns.LEVEL.ordinal()).setPreferredWidth(28);
+        columnModel.getColumn(LogsTableModel.Columns.LEVEL.ordinal()).setMaxWidth(35);
+        columnModel.getColumn(LogsTableModel.Columns.PID.ordinal()).setPreferredWidth(60);
+        columnModel.getColumn(LogsTableModel.Columns.PID.ordinal()).setMaxWidth(100);
+        columnModel.getColumn(LogsTableModel.Columns.TID.ordinal()).setPreferredWidth(60);
+        columnModel.getColumn(LogsTableModel.Columns.TID.ordinal()).setMaxWidth(100);
+        columnModel.getColumn(LogsTableModel.Columns.DATE.ordinal()).setPreferredWidth(159);
+        columnModel.getColumn(LogsTableModel.Columns.APP.ordinal()).setPreferredWidth(150);
+        columnModel.getColumn(LogsTableModel.Columns.MSG.ordinal()).setPreferredWidth(700);
+
         // restore user-defined column sizes
-        if (!table.restore()) {
-            // default column sizes
-            TableColumnModel columnModel = table.getColumnModel();
-            columnModel.getColumn(LogsTableModel.Columns.LEVEL.ordinal()).setPreferredWidth(28);
-            columnModel.getColumn(LogsTableModel.Columns.LEVEL.ordinal()).setMaxWidth(35);
-            columnModel.getColumn(LogsTableModel.Columns.PID.ordinal()).setPreferredWidth(60);
-            columnModel.getColumn(LogsTableModel.Columns.PID.ordinal()).setMaxWidth(100);
-            columnModel.getColumn(LogsTableModel.Columns.TID.ordinal()).setPreferredWidth(60);
-            columnModel.getColumn(LogsTableModel.Columns.TID.ordinal()).setMaxWidth(100);
-            columnModel.getColumn(LogsTableModel.Columns.DATE.ordinal()).setPreferredWidth(159);
-            columnModel.getColumn(LogsTableModel.Columns.APP.ordinal()).setPreferredWidth(150);
-            columnModel.getColumn(LogsTableModel.Columns.MSG.ordinal()).setPreferredWidth(700);
-        }
+        table.restore();
 
         // ENTER -> view message
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);

@@ -14,9 +14,20 @@ public class ExploreTableModel extends AbstractTableModel {
     private final List<DeviceFile> fileList;
 
     public enum Columns {
-        NAME,
-        SIZE,
-        DATE,
+        NAME("Name"),
+        SIZE("Size"),
+        DATE("Date"),
+        ;
+        String desc;
+
+        Columns(String desc) {
+            this.desc = desc;
+        }
+
+        @Override
+        public String toString() {
+            return desc;
+        }
     }
 
     public ExploreTableModel() {
@@ -53,7 +64,7 @@ public class ExploreTableModel extends AbstractTableModel {
     public String getColumnName(int i) {
         Columns[] columns = Columns.values();
         Columns colType = columns[i];
-        return colType.name();
+        return colType.toString();
     }
 
     public int getRowCount() {

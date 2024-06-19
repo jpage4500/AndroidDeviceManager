@@ -3,11 +3,12 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.ui.ExploreScreen;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
-import com.jpage4500.devicemanager.utils.*;
+import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Timer;
+import com.jpage4500.devicemanager.utils.Utils;
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
@@ -28,7 +29,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.prefs.Preferences;
 
 public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
@@ -636,7 +636,7 @@ public class DeviceManager {
                 if (safePath.indexOf(' ') > 0) {
                     safePath = "\"" + safePath + "\"";
                 }
-                //log.trace("listFiles: {} {}", safePath, useRoot ? "(ROOT)" : "");
+                log.trace("listFiles: {} {}", safePath, useRoot ? "(ROOT)" : "");
                 String command = "ls -alZ " + safePath;
                 if (useRoot) command = "su -c " + command;
                 ShellResult result = runShell(device, command);
@@ -648,12 +648,15 @@ public class DeviceManager {
                     else if (i == 0) {
                         // not a valid file/dir listing; check for known errors
                         if (TextUtils.contains(dir, "su:")) {
+                            log.debug("listFiles: NO_ROOT:{}", dir);
                             listener.handleFiles(null, ERR_ROOT_NOT_AVAILABLE);
                             return;
                         } else if (TextUtils.containsAny(dir, true, "permission denied")) {
+                            log.debug("listFiles: NO_PERMISSION:{}", dir);
                             listener.handleFiles(null, ERR_PERMISSION_DENIED);
                             return;
                         } else if (TextUtils.containsAny(dir, true, "Not a directory", "No such file or directory")) {
+                            log.debug("listFiles: NOT_DIR:{}, {}", dir, GsonHelper.toJson(result.resultList));
                             listener.handleFiles(null, ERR_NOT_A_DIRECTORY);
                             return;
                         }
@@ -874,10 +877,14 @@ public class DeviceManager {
         // 7677 [csf_sync_update]
         Map<String, String> pidMap = new HashMap<>();
         for (String line : result.resultList) {
-            String[] lineArr = line.trim().split(" ", 2);
+            String[] lineArr = line.trim().split(" ");
             if (lineArr.length < 2) continue;
             String pid = lineArr[0];
             String app = lineArr[1];
+            int atPos = app.indexOf('@');
+            if (atPos > 0) {
+                app = app.substring(0, atPos);
+            }
             pidMap.put(pid, app);
         }
         return pidMap;

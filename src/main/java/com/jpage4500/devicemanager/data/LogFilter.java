@@ -13,7 +13,21 @@ public class LogFilter {
     List<FilterExpression> filterList;
 
     public enum Expression {
-        EQUALS, CONTAINS, STARTS_WITH, ENDS_WITH
+        EQUALS("is"),
+        CONTAINS("contains"),
+        STARTS_WITH("starts with"),
+        ENDS_WITH("ends with"),
+        ;
+        String desc;
+
+        Expression(String desc) {
+            this.desc = desc;
+        }
+
+        @Override
+        public String toString() {
+            return desc;
+        }
     }
 
     public static class FilterExpression {
