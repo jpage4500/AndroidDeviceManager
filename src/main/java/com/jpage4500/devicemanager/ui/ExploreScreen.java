@@ -60,7 +60,7 @@ public class ExploreScreen extends BaseScreen {
     private boolean useRoot;
 
     public ExploreScreen(DeviceScreen deviceScreen, Device device) {
-        super("browse");
+        super("browse-" + device.serial, 500, 500);
         this.deviceScreen = deviceScreen;
         this.device = device;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);

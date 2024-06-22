@@ -30,7 +30,7 @@ public class InputScreen extends BaseScreen {
     private DefaultListModel<String> listModel;
 
     public InputScreen(DeviceScreen deviceScreen, Device device) {
-        super("input");
+        super("input-" + device.serial, 300, 300);
         this.deviceScreen = deviceScreen;
         this.device = device;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);

@@ -22,13 +22,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
-import java.awt.desktop.QuitEvent;
-import java.awt.desktop.QuitHandler;
-import java.awt.desktop.QuitResponse;
 import java.awt.dnd.DropTarget;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -62,7 +58,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
 
     public DeviceScreen() {
-        super("main");
+        super("main", 900, 300);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         initalizeUi();
 
@@ -160,6 +156,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
+    private void exitApp() {
+        handleAppExit();
+        setVisible(false);
+        dispose();
+        System.exit(0);
+    }
+
     private void handleAppExit() {
         saveFrameSize();
         table.saveTable();
@@ -177,9 +180,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         // [CMD + W] = close window
         createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
-            setVisible(false);
-            dispose();
-            System.exit(0);
+            exitApp();
         });
 
         // [CMD + 2] = show explorer
@@ -242,19 +243,20 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
         table.setEmptyText("No Android Devices!");
 
-        // use some default column sizes
-        TableColumnModel columnModel = table.getColumnModel();
-        columnModel.getColumn(DeviceTableModel.Columns.NAME.ordinal()).setPreferredWidth(185);
-        columnModel.getColumn(DeviceTableModel.Columns.SERIAL.ordinal()).setPreferredWidth(152);
-        columnModel.getColumn(DeviceTableModel.Columns.PHONE.ordinal()).setPreferredWidth(116);
-        columnModel.getColumn(DeviceTableModel.Columns.IMEI.ordinal()).setPreferredWidth(147);
-        columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setPreferredWidth(31);
-        columnModel.getColumn(DeviceTableModel.Columns.BATTERY.ordinal()).setMaxWidth(31);
-        columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setPreferredWidth(66);
-        columnModel.getColumn(DeviceTableModel.Columns.FREE.ordinal()).setMaxWidth(80);
-
         // restore user-defined column sizes
-        table.restoreTable();
+        if (!table.restoreTable()) {
+            // use some default column sizes
+            table.setPreferredColWidth(DeviceTableModel.Columns.NAME.name(), 185);
+            table.setPreferredColWidth(DeviceTableModel.Columns.SERIAL.name(), 152);
+            table.setPreferredColWidth(DeviceTableModel.Columns.PHONE.name(), 116);
+            table.setPreferredColWidth(DeviceTableModel.Columns.IMEI.name(), 147);
+            table.setPreferredColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
+            table.setPreferredColWidth(DeviceTableModel.Columns.FREE.name(), 66);
+        }
+
+        // set max sizes
+        table.setMaxColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
+        table.setMaxColWidth(DeviceTableModel.Columns.FREE.name(), 80);
 
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);
@@ -390,12 +392,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             // get the SystemTray instance
             SystemTray tray = SystemTray.getSystemTray();
 
-            BufferedImage image = UiUtils.getImage("logo.png", 40, 40);
+            BufferedImage image = UiUtils.getImage("tray_icon.png", 100, 100);
             PopupMenu popup = new PopupMenu();
             MenuItem openItem = new MenuItem("Open");
             openItem.addActionListener(e2 -> bringWindowToFront());
             MenuItem quitItem = new MenuItem("Quit");
-            quitItem.addActionListener(e2 -> System.exit(0));
+            quitItem.addActionListener(e2 -> exitApp());
             popup.add(openItem);
             popup.add(quitItem);
             trayIcon = new TrayIcon(image, "Android Device Manager", popup);
@@ -485,9 +487,18 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
         hiddenColList.add(columnType.name());
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
+        restoreTable();
+    }
+
+    public void restoreTable() {
         table.saveTable();
+        List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
         model.setHiddenColumns(hiddenColList);
         table.restoreTable();
+        // set max sizes
+        table.setMaxColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
+        table.setMaxColWidth(DeviceTableModel.Columns.FREE.name(), 80);
+
     }
 
     private void handleCopyClipboardFieldCommand() {

@@ -41,7 +41,7 @@ public class MessageViewScreen extends BaseScreen {
     private JButton editButton;
 
     public MessageViewScreen(DeviceScreen deviceScreen) {
-        super("message");
+        super("message", 500, 500);
         this.deviceScreen = deviceScreen;
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         initalizeUi();

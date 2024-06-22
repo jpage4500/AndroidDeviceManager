@@ -1,16 +1,11 @@
 package com.jpage4500.devicemanager.ui.views;
 
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.table.JTableHeader;
-import javax.swing.table.TableCellRenderer;
-import javax.swing.table.TableColumn;
-import javax.swing.table.TableModel;
+import javax.swing.table.*;
 import java.awt.*;
 import java.awt.dnd.DropTarget;
 import java.awt.dnd.DropTargetDragEvent;
@@ -311,11 +306,13 @@ public class CustomTable extends JTable {
     }
 
     public static class ColumnDetails {
-        Object header;
+        String name;
         int width;
-        int maxWidth;
         int userPos;
         int modelPos;
+
+        @ExcludeFromSerialization
+        TableColumn column;
     }
 
     public boolean restoreTable() {
@@ -324,64 +321,90 @@ public class CustomTable extends JTable {
         String detailsStr = prefs.get(prefKey + "-details", null);
         if (detailsStr == null) return false;
         List<ColumnDetails> detailsList = GsonHelper.stringToList(detailsStr, ColumnDetails.class);
-        for (ColumnDetails details : detailsList) {
-            // lookup column by name
-            TableColumn column = getColumnByName(details.header);
-            if (column == null) continue;
-            //log.trace("restore: {}: w:{}, max:{}", details.header, details.width, details.maxWidth);
-            column.setPreferredWidth(details.width);
-            if (details.maxWidth > 0) column.setMaxWidth(details.maxWidth);
 
-            int modelIndex = column.getModelIndex();
-            if (modelIndex != details.userPos) {
-                //log.trace("restore: moving: {}, from:{}, to:{}", details.header, modelIndex, details.userPos);
-                //getColumnModel().moveColumn(modelIndex, details.userPos);
+        // TODO: this is messy but it's the most reliable way I've found to retain user column order..
+        TableColumnModel columnModel = getColumnModel();
+        // 1) backup columns to ColumnDetails
+        for (ColumnDetails details : detailsList) {
+            details.column = getColumnByName(details.name);
+            if (details.column != null) {
+                columnModel.removeColumn(details.column);
             }
         }
 
-//        TableColumnModel columnModel = getColumnModel();
-//        for (ColumnDetails details : detailsList) {
-//            if (details.modelPos != details.userPos) {
-//                log.trace("restore: move:{} to:{}", details.modelPos, details.userPos);
-//                columnModel.moveColumn(details.modelPos, details.userPos);
-//            }
-//        }
+        // 2) backup any additional columns (if any)
+        List<TableColumn> additionalColumnList = new ArrayList<>();
+        for (int i = 0; i < columnModel.getColumnCount(); i++) {
+            TableColumn column = columnModel.getColumn(i);
+            additionalColumnList.add(column);
+        }
+
+        // 3) remove additional columns (if any)
+        for (TableColumn column : additionalColumnList) {
+            columnModel.removeColumn(column);
+        }
+
+        // 4) re-add columns in order they were saved
+        for (ColumnDetails details : detailsList) {
+            if (details.column != null) {
+                columnModel.addColumn(details.column);
+                details.column.setPreferredWidth(details.width);
+            }
+        }
+
+        // 5) re-add additional columns
+        for (TableColumn column : additionalColumnList) {
+            columnModel.addColumn(column);
+        }
         return true;
     }
 
     /**
      * get column by header name (NOTE: will return null and not throw an Exception when not found)
      */
-    public TableColumn getColumnByName(Object header) {
+    public TableColumn getColumnByName(String searchName) {
         Enumeration<TableColumn> columns = getColumnModel().getColumns();
         Iterator<TableColumn> iterator = columns.asIterator();
         while (iterator.hasNext()) {
             TableColumn column = iterator.next();
-            if (column.getHeaderValue().equals(header)) {
+            String columnName = column.getHeaderValue().toString();
+            if (TextUtils.equalsIgnoreCase(columnName, searchName)) {
                 return column;
             }
         }
+        log.error("getColumnByName: NOT_FOUND:{}", searchName);
         return null;
+    }
+
+    public void setPreferredColWidth(String colName, int preferredWidth) {
+        TableColumn column = getColumnByName(colName);
+        if (column == null) return;
+        column.setPreferredWidth(preferredWidth);
+    }
+
+    public void setMaxColWidth(String colName, int maxWidth) {
+        TableColumn column = getColumnByName(colName);
+        if (column == null) return;
+        column.setMaxWidth(maxWidth);
     }
 
     public void saveTable() {
         if (prefKey == null) return;
 
+        // save columns in display order
         Enumeration<TableColumn> columns = getColumnModel().getColumns();
         Iterator<TableColumn> iter = columns.asIterator();
         List<ColumnDetails> detailList = new ArrayList<>();
         for (int i = 0; iter.hasNext(); i++) {
             TableColumn column = iter.next();
             ColumnDetails details = new ColumnDetails();
-            details.header = column.getHeaderValue();
+            details.name = column.getHeaderValue().toString();
             details.userPos = i;
             details.modelPos = column.getModelIndex();
             details.width = column.getWidth();
             int maxWidth = column.getMaxWidth();
-            // only need to set maxWidth if one is defined (and it won't typicically be very large if it is)
-            if (maxWidth < 500) details.maxWidth = maxWidth;
             detailList.add(details);
-            //log.trace("persist: {}", GsonHelper.toJson(details));
+            //log.trace("persist: {}, pos:{}, i:{}, w:{}, max:{}", details.header, i, details.modelPos, details.width, details.maxWidth);
         }
 
         Preferences prefs = Preferences.userRoot();

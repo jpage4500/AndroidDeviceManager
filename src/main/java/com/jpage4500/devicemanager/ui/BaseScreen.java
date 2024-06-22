@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui;
 
-import com.jpage4500.devicemanager.ui.views.CustomFrame;
+import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,15 +9,19 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.prefs.Preferences;
 
 /**
  * create and manage device view
  */
-public class BaseScreen extends CustomFrame {
+public class BaseScreen extends JFrame {
     private static final Logger log = LoggerFactory.getLogger(BaseScreen.class);
 
-    public BaseScreen(String prefKey) {
-        super(prefKey);
+    private String prefKey;
+
+    public BaseScreen(String prefKey, int defaultWidth, int defaultHeight) {
+        this.prefKey = prefKey;
+        restoreFrameSize(defaultWidth, defaultHeight);
 
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 
@@ -46,6 +51,16 @@ public class BaseScreen extends CustomFrame {
                 onWindowStateChanged(WindowState.CLOSED);
             }
         });
+
+        // TODO: handle window resizing
+        //if (PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE)) {
+        //    addComponentListener(new ComponentAdapter() {
+        //        @Override
+        //        public void componentResized(ComponentEvent componentEvent) {
+        //            log.trace("componentResized: {}: W:{}, H:{}", prefKey, getWidth(), getHeight());
+        //        }
+        //    });
+        //}
 
         // NOTE: this breaks dragging the scrollbar on Mac
         // getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);
@@ -138,6 +153,32 @@ public class BaseScreen extends CustomFrame {
         }
 
         return action;
+    }
+
+    /**
+     * save current frame size
+     */
+    protected void saveFrameSize() {
+        Preferences prefs = Preferences.userRoot();
+        Rectangle rect = getBounds();
+        prefs.put(prefKey, GsonHelper.toJson(rect));
+    }
+
+    /**
+     * restore frame size
+     */
+    private void restoreFrameSize(int defaultWidth, int defaultHeight) {
+        Preferences prefs = Preferences.userRoot();
+        String savedFrameSize = prefs.get(prefKey, null);
+        Rectangle r = GsonHelper.fromJson(savedFrameSize, Rectangle.class);
+        if (r == null) {
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            int x = (screenSize.width - defaultWidth) / 2;
+            int y = (screenSize.height - defaultHeight) / 2;
+            r = new Rectangle(x, y, defaultWidth, defaultHeight);
+        }
+        setLocation(r.x, r.y);
+        setSize(r.width, r.height);
     }
 
 }
