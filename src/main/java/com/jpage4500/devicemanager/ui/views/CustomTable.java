@@ -115,6 +115,33 @@ public class CustomTable extends JTable {
                 }
             }
         });
+
+        // TODO: add to log column sizes
+//        getColumnModel().addColumnModelListener(new TableColumnModelListener() {
+//            @Override
+//            public void columnAdded(TableColumnModelEvent tableColumnModelEvent) {
+//            }
+//
+//            @Override
+//            public void columnRemoved(TableColumnModelEvent tableColumnModelEvent) {
+//            }
+//
+//            @Override
+//            public void columnMoved(TableColumnModelEvent tableColumnModelEvent) {
+//            }
+//
+//            @Override
+//            public void columnMarginChanged(ChangeEvent changeEvent) {
+//                TableColumn resizingColumn = getTableHeader().getResizingColumn();
+//                if (resizingColumn != null) {
+//                    log.trace("columnMarginChanged: {}, {}", resizingColumn.getHeaderValue(), resizingColumn.getWidth());
+//                }
+//            }
+//
+//            @Override
+//            public void columnSelectionChanged(ListSelectionEvent listSelectionEvent) {
+//            }
+//        });
     }
 
     public void setDoubleClickListener(DoubleClickListener doubleClickListener) {
@@ -334,13 +361,10 @@ public class CustomTable extends JTable {
 
         // 2) backup any additional columns (if any)
         List<TableColumn> additionalColumnList = new ArrayList<>();
-        for (int i = 0; i < columnModel.getColumnCount(); i++) {
-            TableColumn column = columnModel.getColumn(i);
+        Iterator<TableColumn> iterator = columnModel.getColumns().asIterator();
+        while (iterator.hasNext()) {
+            TableColumn column = iterator.next();
             additionalColumnList.add(column);
-        }
-
-        // 3) remove additional columns (if any)
-        for (TableColumn column : additionalColumnList) {
             columnModel.removeColumn(column);
         }
 

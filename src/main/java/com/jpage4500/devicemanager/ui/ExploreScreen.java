@@ -174,11 +174,13 @@ public class ExploreScreen extends BaseScreen {
         //table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer());
         table.setEmptyText("No Files!");
 
-        // default column sizes
-        TableColumnModel columnModel = table.getColumnModel();
-        columnModel.getColumn(ExploreTableModel.Columns.SIZE.ordinal()).setPreferredWidth(80);
         // restore user-defined column sizes
-        table.restoreTable();
+        if (!table.restoreTable()) {
+            // default column sizes
+            table.setPreferredColWidth(ExploreTableModel.Columns.SIZE.toString(), 80);
+        }
+        table.setMaxColWidth(ExploreTableModel.Columns.SIZE.toString(), 100);
+        table.setMaxColWidth(ExploreTableModel.Columns.DATE.toString(), 167);
 
         // ENTER -> click on file
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
