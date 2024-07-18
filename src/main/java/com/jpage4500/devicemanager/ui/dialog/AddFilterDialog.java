@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.utils.ArrayUtils;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +19,7 @@ public class AddFilterDialog extends JPanel {
 
     private LogFilter logFilter;
     private HintTextField nameTextField;
-    private List<FilterPanel> filterList;
+    private List<FilterPanel> panelList;
 
     public static LogFilter showAddFilterDialog(Component frame, LogFilter logFilter) {
         String okButton = logFilter == null ? "Save" : "Update";
@@ -35,7 +36,7 @@ public class AddFilterDialog extends JPanel {
     public AddFilterDialog(LogFilter logFilter) {
         if (logFilter == null) logFilter = new LogFilter();
         this.logFilter = logFilter;
-        filterList = new ArrayList<>();
+        panelList = new ArrayList<>();
 
         initalizeUi();
     }
@@ -44,14 +45,16 @@ public class AddFilterDialog extends JPanel {
         setLayout(new MigLayout("fillx", "[][][][]"));
 
         nameTextField = new HintTextField("Filter Name", null);
-        add(nameTextField, "span 4, grow, wrap 2");
+        add(nameTextField, "span 3, grow, wrap 2");
 
+        JScrollPane scrollPane = new JScrollPane(nameTextField);
         addFilter();
 
         // add/update filter
-        JButton addButton = new JButton("Add Filter");
+        JButton addButton = new JButton();
+        addButton.setIcon(UiUtils.getImageIcon("icon_add.png", 20));
         addButton.addActionListener(e -> handleAddClicked());
-        add(addButton, "skip 2, wrap");
+        //add(addButton, "skip 3, wrap");
     }
 
     private void addFilter() {
@@ -59,19 +62,38 @@ public class AddFilterDialog extends JPanel {
 
         add(filterPanel.columnComboBox, "");
         add(filterPanel.expressionComboBox, "");
-        add(filterPanel.valueField, "grow, wrap");
+        add(filterPanel.valueField, "grow, wmin 150");
+        add(filterPanel.deleteButton, "wrap");
+        revalidate();
+        repaint();
 
-        filterList.add(filterPanel);
+        filterPanel.deleteButton.addActionListener(actionEvent -> {
+            deletePanel(filterPanel);
+        });
+
+        panelList.add(filterPanel);
     }
 
     private void handleAddClicked() {
+        addFilter();
+    }
 
+    private void deletePanel(FilterPanel filterPanel) {
+        panelList.remove(filterPanel);
+        remove(filterPanel.columnComboBox);
+        remove(filterPanel.expressionComboBox);
+        remove(filterPanel.valueField);
+        remove(filterPanel.deleteButton);
+
+        revalidate();
+        repaint();
     }
 
     public static class FilterPanel {
         private JComboBox<LogsTableModel.Columns> columnComboBox;
         private JComboBox<LogFilter.Expression> expressionComboBox;
-        private JTextField valueField;
+        private HintTextField valueField;
+        private JButton deleteButton;
 
         public FilterPanel() {
             // column
@@ -85,7 +107,10 @@ public class AddFilterDialog extends JPanel {
             int exprIndex = ArrayUtils.indexOf(expressions, LogFilter.Expression.STARTS_WITH);
             expressionComboBox.setSelectedIndex(exprIndex);
 
-            valueField = new JTextField();
+            deleteButton = new JButton();
+            deleteButton.setIcon(UiUtils.getImageIcon("icon_delete.png", 20));
+
+            valueField = new HintTextField("Value", null);
         }
     }
 

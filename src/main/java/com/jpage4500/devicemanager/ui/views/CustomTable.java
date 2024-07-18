@@ -353,6 +353,10 @@ public class CustomTable extends JTable {
         TableColumnModel columnModel = getColumnModel();
         // 1) backup columns to ColumnDetails
         for (ColumnDetails details : detailsList) {
+            if (details.name == null) {
+                log.debug("restoreTable: invalid: {}", GsonHelper.toJson(details));
+                continue;
+            }
             details.column = getColumnByName(details.name);
             if (details.column != null) {
                 columnModel.removeColumn(details.column);
@@ -396,7 +400,7 @@ public class CustomTable extends JTable {
                 return column;
             }
         }
-        log.error("getColumnByName: NOT_FOUND:{}", searchName);
+        log.error("getColumnByName: NOT_FOUND:{}, {}", searchName, Utils.getStackTraceString());
         return null;
     }
 
@@ -426,7 +430,11 @@ public class CustomTable extends JTable {
             details.userPos = i;
             details.modelPos = column.getModelIndex();
             details.width = column.getWidth();
-            int maxWidth = column.getMaxWidth();
+            //int maxWidth = column.getMaxWidth();
+            if (details.name == null) {
+                log.debug("saveTable: invalid name:{} ({})", GsonHelper.toJson(details), prefKey);
+                continue;
+            }
             detailList.add(details);
             //log.trace("persist: {}, pos:{}, i:{}, w:{}, max:{}", details.header, i, details.modelPos, details.width, details.maxWidth);
         }

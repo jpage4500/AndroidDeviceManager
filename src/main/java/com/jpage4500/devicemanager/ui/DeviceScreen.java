@@ -392,7 +392,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             // get the SystemTray instance
             SystemTray tray = SystemTray.getSystemTray();
 
-            BufferedImage image = UiUtils.getImage("tray_icon.png", 100, 100);
+            BufferedImage image = UiUtils.getImage("system_tray.png", 100, 100);
             PopupMenu popup = new PopupMenu();
             MenuItem openItem = new MenuItem("Open");
             openItem.addActionListener(e2 -> bringWindowToFront());

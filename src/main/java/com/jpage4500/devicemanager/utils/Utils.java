@@ -145,4 +145,23 @@ public class Utils {
         return CompareResult.VERSION_EQUALS;
     }
 
+    public static String getStackTraceString() {
+        StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < stackTrace.length; i++) {
+            // ignore THIS call
+            if (i < 2) continue;
+            StackTraceElement element = stackTrace[i];
+            //String className = element.getClassName();
+            String fileName = element.getFileName();
+            int lineNumber = element.getLineNumber();
+            // only show this app's classes
+            if (fileName == null || lineNumber == -1) continue;
+            if (!sb.isEmpty()) sb.append(", ");
+            sb.append("{" + fileName + ", " + element.getMethodName() + ", " + lineNumber + "}");
+        }
+
+        return sb.toString();
+    }
+
 }
