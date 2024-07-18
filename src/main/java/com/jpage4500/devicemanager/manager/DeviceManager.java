@@ -241,7 +241,6 @@ public class DeviceManager {
             device.busyCounter.incrementAndGet();
             listener.handleDeviceUpdated(device);
             if (fullRefresh) {
-
                 // -- device nickname --
                 fetchNickname(device);
 
@@ -379,7 +378,11 @@ public class DeviceManager {
     private void fetchNickname(Device device) {
         ShellResult result = runShell(device, COMMAND_DEVICE_NICKNAME);
         if (result.isSuccess && !result.resultList.isEmpty()) {
-            device.nickname = result.resultList.get(0).trim();
+            String nickname = result.resultList.get(0).trim();
+            // look for error: "cmd: Can't find service: settings"
+            if (!TextUtils.containsIgnoreCase(nickname, "Can't find service")) {
+                device.nickname = nickname;
+            }
         }
     }
 
