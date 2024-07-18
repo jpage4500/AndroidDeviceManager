@@ -3,113 +3,70 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
-import com.jpage4500.devicemanager.ui.views.CustomFrame;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.util.List;
-import java.util.prefs.Preferences;
 
 /**
  * dialog to enter text on device
  */
-public class InputScreen {
+public class InputScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(InputScreen.class);
 
-    private JFrame deviceFrame;
-    public CustomFrame frame;
-    public JPanel panel;
+    private final DeviceScreen deviceScreen;
+    private Device device;
 
     private JTextField textField;
     private DefaultListModel<String> listModel;
 
-    private Device selectedDevice;
+    public InputScreen(DeviceScreen deviceScreen, Device device) {
+        super("input-" + device.serial, 300, 300);
+        this.deviceScreen = deviceScreen;
+        this.device = device;
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-    public InputScreen(JFrame deviceFrame, Device selectedDevice) {
-        this.deviceFrame = deviceFrame;
-        this.selectedDevice = selectedDevice;
         initalizeUi();
-
-        frame.setTitle(selectedDevice.getDisplayName());
+        updateDeviceState();
     }
 
-    public void show() {
-        frame.setVisible(true);
-        textField.requestFocus();
+    public void updateDeviceState() {
+        if (device.isOnline) {
+            setTitle("Input [" + device.getDisplayName() + "]");
+        } else {
+            setTitle("OFFLINE [" + device.getDisplayName() + "]");
+        }
     }
 
     private void initalizeUi() {
-        frame = new CustomFrame("input");
-        panel = new JPanel();
-        panel.setLayout(new BorderLayout());
-        frame.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowActivated(WindowEvent e) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setLayout(new MigLayout("fillx", "[][]"));
 
-            }
-
-            @Override
-            public void windowDeactivated(WindowEvent e) {
-            }
-        });
-        frame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
-        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+        addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-
+                closeWindow();
             }
         });
 
-        // -- CMD+W = close window --
-        Action closeAction = new AbstractAction("Close Window") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                log.debug("actionPerformed: CLOSE");
-                frame.setVisible(false);
-                frame.dispose();
-            }
-        };
-
-        int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
-        KeyStroke closeKey = KeyStroke.getKeyStroke(KeyEvent.VK_W, mask);
-        closeAction.putValue(Action.ACCELERATOR_KEY, closeKey);
-
-        // -- CMD+~ = show devices --
-        Action switchAction = new AbstractAction("Show Devices") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                deviceFrame.toFront();
-            }
-        };
-        KeyStroke switchKey = KeyStroke.getKeyStroke(KeyEvent.VK_1, mask);
-        switchAction.putValue(Action.ACCELERATOR_KEY, switchKey);
-
-        JMenuBar menubar = new JMenuBar();
-        JMenu menu = new JMenu("Window");
-        JMenuItem closeItem = new JMenuItem("Close");
-        closeItem.setAction(closeAction);
-        menu.add(closeItem);
-        JMenuItem switchItem = new JMenuItem("Show Devices");
-        switchItem.setAction(switchAction);
-        menu.add(switchItem);
-        menubar.add(menu);
-        frame.setJMenuBar(menubar);
-
-        panel.setLayout(new MigLayout("fillx", "[][]"));
+        setupMenuBar();
 
         panel.add(new JLabel("Recent Text"), "growx, span 2, wrap");
 
-        Preferences preferences = Preferences.userRoot();
-        String recentInput = preferences.get("PREF_RECENT_INPUT", null);
+        String recentInput = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_RECENT_INPUT);
         List<String> recentInputList = GsonHelper.stringToList(recentInput, String.class);
 
         listModel = new DefaultListModel<>();
-        //listModel.addAll(recentInputList);
+        listModel.addAll(recentInputList);
 
         JList<String> list = new JList<>(listModel);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -127,7 +84,7 @@ public class InputScreen {
 
         panel.add(new JSeparator(), "growx, spanx, wrap");
 
-        panel.add(new JLabel("Input"), "growx, span 2, wrap");
+        panel.add(new JLabel("Enter Text"), "growx, span 2, wrap");
 
         textField = new JTextField();
         textField.setHorizontalAlignment(SwingConstants.RIGHT);
@@ -146,18 +103,39 @@ public class InputScreen {
             int selectedIndex = list.getSelectedIndex();
             if (selectedIndex == -1) return;
             String value = list.getSelectedValue();
-            // TODO
+            textField.setText(value);
         });
 
         panel.add(textField, "growx, span 2, wrap");
 
         JButton sendButton = new JButton("Send");
-        sendButton.addActionListener(e -> {
-            handleEnterPressed();
-        });
+        sendButton.addActionListener(e -> handleEnterPressed());
         panel.add(sendButton, "al right, span 2, wrap");
 
-        frame.setContentPane(panel);
+        setContentPane(panel);
+    }
+
+    private void setupMenuBar() {
+        JMenu windowMenu = new JMenu("Window");
+
+        // [CMD + W] = close window
+        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
+
+        // [CMD + 1] = show devices
+        createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
+
+        // [CMD + 3] = show logs
+        createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> deviceScreen.handleLogsCommand());
+
+        JMenuBar menubar = new JMenuBar();
+        menubar.add(windowMenu);
+        setJMenuBar(menubar);
+    }
+
+    private void closeWindow() {
+        log.trace("closeWindow: {}", device.getDisplayName());
+        deviceScreen.handleInputClosed(device.serial);
+        dispose();
     }
 
     private void handleEnterPressed() {
@@ -165,7 +143,7 @@ public class InputScreen {
         textField.setEnabled(false);
         if (text.isEmpty()) {
             // send newline character
-            DeviceManager.getInstance().sendInputKeyCode(selectedDevice, 66, (isSuccess, error) -> {
+            DeviceManager.getInstance().sendInputKeyCode(device, 66, (isSuccess, error) -> {
                 textField.setEnabled(true);
                 if (isSuccess) {
                     // clear out text
@@ -178,7 +156,7 @@ public class InputScreen {
             return;
         }
 
-        DeviceManager.getInstance().sendInputText(selectedDevice, text, (isSuccess, error) -> {
+        DeviceManager.getInstance().sendInputText(device, text, (isSuccess, error) -> {
             textField.setEnabled(true);
             if (isSuccess) {
                 // clear out text
@@ -193,7 +171,6 @@ public class InputScreen {
         });
 
     }
-
 
 }
 

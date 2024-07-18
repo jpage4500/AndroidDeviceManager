@@ -13,7 +13,21 @@ public class LogFilter {
     List<FilterExpression> filterList;
 
     public enum Expression {
-        EQUALS, CONTAINS, STARTS_WITH, ENDS_WITH
+        EQUALS("is"),
+        CONTAINS("contains"),
+        STARTS_WITH("starts with"),
+        ENDS_WITH("ends with"),
+        ;
+        String desc;
+
+        Expression(String desc) {
+            this.desc = desc;
+        }
+
+        @Override
+        public String toString() {
+            return desc;
+        }
     }
 
     public static class FilterExpression {
@@ -28,25 +42,30 @@ public class LogFilter {
             if (column == null) sb.append("*");
             else sb.append(column.name().toLowerCase());
             sb.append(":");
-            if (isNotExpression) sb.append("!");
-            switch (expression) {
-                case STARTS_WITH:
-                    sb.append("*");
-                    sb.append(value);
-                    break;
-                case ENDS_WITH:
-                    sb.append(value);
-                    sb.append("*");
-                    break;
-                case CONTAINS:
-                    sb.append("*");
-                    sb.append(value);
-                    sb.append("*");
-                    break;
-                default:
-                    sb.append(value);
-                    break;
+            if (TextUtils.equalsIgnoreCaseAny(value, "*", "")) {
+                sb.append("*");
+            } else {
+                if (isNotExpression) sb.append("!");
+                switch (expression) {
+                    case STARTS_WITH:
+                        sb.append(value);
+                        sb.append("*");
+                        break;
+                    case ENDS_WITH:
+                        sb.append("*");
+                        sb.append(value);
+                        break;
+                    case CONTAINS:
+                        sb.append("*");
+                        sb.append(value);
+                        sb.append("*");
+                        break;
+                    default:
+                        sb.append(value);
+                        break;
+                }
             }
+
             return sb.toString();
         }
 
@@ -61,8 +80,8 @@ public class LogFilter {
                     case PID -> logValue = logEntry.pid;
                     case LEVEL -> {
                         logValue = logEntry.level;
-                        if (value != null && expression == Expression.ENDS_WITH) {
-                            //log.trace("isMatch: {}", logValue);
+                        //log.trace("isMatch: {}, val:{}, expr:{}", logValue, value, expression);
+                        if (value != null && expression == Expression.STARTS_WITH) {
                             switch (value) {
                                 case "D":
                                     return TextUtils.equalsIgnoreCaseAny(logValue, "D", "I", "W", "E");
@@ -121,45 +140,49 @@ public class LogFilter {
 
     public static LogFilter parse(String filterText) {
         if (filterText == null) return null;
-        LogFilter filter = null;
+        LogFilter filter = new LogFilter();
+        filter.filterList = new ArrayList<>();
         // TODO: support more than just "&&" (ie: "||")
         String[] filterArr = filterText.split(" && ");
         for (String entry : filterArr) {
             String[] entryArr = entry.split(":", 2);
-            LogFilter.FilterExpression expr = new LogFilter.FilterExpression();
-            String colName = entryArr[0].toUpperCase();
-            try {
-                expr.column = LogsTableModel.Columns.valueOf(colName);
-            } catch (IllegalArgumentException e) {
-            }
+            String key = entryArr[0].trim();
             String value = entryArr[1].trim();
-            if (TextUtils.isEmpty(value)) continue;
+            LogFilter.FilterExpression expr = new LogFilter.FilterExpression();
+            if (TextUtils.notEmpty(key)) {
+                String colName = key.toUpperCase();
+                try {
+                    expr.column = LogsTableModel.Columns.valueOf(colName);
+                } catch (IllegalArgumentException e) {
+                }
+            }
+            if (TextUtils.equalsIgnoreCaseAny(value, "*", "")) {
+                filter.filterList.add(expr);
+                continue;
+            }
             char firstChar = value.charAt(0);
             if (firstChar == '!') {
                 expr.isNotExpression = true;
                 firstChar = value.charAt(1);
             }
             if (firstChar == '*') {
-                expr.expression = Expression.STARTS_WITH;
+                expr.expression = Expression.ENDS_WITH;
             }
             char lastChar = value.charAt(value.length() - 1);
             if (lastChar == '*' || (expr.column == LogsTableModel.Columns.LEVEL && lastChar == '+')) {
-                if (expr.expression == Expression.STARTS_WITH) expr.expression = Expression.CONTAINS;
-                else expr.expression = Expression.ENDS_WITH;
+                if (expr.expression == Expression.ENDS_WITH) expr.expression = Expression.CONTAINS;
+                else expr.expression = Expression.STARTS_WITH;
             }
             int stPos = 0;
             if (expr.isNotExpression) stPos++;
-            if (expr.expression == Expression.STARTS_WITH || expr.expression == Expression.CONTAINS) stPos++;
+            if (expr.expression == Expression.ENDS_WITH || expr.expression == Expression.CONTAINS) stPos++;
 
             int endPos = value.length();
-            if (expr.expression == Expression.ENDS_WITH || expr.expression == Expression.CONTAINS) endPos--;
+            if (expr.expression == Expression.STARTS_WITH || expr.expression == Expression.CONTAINS) endPos--;
 
             expr.value = value.substring(stPos, endPos);
 
-            if (filter == null) {
-                filter = new LogFilter();
-                filter.filterList = new ArrayList<>();
-            }
+            //log.trace("parse: expr:{}", GsonHelper.toJson(expr));
             filter.filterList.add(expr);
         }
         return filter;

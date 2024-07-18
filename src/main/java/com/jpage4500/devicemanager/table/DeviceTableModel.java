@@ -16,18 +16,28 @@ public class DeviceTableModel extends AbstractTableModel {
     private final List<Device> deviceList;
     private final List<String> appList;
     private Columns[] visibleColumns;
-    private String searchText;
 
     public enum Columns {
-        NAME,
-        SERIAL,
-        MODEL,
-        PHONE,
-        IMEI,
-        BATTERY,
-        FREE,
-        CUSTOM1,
-        CUSTOM2,
+        NAME("Name"),
+        SERIAL("Serial"),
+        MODEL("Model"),
+        PHONE("Phone"),
+        IMEI("IMEI"),
+        BATTERY("Battery"),
+        FREE("Free"),
+        CUSTOM1("Custom 1"),
+        CUSTOM2("Custom 2"),
+        ;
+        String desc;
+
+        Columns(String desc) {
+            this.desc = desc;
+        }
+
+        @Override
+        public String toString() {
+            return desc;
+        }
     }
 
     public DeviceTableModel() {
@@ -40,10 +50,6 @@ public class DeviceTableModel extends AbstractTableModel {
         this.deviceList.clear();
         this.deviceList.addAll(deviceList);
         fireTableDataChanged();
-    }
-
-    public List<Device> getDeviceList() {
-        return deviceList;
     }
 
     public void setHiddenColumns(List<String> hiddenColumns) {
@@ -62,17 +68,6 @@ public class DeviceTableModel extends AbstractTableModel {
             }
         }
         fireTableStructureChanged();
-    }
-
-    public void setSearchText(String text) {
-        if (TextUtils.equals(searchText, text)) return;
-        searchText = text;
-        // force re-draw table so we can highlight any matches
-        fireTableDataChanged();
-    }
-
-    public String getSearchText() {
-        return searchText;
     }
 
     /**
@@ -96,15 +91,28 @@ public class DeviceTableModel extends AbstractTableModel {
         return null;
     }
 
-    public void updateRowForDevice(Device device) {
-        if (device == null) return;
+    public void updateDevice(Device device) {
+        int row = getRowForDevice(device);
+        if (row >= 0) fireTableRowsUpdated(row, row);
+    }
+
+    public void removeDevice(Device device) {
+        int row = getRowForDevice(device);
+        if (row >= 0) {
+            deviceList.remove(row);
+            fireTableRowsDeleted(row, row);
+        }
+    }
+
+    public int getRowForDevice(Device device) {
+        if (device == null) return -1;
         for (int row = 0; row < deviceList.size(); row++) {
             Device d = deviceList.get(row);
             if (TextUtils.equals(d.serial, device.serial)) {
-                fireTableRowsUpdated(row, row);
-                break;
+                return row;
             }
         }
+        return -1;
     }
 
     public void setAppList(List<String> appList) {
@@ -128,16 +136,9 @@ public class DeviceTableModel extends AbstractTableModel {
     public String getColumnName(int i) {
         if (i < visibleColumns.length) {
             Columns colType = visibleColumns[i];
-            return colType.name();
+            return colType.toString();
         } else {
-            String appName = appList.get(i - visibleColumns.length);
-            return appName;
-            //String[] split = appName.split("\\.");
-            //if (split.length >= 1) {
-            //    return split[split.length - 1].toUpperCase(Locale.ROOT);
-            //} else {
-            //    return "?";
-            //}
+            return appList.get(i - visibleColumns.length);
         }
     }
 

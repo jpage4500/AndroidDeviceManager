@@ -144,7 +144,9 @@ public class DeviceFile {
             } else {
                 file.isDirectory = true;
             }
-
+        }
+        if (TextUtils.equalsIgnoreCaseAny(securityType, "rootfs")) {
+            file.isReadOnly = true;
         }
         return file;
     }

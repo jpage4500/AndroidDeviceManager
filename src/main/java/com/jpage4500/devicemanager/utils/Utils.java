@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.utils;
 
+import com.jpage4500.devicemanager.ui.ExploreScreen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,6 +10,7 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.prefs.Preferences;
 
 public class Utils {
     private static final Logger log = LoggerFactory.getLogger(Utils.class);
@@ -76,6 +78,15 @@ public class Utils {
         }
     }
 
+    public static String getDownloadFolder() {
+        String downloadFolder = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_DOWNLOAD_FOLDER);
+        if (TextUtils.isEmpty(downloadFolder)) {
+            // default download folder = ~/Downloads
+            downloadFolder = System.getProperty("user.home") + "/Downloads";
+        }
+        return downloadFolder;
+    }
+
     public enum CompareResult {
         VERSION_EQUALS,
         VERSION_NEWER,
@@ -132,6 +143,25 @@ public class Utils {
 
         // same version
         return CompareResult.VERSION_EQUALS;
+    }
+
+    public static String getStackTraceString() {
+        StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < stackTrace.length; i++) {
+            // ignore THIS call
+            if (i < 2) continue;
+            StackTraceElement element = stackTrace[i];
+            //String className = element.getClassName();
+            String fileName = element.getFileName();
+            int lineNumber = element.getLineNumber();
+            // only show this app's classes
+            if (fileName == null || lineNumber == -1) continue;
+            if (!sb.isEmpty()) sb.append(", ");
+            sb.append("{" + fileName + ", " + element.getMethodName() + ", " + lineNumber + "}");
+        }
+
+        return sb.toString();
     }
 
 }

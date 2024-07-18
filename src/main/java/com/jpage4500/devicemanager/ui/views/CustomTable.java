@@ -1,7 +1,6 @@
 package com.jpage4500.devicemanager.ui.views;
 
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,18 +28,18 @@ public class CustomTable extends JTable {
     private static final Color COLOR_ALTERNATE_ROW = new Color(246, 246, 246);
 
     private String prefKey;
-    private ClickListener listener;
     private TooltipListener tooltipListener;
-    private ClickListener clickListener;
+    private DoubleClickListener doubleClickListener;
     private PopupMenuListener popupMenuListener;
     private JScrollPane scrollPane;
 
     private int selectedColumn = -1;
 
+    private boolean showBackground;
     private String emptyText;
     private Image emptyImage;
 
-    public interface ClickListener {
+    public interface DoubleClickListener {
         /**
          * @param row    converted to model row
          * @param column converted to model col
@@ -79,6 +78,8 @@ public class CustomTable extends JTable {
         this.prefKey = prefKey;
         setOpaque(false);
 
+        showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
+
         createScrollPane();
 
         setTableHeader(new CustomTableHeader(this));
@@ -110,14 +111,41 @@ public class CustomTable extends JTable {
                     // convert table row/col to model row/col
                     row = convertRowIndexToModel(row);
                     column = convertColumnIndexToModel(column);
-                    if (listener != null) listener.handleDoubleClick(row, column, e);
+                    if (doubleClickListener != null) doubleClickListener.handleDoubleClick(row, column, e);
                 }
             }
         });
+
+        // TODO: add to log column sizes
+//        getColumnModel().addColumnModelListener(new TableColumnModelListener() {
+//            @Override
+//            public void columnAdded(TableColumnModelEvent tableColumnModelEvent) {
+//            }
+//
+//            @Override
+//            public void columnRemoved(TableColumnModelEvent tableColumnModelEvent) {
+//            }
+//
+//            @Override
+//            public void columnMoved(TableColumnModelEvent tableColumnModelEvent) {
+//            }
+//
+//            @Override
+//            public void columnMarginChanged(ChangeEvent changeEvent) {
+//                TableColumn resizingColumn = getTableHeader().getResizingColumn();
+//                if (resizingColumn != null) {
+//                    log.trace("columnMarginChanged: {}, {}", resizingColumn.getHeaderValue(), resizingColumn.getWidth());
+//                }
+//            }
+//
+//            @Override
+//            public void columnSelectionChanged(ListSelectionEvent listSelectionEvent) {
+//            }
+//        });
     }
 
-    public void setClickListener(ClickListener listener) {
-        this.listener = listener;
+    public void setDoubleClickListener(DoubleClickListener doubleClickListener) {
+        this.doubleClickListener = doubleClickListener;
     }
 
     public void setTooltipListener(TooltipListener tooltipListener) {
@@ -128,12 +156,17 @@ public class CustomTable extends JTable {
         this.popupMenuListener = popupMenuListener;
     }
 
+    public void setEmptyText(String emptyText) {
+        this.emptyText = emptyText;
+        emptyImage = UiUtils.getImage("empty_image.png", 500);
+    }
+
     private void createScrollPane() {
         scrollPane = new JScrollPane(this) {
             @Override
             public void paint(Graphics graphics) {
                 super.paint(graphics);
-                if (emptyImage != null) {
+                if (emptyImage != null && showBackground) {
                     int headerH = getTableHeader().getHeight();
                     int width = getWidth();
                     int imgW = emptyImage.getWidth(null);
@@ -209,6 +242,11 @@ public class CustomTable extends JTable {
     @Override
     public void setModel(TableModel dataModel) {
         super.setModel(dataModel);
+
+        dataModel.addTableModelListener(tableModelEvent -> {
+            showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
+            scrollPane.repaint();
+        });
     }
 
     @Override
@@ -294,61 +332,111 @@ public class CustomTable extends JTable {
         scrollRectToVisible(getCellRect(scrollToRow, 0, true));
     }
 
-    public void setEmptyText(String emptyText) {
-        this.emptyText = emptyText;
-
-        emptyImage = UiUtils.getImage("empty_image.png", 500);
-    }
-
     public static class ColumnDetails {
-        Object header;
+        String name;
         int width;
         int userPos;
         int modelPos;
+
+        @ExcludeFromSerialization
+        TableColumn column;
     }
 
-    public void restore() {
-        if (prefKey == null) return;
+    public boolean restoreTable() {
+        if (prefKey == null) return false;
         Preferences prefs = Preferences.userRoot();
         String detailsStr = prefs.get(prefKey + "-details", null);
-        if (detailsStr == null) return;
+        if (detailsStr == null) return false;
         List<ColumnDetails> detailsList = GsonHelper.stringToList(detailsStr, ColumnDetails.class);
-        //log.debug("restore: {}", GsonHelper.toJson(detailsList));
 
+        // TODO: this is messy but it's the most reliable way I've found to retain user column order..
         TableColumnModel columnModel = getColumnModel();
-        if (detailsList.size() != columnModel.getColumnCount()) {
-            log.debug("restore: wrong number of columns! {} vs {}", detailsList.size(), columnModel.getColumnCount());
-            return;
-        }
-
-        for (int i = 0; i < detailsList.size(); i++) {
-            ColumnDetails details = detailsList.get(i);
-            //log.trace("restore: col:{}, w:{}", i, details.width);
-            columnModel.getColumn(i).setPreferredWidth(details.width);
-        }
-
+        // 1) backup columns to ColumnDetails
         for (ColumnDetails details : detailsList) {
-            if (details.modelPos != details.userPos) {
-                //log.trace("restore: move:{} to:{}", details.modelPos, details.userPos);
-                columnModel.moveColumn(details.modelPos, details.userPos);
+            if (details.name == null) {
+                log.debug("restoreTable: invalid: {}", GsonHelper.toJson(details));
+                continue;
+            }
+            details.column = getColumnByName(details.name);
+            if (details.column != null) {
+                columnModel.removeColumn(details.column);
             }
         }
+
+        // 2) backup any additional columns (if any)
+        List<TableColumn> additionalColumnList = new ArrayList<>();
+        Iterator<TableColumn> iterator = columnModel.getColumns().asIterator();
+        while (iterator.hasNext()) {
+            TableColumn column = iterator.next();
+            additionalColumnList.add(column);
+            columnModel.removeColumn(column);
+        }
+
+        // 4) re-add columns in order they were saved
+        for (ColumnDetails details : detailsList) {
+            if (details.column != null) {
+                columnModel.addColumn(details.column);
+                details.column.setPreferredWidth(details.width);
+            }
+        }
+
+        // 5) re-add additional columns
+        for (TableColumn column : additionalColumnList) {
+            columnModel.addColumn(column);
+        }
+        return true;
     }
 
-    public void persist() {
+    /**
+     * get column by header name (NOTE: will return null and not throw an Exception when not found)
+     */
+    public TableColumn getColumnByName(String searchName) {
+        Enumeration<TableColumn> columns = getColumnModel().getColumns();
+        Iterator<TableColumn> iterator = columns.asIterator();
+        while (iterator.hasNext()) {
+            TableColumn column = iterator.next();
+            String columnName = column.getHeaderValue().toString();
+            if (TextUtils.equalsIgnoreCase(columnName, searchName)) {
+                return column;
+            }
+        }
+        log.error("getColumnByName: NOT_FOUND:{}, {}", searchName, Utils.getStackTraceString());
+        return null;
+    }
+
+    public void setPreferredColWidth(String colName, int preferredWidth) {
+        TableColumn column = getColumnByName(colName);
+        if (column == null) return;
+        column.setPreferredWidth(preferredWidth);
+    }
+
+    public void setMaxColWidth(String colName, int maxWidth) {
+        TableColumn column = getColumnByName(colName);
+        if (column == null) return;
+        column.setMaxWidth(maxWidth);
+    }
+
+    public void saveTable() {
         if (prefKey == null) return;
 
+        // save columns in display order
         Enumeration<TableColumn> columns = getColumnModel().getColumns();
         Iterator<TableColumn> iter = columns.asIterator();
         List<ColumnDetails> detailList = new ArrayList<>();
         for (int i = 0; iter.hasNext(); i++) {
             TableColumn column = iter.next();
             ColumnDetails details = new ColumnDetails();
-            details.header = column.getHeaderValue();
+            details.name = column.getHeaderValue().toString();
             details.userPos = i;
             details.modelPos = column.getModelIndex();
             details.width = column.getWidth();
+            //int maxWidth = column.getMaxWidth();
+            if (details.name == null) {
+                log.debug("saveTable: invalid name:{} ({})", GsonHelper.toJson(details), prefKey);
+                continue;
+            }
             detailList.add(details);
+            //log.trace("persist: {}, pos:{}, i:{}, w:{}, max:{}", details.header, i, details.modelPos, details.width, details.maxWidth);
         }
 
         Preferences prefs = Preferences.userRoot();
@@ -379,10 +467,10 @@ public class CustomTable extends JTable {
                     if (SwingUtilities.isRightMouseButton(e)) {
                         if (popupMenuListener != null) {
                             Point point = e.getPoint();
-                            int row = rowAtPoint(point);
                             int column = columnAtPoint(point);
                             // convert table row/col to model row/col
                             column = convertColumnIndexToModel(column);
+                            // NOTE: row fixed at -1 for header
                             JPopupMenu popupMenu = popupMenuListener.getPopupMenu(-1, column);
                             if (popupMenu != null) popupMenu.show(e.getComponent(), e.getX(), e.getY());
                         }

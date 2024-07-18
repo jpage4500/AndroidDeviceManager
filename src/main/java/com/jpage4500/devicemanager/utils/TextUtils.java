@@ -399,4 +399,99 @@ public class TextUtils {
         }
         return sb.toString();
     }
+
+    /**
+     * very lenient JSON formatting
+     */
+    public static String formatJson(String text) {
+        if (text == null) return null;
+        StringBuilder sb = new StringBuilder();
+        int tabCount = 0;
+        boolean isInQuote = false;
+        char prevChar = 0;
+
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+
+            if (tabCount > 0 && ch == '"' && prevChar != '\\') {
+                isInQuote = !isInQuote;
+            }
+
+            if (isInQuote || (tabCount <= 0 && ch != '{' && ch != '[')) {
+                sb.append(ch);
+            } else if (ch == '{') {
+                sb.append("\n");
+                addTabs(sb, tabCount);
+                sb.append(ch);
+                sb.append("\n");
+                tabCount++;
+                addTabs(sb, tabCount);
+            } else if (ch == '}') {
+                tabCount--;
+                trimEnd(sb);
+                sb.append("\n");
+                addTabs(sb, tabCount);
+                sb.append(ch);
+            } else if (ch == '[') {
+                sb.append("\n");
+                addTabs(sb, tabCount);
+                sb.append(ch);
+                sb.append("\n");
+                tabCount++;
+            } else if (ch == ']') {
+                tabCount--;
+                trimEnd(sb);
+                sb.append("\n");
+                addTabs(sb, tabCount);
+                sb.append(ch);
+            } else if (ch == ',') {
+                sb.append(ch);
+                trimEnd(sb);
+                sb.append("\n");
+                addTabs(sb, tabCount);
+            } else if (ch == ':' && prevChar == '"') {
+                sb.append(" : ");
+            } else if ((ch == ' ' || ch == '\t')) {
+                // discard extra spaces
+            } else if ((ch == '\n' || ch == '\r')) {
+                // discard extra CR and LF
+            } else {
+                sb.append(ch);
+            }
+
+            prevChar = ch;
+        }
+        return sb.toString();
+    }
+
+    /**
+     * check if text string contains valid JSON data
+     * NOTE: very simple logic.. if a single set of "{}" or "[]" are found - return true
+     */
+    public static boolean containsJson(String text) {
+        boolean openParagraph = false;
+        boolean openBracket = false;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (ch == '{') openParagraph = true;
+            else if (ch == '[') openBracket = true;
+            else if (ch == '}' && openParagraph) return true;
+            else if (ch == ']' && openBracket) return true;
+        }
+        return false;
+    }
+
+    private static void trimEnd(StringBuilder sb) {
+        // trim newline or space from end
+        char lastChar = sb.charAt(sb.length() - 1);
+        if (lastChar == '\n' || lastChar == ' ') {
+            sb.deleteCharAt(sb.length() - 1);
+        }
+    }
+
+    private static void addTabs(StringBuilder sb, int tabCount) {
+        for (int i = 0; i < tabCount; i++) {
+            sb.append("    ");
+        }
+    }
 }

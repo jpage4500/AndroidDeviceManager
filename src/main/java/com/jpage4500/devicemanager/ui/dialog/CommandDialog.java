@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.ResultWatcher;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import net.miginfocom.swing.MigLayout;
@@ -17,12 +18,12 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
-import java.util.prefs.Preferences;
+
+import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
 
 public class CommandDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(CommandDialog.class);
 
-    public static final String PREF_CUSTOM_COMMAND_LIST = "PREF_CUSTOM_COMMAND_LIST";
     public static final int MAX_RECENT_COMMANDS = 10;
 
     private Component frame;
@@ -106,18 +107,15 @@ public class CommandDialog extends JPanel {
         add(textField, "growx, span 2, wrap");
 
         JButton sendButton = new JButton("Send Command");
-        sendButton.addActionListener(e -> {
-            handleEnterPressed();
-        });
+        sendButton.addActionListener(e -> handleEnterPressed());
         add(sendButton, "al right, span 2, wrap");
     }
 
     private void deleteItem(String command) {
-        log.debug("deleteItem: {}", command);
+        log.trace("deleteItem: {}", command);
         List<String> customCommands = getCustomCommands();
         customCommands.remove(command);
-        Preferences preferences = Preferences.userRoot();
-        preferences.put(PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
+        PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
         populateRecent();
     }
 
@@ -144,8 +142,7 @@ public class CommandDialog extends JPanel {
             customCommands = customCommands.subList(0, MAX_RECENT_COMMANDS);
         }
 
-        Preferences preferences = Preferences.userRoot();
-        preferences.put(PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
+        PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
 
         // update displayed list
         populateRecent();
@@ -167,8 +164,7 @@ public class CommandDialog extends JPanel {
     }
 
     private List<String> getCustomCommands() {
-        Preferences preferences = Preferences.userRoot();
-        String customCommands = preferences.get(PREF_CUSTOM_COMMAND_LIST, null);
+        String customCommands = PreferenceUtils.getPreference(Pref.PREF_CUSTOM_COMMAND_LIST);
         List<String> commandList = GsonHelper.stringToList(customCommands, String.class);
         if (commandList.isEmpty()) {
             // add some common commands

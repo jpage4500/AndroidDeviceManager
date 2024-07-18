@@ -33,6 +33,10 @@ public class LogsRowSorter extends TableRowSorter<TableModel> {
         logsRowFilter.setFilter(logFilterArr);
     }
 
+    public LogFilter[] getFilter() {
+        return logsRowFilter.logFilterArr;
+    }
+
     @Override
     public RowFilter<? super TableModel, ? super Integer> getRowFilter() {
         return logsRowFilter;

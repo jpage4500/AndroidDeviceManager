@@ -55,12 +55,12 @@ public class HintTextField extends JTextField {
                 new DocumentListener() {
                     @Override
                     public void insertUpdate(DocumentEvent documentEvent) {
-                        listener.textChanged(getCleanText());
+                        if (listener != null) listener.textChanged(getCleanText());
                     }
 
                     @Override
                     public void removeUpdate(DocumentEvent documentEvent) {
-                        listener.textChanged(getCleanText());
+                        if (listener != null) listener.textChanged(getCleanText());
                     }
 
                     @Override

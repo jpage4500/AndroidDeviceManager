@@ -70,13 +70,14 @@ public class FileUtils {
         return sizeDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + SIZE_UNITS[digitGroups];
     }
 
-    private static final DecimalFormat sizeGigDisplayFormat = new DecimalFormat("#.0");
+    private static final DecimalFormat sizeGigDisplayFormat = new DecimalFormat("0.0");
 
     /**
      * return string description of number of bytes (in X.X gig)
      */
     public static String bytesToGigDisplayString(Long sizeInBytes) {
-        if (sizeInBytes == null || sizeInBytes <= 0) return "0.0G";
+        if (sizeInBytes == null) return "";
+        else if (sizeInBytes <= 0) return "0.0G";
 
         int digitGroups = 3; //(int) (Math.log10(sizeInBytes) / Math.log10(1024));
         return sizeGigDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + SIZE_UNITS[digitGroups];

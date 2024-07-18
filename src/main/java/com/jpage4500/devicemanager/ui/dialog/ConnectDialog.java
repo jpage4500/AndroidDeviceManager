@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -18,11 +19,10 @@ import java.awt.event.KeyEvent;
 import java.util.List;
 import java.util.prefs.Preferences;
 
+import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
+
 public class ConnectDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(ConnectDialog.class);
-    public static final String PREF_RECENT_WIRELESS_DEVICES = "PREF_RECENT_WIRELESS_DEVICES";
-    public static final String PREF_LAST_DEVICE_IP = "PREF_LAST_DEVICE_IP";
-    public static final String PREF_LAST_DEVICE_PORT = "PREF_LAST_DEVICE_PORT";
 
     private JTextField serverField;
     private JTextField portField;
@@ -47,9 +47,9 @@ public class ConnectDialog extends JPanel {
             log.error("Invalid port: " + screen.portField.getText());
             return;
         }
-        Preferences preferences = Preferences.userRoot();
-        preferences.put(PREF_LAST_DEVICE_IP, ip);
-        preferences.put(PREF_LAST_DEVICE_PORT, String.valueOf(port));
+
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LAST_DEVICE_IP, ip);
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LAST_DEVICE_PORT, port);
 
         DeviceManager deviceManager = DeviceManager.getInstance();
         deviceManager.connectDevice(ip, port, listener);
@@ -60,9 +60,10 @@ public class ConnectDialog extends JPanel {
 
         List<WirelessDevice> deviceList = getRecentWirelessDevices();
 
-        Preferences preferences = Preferences.userRoot();
-        String lastIp = preferences.get(PREF_LAST_DEVICE_IP, "192.168.0.1");
-        String lastPort = preferences.get(PREF_LAST_DEVICE_PORT, "5555");
+        String lastIp = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LAST_DEVICE_IP);
+        int lastPort = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LAST_DEVICE_PORT, 5555);
+
+        if (TextUtils.isEmpty(lastIp)) lastIp = "192.168.0.1";
 
         add(new JLabel("Recent Devices"), "growx, span 2, wrap");
 
@@ -87,7 +88,7 @@ public class ConnectDialog extends JPanel {
         add(new JSeparator(), "growx, spanx, wrap");
 
         serverField = new JTextField(lastIp);
-        portField = new JTextField(lastPort);
+        portField = new JTextField(String.valueOf(lastPort));
 
         serverField.setHorizontalAlignment(SwingConstants.RIGHT);
         portField.setHorizontalAlignment(SwingConstants.RIGHT);
@@ -141,8 +142,7 @@ public class ConnectDialog extends JPanel {
     }
 
     public static List<WirelessDevice> getRecentWirelessDevices() {
-        Preferences preferences = Preferences.userRoot();
-        String recentDeviceStr = preferences.get(PREF_RECENT_WIRELESS_DEVICES, null);
+        String recentDeviceStr = PreferenceUtils.getPreference(Pref.PREF_RECENT_WIRELESS_DEVICES);
         return GsonHelper.stringToList(recentDeviceStr, WirelessDevice.class);
     }
 
@@ -162,15 +162,13 @@ public class ConnectDialog extends JPanel {
         if (deviceList.size() > 10) {
             deviceList.remove(deviceList.size() - 1);
         }
-        Preferences preferences = Preferences.userRoot();
-        preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
+        PreferenceUtils.setPreference(Pref.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
     }
 
     public static void removeWirelessDevice(WirelessDevice wirelessDevice) {
         List<WirelessDevice> deviceList = getRecentWirelessDevices();
         deviceList.removeIf(device -> TextUtils.equals(device.serial, wirelessDevice.serial));
-        Preferences preferences = Preferences.userRoot();
-        preferences.put(PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
+        PreferenceUtils.setPreference(Pref.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
     }
 }
 
