@@ -438,6 +438,7 @@ public class TextUtils {
                 sb.append(ch);
                 sb.append("\n");
                 tabCount++;
+                addTabs(sb, tabCount);
             } else if (ch == ']') {
                 tabCount--;
                 trimEnd(sb);

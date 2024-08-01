@@ -1,17 +1,21 @@
 package com.jpage4500.devicemanager;
 
 import com.formdev.flatlaf.FlatLightLaf;
+import com.jpage4500.devicemanager.logging.AppLogger;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import com.jpage4500.devicemanager.utils.Utils;
+import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.Properties;
 
@@ -50,30 +54,34 @@ public class MainApplication {
      * - call soon after Application:onCreate(); can be called again if debug mode changes
      */
     private void setupLogging() {
-        AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
-        // tag prefix allows for easy filtering: ie: 'adb logcat | grep PM_'
-        //logger.setTagPrefix("DM");
-        // set log level that application should log at (and higher)
-        logger.setDebugLevel(Log.VERBOSE);
-        logger.setLogToFile(true);
+        ILoggerFactory iLoggerFactory = LoggerFactory.getILoggerFactory();
+        if (iLoggerFactory instanceof AppLoggerFactory logger) {
+            // tag prefix allows for easy filtering: ie: 'adb logcat | grep PM_'
+            //logger.setTagPrefix("DM");
+            // set log level that application should log at (and higher)
+            logger.setDebugLevel(Log.VERBOSE);
+            logger.setLogToFile(true);
 
-        boolean isDebugMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false);
-        logger.setFileLogLevel(isDebugMode ? Log.DEBUG : Log.INFO);
+            boolean isDebugMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false);
+            logger.setFileLogLevel(isDebugMode ? Log.DEBUG : Log.INFO);
+        } else {
+            System.out.println("ERROR: no logger found: " + iLoggerFactory.getClass().getSimpleName());
+        }
     }
 
     private void initializeUI() {
         FlatLightLaf.setup();
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
+        defaults.put("Button.defaultButtonFollowsFocus", Boolean.TRUE);
 
-        // set docker app icon (mac)
-        if (Utils.isMac()) {
-            final Taskbar taskbar = Taskbar.getTaskbar();
+        if (Taskbar.isTaskbarSupported()) {
             try {
-                Image image = ImageIO.read(getClass().getResource("/images/logo.png"));
+                Taskbar taskbar = Taskbar.getTaskbar();
+                BufferedImage image = UiUtils.getImage("logo.png", 256);
                 taskbar.setIconImage(image);
             } catch (final Exception e) {
-                log.error("Exception: {}", e.getMessage());
+                log.error("initializeUI: Taskbar Exception: {}", e.getMessage());
             }
         }
 

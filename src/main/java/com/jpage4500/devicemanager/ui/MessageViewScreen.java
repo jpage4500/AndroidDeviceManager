@@ -105,10 +105,10 @@ public class MessageViewScreen extends BaseScreen {
         createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
         // [CMD + 1] = show devices
-        createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
+        createCmdAction(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> deviceScreen.toFront());
 
         // [CMD + 2] = show explorer
-        createCmdAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand());
+        createCmdAction(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand());
 
         JMenu messageMenu = new JMenu("Message");
 

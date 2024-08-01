@@ -34,16 +34,18 @@ Java desktop app to manage multiple Android devices via adb
 
 ## Requirements
 
-- A recent Java Runtime Environment (**JRE**) (17+)
-  - NOTE: make sure java is in your system PATH
-    - to verify, open a terminal or command window and type `java --version`
+- Java SDK
+  - min version 17; I'm using openjdk 22.0.1 2024-04-16
+  - MacOSX -> Homebrew -> `brew install openjdk`
+  - Linux - [link](https://www.digitalocean.com/community/tutorials/how-to-install-java-with-apt-on-ubuntu-22-04)
 - **adb**
+  - MacOSX -> homebrew -> `brew cask install android-platform-tools`
+  - Linux -> `sudo apt install adb fastboot`
   - standalone adb tools can be found [here](https://developer.android.com/tools/releases/platform-tools)
-    - Mac OSX can install using brew:
-      - `brew cask install android-platform-tools`
 - **scrcpy** - mirror a connected Android device ([https://github.com/Genymobile/scrcpy](https://github.com/Genymobile/scrcpy))
-  - Mac OSX can install using brew:
-    - `brew install scrcpy`
+  - MacOSX -> homebrew -> `brew install scrcpy`
+  - Linux -> see [link](https://github.com/Genymobile/scrcpy/blob/master/doc/linux.md#latest-version)
+- make sure both `adb` and `scrcpy` are in the current PATH
 
 ## Run
 
@@ -56,17 +58,7 @@ Java desktop app to manage multiple Android devices via adb
 
 ## Build
 
-NOTE: requires Maven installed and `mvn` available in PATH
-  - MacOSX can use brew to install:
-    - `brew install maven`
- 
-
-- sync this repo
-  - `git clone https://github.com/jpage4500/AndroidDeviceManager.git`
-- build:
-  - `mvn install`
-- run:
-  - `mvn exec:java`
+[Build Instructions](BUILD.md)
 
 ## Use Cases ##
 

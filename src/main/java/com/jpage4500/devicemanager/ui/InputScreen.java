@@ -51,13 +51,6 @@ public class InputScreen extends BaseScreen {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setLayout(new MigLayout("fillx", "[][]"));
 
-        addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-                closeWindow();
-            }
-        });
-
         setupMenuBar();
 
         panel.add(new JLabel("Recent Text"), "growx, span 2, wrap");
@@ -132,8 +125,17 @@ public class InputScreen extends BaseScreen {
         setJMenuBar(menubar);
     }
 
+    @Override
+    protected void onWindowStateChanged(WindowState state) {
+        super.onWindowStateChanged(state);
+        if (state == WindowState.CLOSED) {
+            closeWindow();
+        }
+    }
+
     private void closeWindow() {
         log.trace("closeWindow: {}", device.getDisplayName());
+        saveFrameSize();
         deviceScreen.handleInputClosed(device.serial);
         dispose();
     }

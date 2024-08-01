@@ -354,7 +354,7 @@ public class CustomTable extends JTable {
         // 1) backup columns to ColumnDetails
         for (ColumnDetails details : detailsList) {
             if (details.name == null) {
-                log.debug("restoreTable: invalid: {}", GsonHelper.toJson(details));
+                //log.debug("restoreTable: invalid: {}", GsonHelper.toJson(details));
                 continue;
             }
             details.column = getColumnByName(details.name);

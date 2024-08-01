@@ -1,17 +1,25 @@
 #!/bin/bash
 
-PREFS=com.apple.java.util.prefs.plist
-PREFS_FULL=~/Library/Preferences/$PREFS
 
-# clear out all Preferences (NOTE: only tested on a Mac)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # Mac OSX
+    PREFS_FILE=~/Library/Preferences/com.apple.java.util.prefs.plist
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    # Linux
+    PREFS_FILE=~/.java/.userPrefs/prefs.xml
+else
+    echo "unknown OS: $OSTYPE"
+    exit 1
+fi
 
-if [ -f $PREFS_FULL ]; then
-    echo "removing $PREFS_FULL.."
-    rm $PREFS_FULL
+# clear out all Java Preferences
+if [ -f $PREFS_FILE ]; then
+    echo "removing $PREFS_FILE.."
+    rm $PREFS_FILE
 
     USER=$(id -un)
     echo "clearing cache for $USER.."
     killall -u $USER cfprefsd
 else
-    echo "Preferences not found: $PREFS_FULL"
+    echo "Preferences not found: $PREFS_FILE"
 fi
