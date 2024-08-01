@@ -42,6 +42,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private static final Logger log = LoggerFactory.getLogger(DeviceScreen.class);
 
     private static final String HINT_FILTER_DEVICES = "Filter devices...";
+    public static final String SHOW_DEVICE_LIST = "Show Device List";
+    public static final String SHOW_BROWSE = "Show File Browser";
+    public static final String SHOW_LOG_VIEWER = "Show Device Logs";
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -184,10 +187,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         });
 
         // [CMD + 2] = show explorer
-        createCmdAction(windowMenu, "Browse Files", KeyEvent.VK_2, e -> handleBrowseCommand());
+        createCmdAction(windowMenu, SHOW_BROWSE, KeyEvent.VK_2, e -> handleBrowseCommand());
 
         // [CMD + 3] = show logs
-        createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> handleLogsCommand());
+        createCmdAction(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleLogsCommand());
 
         // [CMD + ,] = settings
         createCmdAction(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> handleSettingsClicked());
