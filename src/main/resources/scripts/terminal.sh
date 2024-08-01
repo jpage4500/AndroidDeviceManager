@@ -39,7 +39,7 @@ END
 }
 
 function handleLinux() {
-    gnome-terminal -- bash -c "cd $DIR"; ${ADB} -s "$ADB_DEVICE" shell"; exec bash"
+    gnome-terminal -- bash -c "cd $DIR"; ${ADB} -s $ADB_DEVICE shell; exec bash"
 }
 
 ##
