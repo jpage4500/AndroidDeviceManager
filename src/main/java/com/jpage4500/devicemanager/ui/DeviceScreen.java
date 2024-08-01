@@ -62,7 +62,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     public DeviceScreen() {
         super("main", 900, 300);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         initalizeUi();
 
         connectAdbServer();
@@ -161,6 +161,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
         } else {
             Runtime.getRuntime().addShutdownHook(new Thread(this::handleAppExit));
+        }
+    }
+
+    @Override
+    protected void onWindowStateChanged(WindowState state) {
+        super.onWindowStateChanged(state);
+        if (state == WindowState.CLOSING) {
+            exitApp();
         }
     }
 

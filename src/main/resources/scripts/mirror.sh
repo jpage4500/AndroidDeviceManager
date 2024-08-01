@@ -21,7 +21,7 @@ if [[ ${SCRCPY} == "" ]]; then
 fi
 
 # use random port to allow multiple instances
-PORT=$(jot -r 1  2000 65000)
+PORT=$(shuf -i 2000-65000 -n 1)
 
 # options: https://github.com/Genymobile/scrcpy?tab=readme-ov-file#user-documentation
 # --stay-awake

@@ -67,10 +67,11 @@ public class BaseScreen extends JFrame {
         // NOTE: this breaks dragging the scrollbar on Mac
         // getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);
 
-        if (!Utils.isMac()) {
-            BufferedImage image = UiUtils.getImage("system_tray.png", 100, 100);
-            setIconImage(image);
-        }
+        // TODO: not sure if this is used.. I don't see it on Mac or Linux
+        //if (!Utils.isMac()) {
+        //    BufferedImage image = UiUtils.getImage("system_tray.png", 100, 100);
+        //    setIconImage(image);
+        //}
 
     }
 

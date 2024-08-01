@@ -104,13 +104,6 @@ public class ExploreScreen extends BaseScreen {
         setupMenuBar();
         setupPopupMenu();
 
-        addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-                closeWindow();
-            }
-        });
-
         table.requestFocus();
     }
 
@@ -122,8 +115,7 @@ public class ExploreScreen extends BaseScreen {
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
         if (state == WindowState.CLOSED) {
-            saveFrameSize();
-            table.saveTable();
+            closeWindow();
         }
     }
 
@@ -158,6 +150,7 @@ public class ExploreScreen extends BaseScreen {
 
     private void closeWindow() {
         log.trace("closeWindow: {}", device.getDisplayName());
+        saveFrameSize();
         table.saveTable();
         deviceScreen.handleBrowseClosed(device.serial);
         dispose();
