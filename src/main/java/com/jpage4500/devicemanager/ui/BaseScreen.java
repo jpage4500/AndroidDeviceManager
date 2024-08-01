@@ -3,12 +3,14 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.util.prefs.Preferences;
 
 /**
@@ -64,6 +66,12 @@ public class BaseScreen extends JFrame {
 
         // NOTE: this breaks dragging the scrollbar on Mac
         // getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);
+
+        if (!Utils.isMac()) {
+            BufferedImage image = UiUtils.getImage("system_tray.png", 100, 100);
+            setIconImage(image);
+        }
+
     }
 
     public enum WindowState {

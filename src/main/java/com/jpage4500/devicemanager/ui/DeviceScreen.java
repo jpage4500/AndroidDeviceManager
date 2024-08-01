@@ -144,6 +144,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         setupMenuBar();
         setupSystemTray();
         setContentPane(panel);
+
         setVisible(true);
 
         table.requestFocus();

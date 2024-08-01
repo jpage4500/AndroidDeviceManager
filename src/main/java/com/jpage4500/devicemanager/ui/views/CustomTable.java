@@ -413,7 +413,6 @@ public class CustomTable extends JTable {
     public void setMaxColWidth(String colName, int maxWidth) {
         TableColumn column = getColumnByName(colName);
         if (column == null) return;
-        log.debug("setMaxColWidth: {}, {}", column.getIdentifier(), maxWidth);
         column.setMaxWidth(maxWidth);
     }
 
