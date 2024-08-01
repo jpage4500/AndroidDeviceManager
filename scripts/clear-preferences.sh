@@ -6,7 +6,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     PREFS_FILE=~/Library/Preferences/com.apple.java.util.prefs.plist
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Linux
-    PREFS_FILE=~/.java/.userprefs/prefs.xml
+    PREFS_FILE=~/.java/.userPrefs/prefs.xml
 else
     echo "unknown OS: $OSTYPE"
     exit 1
