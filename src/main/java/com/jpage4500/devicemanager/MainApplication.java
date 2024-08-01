@@ -73,6 +73,7 @@ public class MainApplication {
         FlatLightLaf.setup();
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
+        defaults.put("Button.defaultButtonFollowsFocus", Boolean.TRUE);
 
         if (Taskbar.isTaskbarSupported()) {
             try {

@@ -354,7 +354,7 @@ public class CustomTable extends JTable {
         // 1) backup columns to ColumnDetails
         for (ColumnDetails details : detailsList) {
             if (details.name == null) {
-                log.debug("restoreTable: invalid: {}", GsonHelper.toJson(details));
+                //log.debug("restoreTable: invalid: {}", GsonHelper.toJson(details));
                 continue;
             }
             details.column = getColumnByName(details.name);
@@ -413,6 +413,7 @@ public class CustomTable extends JTable {
     public void setMaxColWidth(String colName, int maxWidth) {
         TableColumn column = getColumnByName(colName);
         if (column == null) return;
+        log.debug("setMaxColWidth: {}, {}", column.getIdentifier(), maxWidth);
         column.setMaxWidth(maxWidth);
     }
 

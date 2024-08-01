@@ -150,10 +150,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         if (Desktop.isDesktopSupported()) {
             Desktop desktop = Desktop.getDesktop();
-            desktop.setQuitHandler((quitEvent, quitResponse) -> {
-                handleAppExit();
-                quitResponse.performQuit();
-            });
+            if (desktop.isSupported(Desktop.Action.APP_QUIT_HANDLER)) {
+                desktop.setQuitHandler((quitEvent, quitResponse) -> {
+                    handleAppExit();
+                    quitResponse.performQuit();
+                });
+            } else {
+                Runtime.getRuntime().addShutdownHook(new Thread(this::handleAppExit));
+            }
         } else {
             Runtime.getRuntime().addShutdownHook(new Thread(this::handleAppExit));
         }
@@ -255,11 +259,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             table.setPreferredColWidth(DeviceTableModel.Columns.IMEI.name(), 147);
             table.setPreferredColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
             table.setPreferredColWidth(DeviceTableModel.Columns.FREE.name(), 66);
+            // set max sizes
+            table.setMaxColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
+            table.setMaxColWidth(DeviceTableModel.Columns.FREE.name(), 80);
         }
-
-        // set max sizes
-        table.setMaxColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
-        table.setMaxColWidth(DeviceTableModel.Columns.FREE.name(), 80);
 
         sorter = new DeviceRowSorter(model);
         table.setRowSorter(sorter);

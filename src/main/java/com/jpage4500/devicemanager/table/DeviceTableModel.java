@@ -85,7 +85,7 @@ public class DeviceTableModel extends AbstractTableModel {
      * return one of the predefined columns or NULL if this is an app version column
      */
     public Columns getColumnType(int colIndex) {
-        if (colIndex < visibleColumns.length) {
+        if (colIndex >= 0 && colIndex < visibleColumns.length) {
             return visibleColumns[colIndex];
         }
         return null;
