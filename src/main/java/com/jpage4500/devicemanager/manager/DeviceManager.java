@@ -580,16 +580,36 @@ public class DeviceManager {
     }
 
     public void copyFile(Device device, File file, String dest, TaskListener listener) {
-        commandExecutorService.submit(() -> {
-            log.debug("copyFile: {} -> {}", file.getAbsolutePath(), dest);
-            try {
-                RemoteFile remoteFile = new RemoteFileRecord(dest, file.getName(), 0, 0, 0);
-                device.jadbDevice.push(file, remoteFile);
-                listener.onTaskComplete(true, null);
-            } catch (Exception e) {
-                log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
-                listener.onTaskComplete(false, e.getMessage());
+        copyFile(device, List.of(file), dest, listener);
+    }
+
+    private void copyFilesInternal(Device device, List<File> fileList, String dest) {
+        for (File file : fileList) {
+            String destFilename = dest + "/" + file.getName();
+            if (file.isDirectory()) {
+                ShellResult result = runShell(device, "mkdir \"" + destFilename + "\"");
+                log.trace("copyFilesInternal: FOLDER: {}: {}", destFilename, result);
+                // copy all children
+                File[] childrenArr = file.listFiles();
+                if (childrenArr != null) {
+                    copyFilesInternal(device, List.of(childrenArr), destFilename);
+                }
+            } else {
+                log.trace("copyFilesInternal: FILE: {}", destFilename);
+                try {
+                    RemoteFile remoteFile = new RemoteFileRecord(dest, file.getName(), 0, 0, 0);
+                    device.jadbDevice.push(file, remoteFile);
+                } catch (Exception e) {
+                    log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
+                }
             }
+        }
+    }
+
+    public void copyFile(Device device, List<File> fileList, String dest, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            copyFilesInternal(device, fileList, dest);
+            listener.onTaskComplete(true, null);
         });
     }
 
@@ -635,10 +655,11 @@ public class DeviceManager {
     public void listFiles(Device device, String path, boolean useRoot, DeviceFileListener listener) {
         commandExecutorService.submit(() -> {
             try {
-                String safePath = path;// + "/";
+                String safePath = path;
+                // make sure folder ends with "/"
                 if (!TextUtils.endsWith(safePath, "/")) safePath += "/";
                 if (safePath.indexOf(' ') > 0) {
-                    safePath = "\"" + safePath + "\"";
+                    safePath = "'" + safePath + "'";
                 }
                 log.trace("listFiles: {} {}", safePath, useRoot ? "(ROOT)" : "");
                 String command = "ls -alZ " + safePath;
@@ -718,8 +739,7 @@ public class DeviceManager {
 
     public void deleteFile(Device device, String path, DeviceFile file, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            String command = "rm -rf " + path + "/" + file.name;
-            if (file.isDirectory) command += "/";
+            String command = "rm -rf \"" + path + "/" + file.name + "\"";
             ShellResult result = runShell(device, command);
             log.debug("deleteFile: {} -> {}", command, result);
             // TODO: determine success/fail

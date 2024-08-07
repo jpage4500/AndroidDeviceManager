@@ -117,8 +117,9 @@ public class Utils {
             String v1Split = v1Arr[i];
             if (i >= v2Arr.length) {
                 // version array isn't same length
+                // v1: 24.08.01.2101, v2: 24.08.01
                 // ex: 4.0.953.beta *VS* 4.0
-                return CompareResult.VERSION_NEWER;
+                return CompareResult.VERSION_OLDER;
             }
             String v2Split = v2Arr[i];
             // compare both splits
@@ -139,6 +140,7 @@ public class Utils {
         }
 
         // if v1 length is shorter than v2 length - and we get here - v2 > v1
+        // v1: 24.08.01, v2: 24.08.01.2101
         if (v1Arr.length < v2Arr.length) return CompareResult.VERSION_NEWER;
 
         // same version

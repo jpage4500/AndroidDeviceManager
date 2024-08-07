@@ -9,13 +9,14 @@ import com.jpage4500.devicemanager.table.utils.ExplorerRowComparator;
 import com.jpage4500.devicemanager.table.utils.ExplorerRowFilter;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
-import com.jpage4500.devicemanager.ui.views.StatusBar;
+import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.*;
+import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.table.TableColumnModel;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -24,6 +25,8 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -45,7 +48,6 @@ public class ExploreScreen extends BaseScreen {
     public TableRowSorter<TableModel> rowSorter;
     private ExplorerRowFilter rowFilter;
 
-    public StatusBar statusBar;
     public JToolBar toolbar;
 
     private final Device device;
@@ -58,6 +60,11 @@ public class ExploreScreen extends BaseScreen {
     private HintTextField filterTextField;
     private JButton rootButton;
     private boolean useRoot;
+
+    // status bar items
+    private HoverLabel pathLabel;
+    private JLabel errorLabel;
+    private JLabel statusLabel;
 
     public ExploreScreen(DeviceScreen deviceScreen, Device device) {
         super("browse-" + device.serial, 500, 500);
@@ -95,9 +102,7 @@ public class ExploreScreen extends BaseScreen {
         mainPanel.add(table.getScrollPane(), BorderLayout.CENTER);
 
         // -- statusbar --
-        statusBar = new StatusBar();
-        setupStatusBar();
-        mainPanel.add(statusBar, BorderLayout.SOUTH);
+        setupStatusBar(mainPanel);
 
         setContentPane(mainPanel);
 
@@ -107,8 +112,89 @@ public class ExploreScreen extends BaseScreen {
         table.requestFocus();
     }
 
-    private void setupStatusBar() {
-        statusBar.setLeftLabelListener(this::handleGoToFolder);
+    private void setupStatusBar(JPanel mainPanel) {
+        JPanel statusBar = new JPanel(new BorderLayout());
+        UiUtils.setEmptyBorder(statusBar, 0, 0);
+
+        // bookmark
+        ImageIcon icon = UiUtils.getImageIcon("icon_bookmark.png", 15);
+        pathLabel = new HoverLabel(selectedPath, icon);
+        UiUtils.addClickListener(pathLabel, e -> {
+            JPopupMenu popupMenu = new JPopupMenu();
+            List<String> pathList = getFavoritePathList();
+            // add favorites
+            for (String path : pathList) {
+                if (TextUtils.equals(path, selectedPath)) continue;
+                JMenuItem item = new JMenuItem(path, UiUtils.getImageIcon("icon_open_folder.png", 15));
+                item.addActionListener(actionEvent -> showFolder(path));
+                UiUtils.setEmptyBorder(item);
+                popupMenu.add(item);
+            }
+            popupMenu.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent mouseEvent) {
+                    if (SwingUtilities.isRightMouseButton(mouseEvent)) {
+                        log.debug("mouseClicked: LEFT");
+                    } else {
+                        log.debug("mouseClicked: RIGHT-CLICK");
+                    }
+                }
+            });
+            popupMenu.addSeparator();
+            if (!pathList.contains(selectedPath)) {
+                // add current item
+                JMenuItem currentItem = new JMenuItem("Bookmark [" + selectedPath + "]", UiUtils.getImageIcon("icon_star.png", 15));
+                currentItem.addActionListener(actionEvent -> bookmarkPath(selectedPath));
+                UiUtils.setEmptyBorder(currentItem);
+                popupMenu.add(currentItem);
+            } else {
+                // remove current item
+                JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon("icon_trash.png", 15));
+                currentItem.addActionListener(actionEvent -> removeBookmark(selectedPath));
+                UiUtils.setEmptyBorder(currentItem);
+                popupMenu.add(currentItem);
+            }
+            popupMenu.addSeparator();
+            // go to folder
+            JMenuItem goToItem = new JMenuItem("Go to folder... [", UiUtils.getImageIcon("icon_edit.png", 15));
+            goToItem.addActionListener(actionEvent -> handleGoToFolder());
+            UiUtils.setEmptyBorder(goToItem);
+            popupMenu.add(goToItem);
+
+            popupMenu.show(e.getComponent(), e.getX(), e.getY());
+        });
+        statusBar.add(pathLabel, BorderLayout.WEST);
+
+        // empty space
+        errorLabel = new JLabel();
+        UiUtils.setEmptyBorder(errorLabel);
+        errorLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        statusBar.add(errorLabel, BorderLayout.CENTER);
+
+        statusLabel = new JLabel();
+        UiUtils.setEmptyBorder(statusLabel);
+        statusBar.add(statusLabel, BorderLayout.EAST);
+
+        mainPanel.add(statusBar, BorderLayout.SOUTH);
+    }
+
+    private void removeBookmark(String selectedPath) {
+        List<String> pathList = getFavoritePathList();
+        pathList.remove(selectedPath);
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_GO_TO_FOLDER_LIST, GsonHelper.toJson(pathList));
+    }
+
+    private List<String> getFavoritePathList() {
+        String folders = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_GO_TO_FOLDER_LIST);
+        return GsonHelper.stringToList(folders, String.class);
+    }
+
+    private void bookmarkPath(String path) {
+        List<String> pathList = getFavoritePathList();
+        if (pathList.contains(path)) return;
+        pathList.add(0, path);
+        if (pathList.size() > 10) pathList.subList(10, pathList.size()).clear();
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_GO_TO_FOLDER_LIST, GsonHelper.toJson(pathList));
     }
 
     @Override
@@ -226,12 +312,12 @@ public class ExploreScreen extends BaseScreen {
             refreshUi();
             return;
         }
-        List<DeviceFile> selectedFiles = getSelectedFiles();
+        List<DeviceFile> selectedFiles = getSelectedFiles(true);
         if (log.isTraceEnabled()) log.trace("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
         if (selectedFiles.isEmpty()) return;
         DeviceFile selectedFile = selectedFiles.get(0);
         if (selectedFile.isDirectory) {
-            if (TextUtils.equalsIgnoreCase(selectedFile.name, "..")) {
+            if (selectedFile.isUpFolder()) {
                 String prevPath = selectedPath;
                 int pos = selectedPath.lastIndexOf('/');
                 if (pos > 0) {
@@ -273,7 +359,7 @@ public class ExploreScreen extends BaseScreen {
         }
 
         // selectedPath should never end with "/"
-        if (path.length() > 1 && path.endsWith("/")) path = path.substring(0, path.length() - 1);
+        if (path.length() > 1 && path.endsWith("/")) path = path.substring(0, path.length() - 2);
         else if (TextUtils.isEmpty(path)) path = "/";
 
         // path should always start with "/"
@@ -283,7 +369,7 @@ public class ExploreScreen extends BaseScreen {
         if (prevPathList.size() > MAX_PATH_SAVE) {
             prevPathList.remove(0);
         }
-
+        log.trace("setPath: {}", path);
         selectedPath = path;
     }
 
@@ -335,17 +421,17 @@ public class ExploreScreen extends BaseScreen {
 
     private void refreshUi() {
         // file path
-        statusBar.setLeftLabel(selectedPath.isEmpty() ? "/" : selectedPath);
+        pathLabel.setText(selectedPath.isEmpty() ? "/" : selectedPath);
 
-        statusBar.setCenterLabel(errorMessage);
+        errorLabel.setText(errorMessage);
 
         // selected row(s)
         int selectedRowCount = table.getSelectedRowCount();
         int rowCount = table.getRowCount();
         if (selectedRowCount > 0) {
-            statusBar.setRightLabel("selected: " + selectedRowCount + " / " + rowCount);
+            statusLabel.setText("selected: " + selectedRowCount + " / " + rowCount);
         } else {
-            statusBar.setRightLabel("total: " + rowCount);
+            statusLabel.setText("total: " + rowCount);
         }
     }
 
@@ -373,10 +459,18 @@ public class ExploreScreen extends BaseScreen {
 
     private void handleFilesDropped(List<File> fileList) {
         if (!device.isOnline) return;
-        List<Device> deviceList = new ArrayList<>();
-        deviceList.add(device);
-        deviceScreen.installOrCopyFiles(deviceList, fileList, (isSuccess, error) -> {
-            if (isSuccess) refreshFiles();
+
+        final JDialog dialog = new JDialog();
+        dialog.setAlwaysOnTop(true);
+        String title = "Copy File";
+        String msg = "Copy " + fileList.size() + " file(s) to " + selectedPath + "?";
+        int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        // come up with total files to copy + folders to create
+        DeviceManager deviceManager = DeviceManager.getInstance();
+        deviceManager.copyFile(device, fileList, selectedPath, (isSuccess, error) -> {
+            refreshFiles();
         });
     }
 
@@ -434,7 +528,7 @@ public class ExploreScreen extends BaseScreen {
 
     private void handleDownload() {
         if (!device.isOnline) return;
-        List<DeviceFile> selectedFileList = getSelectedFiles();
+        List<DeviceFile> selectedFileList = getSelectedFiles(false);
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
@@ -474,7 +568,7 @@ public class ExploreScreen extends BaseScreen {
 
     private void handleDelete() {
         if (!device.isOnline) return;
-        List<DeviceFile> selectedFileList = getSelectedFiles();
+        List<DeviceFile> selectedFileList = getSelectedFiles(false);
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
@@ -483,7 +577,7 @@ public class ExploreScreen extends BaseScreen {
         StringBuilder sb = new StringBuilder();
         for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
             DeviceFile file = iterator.next();
-            if (sb.length() > 0) sb.append('\n');
+            if (!sb.isEmpty()) sb.append('\n');
             sb.append(file.name);
         }
 
@@ -498,17 +592,8 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void handleGoToFolder() {
-        String folders = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_GO_TO_FOLDER_LIST);
-        List<String> customList = GsonHelper.stringToList(folders, String.class);
-
-//        List<String> selectedList = new ArrayList<>();
-//        String[] pathArr = selectedPath.split("/");
-//        for (String path : pathArr) {
-//            selectedList.add(path);
-//        }
-//        selectedList.addAll(customList);
-
-        JComboBox comboBox = new JComboBox(customList.toArray(new String[]{}));
+        List<String> pathList = getFavoritePathList();
+        JComboBox comboBox = new JComboBox(pathList.toArray(new String[]{}));
         comboBox.setEditable(true);
         int rc = JOptionPane.showOptionDialog(this, comboBox, "Go to folder", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return;
@@ -517,22 +602,18 @@ public class ExploreScreen extends BaseScreen {
         if (selectedObj == null) return;
         String selectedItem = (String) selectedObj;
         if (TextUtils.isEmpty(selectedItem)) return;
-        // remove from list
-        customList.remove(selectedItem);
-        // add to top of list
-        customList.add(0, selectedItem);
-        // only save last 10 entries
-        if (customList.size() > 10) {
-            customList = customList.subList(0, 10);
-        }
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_GO_TO_FOLDER_LIST, GsonHelper.toJson(customList));
+        //bookmarkPath(selectedItem);
         log.debug("handleGoToFolder: {}", selectedItem);
-        setPath(selectedItem);
+        showFolder(selectedItem);
+    }
+
+    private void showFolder(String path) {
+        setPath(path);
         refreshFiles();
     }
 
     private void handleCopyPath() {
-        List<DeviceFile> selectedFileList = getSelectedFiles();
+        List<DeviceFile> selectedFileList = getSelectedFiles(false);
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
@@ -551,7 +632,7 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void handleCopyName() {
-        List<DeviceFile> selectedFileList = getSelectedFiles();
+        List<DeviceFile> selectedFileList = getSelectedFiles(false);
         if (selectedFileList.isEmpty()) {
             showSelectDevicesDialog();
             return;
@@ -569,14 +650,18 @@ public class ExploreScreen extends BaseScreen {
         clipboard.setContents(stringSelection, null);
     }
 
-    private List<DeviceFile> getSelectedFiles() {
+    private List<DeviceFile> getSelectedFiles(boolean includeUpFolder) {
         List<DeviceFile> selectedDeviceList = new ArrayList<>();
         int[] selectedRows = table.getSelectedRows();
         for (int selectedRow : selectedRows) {
             // convert view row to data row (in case user changed sort order)
             int dataRow = table.convertRowIndexToModel(selectedRow);
             DeviceFile deviceFile = model.getDeviceFileAtRow(dataRow);
-            if (deviceFile != null) selectedDeviceList.add(deviceFile);
+            if (deviceFile != null) {
+                // ingore ".." folder
+                if (!includeUpFolder && deviceFile.isUpFolder()) continue;
+                selectedDeviceList.add(deviceFile);
+            }
         }
         return selectedDeviceList;
     }

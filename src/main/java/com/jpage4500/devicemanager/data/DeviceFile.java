@@ -15,6 +15,8 @@ import java.util.Date;
 public class DeviceFile {
     private static final Logger log = LoggerFactory.getLogger(DeviceFile.class);
 
+    public static final String UP_DIR = "..";
+
     // list of common groups an Android adb user can belong to
     // -- altertiave would be to run 'groups' command to get actual groups
     // Pixel 7:   shell input log adb sdcard_rw sdcard_r ext_data_rw ext_obb_rw net_bt_admin net_bt inet net_bw_stats readproc uhid readtracefs
@@ -41,6 +43,10 @@ public class DeviceFile {
     @Override
     public String toString() {
         return name;
+    }
+
+    public boolean isUpFolder() {
+        return TextUtils.equals(name, UP_DIR);
     }
 
     /**

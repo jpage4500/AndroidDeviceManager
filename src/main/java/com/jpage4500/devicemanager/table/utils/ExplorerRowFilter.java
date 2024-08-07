@@ -14,11 +14,11 @@ public class ExplorerRowFilter extends RowFilter<Object, Object> {
 
         for (int i = entry.getValueCount() - 1; i >= 0; i--) {
             Object value = entry.getValue(i);
-            if (value instanceof DeviceFile) {
-                DeviceFile file = (DeviceFile) value;
+            if (value instanceof DeviceFile file) {
+                // always show ".."
+                if (file.isUpFolder()) return true;
                 String name = file.name;
                 if (TextUtils.containsIgnoreCase(name, searchFor)) return true;
-                else if (TextUtils.equals(name, "..")) return true;
             } else {
                 String stringValue = entry.getStringValue(i);
                 if (TextUtils.containsIgnoreCase(stringValue, searchFor)) return true;

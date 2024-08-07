@@ -586,20 +586,19 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     public void installOrCopyFiles(List<Device> selectedDeviceList, List<File> fileList, DeviceManager.TaskListener listener) {
-        boolean isApk = false;
+        List<File> apkList = new ArrayList<>();
         StringBuilder name = new StringBuilder();
         for (File file : fileList) {
             if (!name.isEmpty()) name.append(", ");
             String filename = file.getName();
             name.append(filename);
             if (filename.endsWith(".apk")) {
-                isApk = true;
-                break;
+                apkList.add(file);
             }
         }
-
-        String title = isApk ? "Install App" : "Copy File";
-        String msg = isApk ? "Install " : "Copy ";
+        boolean isInstall = !apkList.isEmpty();
+        String title = isInstall ? "Install App" : "Copy File";
+        String msg = isInstall ? "Install " : "Copy ";
         msg += name.toString();
         msg += " to " + selectedDeviceList.size() + " device(s)?";
 
@@ -609,33 +608,41 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         dialog.setAlwaysOnTop(true);
         int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
+        if (isInstall) {
+            installFiles(selectedDeviceList, apkList, listener);
+        } else {
+            copyFiles(selectedDeviceList, fileList, listener);
+        }
+    }
 
-        log.debug("handleFilesDropped: installing: {}", name);
+    private void copyFiles(List<Device> selectedDeviceList, List<File> fileList, DeviceManager.TaskListener listener) {
+        ResultWatcher resultWatcher = new ResultWatcher(selectedDeviceList.size());
+        resultWatcher.setListener(listener);
+        // TODO: where to put files on device?
+        String destFolder = "/sdcard/Download/";
+        for (Device device : selectedDeviceList) {
+            setDeviceBusy(device, true);
+            DeviceManager.getInstance().copyFile(device, fileList, destFolder, (isSuccess, error) -> {
+                setDeviceBusy(device, false);
+                resultWatcher.handleResult(getRootPane(), null);
+            });
+        }
+    }
 
-        ResultWatcher resultWatcher = new ResultWatcher(selectedDeviceList.size() * fileList.size());
+    private void installFiles(List<Device> selectedDeviceList, List<File> apkList, DeviceManager.TaskListener listener) {
+        ResultWatcher resultWatcher = new ResultWatcher(selectedDeviceList.size() * apkList.size());
         resultWatcher.setListener(listener);
         for (Device device : selectedDeviceList) {
-            for (File file : fileList) {
+            for (File file : apkList) {
                 String filename = file.getName();
                 setDeviceBusy(device, true);
-                if (filename.endsWith(".apk")) {
-                    DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
-                        setDeviceBusy(device, false);
-                        String result = "INSTALL: " + filename + " -> " +
-                                (isSuccess ? "success" : ("failed: " + error)) +
-                                ", device: " + device.getDisplayName();
-                        resultWatcher.handleResult(getRootPane(), result);
-                    });
-                } else {
-                    // TODO: where to put files on device?
-                    DeviceManager.getInstance().copyFile(device, file, "/sdcard/Download/", (isSuccess, error) -> {
-                        setDeviceBusy(device, false);
-                        String result = "COPY: " + filename + " -> " +
-                                (isSuccess ? "success" : ("failed: " + error)) +
-                                ", device: " + device.getDisplayName();
-                        resultWatcher.handleResult(getRootPane(), result);
-                    });
-                }
+                DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
+                    setDeviceBusy(device, false);
+                    String result = "INSTALL: " + filename + " -> " +
+                            (isSuccess ? "success" : ("failed: " + error)) +
+                            ", device: " + device.getDisplayName();
+                    resultWatcher.handleResult(getRootPane(), result);
+                });
             }
         }
     }
