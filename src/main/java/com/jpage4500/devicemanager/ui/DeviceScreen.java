@@ -586,20 +586,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     public void installOrCopyFiles(List<Device> selectedDeviceList, List<File> fileList, DeviceManager.TaskListener listener) {
-        List<File> apkList = new ArrayList<>();
-        StringBuilder name = new StringBuilder();
-        for (File file : fileList) {
-            if (!name.isEmpty()) name.append(", ");
-            String filename = file.getName();
-            name.append(filename);
-            if (filename.endsWith(".apk")) {
-                apkList.add(file);
-            }
-        }
-        boolean isInstall = !apkList.isEmpty();
-        String title = isInstall ? "Install App" : "Copy File";
+        FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
+        // if all files are .apk, do install instead of copy
+        boolean isInstall = stats.numApk == stats.numTotal;
+        String title = isInstall ? "Install App" : "Copy File(s)";
         String msg = isInstall ? "Install " : "Copy ";
-        msg += name.toString();
+        msg += TextUtils.join(stats.nameList, ", ");
         msg += " to " + selectedDeviceList.size() + " device(s)?";
 
         // prompt to install/copy
@@ -609,7 +601,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
         if (isInstall) {
-            installFiles(selectedDeviceList, apkList, listener);
+            installFiles(selectedDeviceList, fileList, listener);
         } else {
             copyFiles(selectedDeviceList, fileList, listener);
         }
@@ -622,7 +614,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         String destFolder = "/sdcard/Download/";
         for (Device device : selectedDeviceList) {
             setDeviceBusy(device, true);
-            DeviceManager.getInstance().copyFile(device, fileList, destFolder, (isSuccess, error) -> {
+            DeviceManager.getInstance().copyFiles(device, fileList, destFolder, (numCompleted, numTotal, msg) -> {
+                // TOOD:
+            }, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
                 resultWatcher.handleResult(getRootPane(), null);
             });
@@ -718,7 +712,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
-    private void setDeviceBusy(Device device, boolean isBusy) {
+    public void setDeviceBusy(Device device, boolean isBusy) {
         if (isBusy) {
             int busyCounter = device.busyCounter.incrementAndGet();
             // check if already busy (ie: no change)

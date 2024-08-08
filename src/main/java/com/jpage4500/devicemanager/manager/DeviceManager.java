@@ -5,10 +5,8 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.*;
 import com.jpage4500.devicemanager.utils.Timer;
-import com.jpage4500.devicemanager.utils.Utils;
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
@@ -27,6 +25,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -579,25 +578,23 @@ public class DeviceManager {
         });
     }
 
-    public void copyFile(Device device, File file, String dest, TaskListener listener) {
-        copyFile(device, List.of(file), dest, listener);
-    }
-
-    private void copyFilesInternal(Device device, List<File> fileList, String dest) {
+    private void copyFilesInternal(Device device, List<File> fileList, String dest, ProgressListener progressListener) {
         for (File file : fileList) {
-            String destFilename = dest + "/" + file.getName();
+            String filename = file.getName();
+            String destFilename = dest + "/" + filename;
+            progressListener.onProgress(0, 0, filename);
             if (file.isDirectory()) {
                 ShellResult result = runShell(device, "mkdir \"" + destFilename + "\"");
                 log.trace("copyFilesInternal: FOLDER: {}: {}", destFilename, result);
                 // copy all children
                 File[] childrenArr = file.listFiles();
                 if (childrenArr != null) {
-                    copyFilesInternal(device, List.of(childrenArr), destFilename);
+                    copyFilesInternal(device, List.of(childrenArr), destFilename, progressListener);
                 }
             } else {
                 log.trace("copyFilesInternal: FILE: {}", destFilename);
                 try {
-                    RemoteFile remoteFile = new RemoteFileRecord(dest, file.getName(), 0, 0, 0);
+                    RemoteFile remoteFile = new RemoteFileRecord(dest, filename, 0, 0, 0);
                     device.jadbDevice.push(file, remoteFile);
                 } catch (Exception e) {
                     log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
@@ -606,9 +603,15 @@ public class DeviceManager {
         }
     }
 
-    public void copyFile(Device device, List<File> fileList, String dest, TaskListener listener) {
+    public void copyFiles(Device device, List<File> fileList, String dest, ProgressListener progressListener, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            copyFilesInternal(device, fileList, dest);
+            // come up with total files to copy
+            FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
+            AtomicInteger count = new AtomicInteger();
+            copyFilesInternal(device, fileList, dest, (numCompleted, numTotal, msg) -> {
+                int i = count.incrementAndGet();
+                progressListener.onProgress(i, stats.numTotal, msg);
+            });
             listener.onTaskComplete(true, null);
         });
     }
@@ -695,6 +698,10 @@ public class DeviceManager {
                 listener.handleFiles(null, e.getMessage());
             }
         });
+    }
+
+    public interface ProgressListener {
+        void onProgress(int numCompleted, int numTotal, String msg);
     }
 
     public interface TaskListener {

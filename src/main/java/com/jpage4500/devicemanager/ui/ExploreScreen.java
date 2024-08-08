@@ -11,12 +11,10 @@ import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.*;
-import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -62,9 +60,9 @@ public class ExploreScreen extends BaseScreen {
     private boolean useRoot;
 
     // status bar items
-    private HoverLabel pathLabel;
+    private HoverLabel pathLabel;       // current path
     private JLabel errorLabel;
-    private JLabel statusLabel;
+    private JLabel countLabel;          // total files / # selected
 
     public ExploreScreen(DeviceScreen deviceScreen, Device device) {
         super("browse-" + device.serial, 500, 500);
@@ -125,7 +123,8 @@ public class ExploreScreen extends BaseScreen {
             // add favorites
             for (String path : pathList) {
                 if (TextUtils.equals(path, selectedPath)) continue;
-                JMenuItem item = new JMenuItem(path, UiUtils.getImageIcon("icon_open_folder.png", 15));
+                String fav = TextUtils.truncateStart(path, 25);
+                JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon("icon_open_folder.png", 15));
                 item.addActionListener(actionEvent -> showFolder(path));
                 UiUtils.setEmptyBorder(item);
                 popupMenu.add(item);
@@ -143,7 +142,9 @@ public class ExploreScreen extends BaseScreen {
             popupMenu.addSeparator();
             if (!pathList.contains(selectedPath)) {
                 // add current item
-                JMenuItem currentItem = new JMenuItem("Bookmark [" + selectedPath + "]", UiUtils.getImageIcon("icon_star.png", 15));
+                String path = TextUtils.truncateStart(selectedPath, 25);
+                ImageIcon favIcon = UiUtils.getImageIcon("icon_star.png", 15);
+                JMenuItem currentItem = new JMenuItem("Bookmark [" + path + "]", favIcon);
                 currentItem.addActionListener(actionEvent -> bookmarkPath(selectedPath));
                 UiUtils.setEmptyBorder(currentItem);
                 popupMenu.add(currentItem);
@@ -156,7 +157,7 @@ public class ExploreScreen extends BaseScreen {
             }
             popupMenu.addSeparator();
             // go to folder
-            JMenuItem goToItem = new JMenuItem("Go to folder... [", UiUtils.getImageIcon("icon_edit.png", 15));
+            JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon("icon_edit.png", 15));
             goToItem.addActionListener(actionEvent -> handleGoToFolder());
             UiUtils.setEmptyBorder(goToItem);
             popupMenu.add(goToItem);
@@ -171,9 +172,9 @@ public class ExploreScreen extends BaseScreen {
         errorLabel.setHorizontalAlignment(SwingConstants.CENTER);
         statusBar.add(errorLabel, BorderLayout.CENTER);
 
-        statusLabel = new JLabel();
-        UiUtils.setEmptyBorder(statusLabel);
-        statusBar.add(statusLabel, BorderLayout.EAST);
+        countLabel = new JLabel();
+        UiUtils.setEmptyBorder(countLabel);
+        statusBar.add(countLabel, BorderLayout.EAST);
 
         mainPanel.add(statusBar, BorderLayout.SOUTH);
     }
@@ -421,7 +422,8 @@ public class ExploreScreen extends BaseScreen {
 
     private void refreshUi() {
         // file path
-        pathLabel.setText(selectedPath.isEmpty() ? "/" : selectedPath);
+        String path = selectedPath.isEmpty() ? "/" : selectedPath;
+        UiUtils.setText(pathLabel, path, 25);
 
         errorLabel.setText(errorMessage);
 
@@ -429,9 +431,9 @@ public class ExploreScreen extends BaseScreen {
         int selectedRowCount = table.getSelectedRowCount();
         int rowCount = table.getRowCount();
         if (selectedRowCount > 0) {
-            statusLabel.setText("selected: " + selectedRowCount + " / " + rowCount);
+            countLabel.setText(selectedRowCount + " / " + rowCount);
         } else {
-            statusLabel.setText("total: " + rowCount);
+            countLabel.setText("total: " + rowCount);
         }
     }
 
@@ -460,16 +462,23 @@ public class ExploreScreen extends BaseScreen {
     private void handleFilesDropped(List<File> fileList) {
         if (!device.isOnline) return;
 
+        FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
+
         final JDialog dialog = new JDialog();
         dialog.setAlwaysOnTop(true);
-        String title = "Copy File";
-        String msg = "Copy " + fileList.size() + " file(s) to " + selectedPath + "?";
+        String title = "Copy File(s)";
+        String msg = "Copy " + stats.numTotal + " file(s) to " + selectedPath + "?";
         int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
-        // come up with total files to copy + folders to create
+        deviceScreen.setDeviceBusy(device, true);
         DeviceManager deviceManager = DeviceManager.getInstance();
-        deviceManager.copyFile(device, fileList, selectedPath, (isSuccess, error) -> {
+        deviceManager.copyFiles(device, fileList, selectedPath, (numCompleted, numTotal, msg1) -> {
+            String status = String.format("%d/%d - %s", numCompleted, numTotal, msg1);
+            errorLabel.setText(status);
+        }, (isSuccess, error) -> {
+            deviceScreen.setDeviceBusy(device, false);
+            errorLabel.setText(error);
             refreshFiles();
         });
     }

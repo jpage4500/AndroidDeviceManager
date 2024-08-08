@@ -495,4 +495,24 @@ public class TextUtils {
             sb.append("    ");
         }
     }
+
+    /**
+     * truncate text if necessary
+     * if text len > maxLen, truncate from the end
+     */
+    public static String truncate(String text, int maxLen) {
+        int textLen = TextUtils.length(text);
+        boolean truncate = textLen > maxLen;
+        return truncate ? (text.substring(0, maxLen) + "...") : text;
+    }
+
+    /**
+     * truncate text if necessary
+     * if text len > maxLen, truncate from the start
+     */
+    public static String truncateStart(String text, int maxLen) {
+        int textLen = TextUtils.length(text);
+        boolean truncate = textLen > maxLen;
+        return truncate ? ("..." + text.substring(textLen - maxLen)) : text;
+    }
 }

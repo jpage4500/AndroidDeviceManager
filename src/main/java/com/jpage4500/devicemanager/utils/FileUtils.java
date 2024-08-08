@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.List;
 
 public class FileUtils {
     private static final Logger log = LoggerFactory.getLogger(FileUtils.class);
@@ -83,4 +85,51 @@ public class FileUtils {
         return sizeGigDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + SIZE_UNITS[digitGroups];
     }
 
+    public static class FileStats {
+        public int numTotal;
+        public int numFiles;
+        public int numFolders;  // # folders
+        public int numApk;      // # apk files
+        public List<String> nameList = new ArrayList<>();  // list of filename's
+    }
+
+    /**
+     * come up with total number of folders/files/etc from a File
+     */
+    public static FileStats getFileStats(List<File> fileList) {
+        FileStats stats = new FileStats();
+        for (File file : fileList) {
+            getFileListStatsInternal(file, stats);
+        }
+        return stats;
+    }
+
+    /**
+     * come up with total number of folders/files/etc from a File
+     */
+    public static FileStats getFileStats(File file) {
+        FileStats stats = new FileStats();
+        getFileListStatsInternal(file, stats);
+        return stats;
+    }
+
+    private static void getFileListStatsInternal(File file, FileStats stats) {
+        stats.numTotal++;
+        String name = file.getName();
+        stats.nameList.add(name);
+        if (file.isDirectory()) {
+            stats.numFolders++;
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    getFileListStatsInternal(child, stats);
+                }
+            }
+        } else {
+            stats.numFiles++;
+            if (name.endsWith(".apk")) {
+                stats.numApk++;
+            }
+        }
+    }
 }

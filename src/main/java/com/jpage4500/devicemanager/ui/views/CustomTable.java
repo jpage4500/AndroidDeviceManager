@@ -24,6 +24,7 @@ import java.util.prefs.Preferences;
 public class CustomTable extends JTable {
     private static final Logger log = LoggerFactory.getLogger(CustomTable.class);
 
+    private static final Color COLOR_BACKGROUND = new Color(222, 222, 222);
     private static final Color COLOR_HEADER = new Color(197, 197, 197);
     private static final Color COLOR_ALTERNATE_ROW = new Color(246, 246, 246);
 
@@ -77,6 +78,7 @@ public class CustomTable extends JTable {
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
         setOpaque(false);
+        setBackground(COLOR_BACKGROUND);
 
         showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
 
@@ -103,7 +105,6 @@ public class CustomTable extends JTable {
                         column = convertColumnIndexToModel(column);
                         JPopupMenu popupMenu = popupMenuListener.getPopupMenu(row, column);
                         if (popupMenu != null) {
-                            popupMenu.show(e.getComponent(), e.getX(), e.getY());
                         }
                     }
                 } else if (e.getClickCount() == 2) {
