@@ -319,18 +319,9 @@ public class DeviceManager {
     private void fetchInstalledAppVersions(Device device) {
         List<String> customApps = SettingsDialog.getCustomApps();
         for (String customApp : customApps) {
-            // shell dumpsys package $PACKAGE | grep versionName | sed 's/    versionName=//')
-            ShellResult result = runShell(device, "dumpsys package " + customApp);
-            for (String appLine : result.resultList) {
-                // "    versionName=24.05.16.160",
-                int index = appLine.indexOf("versionName=");
-                if (index > 0) {
-                    String versionName = appLine.substring(index + "versionName=".length());
-                    if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
-                    device.customAppVersionList.put(customApp, versionName);
-                    //log.trace("fetchDeviceDetails: {} = {}", customApp, versionName);
-                }
-            }
+            String versionName = getAppVersion(device, customApp);
+            if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
+            device.customAppVersionList.put(customApp, versionName);
         }
     }
 
@@ -627,7 +618,7 @@ public class DeviceManager {
     public void runCustomCommand(Device device, String customCommand, TaskListener listener) {
         commandExecutorService.submit(() -> {
             ShellResult result = runShell(device, customCommand);
-            log.debug("runCustomCommand: DONE: success:{}, {}", result.isSuccess, GsonHelper.toJson(result.resultList));
+            log.trace("runCustomCommand: DONE: success:{}, {}", result.isSuccess, GsonHelper.toJson(result.resultList));
             String displayStr = TextUtils.join(result.resultList, "\n");
             if (listener != null) listener.onTaskComplete(result.isSuccess, displayStr);
         });
@@ -1114,5 +1105,53 @@ public class DeviceManager {
             log.error("readInputStream: Exception: {}", e.getMessage());
         }
         return resultList;
+    }
+
+    public interface InstalledAppListener {
+        void onComplete(HashSet<String> appSet);
+    }
+
+    /**
+     * fetch all installed apps (package names)
+     */
+    public void getInstalledApps(Device device, InstalledAppListener listener) {
+        commandExecutorService.submit(() -> {
+            try {
+                HashSet<String> appSet = device.jadbDevice.listInstalledPackages();
+                listener.onComplete(appSet);
+            } catch (Exception e) {
+                log.error("getInstalledApps: {}", e.getMessage());
+                listener.onComplete(null);
+            }
+        });
+    }
+
+    public interface InstalledAppVersionListener {
+        void onComplete(String version);
+    }
+
+    /**
+     * fetch version for a given app package
+     */
+    public void fetchAppVersion(Device device, String appPkg, InstalledAppVersionListener listener) {
+        commandExecutorService.submit(() -> {
+            String appVersion = getAppVersion(device, appPkg);
+            listener.onComplete(appVersion);
+        });
+    }
+
+    private String getAppVersion(Device device, String appPkg) {
+        // shell dumpsys package $PACKAGE | grep versionName | sed 's/    versionName=//')
+        ShellResult result = runShell(device, "dumpsys package " + appPkg);
+        for (String appLine : result.resultList) {
+            // "    versionName=24.05.16.160",
+            int index = appLine.indexOf("versionName=");
+            if (index > 0) {
+                String versionName = appLine.substring(index + "versionName=".length());
+                log.trace("getAppVersion: {} -> {}", appPkg, versionName);
+                return versionName;
+            }
+        }
+        return null;
     }
 }

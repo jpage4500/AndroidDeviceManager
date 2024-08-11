@@ -4,41 +4,82 @@ import com.jpage4500.devicemanager.manager.DeviceManager;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * track results from multiple actions from multiple threads and display them in a dialog when complete
  */
 public class ResultWatcher {
-    public StringBuilder sb = new StringBuilder();
+    private Component component;
     private final int numResults;
-    private int counter;
+    private AtomicInteger counter = new AtomicInteger();
     private DeviceManager.TaskListener listener;
+    private final List<Result> resultList = new ArrayList<>();
 
-    public ResultWatcher(int numResults) {
+    static class Result {
+        boolean isSucess;
+        String message;
+
+        public Result(boolean isSucess, String message) {
+            this.isSucess = isSucess;
+            this.message = message;
+        }
+    }
+
+    /**
+     * when complete show a dialog with results
+     */
+    public ResultWatcher(Component component, int numResults) {
+        this.component = component;
         this.numResults = numResults;
     }
 
-    public void setListener(DeviceManager.TaskListener listener) {
+    /**
+     * when complete calls listener
+     */
+    public ResultWatcher(Component component, int numResults, DeviceManager.TaskListener listener) {
+        this.component = component;
+        this.numResults = numResults;
         this.listener = listener;
     }
 
-    public void handleResult(Component component, String line) {
-        SwingUtilities.invokeLater(() -> {
-            if (line != null) sb.append(line);
-            counter++;
+    public void handleResult(boolean isSuccess, String message) {
+        synchronized (resultList) {
+            resultList.add(new Result(isSuccess, message));
+        }
+        int count = counter.incrementAndGet();
 
-            // show results when last command is complete
-            if (counter == numResults && !sb.isEmpty()) {
-                // DONE!
-                JTextArea textArea = new JTextArea(sb.toString());
-                textArea.setEditable(false);
-                JScrollPane scrollPane = new JScrollPane(textArea);
-                JOptionPane.showMessageDialog(component, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
-                if (listener != null) listener.onTaskComplete(true, null);
-            } else {
-                if (line != null) sb.append("\n");
-            }
-        });
+        if (count == numResults) {
+            // DONE!
+            SwingUtilities.invokeLater(() -> {
+                // check if any results were errors
+                boolean isError = false;
+                StringBuilder sb = new StringBuilder();
+                for (Result result : resultList) {
+                    // only show results with a message
+                    if (result.message == null) continue;
+                    else if (!sb.isEmpty()) sb.append('\n');
+                    sb.append(result.isSucess ? "OK" : "FAIL");
+                    sb.append(": ");
+                    sb.append(result.message);
+                    if (!result.isSucess) {
+                        isError = true;
+                        break;
+                    }
+                }
+                if (listener != null) {
+                    listener.onTaskComplete(!isError, null);
+                } else if (!sb.isEmpty()) {
+                    // display results in dialog
+                    JTextArea textArea = new JTextArea(sb.toString());
+                    textArea.setEditable(false);
+                    JScrollPane scrollPane = new JScrollPane(textArea);
+                    JOptionPane.showMessageDialog(component, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
+                }
+            });
+        }
     }
 
 }

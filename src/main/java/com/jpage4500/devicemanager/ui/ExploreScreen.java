@@ -117,53 +117,7 @@ public class ExploreScreen extends BaseScreen {
         // bookmark
         ImageIcon icon = UiUtils.getImageIcon("icon_bookmark.png", 15);
         pathLabel = new HoverLabel(selectedPath, icon);
-        UiUtils.addClickListener(pathLabel, e -> {
-            JPopupMenu popupMenu = new JPopupMenu();
-            List<String> pathList = getFavoritePathList();
-            // add favorites
-            for (String path : pathList) {
-                if (TextUtils.equals(path, selectedPath)) continue;
-                String fav = TextUtils.truncateStart(path, 25);
-                JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon("icon_open_folder.png", 15));
-                item.addActionListener(actionEvent -> showFolder(path));
-                UiUtils.setEmptyBorder(item);
-                popupMenu.add(item);
-            }
-            popupMenu.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent mouseEvent) {
-                    if (SwingUtilities.isRightMouseButton(mouseEvent)) {
-                        log.debug("mouseClicked: LEFT");
-                    } else {
-                        log.debug("mouseClicked: RIGHT-CLICK");
-                    }
-                }
-            });
-            popupMenu.addSeparator();
-            if (!pathList.contains(selectedPath)) {
-                // add current item
-                String path = TextUtils.truncateStart(selectedPath, 25);
-                ImageIcon favIcon = UiUtils.getImageIcon("icon_star.png", 15);
-                JMenuItem currentItem = new JMenuItem("Bookmark [" + path + "]", favIcon);
-                currentItem.addActionListener(actionEvent -> bookmarkPath(selectedPath));
-                UiUtils.setEmptyBorder(currentItem);
-                popupMenu.add(currentItem);
-            } else {
-                // remove current item
-                JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon("icon_trash.png", 15));
-                currentItem.addActionListener(actionEvent -> removeBookmark(selectedPath));
-                UiUtils.setEmptyBorder(currentItem);
-                popupMenu.add(currentItem);
-            }
-            popupMenu.addSeparator();
-            // go to folder
-            JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon("icon_edit.png", 15));
-            goToItem.addActionListener(actionEvent -> handleGoToFolder());
-            UiUtils.setEmptyBorder(goToItem);
-            popupMenu.add(goToItem);
-
-            popupMenu.show(e.getComponent(), e.getX(), e.getY());
-        });
+        UiUtils.addClickListener(pathLabel, this::showFavoritePopup);
         statusBar.add(pathLabel, BorderLayout.WEST);
 
         // empty space
@@ -177,6 +131,54 @@ public class ExploreScreen extends BaseScreen {
         statusBar.add(countLabel, BorderLayout.EAST);
 
         mainPanel.add(statusBar, BorderLayout.SOUTH);
+    }
+
+    private void showFavoritePopup(MouseEvent e) {
+        JPopupMenu popupMenu = new JPopupMenu();
+        List<String> pathList = getFavoritePathList();
+        // add favorites
+        for (String path : pathList) {
+            if (TextUtils.equals(path, selectedPath)) continue;
+            String fav = TextUtils.truncateStart(path, 25);
+            JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon("icon_open_folder.png", 15));
+            item.addActionListener(actionEvent -> showFolder(path));
+            UiUtils.setEmptyBorder(item);
+            popupMenu.add(item);
+        }
+        popupMenu.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent mouseEvent) {
+                if (SwingUtilities.isRightMouseButton(mouseEvent)) {
+                    log.debug("mouseClicked: LEFT");
+                } else {
+                    log.debug("mouseClicked: RIGHT-CLICK");
+                }
+            }
+        });
+        popupMenu.addSeparator();
+        if (!pathList.contains(selectedPath)) {
+            // add current item
+            String path = TextUtils.truncateStart(selectedPath, 25);
+            ImageIcon favIcon = UiUtils.getImageIcon("icon_star.png", 15);
+            JMenuItem currentItem = new JMenuItem("Bookmark [" + path + "]", favIcon);
+            currentItem.addActionListener(actionEvent -> bookmarkPath(selectedPath));
+            UiUtils.setEmptyBorder(currentItem);
+            popupMenu.add(currentItem);
+        } else {
+            // remove current item
+            JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon("icon_trash.png", 15));
+            currentItem.addActionListener(actionEvent -> removeBookmark(selectedPath));
+            UiUtils.setEmptyBorder(currentItem);
+            popupMenu.add(currentItem);
+        }
+        popupMenu.addSeparator();
+        // go to folder
+        JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon("icon_edit.png", 15));
+        goToItem.addActionListener(actionEvent -> handleGoToFolder());
+        UiUtils.setEmptyBorder(goToItem);
+        popupMenu.add(goToItem);
+
+        popupMenu.show(e.getComponent(), e.getX(), e.getY());
     }
 
     private void removeBookmark(String selectedPath) {
@@ -430,7 +432,7 @@ public class ExploreScreen extends BaseScreen {
         // selected row(s)
         int selectedRowCount = table.getSelectedRowCount();
         int rowCount = table.getRowCount();
-        if (selectedRowCount > 0) {
+        if (selectedRowCount > 1) {
             countLabel.setText(selectedRowCount + " / " + rowCount);
         } else {
             countLabel.setText("total: " + rowCount);

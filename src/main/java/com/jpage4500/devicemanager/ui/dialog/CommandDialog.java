@@ -148,11 +148,11 @@ public class CommandDialog extends JPanel {
         populateRecent();
 
         log.debug("handleRunCustomCommand: {}, devices:{}", command, selectedDeviceList.size());
-        ResultWatcher resultWatcher = new ResultWatcher(selectedDeviceList.size());
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
                 String result = "DEVICE: " + device.getDisplayName() + ":\n" + error;
-                resultWatcher.handleResult(getRootPane(), result);
+                resultWatcher.handleResult(isSuccess, result);
             });
         }
     }

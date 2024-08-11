@@ -105,6 +105,7 @@ public class CustomTable extends JTable {
                         column = convertColumnIndexToModel(column);
                         JPopupMenu popupMenu = popupMenuListener.getPopupMenu(row, column);
                         if (popupMenu != null) {
+                            popupMenu.show(e.getComponent(), e.getX(), e.getY());
                         }
                     }
                 } else if (e.getClickCount() == 2) {

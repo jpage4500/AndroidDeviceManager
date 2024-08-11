@@ -166,4 +166,14 @@ public class Utils {
         return sb.toString();
     }
 
+    public static int getScreenWidth() {
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        return screenSize.width;
+    }
+
+    public static int getScreenHeight() {
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        return screenSize.height;
+    }
+
 }

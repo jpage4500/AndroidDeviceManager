@@ -10,7 +10,7 @@ import java.awt.*;
 public class HoverLabel extends JButton {
     private static final Logger log = LoggerFactory.getLogger(HoverLabel.class);
 
-    private final Color backgroundColor = new Color(224,224,224);
+    private final Color backgroundColor = new Color(224, 224, 224);
 
     public HoverLabel() {
         init();
@@ -31,8 +31,12 @@ public class HoverLabel extends JButton {
         init();
     }
 
+    public void setBorder(int left, int right) {
+        setBorder(new EmptyBorder(0, left, 0, right));
+    }
+
     private void init() {
-        setBorder(new EmptyBorder(0, 10, 0, 10));
+        setBorder(0, 0);
         //setContentAreaFilled(false);
         //setBorderPainted(false);
         //setFocusPainted(false);
