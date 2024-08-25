@@ -58,7 +58,7 @@ public class ConnectDialog extends JPanel {
     private ConnectDialog() {
         setLayout(new MigLayout("fillx", "[][]"));
 
-        List<WirelessDevice> deviceList = getRecentWirelessDevices();
+        List<WirelessDevice> recentDeviceList = getRecentWirelessDevices();
 
         String lastIp = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LAST_DEVICE_IP);
         int lastPort = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LAST_DEVICE_PORT, 5555);
@@ -67,14 +67,29 @@ public class ConnectDialog extends JPanel {
 
         add(new JLabel("Recent Devices"), "growx, span 2, wrap");
 
+        List<Device> connectedDeviceList = DeviceManager.getInstance().getDevices();
+
         DefaultListModel<String> listModel = new DefaultListModel<>();
-        for (WirelessDevice device : deviceList) {
+        for (WirelessDevice device : recentDeviceList) {
+            // only show devices that aren't currently connected
+            boolean isConnected = false;
+            for (Device connectedDevice : connectedDeviceList) {
+                if (connectedDevice.serial.equals(device.serial)) {
+                    isConnected = true;
+                    break;
+                }
+            }
+            if (isConnected) continue;
+
             listModel.addElement(device.model + " - " + device.serial);
         }
         JList<String> list = new JList<>(listModel);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new AlternatingBackgroundColorRenderer());
-        list.setVisibleRowCount(3);
+        int displayRows = listModel.size();
+        if (displayRows > 6) displayRows = 6;
+        else if (displayRows < 3) displayRows = 3;
+        list.setVisibleRowCount(displayRows);
         list.addFocusListener(new FocusAdapter() {
             public void focusLost(FocusEvent e) {
                 JList list = (JList) e.getComponent();
@@ -96,7 +111,7 @@ public class ConnectDialog extends JPanel {
         list.addListSelectionListener(e -> {
             int selectedIndex = list.getSelectedIndex();
             if (selectedIndex == -1) return;
-            WirelessDevice selectedDevice = deviceList.get(selectedIndex);
+            WirelessDevice selectedDevice = recentDeviceList.get(selectedIndex);
             int pos = selectedDevice.serial.indexOf(':');
             serverField.setText(selectedDevice.serial.substring(0, pos));
             portField.setText(selectedDevice.serial.substring(pos + 1));
@@ -109,7 +124,7 @@ public class ConnectDialog extends JPanel {
                 switch (e.getExtendedKeyCode()) {
                     case KeyEvent.VK_DELETE:
                     case KeyEvent.VK_BACK_SPACE:
-                        WirelessDevice selectedDevice = deviceList.get(selectedIndex);
+                        WirelessDevice selectedDevice = recentDeviceList.get(selectedIndex);
                         log.debug("keyPressed: remove index:{}, device:{}", selectedIndex, GsonHelper.toJson(selectedDevice));
                         listModel.remove(selectedIndex);
                         removeWirelessDevice(selectedDevice);

@@ -36,6 +36,7 @@ public class PreferenceUtils {
         PREF_SHOW_BACKGROUND,
         PREF_AUTO_FORMAT_MESSAGE,
         PREF_WRAP_MESSAGE,
+        PREF_EXIT_TO_TRAY,
     }
 
     /**

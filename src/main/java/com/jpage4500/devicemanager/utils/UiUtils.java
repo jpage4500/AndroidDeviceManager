@@ -97,12 +97,17 @@ public class UiUtils {
         void onClick(MouseEvent e);
     }
 
+    /**
+     * add click listener (left-click)
+     */
     public static void addClickListener(JComponent component, ClickListener listener) {
         component.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent mouseEvent) {
                 super.mouseClicked(mouseEvent);
-                listener.onClick(mouseEvent);
+                if (SwingUtilities.isLeftMouseButton(mouseEvent)) {
+                    listener.onClick(mouseEvent);
+                }
             }
         });
     }

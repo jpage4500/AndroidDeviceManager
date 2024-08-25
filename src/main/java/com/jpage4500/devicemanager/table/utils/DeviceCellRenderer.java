@@ -20,6 +20,7 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
     private final Icon statusOnlineIcon;
     private final Icon statusBusyIcon;
 
+    private final Icon chargingIcon;
     private final Icon batteryLevel4;
     private final Icon batteryLevel3;
     private final Icon batteryLevel2;
@@ -41,6 +42,7 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
         BufferedImage busyImage = UiUtils.replaceColor(image, new Color(251, 109, 8));
         statusBusyIcon = new ImageIcon(busyImage);
 
+        chargingIcon = UiUtils.getImageIcon("charging.png", 20);
         batteryLevel4 = UiUtils.getImageIcon("battery_level4.png", 20);
         batteryLevel3 = UiUtils.getImageIcon("battery_level3.png", 20);
         batteryLevel2 = UiUtils.getImageIcon("battery_level2.png", 20);
@@ -66,6 +68,8 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
                         else if (device.batteryLevel > 50) icon = batteryLevel3;
                         else if (device.batteryLevel > 25) icon = batteryLevel2;
                         else icon = batteryLevel1;
+                    } else {
+                        icon = chargingIcon;
                     }
                     text = ""; // no text just icon
                     break;

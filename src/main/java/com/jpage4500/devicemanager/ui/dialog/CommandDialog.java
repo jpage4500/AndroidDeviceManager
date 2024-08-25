@@ -104,11 +104,13 @@ public class CommandDialog extends JPanel {
             textField.setText(value);
         });
 
+        if (!listModel.isEmpty()) list.setSelectedIndex(0);
+
         add(textField, "growx, span 2, wrap");
 
         JButton sendButton = new JButton("Send Command");
         sendButton.addActionListener(e -> handleEnterPressed());
-        add(sendButton, "al right, span 2, wrap");
+        add(sendButton, "newline, al right, span 2, wrap");
     }
 
     private void deleteItem(String command) {

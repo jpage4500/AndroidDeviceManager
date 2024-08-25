@@ -194,13 +194,17 @@ public class DeviceManager {
                         listener.handleDeviceUpdated(addedDevice);
                     }
                 } catch (Exception e) {
+                    String errMsg = e.getMessage();
+                    //  command failed: device offline
                     //  command failed: device still authorizing
                     //  command failed: device unauthorized.
                     //  This adb server's $ADB_VENDOR_KEYS is not set
                     //  Try 'adb kill-server' if that seems wrong.
                     //  Otherwise check for a confirmation dialog on your device.
-                    log.debug("handleDeviceUpdate: NOT_READY_EXCEPTION: {} -> {}", addedDevice.serial, e.getMessage());
-                    addedDevice.status = e.getMessage();
+                    log.debug("handleDeviceUpdate: NOT_READY_EXCEPTION: {} -> {}", addedDevice.serial, errMsg);
+                    addedDevice.status = errMsg;
+                    // TODO: check error message before setting device to offline?
+                    addedDevice.isOnline = false;
                     listener.handleDeviceUpdated(addedDevice);
                 }
             }
@@ -210,9 +214,7 @@ public class DeviceManager {
                 deviceRefreshRuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
                     //log.trace("handleDeviceUpdate: REFRESH");
                     for (Device device : deviceList) {
-                        if (device.isOnline) {
-                            fetchDeviceDetails(device, false, listener);
-                        }
+                        fetchDeviceDetails(device, false, listener);
                     }
                 }, 5, 5, TimeUnit.MINUTES);
             }
@@ -244,10 +246,16 @@ public class DeviceManager {
                 fetchNickname(device);
 
                 // -- phone number --
-                device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
-                if (TextUtils.isEmpty(device.phone)) device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
+                String phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
+                if (TextUtils.notEmpty(phone)) device.phone = phone;
+                if (TextUtils.isEmpty(device.phone)) {
+                    // alternative way of getting phone number
+                    device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
+                }
+
                 // -- IMEI --
-                device.imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
+                String imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
+                if (TextUtils.notEmpty(imei)) device.imei = imei;
 
                 // -- device properties (model, OS) --
                 try {
@@ -292,7 +300,11 @@ public class DeviceManager {
                 case "level":
                     //  level: 100
                     try {
-                        device.batteryLevel = Integer.parseInt(value);
+                        int level = Integer.parseInt(value);
+                        // some Android TV devices list battery level as 0
+                        if (level > 0 && level <= 100) {
+                            device.batteryLevel = level;
+                        }
                     } catch (NumberFormatException e) {
                         log.debug("fetchDeviceDetails: BAD_INT: {}, {}", value, e.getMessage());
                     }
@@ -403,6 +415,15 @@ public class DeviceManager {
         }
         //log.trace("runShellServiceCall: RESULTS: {}", result);
         return sb != null ? sb.toString() : null;
+    }
+
+    /**
+     * @return copy of device list
+     */
+    public List<Device> getDevices() {
+        synchronized (deviceList) {
+            return new ArrayList<>(deviceList);
+        }
     }
 
     public static class ShellResult {

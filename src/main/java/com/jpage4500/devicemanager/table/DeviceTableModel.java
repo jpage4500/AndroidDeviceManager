@@ -47,6 +47,7 @@ public class DeviceTableModel extends AbstractTableModel {
     }
 
     public void setDeviceList(List<Device> deviceList) {
+        if (this.deviceList.equals(deviceList)) return;
         this.deviceList.clear();
         this.deviceList.addAll(deviceList);
         fireTableDataChanged();
