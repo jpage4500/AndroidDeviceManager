@@ -151,17 +151,20 @@ public class Utils {
     public static String getStackTraceString() {
         StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < stackTrace.length; i++) {
-            // ignore THIS call
-            if (i < 2) continue;
+        // start at index 3 (ignoring this call and the caller)
+        for (int i = 3; i < stackTrace.length; i++) {
             StackTraceElement element = stackTrace[i];
             //String className = element.getClassName();
             String fileName = element.getFileName();
             int lineNumber = element.getLineNumber();
+            String methodName = element.getMethodName();
             // only show this app's classes
             if (fileName == null || lineNumber == -1) continue;
+            fileName = fileName.substring(0, fileName.lastIndexOf("."));
+            // TODO: clean up entries like this:
+            // lambda$setupMenuBar$3
             if (!sb.isEmpty()) sb.append(", ");
-            sb.append("{" + fileName + ", " + element.getMethodName() + ", " + lineNumber + "}");
+            sb.append("{" + fileName + ":" + methodName + " #" + lineNumber + "}");
         }
 
         return sb.toString();

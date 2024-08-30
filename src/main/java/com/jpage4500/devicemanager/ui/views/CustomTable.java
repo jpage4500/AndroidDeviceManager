@@ -39,6 +39,7 @@ public class CustomTable extends JTable {
     private boolean showBackground;
     private String emptyText;
     private Image emptyImage;
+    private Font emptyTextFont;
 
     public interface DoubleClickListener {
         /**
@@ -182,14 +183,23 @@ public class CustomTable extends JTable {
                     g2d.dispose();
                 }
                 if (getRowCount() == 0 && emptyText != null) {
-                    Font font = graphics.getFont().deriveFont(Font.BOLD, 22);
-                    graphics.setFont(font);
-                    int textW = graphics.getFontMetrics().stringWidth(emptyText);
+                    // draw empty text in center
+                    if (emptyTextFont == null) {
+                        emptyTextFont = graphics.getFont().deriveFont(Font.BOLD, 22);
+                    }
+                    graphics.setFont(emptyTextFont);
+                    FontMetrics fontMetrics = graphics.getFontMetrics(emptyTextFont);
+                    int textH = emptyTextFont.getSize() * (fontMetrics.getAscent() + fontMetrics.getDescent()) / fontMetrics.getAscent();
+                    int textW = fontMetrics.stringWidth(emptyText);
                     int width = getWidth();
+                    int height = getHeight();
                     int headerH = getTableHeader().getHeight();
                     int x = width / 2 - (textW / 2);
-                    int y = headerH * 2;
-                    if (x >= 0 && y >= 0) {
+                    int y = (height / 2);
+                    // prevent drawing on top of header
+                    if (y < (headerH * 2)) y = headerH * 2;
+                    // don't draw if no available space
+                    if (x >= 0 && y >= 0 && (height - headerH > textH)) {
                         graphics.drawString(emptyText, x, y);
                     }
                 }

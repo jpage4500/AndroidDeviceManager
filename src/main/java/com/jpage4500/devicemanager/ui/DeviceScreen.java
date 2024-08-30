@@ -27,10 +27,7 @@ import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
@@ -104,13 +101,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         setVisible(true);
 
+        refreshUi();
         table.requestFocus();
 
         if (Desktop.isDesktopSupported()) {
             Desktop desktop = Desktop.getDesktop();
             if (desktop.isSupported(Desktop.Action.APP_QUIT_HANDLER)) {
                 desktop.setQuitHandler((quitEvent, quitResponse) -> {
-                    log.trace("initalizeUi: QUIT");
                     exitApp(true);
                     quitResponse.performQuit();
                 });
@@ -132,7 +129,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 exitApp(false);
             }
             case DEACTIVATED -> {
-                trayPopupMenu.setVisible(false);
+                if (trayPopupMenu != null) trayPopupMenu.setVisible(false);
             }
         }
     }
@@ -147,13 +144,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (!forceQuit && PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY)) {
             return;
         }
-        handleAppExit();
-        dispose();
-        System.exit(0);
-    }
 
-    private void handleAppExit() {
-        log.trace("handleAppExit: {}", Utils.getStackTraceString());
         saveFrameSize();
         table.saveTable();
 
@@ -163,6 +154,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (!inputViewMap.isEmpty()) (inputViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
 
         DeviceManager.getInstance().handleExit();
+
+        dispose();
+        System.exit(0);
     }
 
     private void setupStatusBar(JPanel panel) {
@@ -183,6 +177,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // memory
         ImageIcon icon = UiUtils.getImageIcon("memory.png", 15);
         memoryLabel = new HoverLabel(icon);
+        memoryLabel.setVisible(false);
         memoryLabel.setBorder(0, 0);
         leftPanel.add(memoryLabel);
         UiUtils.addClickListener(memoryLabel, this::handleMemoryClicked);
@@ -209,7 +204,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         createCmdAction(windowMenu, SHOW_BROWSE, KeyEvent.VK_2, e -> handleBrowseCommand(null));
 
         // [CMD + 3] = show logs
-        createCmdAction(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleLogsCommand());
+        createCmdAction(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleLogsCommand(null));
 
         // [CMD + ,] = settings
         createCmdAction(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> handleSettingsClicked());
@@ -263,7 +258,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         //table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setModel(model);
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
-        table.setEmptyText("No Android Devices!");
+        table.setEmptyText("No Connected Devices!");
 
         // restore user-defined column sizes
         if (!table.restoreTable()) {
@@ -410,33 +405,19 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void setupSystemTray() {
         if (!SystemTray.isSupported()) return;
 
-        trayPopupMenu = new JPopupMenu();
         BufferedImage image = UiUtils.getImage("system_tray.png", 100, 100);
-        PopupMenu popupMenu = new PopupMenu();
-        popupMenu.addActionListener(actionEvent -> {
-            log.trace("setupSystemTray: {}", actionEvent);
-        });
-        popupMenu.add(new MenuItem(""));
-        TrayIcon trayIcon = new TrayIcon(image, "Android Device Manager", popupMenu);
+        TrayIcon trayIcon = new TrayIcon(image, "Android Device Manager");
         trayIcon.setImageAutoSize(true);
         trayIcon.addMouseListener(new MouseAdapter() {
-            private boolean isDisplayed = false;
-
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (isDisplayed) {
+                log.trace("mouseClicked: {}", trayPopupMenu != null);
+                if (trayPopupMenu != null) {
                     trayPopupMenu.setVisible(false);
-                    isDisplayed = false;
-                    return;
+                    trayPopupMenu = null;
+                } else {
+                    showSystemTray(e);
                 }
-                trayPopupMenu.setLocation(e.getX(), e.getY());
-                trayPopupMenu.setInvoker(trayPopupMenu);
-//                trayPopupMenu.setVisible(true);
-                SwingUtilities.invokeLater(() -> {
-                    trayPopupMenu.setVisible(true);
-                    log.trace("mouseClicked: SHOW: {}", trayPopupMenu.isVisible());
-                    isDisplayed = true;
-                });
             }
         });
         try {
@@ -445,6 +426,31 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         } catch (Exception e) {
             log.error("initializeUI: Exception: {}", e.getMessage());
         }
+    }
+
+    private void showSystemTray(MouseEvent e) {
+        trayPopupMenu = new JPopupMenu();
+        trayPopupMenu.setLocation(e.getX(), e.getY());
+        trayPopupMenu.setInvoker(trayPopupMenu);
+        List<Device> devices = DeviceManager.getInstance().getDevices();
+        if (devices.isEmpty()) {
+            JMenuItem openItem = new JMenuItem("Open", UiUtils.getImageIcon("icon_open.png", 15));
+            openItem.addActionListener(e2 -> {
+                trayPopupMenu.setVisible(false);
+                bringWindowToFront();
+            });
+            trayPopupMenu.add(openItem);
+        } else {
+            for (Device device : devices) {
+                addTrayMenuItem(device);
+            }
+        }
+        trayPopupMenu.addSeparator();
+        JMenuItem quitItem = new JMenuItem("Quit", UiUtils.getImageIcon("icon_close.png", 15));
+        quitItem.addActionListener(e2 -> exitApp(true));
+        trayPopupMenu.add(quitItem);
+
+        trayPopupMenu.setVisible(true);
     }
 
     private void connectAdbServer() {
@@ -481,7 +487,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     @Override
     public void handleDeviceUpdated(Device device) {
         SwingUtilities.invokeLater(() -> {
-            model.updateDevice(device);
+            if (device.isOnline || device.isWireless()) {
+                model.updateDevice(device);
+            } else {
+                model.removeDevice(device);
+            }
             updateDeviceState(device);
             sorter.sort();
         });
@@ -555,42 +565,38 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (Taskbar.isTaskbarSupported()) {
             try {
                 Taskbar taskbar = Taskbar.getTaskbar();
-                String badge = rowCount > 0 ? String.valueOf(rowCount) : null;
+                int numOnline = 0;
+                for (Device device : DeviceManager.getInstance().getDevices()) {
+                    if (device.isOnline) numOnline++;
+                }
+                String badge = numOnline > 0 ? String.valueOf(numOnline) : null;
                 taskbar.setIconBadge(badge);
             } catch (final Exception e) {
                 log.error("initializeUI: Taskbar Exception: {}", e.getMessage());
             }
         }
+    }
 
-        if (trayPopupMenu != null) {
-            trayPopupMenu.removeAll();
-            List<Device> devices = DeviceManager.getInstance().getDevices();
-            if (devices.isEmpty()) {
-                JMenuItem openItem = new JMenuItem("Open", UiUtils.getImageIcon("icon_open.png", 15));
-                openItem.addActionListener(e2 -> {
-                    trayPopupMenu.setVisible(false);
-                    bringWindowToFront();
-                });
-                trayPopupMenu.add(openItem);
-            } else {
-                for (Device device : devices) {
-                    TrayMenuItem item = new TrayMenuItem(device.getDisplayName(), UiUtils.getImageIcon("icon_open.png", 15));
-                    item.addButton("Browse", actionEvent -> {
-                        trayPopupMenu.setVisible(false);
-                        handleBrowseCommand(device);
-                    });
-                    item.addActionListener(e2 -> {
-                        trayPopupMenu.setVisible(false);
-                        trayDeviceClicked(device);
-                    });
-                    trayPopupMenu.add(item);
-                }
-            }
-            trayPopupMenu.addSeparator();
-            JMenuItem quitItem = new JMenuItem("Quit", UiUtils.getImageIcon("icon_close.png", 15));
-            quitItem.addActionListener(e2 -> exitApp(true));
-            trayPopupMenu.add(quitItem);
+    private void addTrayMenuItem(Device device) {
+        BufferedImage image = UiUtils.getImage("device_status.png", 20, 20);
+        if (device.isOnline) {
+            image = UiUtils.replaceColor(image, new Color(24, 134, 0));
         }
+
+        TrayMenuItem item = new TrayMenuItem(device.getDisplayName(), new ImageIcon(image));
+        item.addButton("Browse", actionEvent -> {
+            trayPopupMenu.setVisible(false);
+            handleBrowseCommand(device);
+        });
+        item.addButton("Logs", actionEvent -> {
+            trayPopupMenu.setVisible(false);
+            handleLogsCommand(device);
+        });
+        item.addActionListener(e2 -> {
+            trayPopupMenu.setVisible(false);
+            trayDeviceClicked(device);
+        });
+        trayPopupMenu.add(item);
     }
 
     private void trayDeviceClicked(Device device) {
@@ -1016,7 +1022,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         createToolbarButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand(null));
 
-        createToolbarButton(toolbar, "icon_script.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand());
+        createToolbarButton(toolbar, "icon_script.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand(null));
 
         createToolbarButton(toolbar, "keyboard.png", "Input", "Enter text", actionEvent -> handleInputCommand());
 
@@ -1146,8 +1152,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         inputViewMap.remove(serial);
     }
 
-    public void handleLogsCommand() {
-        Device selectedDevice = getFirstSelectedDevice();
+    public void handleLogsCommand(Device selectedDevice) {
+        if (selectedDevice == null) selectedDevice = getFirstSelectedDevice();
         if (selectedDevice == null) return;
 
         LogsScreen logsScreen = logsViewMap.get(selectedDevice.serial);
@@ -1169,7 +1175,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 if (compareResult == Utils.CompareResult.VERSION_NEWER) {
                     log.debug("handleVersionClicked: LATEST:{}, CURRENT:{}", latestRelease.tagName, MainApplication.version);
                     SwingUtilities.invokeLater(() -> {
-                        versionLabel.setText("Update available: " + latestRelease.tagName);
+                        versionLabel.setToolTipText("Update Available " + latestRelease.tagName);
+                        ImageIcon icon = UiUtils.getImageIcon("icon_update.png", 15);
+                        versionLabel.setIcon(icon);
                         newerRelease = latestRelease;
                     });
                 }

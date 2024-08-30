@@ -94,7 +94,14 @@ public class DeviceTableModel extends AbstractTableModel {
 
     public void updateDevice(Device device) {
         int row = getRowForDevice(device);
-        if (row >= 0) fireTableRowsUpdated(row, row);
+        if (row >= 0) {
+            fireTableRowsUpdated(row, row);
+        } else {
+            // TODO: make sure this logic works
+            deviceList.add(device);
+            int lastRow = deviceList.size() - 1;
+            fireTableRowsInserted(lastRow, lastRow);
+        }
     }
 
     public void removeDevice(Device device) {

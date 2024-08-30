@@ -183,10 +183,10 @@ public class DeviceManager {
                 try {
                     JadbDevice.State state = addedDevice.jadbDevice.getState();
                     if (state == JadbDevice.State.Device) {
-                        log.trace("handleDeviceUpdate: ONLINE: {} -> {}", addedDevice.serial, state);
-                        listener.handleDeviceUpdated(addedDevice);
+                        log.trace("handleDeviceUpdate: ONLINE: {}", addedDevice.serial);
                         addedDevice.isOnline = true;
                         addedDevice.lastUpdateMs = System.currentTimeMillis();
+                        listener.handleDeviceUpdated(addedDevice);
                         fetchDeviceDetails(addedDevice, true, listener);
                     } else {
                         log.debug("handleDeviceUpdate: NOT_READY: {} -> {}", addedDevice.serial, state);
@@ -639,9 +639,14 @@ public class DeviceManager {
     public void runCustomCommand(Device device, String customCommand, TaskListener listener) {
         commandExecutorService.submit(() -> {
             ShellResult result = runShell(device, customCommand);
-            log.trace("runCustomCommand: DONE: success:{}, {}", result.isSuccess, GsonHelper.toJson(result.resultList));
+            boolean isSuccess = result.isSuccess;
+            log.trace("runCustomCommand: DONE: success:{}, {}", isSuccess, GsonHelper.toJson(result.resultList));
             String displayStr = TextUtils.join(result.resultList, "\n");
-            if (listener != null) listener.onTaskComplete(result.isSuccess, displayStr);
+            // check if command runs but fails
+            if (TextUtils.containsIgnoreCase(displayStr, "inaccessible or not found")) {
+                isSuccess = false;
+            }
+            if (listener != null) listener.onTaskComplete(isSuccess, displayStr);
         });
     }
 

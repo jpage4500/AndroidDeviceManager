@@ -1,5 +1,7 @@
 package com.jpage4500.devicemanager.table.utils;
 
+import com.jpage4500.devicemanager.utils.Colors;
+
 import javax.swing.*;
 import java.awt.*;
 
@@ -12,7 +14,7 @@ public class AlternatingBackgroundColorRenderer extends DefaultListCellRenderer 
         } else {
             setForeground(Color.BLACK);
             if (index % 2 == 0) setBackground(Color.WHITE);
-            else setBackground(new Color(232, 232, 232));
+            else setBackground(Colors.COLOR_LIGHT_GRAY);
         }
         setOpaque(true);
         return this;
