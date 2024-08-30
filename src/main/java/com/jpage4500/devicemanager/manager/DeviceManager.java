@@ -516,7 +516,7 @@ public class DeviceManager {
 
     private String findApp(String app) {
         String path = System.getenv("PATH");
-        // log.trace("findApp: PATH:{}", path);
+         log.trace("findApp: PATH:{}", path);
         String[] pathArr = path.split(":");
         for (String p : pathArr) {
             String fullPath = checkFile(p, app);
@@ -545,6 +545,7 @@ public class DeviceManager {
             log.debug("checkFile: GOT:{}", f.getAbsolutePath());
             return f.getAbsolutePath();
         }
+        log.trace("checkFile: NOT_FOUND:{}", f.getAbsolutePath());
         return null;
     }
 
