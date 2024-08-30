@@ -517,7 +517,7 @@ public class DeviceManager {
     private String findApp(String app) {
         String path = System.getenv("PATH");
          log.trace("findApp: PATH:{}", path);
-        String[] pathArr = path.split(":");
+        String[] pathArr = path.split(File.pathSeparator);
         for (String p : pathArr) {
             String fullPath = checkFile(p, app);
             if (fullPath != null) return fullPath;
