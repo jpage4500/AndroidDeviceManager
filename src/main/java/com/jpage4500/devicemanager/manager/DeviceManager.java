@@ -501,11 +501,9 @@ public class DeviceManager {
             if (appResult == null || !appResult.isSuccess) {
                 // TODO: windows might need to look for scrcpy.exe
                 String app = findApp("scrcpy");
-                if (app != null) {
-                    appResult = runApp(app, true, "-s", device.serial,
-                            "--window-title", device.getDisplayName(),
-                            "--show-touches", "--stay-awake", "--no-audio");
-                }
+                appResult = runApp(app, true, "-s", device.serial,
+                        "--window-title", device.getDisplayName(),
+                        "--show-touches", "--stay-awake", "--no-audio");
             }
 
             // TODO: figure out how to determine if scrcpy was run successfully..
@@ -516,14 +514,14 @@ public class DeviceManager {
 
     private String findApp(String app) {
         String path = System.getenv("PATH");
-         log.trace("findApp: PATH:{}", path);
+        log.trace("findApp: PATH:{}", path);
         String[] pathArr = path.split(File.pathSeparator);
+        // Windows-only - add .exe to app
+        if (Utils.isWindows() && !TextUtils.endsWith(".exe")) app += ".exe";
         for (String p : pathArr) {
             String fullPath = checkFile(p, app);
             if (fullPath != null) return fullPath;
         }
-        // default to just app name alone - no path.. hopefully ProcessBuilder will find it
-        log.debug("findApp: NOT_FOUND: {}", app);
         // try some other common locations
         if (Utils.isMac()) {
             String[] arr = new String[]{
@@ -535,8 +533,9 @@ public class DeviceManager {
                 if (fullPath != null) return fullPath;
             }
         }
-        log.debug("findApp: NOT_FOUND(2): {}", app);
-        return null;
+        log.debug("findApp: NOT_FOUND: {}", app);
+        // default to just app name alone - no path.. hopefully ProcessBuilder will find it
+        return app;
     }
 
     private String checkFile(String path, String app) {
