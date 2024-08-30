@@ -461,13 +461,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public void handleDevicesUpdated(List<Device> deviceList) {
         SwingUtilities.invokeLater(() -> {
             if (deviceList != null) {
-                List<Device> displayList = new ArrayList<>();
-                for (Device device : deviceList) {
-                    if (device.isOnline || device.isWireless()) {
-                        displayList.add(device);
-                    }
-                }
-                model.setDeviceList(displayList);
+                model.setDeviceList(deviceList);
 
                 // auto-select first device
                 if (!hasSelectedDevice && !deviceList.isEmpty() && table.getSelectedRow() == -1) {
@@ -487,14 +481,20 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     @Override
     public void handleDeviceUpdated(Device device) {
         SwingUtilities.invokeLater(() -> {
-            if (device.isOnline || device.isWireless()) {
-                model.updateDevice(device);
-            } else {
-                model.removeDevice(device);
-            }
+            model.updateDevice(device);
             updateDeviceState(device);
             sorter.sort();
         });
+    }
+
+    @Override
+    public void handleDeviceRemoved(Device device) {
+        SwingUtilities.invokeLater(() -> {
+            model.removeDevice(device);
+            updateDeviceState(device);
+            sorter.sort();
+        });
+
     }
 
     @Override
@@ -562,17 +562,20 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             memoryLabel.setVisible(false);
         }
 
+        // badge number
         if (Taskbar.isTaskbarSupported()) {
             try {
                 Taskbar taskbar = Taskbar.getTaskbar();
-                int numOnline = 0;
-                for (Device device : DeviceManager.getInstance().getDevices()) {
-                    if (device.isOnline) numOnline++;
+                if (taskbar.isSupported(Taskbar.Feature.ICON_BADGE_NUMBER)) {
+                    int numOnline = 0;
+                    for (Device device : DeviceManager.getInstance().getDevices()) {
+                        if (device.isOnline) numOnline++;
+                    }
+                    String badge = numOnline > 0 ? String.valueOf(numOnline) : null;
+                    taskbar.setIconBadge(badge);
                 }
-                String badge = numOnline > 0 ? String.valueOf(numOnline) : null;
-                taskbar.setIconBadge(badge);
             } catch (final Exception e) {
-                log.error("initializeUI: Taskbar Exception: {}", e.getMessage());
+                log.error("refreshUi: Exception: {}", e.getMessage());
             }
         }
     }

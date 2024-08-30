@@ -96,6 +96,9 @@ public class DeviceManager {
         // single device was updated
         void handleDeviceUpdated(Device device);
 
+        // single device was removed
+        void handleDeviceRemoved(Device device);
+
         void handleException(Exception e);
     }
 
@@ -157,7 +160,8 @@ public class DeviceManager {
         }
 
         // 2) look for devices that are now offline
-        for (Device device : deviceList) {
+        for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
+            Device device = iterator.next();
             boolean isFound = false;
             for (JadbDevice jadbDevice : devices) {
                 if (device.serial.equals(jadbDevice.getSerial())) {
@@ -166,11 +170,12 @@ public class DeviceManager {
                 }
             }
             if (!isFound) {
+                if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_OFFLINE: {}", device.getDisplayName());
+                iterator.remove();
                 // -- DEVICE REMOVED --
                 device.isOnline = false;
                 device.lastUpdateMs = System.currentTimeMillis();
-                if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_OFFLINE: {}", device.getDisplayName());
-                listener.handleDeviceUpdated(device);
+                listener.handleDeviceRemoved(device);
             }
         }
 
