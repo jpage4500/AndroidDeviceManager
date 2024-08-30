@@ -58,7 +58,7 @@ public class ExplorerCellRenderer extends JLabel implements TableCellRenderer {
                 text = deviceFile.name;
                 if (deviceFile.isSymbolicLink) icon = deviceFile.isDirectory ? folderLinkIcon : fileLinkIcon;
                 else if (deviceFile.isDirectory) {
-                    if (TextUtils.equals(deviceFile.name, "..")) icon = folderUpIcon;
+                    if (deviceFile.isUpFolder()) icon = folderUpIcon;
                     else if (deviceFile.isReadOnly) icon = folderReadonlyIcon;
                     else icon = folderIcon;
                 } else if (deviceFile.isReadOnly) icon = fileReadonlyIcon;

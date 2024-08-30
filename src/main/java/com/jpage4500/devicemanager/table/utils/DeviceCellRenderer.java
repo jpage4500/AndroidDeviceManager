@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.table.utils;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
+import com.jpage4500.devicemanager.utils.Colors;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,7 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
     private final Icon statusOnlineIcon;
     private final Icon statusBusyIcon;
 
+    private final Icon chargingIcon;
     private final Icon batteryLevel4;
     private final Icon batteryLevel3;
     private final Icon batteryLevel2;
@@ -27,20 +29,20 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
 
     public DeviceCellRenderer() {
         setOpaque(true);
-        Border border = new EmptyBorder(0, 5, 0, 0);
-        setBorder(border);
+        UiUtils.setEmptyBorder(this, 5, 5);
 
         BufferedImage image = UiUtils.getImage("device_status.png", 20, 20);
 
         BufferedImage offlineImage = UiUtils.replaceColor(image, Color.GRAY);
         statusOfflineIcon = new ImageIcon(offlineImage);
 
-        BufferedImage onlineImage = UiUtils.replaceColor(image, new Color(24, 134, 0));
+        BufferedImage onlineImage = UiUtils.replaceColor(image, Colors.COLOR_ONLINE);
         statusOnlineIcon = new ImageIcon(onlineImage);
 
-        BufferedImage busyImage = UiUtils.replaceColor(image, new Color(251, 109, 8));
+        BufferedImage busyImage = UiUtils.replaceColor(image, Colors.COLOR_BUSY);
         statusBusyIcon = new ImageIcon(busyImage);
 
+        chargingIcon = UiUtils.getImageIcon("charging.png", 20);
         batteryLevel4 = UiUtils.getImageIcon("battery_level4.png", 20);
         batteryLevel3 = UiUtils.getImageIcon("battery_level3.png", 20);
         batteryLevel2 = UiUtils.getImageIcon("battery_level2.png", 20);
@@ -66,6 +68,8 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
                         else if (device.batteryLevel > 50) icon = batteryLevel3;
                         else if (device.batteryLevel > 25) icon = batteryLevel2;
                         else icon = batteryLevel1;
+                    } else if (device.powerStatus != Device.PowerStatus.POWER_NONE) {
+                        icon = chargingIcon;
                     }
                     text = ""; // no text just icon
                     break;

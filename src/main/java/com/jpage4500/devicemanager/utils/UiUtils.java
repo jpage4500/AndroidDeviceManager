@@ -1,11 +1,15 @@
 package com.jpage4500.devicemanager.utils;
 
+import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.net.URL;
 
@@ -58,5 +62,53 @@ public class UiUtils {
         g.fillRect(0, 0, w, h);
         g.dispose();
         return dyed;
+    }
+
+    public static void setEmptyBorder(JComponent component) {
+        setEmptyBorder(component, 10, 10);
+    }
+
+    public static void setEmptyBorder(JComponent component, int left, int right) {
+        component.setBorder(new EmptyBorder(0, left, 0, right));
+    }
+
+    /**
+     * set text
+     * - if longer than maxLen, truncate and show tooltip
+     */
+    public static void setText(JComponent component, String text, int maxLen) {
+        // display text
+        int textLen = TextUtils.length(text);
+        boolean isTruncated = textLen > maxLen;
+        // TODO: add flag to truncate from beginning or end
+        String displayText = isTruncated ? TextUtils.truncateStart(text, maxLen) : text;
+        String hintText = isTruncated ? text : null;
+
+        if (component instanceof JLabel label) {
+            label.setText(displayText);
+            label.setToolTipText(hintText);
+        } else if (component instanceof AbstractButton button) {
+            button.setText(displayText);
+            button.setToolTipText(hintText);
+        }
+    }
+
+    public interface ClickListener {
+        void onClick(MouseEvent e);
+    }
+
+    /**
+     * add click listener (left-click)
+     */
+    public static void addClickListener(JComponent component, ClickListener listener) {
+        component.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent mouseEvent) {
+                super.mouseClicked(mouseEvent);
+                if (SwingUtilities.isLeftMouseButton(mouseEvent)) {
+                    listener.onClick(mouseEvent);
+                }
+            }
+        });
     }
 }

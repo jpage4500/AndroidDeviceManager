@@ -5,10 +5,8 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.*;
 import com.jpage4500.devicemanager.utils.Timer;
-import com.jpage4500.devicemanager.utils.Utils;
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
@@ -27,6 +25,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -184,10 +183,10 @@ public class DeviceManager {
                 try {
                     JadbDevice.State state = addedDevice.jadbDevice.getState();
                     if (state == JadbDevice.State.Device) {
-                        log.trace("handleDeviceUpdate: ONLINE: {} -> {}", addedDevice.serial, state);
-                        listener.handleDeviceUpdated(addedDevice);
+                        log.trace("handleDeviceUpdate: ONLINE: {}", addedDevice.serial);
                         addedDevice.isOnline = true;
                         addedDevice.lastUpdateMs = System.currentTimeMillis();
+                        listener.handleDeviceUpdated(addedDevice);
                         fetchDeviceDetails(addedDevice, true, listener);
                     } else {
                         log.debug("handleDeviceUpdate: NOT_READY: {} -> {}", addedDevice.serial, state);
@@ -195,13 +194,17 @@ public class DeviceManager {
                         listener.handleDeviceUpdated(addedDevice);
                     }
                 } catch (Exception e) {
+                    String errMsg = e.getMessage();
+                    //  command failed: device offline
                     //  command failed: device still authorizing
                     //  command failed: device unauthorized.
                     //  This adb server's $ADB_VENDOR_KEYS is not set
                     //  Try 'adb kill-server' if that seems wrong.
                     //  Otherwise check for a confirmation dialog on your device.
-                    log.debug("handleDeviceUpdate: NOT_READY_EXCEPTION: {} -> {}", addedDevice.serial, e.getMessage());
-                    addedDevice.status = e.getMessage();
+                    log.debug("handleDeviceUpdate: NOT_READY_EXCEPTION: {} -> {}", addedDevice.serial, errMsg);
+                    addedDevice.status = errMsg;
+                    // TODO: check error message before setting device to offline?
+                    addedDevice.isOnline = false;
                     listener.handleDeviceUpdated(addedDevice);
                 }
             }
@@ -211,9 +214,7 @@ public class DeviceManager {
                 deviceRefreshRuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
                     //log.trace("handleDeviceUpdate: REFRESH");
                     for (Device device : deviceList) {
-                        if (device.isOnline) {
-                            fetchDeviceDetails(device, false, listener);
-                        }
+                        fetchDeviceDetails(device, false, listener);
                     }
                 }, 5, 5, TimeUnit.MINUTES);
             }
@@ -245,10 +246,16 @@ public class DeviceManager {
                 fetchNickname(device);
 
                 // -- phone number --
-                device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
-                if (TextUtils.isEmpty(device.phone)) device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
+                String phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
+                if (TextUtils.notEmpty(phone)) device.phone = phone;
+                if (TextUtils.isEmpty(device.phone)) {
+                    // alternative way of getting phone number
+                    device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
+                }
+
                 // -- IMEI --
-                device.imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
+                String imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
+                if (TextUtils.notEmpty(imei)) device.imei = imei;
 
                 // -- device properties (model, OS) --
                 try {
@@ -293,7 +300,11 @@ public class DeviceManager {
                 case "level":
                     //  level: 100
                     try {
-                        device.batteryLevel = Integer.parseInt(value);
+                        int level = Integer.parseInt(value);
+                        // some Android TV devices list battery level as 0
+                        if (level > 0 && level <= 100) {
+                            device.batteryLevel = level;
+                        }
                     } catch (NumberFormatException e) {
                         log.debug("fetchDeviceDetails: BAD_INT: {}, {}", value, e.getMessage());
                     }
@@ -320,18 +331,9 @@ public class DeviceManager {
     private void fetchInstalledAppVersions(Device device) {
         List<String> customApps = SettingsDialog.getCustomApps();
         for (String customApp : customApps) {
-            // shell dumpsys package $PACKAGE | grep versionName | sed 's/    versionName=//')
-            ShellResult result = runShell(device, "dumpsys package " + customApp);
-            for (String appLine : result.resultList) {
-                // "    versionName=24.05.16.160",
-                int index = appLine.indexOf("versionName=");
-                if (index > 0) {
-                    String versionName = appLine.substring(index + "versionName=".length());
-                    if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
-                    device.customAppVersionList.put(customApp, versionName);
-                    //log.trace("fetchDeviceDetails: {} = {}", customApp, versionName);
-                }
-            }
+            String versionName = getAppVersion(device, customApp);
+            if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
+            device.customAppVersionList.put(customApp, versionName);
         }
     }
 
@@ -413,6 +415,15 @@ public class DeviceManager {
         }
         //log.trace("runShellServiceCall: RESULTS: {}", result);
         return sb != null ? sb.toString() : null;
+    }
+
+    /**
+     * @return copy of device list
+     */
+    public List<Device> getDevices() {
+        synchronized (deviceList) {
+            return new ArrayList<>(deviceList);
+        }
     }
 
     public static class ShellResult {
@@ -579,17 +590,41 @@ public class DeviceManager {
         });
     }
 
-    public void copyFile(Device device, File file, String dest, TaskListener listener) {
-        commandExecutorService.submit(() -> {
-            log.debug("copyFile: {} -> {}", file.getAbsolutePath(), dest);
-            try {
-                RemoteFile remoteFile = new RemoteFileRecord(dest, file.getName(), 0, 0, 0);
-                device.jadbDevice.push(file, remoteFile);
-                listener.onTaskComplete(true, null);
-            } catch (Exception e) {
-                log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
-                listener.onTaskComplete(false, e.getMessage());
+    private void copyFilesInternal(Device device, List<File> fileList, String dest, ProgressListener progressListener) {
+        for (File file : fileList) {
+            String filename = file.getName();
+            String destFilename = dest + "/" + filename;
+            progressListener.onProgress(0, 0, filename);
+            if (file.isDirectory()) {
+                ShellResult result = runShell(device, "mkdir \"" + destFilename + "\"");
+                log.trace("copyFilesInternal: FOLDER: {}: {}", destFilename, result);
+                // copy all children
+                File[] childrenArr = file.listFiles();
+                if (childrenArr != null) {
+                    copyFilesInternal(device, List.of(childrenArr), destFilename, progressListener);
+                }
+            } else {
+                log.trace("copyFilesInternal: FILE: {}", destFilename);
+                try {
+                    RemoteFile remoteFile = new RemoteFileRecord(dest, filename, 0, 0, 0);
+                    device.jadbDevice.push(file, remoteFile);
+                } catch (Exception e) {
+                    log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
+                }
             }
+        }
+    }
+
+    public void copyFiles(Device device, List<File> fileList, String dest, ProgressListener progressListener, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            // come up with total files to copy
+            FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
+            AtomicInteger count = new AtomicInteger();
+            copyFilesInternal(device, fileList, dest, (numCompleted, numTotal, msg) -> {
+                int i = count.incrementAndGet();
+                progressListener.onProgress(i, stats.numTotal, msg);
+            });
+            listener.onTaskComplete(true, null);
         });
     }
 
@@ -604,9 +639,14 @@ public class DeviceManager {
     public void runCustomCommand(Device device, String customCommand, TaskListener listener) {
         commandExecutorService.submit(() -> {
             ShellResult result = runShell(device, customCommand);
-            log.debug("runCustomCommand: DONE: success:{}, {}", result.isSuccess, GsonHelper.toJson(result.resultList));
+            boolean isSuccess = result.isSuccess;
+            log.trace("runCustomCommand: DONE: success:{}, {}", isSuccess, GsonHelper.toJson(result.resultList));
             String displayStr = TextUtils.join(result.resultList, "\n");
-            if (listener != null) listener.onTaskComplete(result.isSuccess, displayStr);
+            // check if command runs but fails
+            if (TextUtils.containsIgnoreCase(displayStr, "inaccessible or not found")) {
+                isSuccess = false;
+            }
+            if (listener != null) listener.onTaskComplete(isSuccess, displayStr);
         });
     }
 
@@ -635,10 +675,11 @@ public class DeviceManager {
     public void listFiles(Device device, String path, boolean useRoot, DeviceFileListener listener) {
         commandExecutorService.submit(() -> {
             try {
-                String safePath = path;// + "/";
+                String safePath = path;
+                // make sure folder ends with "/"
                 if (!TextUtils.endsWith(safePath, "/")) safePath += "/";
                 if (safePath.indexOf(' ') > 0) {
-                    safePath = "\"" + safePath + "\"";
+                    safePath = "'" + safePath + "'";
                 }
                 log.trace("listFiles: {} {}", safePath, useRoot ? "(ROOT)" : "");
                 String command = "ls -alZ " + safePath;
@@ -674,6 +715,10 @@ public class DeviceManager {
                 listener.handleFiles(null, e.getMessage());
             }
         });
+    }
+
+    public interface ProgressListener {
+        void onProgress(int numCompleted, int numTotal, String msg);
     }
 
     public interface TaskListener {
@@ -718,8 +763,7 @@ public class DeviceManager {
 
     public void deleteFile(Device device, String path, DeviceFile file, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            String command = "rm -rf " + path + "/" + file.name;
-            if (file.isDirectory) command += "/";
+            String command = "rm -rf \"" + path + "/" + file.name + "\"";
             ShellResult result = runShell(device, command);
             log.debug("deleteFile: {} -> {}", command, result);
             // TODO: determine success/fail
@@ -1087,5 +1131,53 @@ public class DeviceManager {
             log.error("readInputStream: Exception: {}", e.getMessage());
         }
         return resultList;
+    }
+
+    public interface InstalledAppListener {
+        void onComplete(HashSet<String> appSet);
+    }
+
+    /**
+     * fetch all installed apps (package names)
+     */
+    public void getInstalledApps(Device device, InstalledAppListener listener) {
+        commandExecutorService.submit(() -> {
+            try {
+                HashSet<String> appSet = device.jadbDevice.listInstalledPackages();
+                listener.onComplete(appSet);
+            } catch (Exception e) {
+                log.error("getInstalledApps: {}", e.getMessage());
+                listener.onComplete(null);
+            }
+        });
+    }
+
+    public interface InstalledAppVersionListener {
+        void onComplete(String version);
+    }
+
+    /**
+     * fetch version for a given app package
+     */
+    public void fetchAppVersion(Device device, String appPkg, InstalledAppVersionListener listener) {
+        commandExecutorService.submit(() -> {
+            String appVersion = getAppVersion(device, appPkg);
+            listener.onComplete(appVersion);
+        });
+    }
+
+    private String getAppVersion(Device device, String appPkg) {
+        // shell dumpsys package $PACKAGE | grep versionName | sed 's/    versionName=//')
+        ShellResult result = runShell(device, "dumpsys package " + appPkg);
+        for (String appLine : result.resultList) {
+            // "    versionName=24.05.16.160",
+            int index = appLine.indexOf("versionName=");
+            if (index > 0) {
+                String versionName = appLine.substring(index + "versionName=".length());
+                log.trace("getAppVersion: {} -> {}", appPkg, versionName);
+                return versionName;
+            }
+        }
+        return null;
     }
 }

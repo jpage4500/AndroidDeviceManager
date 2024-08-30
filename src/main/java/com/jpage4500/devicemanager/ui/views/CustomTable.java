@@ -24,6 +24,7 @@ import java.util.prefs.Preferences;
 public class CustomTable extends JTable {
     private static final Logger log = LoggerFactory.getLogger(CustomTable.class);
 
+    private static final Color COLOR_BACKGROUND = new Color(222, 222, 222);
     private static final Color COLOR_HEADER = new Color(197, 197, 197);
     private static final Color COLOR_ALTERNATE_ROW = new Color(246, 246, 246);
 
@@ -38,6 +39,7 @@ public class CustomTable extends JTable {
     private boolean showBackground;
     private String emptyText;
     private Image emptyImage;
+    private Font emptyTextFont;
 
     public interface DoubleClickListener {
         /**
@@ -77,6 +79,7 @@ public class CustomTable extends JTable {
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
         setOpaque(false);
+        setBackground(COLOR_BACKGROUND);
 
         showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
 
@@ -180,14 +183,23 @@ public class CustomTable extends JTable {
                     g2d.dispose();
                 }
                 if (getRowCount() == 0 && emptyText != null) {
-                    Font font = graphics.getFont().deriveFont(Font.BOLD, 22);
-                    graphics.setFont(font);
-                    int textW = graphics.getFontMetrics().stringWidth(emptyText);
+                    // draw empty text in center
+                    if (emptyTextFont == null) {
+                        emptyTextFont = graphics.getFont().deriveFont(Font.BOLD, 22);
+                    }
+                    graphics.setFont(emptyTextFont);
+                    FontMetrics fontMetrics = graphics.getFontMetrics(emptyTextFont);
+                    int textH = emptyTextFont.getSize() * (fontMetrics.getAscent() + fontMetrics.getDescent()) / fontMetrics.getAscent();
+                    int textW = fontMetrics.stringWidth(emptyText);
                     int width = getWidth();
+                    int height = getHeight();
                     int headerH = getTableHeader().getHeight();
                     int x = width / 2 - (textW / 2);
-                    int y = headerH * 2;
-                    if (x >= 0 && y >= 0) {
+                    int y = (height / 2);
+                    // prevent drawing on top of header
+                    if (y < (headerH * 2)) y = headerH * 2;
+                    // don't draw if no available space
+                    if (x >= 0 && y >= 0 && (height - headerH > textH)) {
                         graphics.drawString(emptyText, x, y);
                     }
                 }

@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui.views;
 
+import com.jpage4500.devicemanager.utils.Colors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,7 +78,7 @@ public class CheckBoxList extends JList {
             JCheckBox checkbox = (JCheckBox) value;
 
             if (index % 2 == 0) checkbox.setBackground(Color.WHITE);
-            else checkbox.setBackground(new Color(232, 232, 232));
+            else checkbox.setBackground(Colors.COLOR_LIGHT_GRAY);
             checkbox.setEnabled(isEnabled());
             checkbox.setFont(getFont());
             checkbox.setFocusPainted(false);

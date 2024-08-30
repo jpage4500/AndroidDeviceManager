@@ -1,7 +1,6 @@
 package com.jpage4500.devicemanager;
 
 import com.formdev.flatlaf.FlatLightLaf;
-import com.jpage4500.devicemanager.logging.AppLogger;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
@@ -12,7 +11,6 @@ import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -32,10 +30,10 @@ public class MainApplication {
     }
 
     public static void main(String[] args) {
-        System.setProperty("apple.awt.application.name", "Device Manager");
-        System.setProperty("apple.laf.useScreenMenuBar", "true");
-        // required to run scripts when packaged as an app
         if (Utils.isMac()) {
+            System.setProperty("apple.awt.application.name", "Device Manager");
+            System.setProperty("apple.laf.useScreenMenuBar", "true");
+            // required to run scripts when packaged as an app
             System.setProperty("jdk.lang.Process.launchMechanism", "FORK");
             System.setProperty("com.apple.mrj.application.apple.menu.about.name", "Device Manager");
         }

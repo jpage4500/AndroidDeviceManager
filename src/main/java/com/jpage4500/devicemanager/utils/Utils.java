@@ -10,6 +10,7 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.concurrent.TimeUnit;
 import java.util.prefs.Preferences;
 
 public class Utils {
@@ -117,8 +118,9 @@ public class Utils {
             String v1Split = v1Arr[i];
             if (i >= v2Arr.length) {
                 // version array isn't same length
+                // v1: 24.08.01.2101, v2: 24.08.01
                 // ex: 4.0.953.beta *VS* 4.0
-                return CompareResult.VERSION_NEWER;
+                return CompareResult.VERSION_OLDER;
             }
             String v2Split = v2Arr[i];
             // compare both splits
@@ -139,6 +141,7 @@ public class Utils {
         }
 
         // if v1 length is shorter than v2 length - and we get here - v2 > v1
+        // v1: 24.08.01, v2: 24.08.01.2101
         if (v1Arr.length < v2Arr.length) return CompareResult.VERSION_NEWER;
 
         // same version
@@ -148,20 +151,49 @@ public class Utils {
     public static String getStackTraceString() {
         StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < stackTrace.length; i++) {
-            // ignore THIS call
-            if (i < 2) continue;
+        // start at index 3 (ignoring this call and the caller)
+        for (int i = 3; i < stackTrace.length; i++) {
             StackTraceElement element = stackTrace[i];
             //String className = element.getClassName();
             String fileName = element.getFileName();
             int lineNumber = element.getLineNumber();
+            String methodName = element.getMethodName();
             // only show this app's classes
             if (fileName == null || lineNumber == -1) continue;
+            fileName = fileName.substring(0, fileName.lastIndexOf("."));
+            // TODO: clean up entries like this:
+            // lambda$setupMenuBar$3
             if (!sb.isEmpty()) sb.append(", ");
-            sb.append("{" + fileName + ", " + element.getMethodName() + ", " + lineNumber + "}");
+            sb.append("{" + fileName + ":" + methodName + " #" + lineNumber + "}");
         }
 
         return sb.toString();
+    }
+
+    public static int getScreenWidth() {
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        return screenSize.width;
+    }
+
+    public static int getScreenHeight() {
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        return screenSize.height;
+    }
+
+    /**
+     * @return true if <code>defaults read -g AppleInterfaceStyle</code> has an exit status of <code>0</code> (i.e. _not_ returning "key not found").
+     */
+    private boolean isMacMenuBarDarkMode() {
+        try {
+            // check for exit status only. Once there are more modes than "dark" and "default", we might need to analyze string contents..
+            final Process proc = Runtime.getRuntime().exec(new String[]{"defaults", "read", "-g", "AppleInterfaceStyle"});
+            proc.waitFor(100, TimeUnit.MILLISECONDS);
+            return proc.exitValue() == 0;
+        } catch (IOException | InterruptedException | IllegalThreadStateException ex) {
+            // IllegalThreadStateException thrown by proc.exitValue(), if process didn't terminate
+            log.warn("Could not determine, whether 'dark mode' is being used. Falling back to default (light) mode.");
+            return false;
+        }
     }
 
 }

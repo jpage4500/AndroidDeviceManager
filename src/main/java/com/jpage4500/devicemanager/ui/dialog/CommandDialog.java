@@ -3,20 +3,16 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.ResultWatcher;
-import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.ui.views.HoverLabel;
+import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.util.List;
 
 import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
@@ -28,8 +24,12 @@ public class CommandDialog extends JPanel {
 
     private Component frame;
     private JTextField textField;
+    private JList<String> list;
     private DefaultListModel<String> listModel;
     private List<Device> selectedDeviceList;
+
+    private HoverLabel resultsLabel;
+    private String resultsMsg;
 
     public static void showCommandDialog(Component frame, List<Device> selectedDeviceList) {
         CommandDialog screen = new CommandDialog(selectedDeviceList);
@@ -46,17 +46,10 @@ public class CommandDialog extends JPanel {
         add(new JLabel("Recent Commands"), "growx, span 2, wrap");
 
         listModel = new DefaultListModel<>();
-        populateRecent();
-        JList<String> list = new JList<>(listModel);
+        list = new JList<>(listModel);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new AlternatingBackgroundColorRenderer());
         list.setVisibleRowCount(5);
-//        list.addFocusListener(new FocusAdapter() {
-//            public void focusLost(FocusEvent e) {
-//                JList list = (JList) e.getComponent();
-//                list.clearSelection();
-//            }
-//        });
         list.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -76,6 +69,7 @@ public class CommandDialog extends JPanel {
                 }
             }
         });
+        populateRecent();
 
         JScrollPane scroll = new JScrollPane(list);
         //scroll.setMaximumSize(new Dimension(200, 200));
@@ -94,7 +88,6 @@ public class CommandDialog extends JPanel {
                     e.consume();
                 }
             }
-
         });
 
         list.addListSelectionListener(e -> {
@@ -106,9 +99,24 @@ public class CommandDialog extends JPanel {
 
         add(textField, "growx, span 2, wrap");
 
+        resultsLabel = new HoverLabel();
+        resultsLabel.setVisible(false);
+        resultsLabel.addActionListener(e -> handleResultsClicked());
+        add(resultsLabel, "span 2, wrap");
+
         JButton sendButton = new JButton("Send Command");
         sendButton.addActionListener(e -> handleEnterPressed());
-        add(sendButton, "al right, span 2, wrap");
+        add(sendButton, "newline, al right, span 2, wrap");
+
+    }
+
+    private void handleResultsClicked() {
+        if (resultsMsg == null) return;
+        // display results in dialog
+        JTextArea textArea = new JTextArea(resultsMsg);
+        textArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        JOptionPane.showMessageDialog(this, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
     }
 
     private void deleteItem(String command) {
@@ -148,11 +156,22 @@ public class CommandDialog extends JPanel {
         populateRecent();
 
         log.debug("handleRunCustomCommand: {}, devices:{}", command, selectedDeviceList.size());
-        ResultWatcher resultWatcher = new ResultWatcher(selectedDeviceList.size());
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
+            log.trace("handleEnterPressed: {}, {}", isSuccess, error);
+            String img = isSuccess ? "icon_success.png" : "icon_error.png";
+            BufferedImage image = UiUtils.getImage(img, 20);
+            Color color = isSuccess ? Colors.COLOR_SUCCESS : Colors.COLOR_ERROR;
+            image = UiUtils.replaceColor(image, color);
+            resultsLabel.setVisible(true);
+            resultsLabel.setIcon(new ImageIcon(image));
+            String msg = (isSuccess ? "Success" : "Error") + " - click for results";
+            resultsLabel.setText(msg);
+            resultsMsg = error;
+        });
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
                 String result = "DEVICE: " + device.getDisplayName() + ":\n" + error;
-                resultWatcher.handleResult(getRootPane(), result);
+                resultWatcher.handleResult(isSuccess, result);
             });
         }
     }
@@ -161,6 +180,8 @@ public class CommandDialog extends JPanel {
         List<String> customCommandList = getCustomCommands();
         listModel.clear();
         listModel.addAll(customCommandList);
+
+        if (!listModel.isEmpty()) list.setSelectedIndex(0);
     }
 
     private List<String> getCustomCommands() {
