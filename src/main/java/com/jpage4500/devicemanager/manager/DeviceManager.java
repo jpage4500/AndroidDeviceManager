@@ -488,7 +488,20 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             log.debug("mirrorDevice: {}", device.getDisplayName());
             File scriptFile = getScriptFile(SCRIPT_MIRROR);
-            AppResult appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
+            AppResult appResult = null;
+            if (scriptFile != null) {
+                // TODO: TESTING
+                //appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
+            }
+            if (appResult == null || !appResult.isSuccess) {
+                // TODO: windows might need to look for scrcpy.exe
+                String app = findApp("scrcpy");
+                if (app != null) {
+                    appResult = runApp(app, true, "-s", device.serial,
+                            "--window-title", device.getDisplayName(),
+                            "--show-touches", "--stay-awake", "--no-audio");
+                }
+            }
 
             // TODO: figure out how to determine if scrcpy was run successfully..
             // - scrcpy will log to stderr even when successful
@@ -498,7 +511,7 @@ public class DeviceManager {
 
     private String findApp(String app) {
         String path = System.getenv("PATH");
-        log.debug("findApp: PATH:{}", path);
+        // log.trace("findApp: PATH:{}", path);
         String[] pathArr = path.split(":");
         for (String p : pathArr) {
             String fullPath = checkFile(p, app);
@@ -517,8 +530,8 @@ public class DeviceManager {
                 if (fullPath != null) return fullPath;
             }
         }
-
-        return app;
+        log.debug("findApp: NOT_FOUND(2): {}", app);
+        return null;
     }
 
     private String checkFile(String path, String app) {
@@ -1015,6 +1028,7 @@ public class DeviceManager {
     }
 
     private void copyResourceToFile(String name, InputStream is) {
+        //File.createTempFile(name);
         File tempFile = new File(tempFolder, name);
         //log.trace("copyResource: {} to {}", name, tempFile.getAbsolutePath());
         try {
