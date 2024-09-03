@@ -76,8 +76,10 @@ public class MainApplication {
         if (Taskbar.isTaskbarSupported()) {
             try {
                 Taskbar taskbar = Taskbar.getTaskbar();
-                BufferedImage image = UiUtils.getImage("logo.png", 256);
-                taskbar.setIconImage(image);
+                if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
+                    BufferedImage image = UiUtils.getImage("logo.png", 256);
+                    taskbar.setIconImage(image);
+                }
             } catch (final Exception e) {
                 log.error("initializeUI: Taskbar Exception: {}", e.getMessage());
             }

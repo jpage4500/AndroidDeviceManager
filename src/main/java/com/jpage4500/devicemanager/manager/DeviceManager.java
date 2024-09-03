@@ -96,6 +96,9 @@ public class DeviceManager {
         // single device was updated
         void handleDeviceUpdated(Device device);
 
+        // single device was removed
+        void handleDeviceRemoved(Device device);
+
         void handleException(Exception e);
     }
 
@@ -157,7 +160,8 @@ public class DeviceManager {
         }
 
         // 2) look for devices that are now offline
-        for (Device device : deviceList) {
+        for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
+            Device device = iterator.next();
             boolean isFound = false;
             for (JadbDevice jadbDevice : devices) {
                 if (device.serial.equals(jadbDevice.getSerial())) {
@@ -166,11 +170,12 @@ public class DeviceManager {
                 }
             }
             if (!isFound) {
+                if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_OFFLINE: {}", device.getDisplayName());
+                iterator.remove();
                 // -- DEVICE REMOVED --
                 device.isOnline = false;
                 device.lastUpdateMs = System.currentTimeMillis();
-                if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_OFFLINE: {}", device.getDisplayName());
-                listener.handleDeviceUpdated(device);
+                listener.handleDeviceRemoved(device);
             }
         }
 
@@ -487,8 +492,16 @@ public class DeviceManager {
     public void mirrorDevice(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
             log.debug("mirrorDevice: {}", device.getDisplayName());
-            File scriptFile = getScriptFile(SCRIPT_MIRROR);
-            AppResult appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
+            //AppResult appResult = null;
+            // TODO: replace script with running scrcpy directly
+            //File scriptFile = getScriptFile(SCRIPT_MIRROR);
+            //if (scriptFile != null) {
+            //    appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
+            //}
+            String app = findApp("scrcpy");
+            AppResult appResult = runApp(app, true, "-s", device.serial,
+                    "--window-title", device.getDisplayName(),
+                    "--show-touches", "--stay-awake", "--no-audio");
 
             // TODO: figure out how to determine if scrcpy was run successfully..
             // - scrcpy will log to stderr even when successful
@@ -498,26 +511,28 @@ public class DeviceManager {
 
     private String findApp(String app) {
         String path = System.getenv("PATH");
-        log.debug("findApp: PATH:{}", path);
-        String[] pathArr = path.split(":");
+        //log.trace("findApp: PATH:{}", path);
+        String[] pathArr = path.split(File.pathSeparator);
+        // Windows-only - add .exe to app
+        if (Utils.isWindows() && !TextUtils.endsWith(".exe")) app += ".exe";
         for (String p : pathArr) {
             String fullPath = checkFile(p, app);
             if (fullPath != null) return fullPath;
         }
-        // default to just app name alone - no path.. hopefully ProcessBuilder will find it
-        log.debug("findApp: NOT_FOUND: {}", app);
         // try some other common locations
+        String[] arr = new String[]{};
         if (Utils.isMac()) {
-            String[] arr = new String[]{
+            arr = new String[]{
                     "/opt/homebrew/bin",
                     "/usr/local/bin",
             };
-            for (String s : arr) {
-                String fullPath = checkFile(s, app);
-                if (fullPath != null) return fullPath;
-            }
         }
-
+        for (String s : arr) {
+            String fullPath = checkFile(s, app);
+            if (fullPath != null) return fullPath;
+        }
+        log.debug("findApp: NOT_FOUND: {}", app);
+        // default to just app name alone - no path.. hopefully ProcessBuilder will find it
         return app;
     }
 
@@ -527,6 +542,7 @@ public class DeviceManager {
             log.debug("checkFile: GOT:{}", f.getAbsolutePath());
             return f.getAbsolutePath();
         }
+        log.trace("checkFile: NOT_FOUND:{}", f.getAbsolutePath());
         return null;
     }
 
@@ -1015,6 +1031,7 @@ public class DeviceManager {
     }
 
     private void copyResourceToFile(String name, InputStream is) {
+        //File.createTempFile(name);
         File tempFile = new File(tempFolder, name);
         //log.trace("copyResource: {} to {}", name, tempFile.getAbsolutePath());
         try {
