@@ -69,7 +69,6 @@ public class CommandDialog extends JPanel {
                 }
             }
         });
-        populateRecent();
 
         JScrollPane scroll = new JScrollPane(list);
         //scroll.setMaximumSize(new Dimension(200, 200));
@@ -96,6 +95,7 @@ public class CommandDialog extends JPanel {
             String value = list.getSelectedValue();
             textField.setText(value);
         });
+        populateRecent();
 
         add(textField, "growx, span 2, wrap");
 
@@ -107,7 +107,6 @@ public class CommandDialog extends JPanel {
         JButton sendButton = new JButton("Send Command");
         sendButton.addActionListener(e -> handleEnterPressed());
         add(sendButton, "newline, al right, span 2, wrap");
-
     }
 
     private void handleResultsClicked() {

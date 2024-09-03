@@ -492,16 +492,18 @@ public class DeviceManager {
     public void mirrorDevice(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
             log.debug("mirrorDevice: {}", device.getDisplayName());
-            //AppResult appResult = null;
-            // TODO: replace script with running scrcpy directly
-            //File scriptFile = getScriptFile(SCRIPT_MIRROR);
-            //if (scriptFile != null) {
-            //    appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
-            //}
-            String app = findApp("scrcpy");
-            AppResult appResult = runApp(app, true, "-s", device.serial,
-                    "--window-title", device.getDisplayName(),
-                    "--show-touches", "--stay-awake", "--no-audio");
+            AppResult appResult = null;
+            File scriptFile = getScriptFile(SCRIPT_MIRROR);
+            if (scriptFile != null) {
+                appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
+            }
+            if (appResult == null || !appResult.isSuccess) {
+                String app = findApp("scrcpy");
+                // NOTE: adb must be in PATH (or ADB env variable set)
+                appResult = runApp(app, true, "-s", device.serial,
+                        "--window-title", device.getDisplayName(),
+                        "--show-touches", "--stay-awake", "--no-audio");
+            }
 
             // TODO: figure out how to determine if scrcpy was run successfully..
             // - scrcpy will log to stderr even when successful

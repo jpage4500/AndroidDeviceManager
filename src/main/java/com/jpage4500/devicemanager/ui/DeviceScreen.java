@@ -1189,7 +1189,39 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleMemoryClicked(MouseEvent mouseEvent) {
+        JPanel panel = new JPanel(new MigLayout());
 
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        Map<String, String> envMap = System.getenv();
+        TreeMap<String, String> sortedEnvMap = new TreeMap<>(envMap);
+        for (Map.Entry<String, String> entry : sortedEnvMap.entrySet()) {
+            listModel.addElement(entry.getKey() + " : " + entry.getValue());
+        }
+        JList<String> list = new JList<>(listModel);
+        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        list.setCellRenderer(new AlternatingBackgroundColorRenderer());
+        list.setVisibleRowCount(6);
+        list.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent evt) {
+                if (evt.getClickCount() == 2) {
+                    //int index = list.locationToIndex(evt.getPoint());
+                    String value = list.getSelectedValue();
+                    JTextArea textArea = new JTextArea(value);
+                    textArea.setLineWrap(true);
+                    textArea.setEditable(false);
+                    JScrollPane scrollPane = new JScrollPane(textArea, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+                    int maxW = Utils.getScreenWidth() / 2;
+                    //scrollPane.setSize(new Dimension(maxW, 300));
+                    scrollPane.setPreferredSize(new Dimension(maxW, 300));
+                    JOptionPane.showMessageDialog(DeviceScreen.this, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
+                }
+            }
+        });
+        JScrollPane scroll = new JScrollPane(list, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
+        int w = (Utils.getScreenWidth() / 2);
+        panel.add(scroll, "width " + w + "px");
+
+        JOptionPane.showOptionDialog(this, panel, "Device Info", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
     }
 
     private void handleVersionClicked(MouseEvent e) {
