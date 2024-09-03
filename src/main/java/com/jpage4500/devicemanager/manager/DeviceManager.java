@@ -492,19 +492,16 @@ public class DeviceManager {
     public void mirrorDevice(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
             log.debug("mirrorDevice: {}", device.getDisplayName());
-            File scriptFile = getScriptFile(SCRIPT_MIRROR);
-            AppResult appResult = null;
-            if (scriptFile != null) {
-                // TODO: TESTING
-                //appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
-            }
-            if (appResult == null || !appResult.isSuccess) {
-                // TODO: windows might need to look for scrcpy.exe
-                String app = findApp("scrcpy");
-                appResult = runApp(app, true, "-s", device.serial,
-                        "--window-title", device.getDisplayName(),
-                        "--show-touches", "--stay-awake", "--no-audio");
-            }
+            //AppResult appResult = null;
+            // TODO: replace script with running scrcpy directly
+            //File scriptFile = getScriptFile(SCRIPT_MIRROR);
+            //if (scriptFile != null) {
+            //    appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
+            //}
+            String app = findApp("scrcpy");
+            AppResult appResult = runApp(app, true, "-s", device.serial,
+                    "--window-title", device.getDisplayName(),
+                    "--show-touches", "--stay-awake", "--no-audio");
 
             // TODO: figure out how to determine if scrcpy was run successfully..
             // - scrcpy will log to stderr even when successful
@@ -514,7 +511,7 @@ public class DeviceManager {
 
     private String findApp(String app) {
         String path = System.getenv("PATH");
-        log.trace("findApp: PATH:{}", path);
+        //log.trace("findApp: PATH:{}", path);
         String[] pathArr = path.split(File.pathSeparator);
         // Windows-only - add .exe to app
         if (Utils.isWindows() && !TextUtils.endsWith(".exe")) app += ".exe";
@@ -523,15 +520,16 @@ public class DeviceManager {
             if (fullPath != null) return fullPath;
         }
         // try some other common locations
+        String[] arr = new String[]{};
         if (Utils.isMac()) {
-            String[] arr = new String[]{
+            arr = new String[]{
                     "/opt/homebrew/bin",
                     "/usr/local/bin",
             };
-            for (String s : arr) {
-                String fullPath = checkFile(s, app);
-                if (fullPath != null) return fullPath;
-            }
+        }
+        for (String s : arr) {
+            String fullPath = checkFile(s, app);
+            if (fullPath != null) return fullPath;
         }
         log.debug("findApp: NOT_FOUND: {}", app);
         // default to just app name alone - no path.. hopefully ProcessBuilder will find it
