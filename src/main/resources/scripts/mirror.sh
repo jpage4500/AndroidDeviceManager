@@ -21,7 +21,11 @@ if [[ ${SCRCPY} == "" ]]; then
 fi
 
 # use random port to allow multiple instances
-PORT=$(shuf -i 2000-65000 -n 1)
+if [ -x "$(command -v shuf)" ]; then
+  PORT="-p $(shuf -i 2000-65000 -n 1)"
+elif [ -x "$(command -v gshuf)" ]; then
+  PORT="-p $(gshuf -i 2000-65000 -n 1)"
+fi
 
 # options: https://github.com/Genymobile/scrcpy?tab=readme-ov-file#user-documentation
 # --stay-awake
@@ -31,4 +35,4 @@ PORT=$(shuf -i 2000-65000 -n 1)
 echo "running scrcpy with DEVICE:${ADB_DEVICE}, PORT:${PORT}, NAME:${DEVICE_NAME}"
 
 # shellcheck disable=SC2086
-${SCRCPY} -s "${ADB_DEVICE}" -p ${PORT} --window-title "${DEVICE_NAME}" --show-touches --stay-awake --no-audio
+${SCRCPY} -s "${ADB_DEVICE}" ${PORT} --window-title "${DEVICE_NAME}" --show-touches --stay-awake --no-audio
