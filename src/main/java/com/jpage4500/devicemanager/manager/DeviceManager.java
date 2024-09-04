@@ -42,6 +42,9 @@ public class DeviceManager {
     public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS"; // | grep u0_
     public static final String COMMAND_DUMPSYS_BATTERY = "dumpsys battery";
 
+    public static final String APP_SCRCPY = "scrcpy";
+    public static final String APP_ADB = "adb";
+
     // scripts that app will run
     private static final String SCRIPT_START_SERVER = "start-server";
     private static final String SCRIPT_TERMINAL = "terminal";
@@ -495,10 +498,12 @@ public class DeviceManager {
             AppResult appResult = null;
             File scriptFile = getScriptFile(SCRIPT_MIRROR);
             if (scriptFile != null) {
-                appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
+                // TODO: TESTING
+                //appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
             }
             if (appResult == null || !appResult.isSuccess) {
-                String app = findApp("scrcpy");
+                String app = findApp(APP_SCRCPY);
+                if (app == null) app = APP_SCRCPY;
                 // NOTE: adb must be in PATH (or ADB env variable set)
                 appResult = runApp(app, true, "-s", device.serial,
                         "--window-title", device.getDisplayName(),
@@ -511,6 +516,11 @@ public class DeviceManager {
         });
     }
 
+    /**
+     * try to locate app in system environment or some common locations
+     *
+     * @return full path or null if not found
+     */
     private String findApp(String app) {
         String path = System.getenv("PATH");
         //log.trace("findApp: PATH:{}", path);
@@ -533,18 +543,16 @@ public class DeviceManager {
             String fullPath = checkFile(s, app);
             if (fullPath != null) return fullPath;
         }
-        log.debug("findApp: NOT_FOUND: {}", app);
-        // default to just app name alone - no path.. hopefully ProcessBuilder will find it
-        return app;
+        log.trace("findApp: NOT_FOUND: {}", app);
+        return null;
     }
 
     private String checkFile(String path, String app) {
         File f = new File(path, app);
         if (f.exists()) {
-            log.debug("checkFile: GOT:{}", f.getAbsolutePath());
+            log.trace("checkFile: GOT:{}", f.getAbsolutePath());
             return f.getAbsolutePath();
         }
-        log.trace("checkFile: NOT_FOUND:{}", f.getAbsolutePath());
         return null;
     }
 
@@ -680,8 +688,16 @@ public class DeviceManager {
      */
     public void startServer(TaskListener listener) {
         commandExecutorService.submit(() -> {
+            AppResult appResult = null;
             File scriptFile = getScriptFile(SCRIPT_START_SERVER);
-            AppResult appResult = runApp(scriptFile.getAbsolutePath(), false);
+            if (scriptFile != null) {
+                appResult = runApp(scriptFile.getAbsolutePath(), false);
+            }
+            if (appResult == null || !appResult.isSuccess) {
+                String app = findApp(APP_ADB);
+                // NOTE: adb must be in PATH (or ADB env variable set)
+                appResult = runApp(app, true, "start-server");
+            }
             listener.onTaskComplete(appResult.isSuccess, GsonHelper.toJson(appResult.stdErr));
         });
     }
@@ -1083,6 +1099,7 @@ public class DeviceManager {
      */
     public AppResult runApp(String app, boolean isLongRunning, String... args) {
         AppResult result = new AppResult();
+        if (app == null) return result;
         Timer timer = new Timer();
         try {
             List<String> commandList = new ArrayList<>();
@@ -1092,6 +1109,8 @@ public class DeviceManager {
             }
 
             ProcessBuilder processBuilder = new ProcessBuilder();
+            // when running SCRCPY, make sure ADB env var is set
+            updateProcessBuilderEnvironment(app, processBuilder);
             processBuilder.command(commandList);
             Process process = processBuilder.start();
             synchronized (processList) {
@@ -1131,6 +1150,24 @@ public class DeviceManager {
             log.error("runApp: {}: Exception: {}, {}, {}", timer, app, e.getClass().getSimpleName(), e.getMessage());
         }
         return result;
+    }
+
+    private void updateProcessBuilderEnvironment(String app, ProcessBuilder processBuilder) {
+        // only interested in scrcpy for now
+        if (!TextUtils.containsAny(app, true, APP_SCRCPY)) return;
+
+        Map<String, String> environment = processBuilder.environment();
+        String path = environment.get("PATH");
+        String adbPath = environment.get("ADB");
+        log.trace("runApp: ADB:{}, PATH:{}", adbPath, path);
+
+        if (TextUtils.isEmpty(adbPath)) {
+            adbPath = findApp(APP_ADB);
+            if (adbPath != null) {
+                log.trace("updateProcessBuilderEnvironment: ADB={}", adbPath);
+                environment.put("ADB", adbPath);
+            }
+        }
     }
 
     private List<String> readInputStream(InputStream inputStream) {
