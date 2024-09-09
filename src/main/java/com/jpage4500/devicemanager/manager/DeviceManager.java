@@ -498,8 +498,7 @@ public class DeviceManager {
             AppResult appResult = null;
             File scriptFile = getScriptFile(SCRIPT_MIRROR);
             if (scriptFile != null) {
-                // TODO: TESTING
-                //appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
+                appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
             }
             if (appResult == null || !appResult.isSuccess) {
                 String app = findApp(APP_SCRCPY);
