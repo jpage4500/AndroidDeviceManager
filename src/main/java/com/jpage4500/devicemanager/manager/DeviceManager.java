@@ -193,6 +193,7 @@ public class DeviceManager {
                     if (state == JadbDevice.State.Device) {
                         log.trace("handleDeviceUpdate: ONLINE: {}", addedDevice.serial);
                         addedDevice.isOnline = true;
+                        addedDevice.status = null;
                         addedDevice.lastUpdateMs = System.currentTimeMillis();
                         listener.handleDeviceUpdated(addedDevice);
                         fetchDeviceDetails(addedDevice, true, listener);
@@ -249,7 +250,9 @@ public class DeviceManager {
             // show device as 'busy'
             device.busyCounter.incrementAndGet();
             listener.handleDeviceUpdated(device);
-            if (fullRefresh) {
+
+            // NOTE: if device just restarted, the initial fullRefresh will fail so try again next time
+            if (fullRefresh || device.nickname == null) {
                 // -- device nickname --
                 fetchNickname(device);
 
@@ -258,7 +261,8 @@ public class DeviceManager {
                 if (TextUtils.notEmpty(phone)) device.phone = phone;
                 if (TextUtils.isEmpty(device.phone)) {
                     // alternative way of getting phone number
-                    device.phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
+                    phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
+                    if (TextUtils.notEmpty(phone)) device.phone = phone;
                 }
 
                 // -- IMEI --
@@ -390,9 +394,11 @@ public class DeviceManager {
         if (result.isSuccess && !result.resultList.isEmpty()) {
             String nickname = result.resultList.get(0).trim();
             // look for error: "cmd: Can't find service: settings"
-            if (!TextUtils.containsIgnoreCase(nickname, "Can't find service")) {
-                device.nickname = nickname;
+            if (TextUtils.containsIgnoreCase(nickname, "Can't find service")) {
+                log.trace("fetchNickname: ERROR: {}", nickname);
+                return;
             }
+            device.nickname = nickname;
         }
     }
 
@@ -402,6 +408,15 @@ public class DeviceManager {
     private String runShellServiceCall(Device device, String command) {
         ShellResult result = runShell(device, command);
         if (!result.isSuccess) return null;
+        // look for errors like:
+        // "service: Service iphonesubinfo does not exist"
+        String resultDesc = TextUtils.join(result.resultList, ",");
+        if (TextUtils.containsAny(resultDesc, true, "does not exist")) {
+            log.trace("runShellServiceCall: {}: ERROR: {}", command, resultDesc);
+            result.isSuccess = false;
+            return null;
+        }
+
         // Result: Parcel(
         // 0x00000000: 00000000 0000000b 00350031 00300034 '........1.2.2.2.'
         // 0x00000010: 00310039 00390034 00310032 00000034 '3.3.3.4.4.4.4...')
@@ -460,10 +475,10 @@ public class DeviceManager {
             BufferedReader input = new BufferedReader(new InputStreamReader(inputStream));
             String line;
             while ((line = input.readLine()) != null) {
-                //log.trace("runShell: {}", line);
                 result.resultList.add(line);
             }
             result.isSuccess = true;
+            //log.trace("runShell: cmd:{}, {}", command, GsonHelper.toJson(result.resultList));
         } catch (Exception e) {
             log.error("runShell: cmd:{}, Exception: {}", command, e.getMessage());
             result.isSuccess = false;
