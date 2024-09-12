@@ -196,4 +196,11 @@ public class Utils {
         }
     }
 
+    /**
+     * get a random number between min and max
+     */
+    public static int getRandomNumber(int min, int max) {
+        return min + (int) (Math.random() * ((max - min) + 1));
+    }
+
 }

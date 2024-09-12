@@ -518,8 +518,10 @@ public class DeviceManager {
             if (appResult == null || !appResult.isSuccess) {
                 String app = findApp(APP_SCRCPY);
                 if (app == null) app = APP_SCRCPY;
+                int port = Utils.getRandomNumber(2000, 65000);
                 // NOTE: adb must be in PATH (or ADB env variable set)
                 appResult = runApp(app, true, "-s", device.serial,
+                        "-p", String.valueOf(port),
                         "--window-title", device.getDisplayName(),
                         "--show-touches", "--stay-awake", "--no-audio");
             }
