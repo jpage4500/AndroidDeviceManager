@@ -612,7 +612,7 @@ public class DeviceManager {
                 log.debug("setProperty: {}, key:{}, value:{}, DONE", device.serial, key, value);
                 if (listener != null) listener.onTaskComplete(true, null);
             } catch (Exception e) {
-                log.error("setProperty: {}, {}={}Exception:{}", device.serial, key, value, e.getMessage());
+                log.error("setProperty: {}, {}={}, Exception:{}", device.serial, key, value, e.getMessage());
                 if (listener != null) listener.onTaskComplete(false, e.getMessage());
             }
         });
