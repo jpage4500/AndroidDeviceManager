@@ -21,6 +21,7 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
     private final Icon statusOfflineIcon;
     private final Icon statusOnlineIcon;
     private final Icon statusBusyIcon;
+    private final Icon statusNotReadyIcon;
     private final Map<String, Icon> chargingIconMap;
 
     public DeviceCellRenderer() {
@@ -39,6 +40,9 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
 
         BufferedImage busyImage = UiUtils.replaceColor(image, Colors.COLOR_BUSY);
         statusBusyIcon = new ImageIcon(busyImage);
+
+        BufferedImage notReadyImage = UiUtils.replaceColor(image, Colors.COLOR_NOT_READY);
+        statusNotReadyIcon = new ImageIcon(notReadyImage);
     }
 
     /**
@@ -95,7 +99,8 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
                     if (device.busyCounter.get() > 0) {
                         icon = statusBusyIcon;
                     } else if (device.isOnline) {
-                        icon = statusOnlineIcon;
+                        if (!device.isBooted) icon = statusNotReadyIcon;
+                        else icon = statusOnlineIcon;
                     } else {
                         icon = statusOfflineIcon;
                     }

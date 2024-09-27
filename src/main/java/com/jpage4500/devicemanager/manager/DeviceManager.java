@@ -55,6 +55,7 @@ public class DeviceManager {
     public static final String ERR_ROOT_NOT_AVAILABLE = "root not available";
     public static final String ERR_PERMISSION_DENIED = "permission denied";
     public static final String ERR_NOT_A_DIRECTORY = "Not a directory";
+    public static final String SHELL_BOOT_COMPLETED = "getprop sys.boot_completed";
 
     private static volatile DeviceManager instance;
 
@@ -289,16 +290,36 @@ public class DeviceManager {
             // -- battery level, charging status, etc --
             fetchBatteryInfo(device);
 
+            fetchDeviceBooted(device);
+
             device.lastUpdateMs = System.currentTimeMillis();
 
             if (fullRefresh) {
-                if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: {}: full:{}, {}", timer, fullRefresh, GsonHelper.toJson(device));
+                if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: FULL_REFRESH:{}: {}", timer, GsonHelper.toJson(device));
                 // keep track of wireless devices
                 ConnectDialog.addWirelessDevice(device);
+            } else {
+                if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: REFRESH:{}: {}", timer, GsonHelper.toJson(device));
             }
             int busyCount = device.busyCounter.decrementAndGet();
             if (busyCount == 0) listener.handleDeviceUpdated(device);
+
+            // if devicce isn't fully booted yet, schedule another refresh
+            if (!device.isBooted) {
+                scheduledExecutorService.schedule(() -> {
+                    log.trace("fetchDeviceDetails: try again for {}", device.getDisplayName());
+                    fetchDeviceDetails(device, true, listener);
+                }, 10, TimeUnit.SECONDS);
+            }
         });
+    }
+
+    /**
+     * check if device is fully booted
+     */
+    private void fetchDeviceBooted(Device device) {
+        ShellResult result = runShell(device, SHELL_BOOT_COMPLETED);
+        device.isBooted = (result.isSuccess && TextUtils.equals(result.getResult(0), "1"));
     }
 
     private void fetchBatteryInfo(Device device) {
@@ -452,6 +473,11 @@ public class DeviceManager {
     public static class ShellResult {
         boolean isSuccess;
         List<String> resultList;
+
+        public String getResult(int index) {
+            if (resultList != null && resultList.size() > index) return resultList.get(index);
+            else return null;
+        }
 
         @Override
         public String toString() {
