@@ -2,17 +2,18 @@ package com.jpage4500.devicemanager.table.utils;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
+import com.jpage4500.devicemanager.ui.views.ComboIcon;
 import com.jpage4500.devicemanager.utils.Colors;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.border.Border;
-import javax.swing.border.EmptyBorder;
 import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.HashMap;
+import java.util.Map;
 
 public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
     private static final Logger log = LoggerFactory.getLogger(DeviceCellRenderer.class);
@@ -20,14 +21,12 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
     private final Icon statusOfflineIcon;
     private final Icon statusOnlineIcon;
     private final Icon statusBusyIcon;
-
-    private final Icon chargingIcon;
-    private final Icon batteryLevel4;
-    private final Icon batteryLevel3;
-    private final Icon batteryLevel2;
-    private final Icon batteryLevel1;
+    private final Icon statusNotReadyIcon;
+    private final Map<String, Icon> chargingIconMap;
 
     public DeviceCellRenderer() {
+        chargingIconMap = new HashMap<>();
+
         setOpaque(true);
         UiUtils.setEmptyBorder(this, 5, 5);
 
@@ -42,11 +41,30 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
         BufferedImage busyImage = UiUtils.replaceColor(image, Colors.COLOR_BUSY);
         statusBusyIcon = new ImageIcon(busyImage);
 
-        chargingIcon = UiUtils.getImageIcon("charging.png", 20);
-        batteryLevel4 = UiUtils.getImageIcon("battery_level4.png", 20);
-        batteryLevel3 = UiUtils.getImageIcon("battery_level3.png", 20);
-        batteryLevel2 = UiUtils.getImageIcon("battery_level2.png", 20);
-        batteryLevel1 = UiUtils.getImageIcon("battery_level1.png", 20);
+        BufferedImage notReadyImage = UiUtils.replaceColor(image, Colors.COLOR_NOT_READY);
+        statusNotReadyIcon = new ImageIcon(notReadyImage);
+    }
+
+    /**
+     * get or create and cache an icon made up of battery level and charging status
+     */
+    private Icon getChargingIcon(String level, boolean isCharging) {
+        if (level == null) return null;
+        String key = level + "-" + isCharging;
+        Icon icon = chargingIconMap.get(key);
+        if (icon == null) {
+            // create overlay icon
+            Icon levelIcon = UiUtils.getImageIcon(level, 20);
+            if (isCharging) {
+                Icon chargingIcon = UiUtils.getImageIcon("charging.png", 20);
+                icon = new ComboIcon(levelIcon, chargingIcon);
+            } else {
+                // use as-is
+                icon = levelIcon;
+            }
+            chargingIconMap.put(key, icon);
+        }
+        return icon;
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -63,14 +81,15 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
         if (columnType != null) {
             switch (columnType) {
                 case BATTERY:
+                    String level = null;
                     if (device.batteryLevel != null) {
-                        if (device.batteryLevel > 95) icon = batteryLevel4;
-                        else if (device.batteryLevel > 50) icon = batteryLevel3;
-                        else if (device.batteryLevel > 25) icon = batteryLevel2;
-                        else icon = batteryLevel1;
-                    } else if (device.powerStatus != Device.PowerStatus.POWER_NONE) {
-                        icon = chargingIcon;
+                        if (device.batteryLevel > 95) level = "battery_level4.png";
+                        else if (device.batteryLevel > 50) level = "battery_level3.png";
+                        else if (device.batteryLevel > 25) level = "battery_level2.png";
+                        else level = "battery_level1.png";
                     }
+                    boolean isCharging = (device.powerStatus != Device.PowerStatus.POWER_NONE);
+                    icon = getChargingIcon(level, isCharging);
                     text = ""; // no text just icon
                     break;
                 case FREE:
@@ -80,7 +99,8 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
                     if (device.busyCounter.get() > 0) {
                         icon = statusBusyIcon;
                     } else if (device.isOnline) {
-                        icon = statusOnlineIcon;
+                        if (!device.isBooted) icon = statusNotReadyIcon;
+                        else icon = statusOnlineIcon;
                     } else {
                         icon = statusOfflineIcon;
                     }

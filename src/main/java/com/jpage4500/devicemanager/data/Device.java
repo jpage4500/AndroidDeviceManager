@@ -44,6 +44,9 @@ public class Device {
     // true when device is online/ready
     public boolean isOnline;
 
+    // true when device is fully booted
+    public boolean isBooted;
+
     // counter of running tasks like mirroring a device; used to show a 'busy' icon
     @ExcludeFromSerialization
     public AtomicInteger busyCounter = new AtomicInteger(0);

@@ -17,7 +17,6 @@ import java.awt.event.FocusEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.List;
-import java.util.prefs.Preferences;
 
 import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
 
@@ -31,6 +30,7 @@ public class ConnectDialog extends JPanel {
     private static class WirelessDevice {
         String serial;
         String model;
+        String nickname;
     }
 
     public static void showConnectDialog(Component frame, DeviceManager.TaskListener listener) {
@@ -81,7 +81,11 @@ public class ConnectDialog extends JPanel {
             }
             if (isConnected) continue;
 
-            listModel.addElement(device.model + " - " + device.serial);
+            String label = "";
+            if (TextUtils.notEmpty(device.nickname)) label += device.nickname;
+            else label += device.model;
+            label += " - " + device.serial;
+            listModel.addElement(label);
         }
         JList<String> list = new JList<>(listModel);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -164,13 +168,13 @@ public class ConnectDialog extends JPanel {
     public static void addWirelessDevice(Device device) {
         if (!device.isWireless()) return;
         String model = device.getProperty(Device.PROP_MODEL);
-        if (TextUtils.isEmpty(model)) return;
 
         List<WirelessDevice> deviceList = getRecentWirelessDevices();
         deviceList.removeIf(wirelessDevice -> TextUtils.equals(wirelessDevice.serial, device.serial));
         WirelessDevice wd = new WirelessDevice();
         wd.serial = device.serial;
         wd.model = model;
+        wd.nickname = device.nickname;
         // add to top of list
         deviceList.add(0, wd);
 
