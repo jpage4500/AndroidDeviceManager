@@ -79,11 +79,15 @@ public class Utils {
         }
     }
 
+    public static String getUserHomeFolder() {
+        return System.getProperty("user.home");
+    }
+
     public static String getDownloadFolder() {
         String downloadFolder = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_DOWNLOAD_FOLDER);
         if (TextUtils.isEmpty(downloadFolder)) {
             // default download folder = ~/Downloads
-            downloadFolder = System.getProperty("user.home") + "/Downloads";
+            downloadFolder = getUserHomeFolder() + "/Downloads";
         }
         return downloadFolder;
     }

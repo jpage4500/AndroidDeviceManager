@@ -85,6 +85,14 @@ public class FileUtils {
         return sizeGigDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + SIZE_UNITS[digitGroups];
     }
 
+    public static String getNameNoExt(File file) {
+        if (file == null) return null;
+        String name = file.getName();
+        int i = name.lastIndexOf('.');
+        if (i == -1) return name;
+        return name.substring(0, i);
+    }
+
     public static class FileStats {
         public int numTotal;
         public int numFiles;

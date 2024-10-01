@@ -1131,6 +1131,11 @@ public class DeviceManager {
         boolean isSuccess;
         List<String> stdOut;
         List<String> stdErr;
+
+        @Override
+        public String toString() {
+            return GsonHelper.toJson(this);
+        }
     }
 
     /**

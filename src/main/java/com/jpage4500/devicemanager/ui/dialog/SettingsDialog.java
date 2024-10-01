@@ -39,6 +39,7 @@ public class SettingsDialog extends JPanel {
     private void initalizeUi() {
         addButton("Visible Columns", "EDIT", this::showColumns);
         addButton("Custom Apps", "EDIT", this::showAppsSettings);
+        addButton("Customize Toolbar", "EDIT", this::showToolbarOptions);
         addButton("Download Location", "EDIT", this::showDownloadLocation);
 
         addCheckbox("Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
@@ -148,7 +149,7 @@ public class SettingsDialog extends JPanel {
         }
 
         JPanel panel = new JPanel(new MigLayout());
-        panel.add(new JLabel("De-select columns to hide"), "span");
+        panel.add(new JLabel("Select columns to SHOW"), "span");
 
         JScrollPane scroll = new JScrollPane(checkBoxList);
         panel.add(scroll, "grow, span, wrap");
@@ -161,6 +162,42 @@ public class SettingsDialog extends JPanel {
         log.debug("HIDDEN: {}", GsonHelper.toJson(selectedItems));
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(selectedItems));
         deviceScreen.restoreTable();
+    }
+
+    public static List<String> getHiddenToolbarList() {
+        String hiddenStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS);
+        return GsonHelper.stringToList(hiddenStr, String.class);
+    }
+
+    public static void addHiddenToolbarItem(String item) {
+        List<String> hiddenToolbarList = SettingsDialog.getHiddenToolbarList();
+        if (!hiddenToolbarList.contains(item)) hiddenToolbarList.add(item);
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenToolbarList));
+    }
+
+    private void showToolbarOptions() {
+        List<String> hiddenColList = getHiddenToolbarList();
+        CheckBoxList checkBoxList = new CheckBoxList();
+        DeviceScreen.ToolbarButton[] arr = DeviceScreen.ToolbarButton.values();
+        for (DeviceScreen.ToolbarButton val : arr) {
+            boolean isHidden = hiddenColList.contains(val.label);
+            checkBoxList.addItem(val.label, !isHidden);
+        }
+
+        JPanel panel = new JPanel(new MigLayout());
+        panel.add(new JLabel("Select buttons to SHOW"), "span");
+
+        JScrollPane scroll = new JScrollPane(checkBoxList);
+        panel.add(scroll, "grow, span, wrap");
+
+        int rc = JOptionPane.showOptionDialog(deviceScreen, panel, "Toolbar Buttons", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        // save columns that are NOT selected
+        List<String> selectedItems = checkBoxList.getUnSelectedItems();
+        log.debug("HIDDEN: {}", GsonHelper.toJson(selectedItems));
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(selectedItems));
+        deviceScreen.setupToolbar();
     }
 
     private void showAppsSettings() {

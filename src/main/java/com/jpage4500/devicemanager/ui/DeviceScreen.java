@@ -324,7 +324,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             JPopupMenu popupMenu = new JPopupMenu();
             DeviceTableModel.Columns columnType = model.getColumnType(column);
             if (columnType != null) {
-                JMenuItem hideItem = new JMenuItem("Hide Column " + columnType.name());
+                JMenuItem hideItem = new JMenuItem("Hide " + columnType.name());
                 hideItem.addActionListener(actionEvent -> handleHideColumn(column));
                 popupMenu.add(hideItem);
 
@@ -1017,44 +1017,171 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         return selectedDeviceList;
     }
 
-    private void setupToolbar() {
+    // configurable toolbar buttons
+    public enum ToolbarButton {
+        CONNECT("icon_add.png", "Connect", "Connect Device"),
+        BROWSE("icon_browse.png", "Browse", "File Explorer"),
+        LOGS("icon_logs.png", "Logs", "Log Viewer"),
+        INPUT("keyboard.png", "Input", "Enter text"),
+        MIRROR("icon_scrcpy.png", "Mirror", "Mirror (scrcpy)"),
+        SCREENSHOT("icon_screenshot.png", "Screenshot", "Screenshot"),
+        INSTALL("icon_install.png", "Install", "Install / Copy file"),
+        TERMINAL("icon_terminal.png", "Terminal", "Open Terminal"),
+        ADB("icon_adb.png", "ADB", "Run custom adb command"),
+        SCRIPTS("icon_custom.png", "Scripts", "Run custom scripts"),
+        FILTER(null, "Filter", "Filter devices..."),
+        REFRESH("icon_refresh.png", "Refresh", "Refresh Devices"),
+        SETTINGS("icon_settings.png", "Settings", "Settings"),
+        ;
+
+        public final String image;
+        public final String label;
+        public final String tooltip;
+
+        ToolbarButton(String image, String label, String tooltip) {
+            this.image = image;
+            this.label = label;
+            this.tooltip = tooltip;
+        }
+    }
+
+    public void setupToolbar() {
+        if (toolbar.getComponentCount() > 0) {
+            toolbar.removeAll();
+            toolbar.revalidate();
+            toolbar.doLayout();
+            toolbar.repaint();
+        }
+
         toolbar.setRollover(true);
+        JButton connectBtn = createToolbarButton(toolbar, ToolbarButton.CONNECT, actionEvent -> handleConnectDevice());
+        if (connectBtn != null) toolbar.addSeparator();
 
-        createToolbarButton(toolbar, "icon_add.png", "Connect", "Connect Device", actionEvent -> handleConnectDevice());
-        toolbar.addSeparator();
+        JButton browseBtn = createToolbarButton(toolbar, ToolbarButton.BROWSE, actionEvent -> handleBrowseCommand(null));
 
-        createToolbarButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand(null));
+        JButton logsBtn = createToolbarButton(toolbar, ToolbarButton.LOGS, actionEvent -> handleLogsCommand(null));
 
-        createToolbarButton(toolbar, "icon_script.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand(null));
+        JButton inputBtn = createToolbarButton(toolbar, ToolbarButton.INPUT, actionEvent -> handleInputCommand());
 
-        createToolbarButton(toolbar, "keyboard.png", "Input", "Enter text", actionEvent -> handleInputCommand());
+        if (browseBtn != null || logsBtn != null || inputBtn != null) toolbar.addSeparator();
 
-        toolbar.addSeparator();
+        JButton mirrorBtn = createToolbarButton(toolbar, ToolbarButton.MIRROR, actionEvent -> handleMirrorCommand());
 
-        createToolbarButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
+        JButton screenBtn = createToolbarButton(toolbar, ToolbarButton.SCREENSHOT, actionEvent -> handleScreenshotCommand());
 
-        createToolbarButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
+        JButton installBtn = createToolbarButton(toolbar, ToolbarButton.INSTALL, actionEvent -> handleInstallCommand());
+        JButton termBtn = createToolbarButton(toolbar, ToolbarButton.TERMINAL, actionEvent -> handleTermCommand());
 
-        createToolbarButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
-        createToolbarButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
-
-        toolbar.addSeparator();
-        //createToolbarButton(toolbar, "icon_variable.png", "Set Property", actionEvent -> handleSetPropertyCommand());
+        if (mirrorBtn != null || screenBtn != null || installBtn != null || termBtn != null) toolbar.addSeparator();
 
         // create custom action buttons
-        createToolbarButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
+        createToolbarButton(toolbar, ToolbarButton.ADB, actionEvent -> handleRunCustomCommand());
+
+        loadCustomScripts(toolbar);
+
+        // -- right side toolbar buttons --
 
         toolbar.add(Box.createHorizontalGlue());
 
         filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
-        filterTextField.setPreferredSize(new Dimension(150, 40));
-        filterTextField.setMinimumSize(new Dimension(10, 40));
-        filterTextField.setMaximumSize(new Dimension(200, 40));
-        toolbar.add(filterTextField);
-//        toolbar.add(Box.createHorizontalGlue());
+        if (!isToobarHidden(ToolbarButton.FILTER)) {
+            filterTextField.setPreferredSize(new Dimension(150, 40));
+            filterTextField.setMinimumSize(new Dimension(10, 40));
+            filterTextField.setMaximumSize(new Dimension(200, 40));
+            filterTextField.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (SwingUtilities.isRightMouseButton(e)) {
+                        JPopupMenu popupMenu = new JPopupMenu();
+                        JMenuItem hideItem = new JMenuItem("Hide " + ToolbarButton.FILTER.label);
+                        hideItem.addActionListener(actionEvent -> {
+                            popupMenu.setVisible(false);
+                            SettingsDialog.addHiddenToolbarItem(ToolbarButton.FILTER.label);
+                            setupToolbar();
+                        });
+                        popupMenu.add(hideItem);
+                        popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                    }
+                }
+            });
+            toolbar.add(filterTextField);
+        }
 
-        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshDevices());
-        createToolbarButton(toolbar, "icon_settings.png", "Settings", "Settings", actionEvent -> handleSettingsClicked());
+        createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
+        createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> handleSettingsClicked());
+    }
+
+    protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {
+        if (isToobarHidden(toolbarButton)) return null;
+
+        String imageName = toolbarButton.image;
+        String label = toolbarButton.label;
+        String tooltip = toolbarButton.tooltip;
+
+        JButton button = createToolbarButton(toolbar, imageName, label, tooltip, 40, listener);
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (SwingUtilities.isRightMouseButton(e) && toolbarButton != ToolbarButton.SETTINGS) {
+                    JPopupMenu popupMenu = new JPopupMenu();
+                    JMenuItem hideItem = new JMenuItem("Hide " + label);
+                    hideItem.addActionListener(actionEvent -> {
+                        SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
+                        setupToolbar();
+                    });
+                    popupMenu.add(hideItem);
+                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                }
+            }
+        });
+        return button;
+    }
+
+    private boolean isToobarHidden(ToolbarButton toolbarButton) {
+        List<String> hiddenToolbarList = SettingsDialog.getHiddenToolbarList();
+        return hiddenToolbarList.contains(toolbarButton.label);
+    }
+
+    private List<File> getCustomScripts() {
+        String homeFolder = Utils.getUserHomeFolder();
+        File customFolder = new File(homeFolder, ".device_manager");
+        if (!customFolder.exists()) return null;
+        File[] files = customFolder.listFiles();
+        if (files == null) return null;
+        List<File> scriptList = new ArrayList<>();
+        for (File file : files) {
+            String name = file.getName();
+            if (TextUtils.endsWithAny(name, true, ".sh", ".bat")) {
+                scriptList.add(file);
+            }
+        }
+        return scriptList;
+    }
+
+    private void loadCustomScripts(JToolBar toolbar) {
+        List<File> scriptList = getCustomScripts();
+        if (scriptList == null || scriptList.isEmpty()) return;
+        JButton scriptButton = createToolbarButton(toolbar, ToolbarButton.SCRIPTS, null);
+        if (scriptButton == null) return;
+        scriptButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                JPopupMenu popupMenu = new JPopupMenu();
+                for (File script : scriptList) {
+                    String name = FileUtils.getNameNoExt(script);
+                    JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon("icon_custom.png", 15));
+                    item.addActionListener(e2 -> {
+                        log.trace("loadCustomScripts: clicked: {}", name);
+                        List<String> serialList = new ArrayList<>();
+                        for (Device device : getSelectedDevices()) serialList.add(device.serial);
+                        DeviceManager.AppResult result = DeviceManager.getInstance().runApp(script.getAbsolutePath(), false, serialList.toArray(new String[0]));
+                        log.trace("loadCustomScripts: {}", result);
+                    });
+                    popupMenu.add(item);
+                }
+                popupMenu.show(e.getComponent(), e.getX(), e.getY());
+            }
+        });
     }
 
     private void handleSettingsClicked() {
