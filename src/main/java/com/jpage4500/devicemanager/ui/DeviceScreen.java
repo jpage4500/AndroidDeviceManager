@@ -314,24 +314,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             refreshUi();
         });
 
-        table.addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                char keyChar = e.getKeyChar();
-                int keyCode = e.getKeyCode();
-                String cleanText = filterTextField.getCleanText();
-                if (Character.isLetterOrDigit(keyChar)) {
-                    cleanText += keyChar;
-                } else if (keyCode == KeyEvent.VK_BACK_SPACE) {
-                    if (!cleanText.isEmpty()) {
-                        cleanText = cleanText.substring(0, cleanText.length() - 1);
-                    }
-                } else if (keyCode == KeyEvent.VK_ESCAPE) {
-                    cleanText = "";
-                }
-                filterTextField.setText(cleanText);
-            }
-        });
+        filterTextField.setupSearch(table);
     }
 
     /**

@@ -308,6 +308,8 @@ public class ExploreScreen extends BaseScreen {
 
         table.setTooltipListener((row, col) -> table.getTextIfTruncated(row, col));
 
+        filterTextField.setupSearch(table);
+
         // support drag and drop of files IN TO explorer window
         new DropTarget(table.getScrollPane(), new FileDragAndDropListener(table.getScrollPane(), this::handleFilesDropped));
     }
