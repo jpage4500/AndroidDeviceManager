@@ -49,6 +49,7 @@ public class DeviceManager {
     private static final String SCRIPT_START_SERVER = "start-server";
     private static final String SCRIPT_TERMINAL = "terminal";
     private static final String SCRIPT_MIRROR = "mirror";
+    private static final String SCRIPT_CUSTOM = "run-custom";
 
     public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
 
@@ -1136,6 +1137,25 @@ public class DeviceManager {
         public String toString() {
             return GsonHelper.toJson(this);
         }
+    }
+
+    public void runCustomScript(TaskListener listener, String path, String... args) {
+        commandExecutorService.submit(() -> {
+            log.debug("runCustomScript: {}", path);
+            AppResult appResult = null;
+            File scriptFile = getScriptFile(SCRIPT_CUSTOM);
+            if (scriptFile != null) {
+                List<String> argsList = new ArrayList<>();
+                argsList.add(path);
+                argsList.addAll(Arrays.asList(args));
+                appResult = runApp(scriptFile.getAbsolutePath(), true, argsList.toArray(new String[0]));
+                String stdOut = TextUtils.join(appResult.stdOut, "\n");
+                String stdErr = TextUtils.join(appResult.stdErr, "\n");
+                listener.onTaskComplete(appResult.isSuccess, stdOut + "\n" + stdErr);
+            } else {
+                listener.onTaskComplete(false, "script not found: " + SCRIPT_CUSTOM);
+            }
+        });
     }
 
     /**

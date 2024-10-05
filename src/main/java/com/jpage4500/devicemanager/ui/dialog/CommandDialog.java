@@ -169,8 +169,7 @@ public class CommandDialog extends JPanel {
         });
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
-                String result = "DEVICE: " + device.getDisplayName() + ":\n" + error;
-                resultWatcher.handleResult(isSuccess, result);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
             });
         }
     }

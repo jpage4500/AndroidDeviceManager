@@ -722,6 +722,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void copyFiles(List<Device> selectedDeviceList, List<File> fileList, DeviceManager.TaskListener listener) {
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), listener);
+        String desc = String.format("Copying %d file(s) to %d device(s)", fileList.size(), selectedDeviceList.size());
+        resultWatcher.setDesc(desc);
         // TODO: where to put files on device?
         String destFolder = "/sdcard/Download/";
         for (Device device : selectedDeviceList) {
@@ -730,7 +732,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 // TOOD: show progress
             }, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
-                resultWatcher.handleResult(isSuccess, null);
+                resultWatcher.handleResult(device.serial, isSuccess, error);
             });
         }
     }
@@ -743,7 +745,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 setDeviceBusy(device, true);
                 DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
                     setDeviceBusy(device, false);
-                    resultWatcher.handleResult(isSuccess, isSuccess ? filename : error);
+                    resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? filename : error);
                 });
             }
         }
@@ -813,9 +815,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             setDeviceBusy(device, true);
             DeviceManager.getInstance().captureScreenshot(device, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
-                String result = null;
-                if (!isSuccess) result = "DEVICE: " + device.getDisplayName() + ", ERROR: " + error;
-                resultWatcher.handleResult(isSuccess, result);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
             });
         }
     }
@@ -990,9 +990,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             setDeviceBusy(device, true);
             DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
-                String result = null;
-                if (!isSuccess) result = "DEVICE: " + device.getDisplayName() + ":\n" + error;
-                resultWatcher.handleResult(isSuccess, result);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
             });
         }
     }
@@ -1169,21 +1167,29 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             @Override
             public void mousePressed(MouseEvent e) {
                 JPopupMenu popupMenu = new JPopupMenu();
+                List<File> scriptList = getCustomScripts();
                 for (File script : scriptList) {
                     String name = FileUtils.getNameNoExt(script);
                     JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon("icon_custom.png", 15));
-                    item.addActionListener(e2 -> {
-                        log.trace("loadCustomScripts: clicked: {}", name);
-                        List<String> serialList = new ArrayList<>();
-                        for (Device device : getSelectedDevices()) serialList.add(device.serial);
-                        DeviceManager.AppResult result = DeviceManager.getInstance().runApp(script.getAbsolutePath(), false, serialList.toArray(new String[0]));
-                        log.trace("loadCustomScripts: {}", result);
-                    });
+                    item.addActionListener(e2 -> handleCustomScriptClicked(script, name));
                     popupMenu.add(item);
                 }
                 popupMenu.show(e.getComponent(), e.getX(), e.getY());
             }
         });
+    }
+
+    private void handleCustomScriptClicked(File script, String name) {
+        log.trace("loadCustomScripts: clicked: {}", name);
+        List<String> serialList = new ArrayList<>();
+        for (Device device : getSelectedDevices()) serialList.add(device.serial);
+
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), 1);
+        resultWatcher.setDesc("Running script \"" + name + "\" with " + serialList.size() + " device(s)");
+        DeviceManager.getInstance().runCustomScript((isSuccess, error) -> {
+            log.trace("mousePressed: DONE:{}, {}", isSuccess, error);
+            resultWatcher.handleResult(null, isSuccess, error);
+        }, script.getAbsolutePath(), serialList.toArray(new String[0]));
     }
 
     private void handleSettingsClicked() {

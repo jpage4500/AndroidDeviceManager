@@ -16,13 +16,16 @@ public class ResultWatcher {
     private final int numResults;
     private AtomicInteger counter = new AtomicInteger();
     private DeviceManager.TaskListener listener;
+    private String desc;
     private final List<Result> resultList = new ArrayList<>();
 
     static class Result {
+        String device;
         boolean isSucess;
         String message;
 
-        public Result(boolean isSucess, String message) {
+        public Result(String device, boolean isSucess, String message) {
+            this.device = device;
             this.isSucess = isSucess;
             this.message = message;
         }
@@ -45,9 +48,13 @@ public class ResultWatcher {
         this.listener = listener;
     }
 
-    public void handleResult(boolean isSuccess, String message) {
+    public void setDesc(String desc) {
+        this.desc = desc;
+    }
+
+    public void handleResult(String device, boolean isSuccess, String message) {
         synchronized (resultList) {
-            resultList.add(new Result(isSuccess, message));
+            resultList.add(new Result(device, isSuccess, message));
         }
         int count = counter.incrementAndGet();
 
@@ -57,10 +64,18 @@ public class ResultWatcher {
                 // check if any results were errors
                 boolean isError = false;
                 StringBuilder sb = new StringBuilder();
-                for (Result result : resultList) {
+                if (desc != null) sb.append(desc + "\n\n");
+                sb.append("-- RESULTS --\n");
+                for (int i = 0; i < resultList.size(); i++) {
+                    if (i > 0) sb.append("\n");
+                    Result result = resultList.get(i);
                     // only show results with a message
                     if (result.message == null) continue;
-                    else if (!sb.isEmpty()) sb.append('\n');
+
+                    if (device != null) {
+                        sb.append(result.device);
+                        sb.append(": ");
+                    }
                     sb.append(result.isSucess ? "OK" : "FAIL");
                     sb.append(": ");
                     sb.append(result.message);
