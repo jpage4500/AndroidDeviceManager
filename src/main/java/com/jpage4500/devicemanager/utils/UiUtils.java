@@ -93,6 +93,14 @@ public class UiUtils {
         }
     }
 
+    public static void showDialog(Component component, String string) {
+        // display results in dialog
+        JTextArea textArea = new JTextArea(string);
+        textArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        JOptionPane.showMessageDialog(component, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
+    }
+
     public interface ClickListener {
         void onClick(MouseEvent e);
     }

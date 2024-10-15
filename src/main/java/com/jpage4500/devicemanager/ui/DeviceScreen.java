@@ -995,6 +995,35 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
+    private void handleRecordCommand() {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.isEmpty()) {
+            showSelectDevicesDialog();
+            return;
+        } else if (selectedDeviceList.size() > 1) {
+            // prompt to open multiple devices at once
+            int rc = JOptionPane.showConfirmDialog(this,
+                    "Record " + selectedDeviceList.size() + " devices?",
+                    "Record Device",
+                    JOptionPane.YES_NO_OPTION
+            );
+            if (rc != JOptionPane.YES_OPTION) return;
+        }
+
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
+            if (!isSuccess) {
+                UiUtils.showDialog(getRootPane(), error);
+            }
+        });
+        for (Device device : selectedDeviceList) {
+            setDeviceBusy(device, true);
+            DeviceManager.getInstance().recordScreen(device, (isSuccess, error) -> {
+                setDeviceBusy(device, false);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
+            });
+        }
+    }
+
     private Device getFirstSelectedDevice() {
         List<Device> selectedDevices = getSelectedDevices();
         if (!selectedDevices.isEmpty()) return selectedDevices.get(0);
@@ -1024,6 +1053,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         LOGS("icon_logs.png", "Logs", "Log Viewer"),
         INPUT("keyboard.png", "Input", "Enter text"),
         MIRROR("icon_scrcpy.png", "Mirror", "Mirror (scrcpy)"),
+        RECORD("record.png", "Record", "Record (scrcpy)"),
         SCREENSHOT("icon_screenshot.png", "Screenshot", "Screenshot"),
         INSTALL("icon_install.png", "Install", "Install / Copy file"),
         TERMINAL("icon_terminal.png", "Terminal", "Open Terminal"),
@@ -1067,12 +1097,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         JButton mirrorBtn = createToolbarButton(toolbar, ToolbarButton.MIRROR, actionEvent -> handleMirrorCommand());
 
+        JButton recordBtn = createToolbarButton(toolbar, ToolbarButton.RECORD, actionEvent -> handleRecordCommand());
+
         JButton screenBtn = createToolbarButton(toolbar, ToolbarButton.SCREENSHOT, actionEvent -> handleScreenshotCommand());
 
         JButton installBtn = createToolbarButton(toolbar, ToolbarButton.INSTALL, actionEvent -> handleInstallCommand());
         JButton termBtn = createToolbarButton(toolbar, ToolbarButton.TERMINAL, actionEvent -> handleTermCommand());
 
-        if (mirrorBtn != null || screenBtn != null || installBtn != null || termBtn != null) toolbar.addSeparator();
+        if (mirrorBtn != null || recordBtn != null || screenBtn != null || installBtn != null || termBtn != null) toolbar.addSeparator();
 
         // create custom action buttons
         createToolbarButton(toolbar, ToolbarButton.ADB, actionEvent -> handleRunCustomCommand());

@@ -87,11 +87,7 @@ public class ResultWatcher {
                 if (listener != null) {
                     listener.onTaskComplete(!isError, sb.toString());
                 } else if (!sb.isEmpty()) {
-                    // display results in dialog
-                    JTextArea textArea = new JTextArea(sb.toString());
-                    textArea.setEditable(false);
-                    JScrollPane scrollPane = new JScrollPane(textArea);
-                    JOptionPane.showMessageDialog(component, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
+                    UiUtils.showDialog(component, sb.toString());
                 }
             });
         }

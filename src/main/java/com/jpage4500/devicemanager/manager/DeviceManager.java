@@ -49,6 +49,7 @@ public class DeviceManager {
     private static final String SCRIPT_START_SERVER = "start-server";
     private static final String SCRIPT_TERMINAL = "terminal";
     private static final String SCRIPT_MIRROR = "mirror";
+    private static final String SCRIPT_RECORD = "record-screen";
     private static final String SCRIPT_CUSTOM = "run-custom";
 
     public static final String FILE_CUSTOM_PROP = "/sdcard/android_device_manager.properties";
@@ -532,7 +533,7 @@ public class DeviceManager {
     }
 
     /**
-     * run scrcpy app
+     * run scrcpy app to mirror device
      */
     public void mirrorDevice(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
@@ -551,6 +552,44 @@ public class DeviceManager {
                         "-p", String.valueOf(port),
                         "--window-title", device.getDisplayName(),
                         "--show-touches", "--stay-awake", "--no-audio");
+            }
+
+            // TODO: figure out how to determine if scrcpy was run successfully..
+            // - scrcpy will log to stderr even when successful
+            listener.onTaskComplete(appResult.isSuccess, TextUtils.join(appResult.stdErr, "\n"));
+        });
+    }
+
+    /**
+     * run scrcpy app to mirror device
+     */
+    public void recordScreen(Device device, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            String downloadFolder = Utils.getDownloadFolder();
+            String prefix = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
+            File file = FileUtils.findAvailableFile(downloadFolder, prefix, ".mp4");
+            if (file == null) return;
+            log.debug("recordScreen: {}, file:{}", device.getDisplayName(), file.getAbsolutePath());
+            AppResult appResult = null;
+            File scriptFile = getScriptFile(SCRIPT_RECORD);
+            if (scriptFile != null) {
+                appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, file.getAbsolutePath(), device.getDisplayName());
+            }
+            if (appResult == null || !appResult.isSuccess) {
+                // TODO: run scrcpy directly
+                appResult = new AppResult();
+//                String app = findApp(APP_SCRCPY);
+//                if (app == null) app = APP_SCRCPY;
+//                int port = Utils.getRandomNumber(2000, 65000);
+//                // NOTE: adb must be in PATH (or ADB env variable set)
+//                appResult = runApp(app, true, "-s", device.serial,
+//                        "-p", String.valueOf(port),
+//                        "--window-title", device.getDisplayName(),
+//                        "--show-touches", "--stay-awake", "--no-audio");
+            }
+            if (appResult.isSuccess) {
+                // open with default viewer
+                Utils.openFile(file);
             }
 
             // TODO: figure out how to determine if scrcpy was run successfully..
