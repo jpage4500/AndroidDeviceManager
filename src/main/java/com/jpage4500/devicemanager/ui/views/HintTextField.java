@@ -120,4 +120,39 @@ public class HintTextField extends JTextField {
             setForeground(Color.BLACK);
         }
     }
+
+    /**
+     * allow searching when focus is on another component
+     */
+    public void setupSearch(JComponent component) {
+        component.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                char keyChar = e.getKeyChar();
+                int keyCode = e.getKeyCode();
+                String cleanText = getCleanText();
+                switch (keyCode) {
+                    case KeyEvent.VK_SPACE:
+                        cleanText += " ";
+                        break;
+                    case KeyEvent.VK_BACK_SPACE:
+                        if (!cleanText.isEmpty()) {
+                            cleanText = cleanText.substring(0, cleanText.length() - 1);
+                        }
+                        break;
+                    case KeyEvent.VK_ESCAPE:
+                        cleanText = null;
+                        break;
+                    default:
+                        if (Character.isLetterOrDigit(keyChar)) {
+                            cleanText += keyChar;
+                        }
+                        break;
+                }
+                if (TextUtils.isEmpty(cleanText)) cleanText = hintText;
+                setText(cleanText);
+            }
+        });
+    }
+
 }

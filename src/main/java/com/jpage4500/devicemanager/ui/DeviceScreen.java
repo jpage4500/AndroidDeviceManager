@@ -313,6 +313,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             if (e.getValueIsAdjusting()) return;
             refreshUi();
         });
+
+        filterTextField.setupSearch(table);
     }
 
     /**
@@ -324,16 +326,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             JPopupMenu popupMenu = new JPopupMenu();
             DeviceTableModel.Columns columnType = model.getColumnType(column);
             if (columnType != null) {
-                JMenuItem hideItem = new JMenuItem("Hide Column " + columnType.name());
-                hideItem.addActionListener(actionEvent -> handleHideColumn(column));
-                popupMenu.add(hideItem);
-
-                JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
-                sizeToFitItem.addActionListener(actionEvent -> {
+                UiUtils.addPopupMenuItem(popupMenu, "Hide " + columnType.name(), actionEvent -> handleHideColumn(column));
+                UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
                     TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                     adjuster.adjustColumn(column);
                 });
-                popupMenu.add(sizeToFitItem);
                 return popupMenu;
             }
             return null;
@@ -344,60 +341,28 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JPopupMenu popupMenu = new JPopupMenu();
 
         if (device.isOnline) {
-            JMenuItem copyFieldItem = new JMenuItem("Copy Field to Clipboard");
-            copyFieldItem.addActionListener(actionEvent -> handleCopyClipboardFieldCommand());
-            popupMenu.add(copyFieldItem);
-
-            JMenuItem copyItem = new JMenuItem("Copy Line to Clipboard");
-            copyItem.addActionListener(actionEvent -> handleCopyClipboardCommand());
-            popupMenu.add(copyItem);
-
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", actionEvent -> handleCopyClipboardFieldCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
-
-            JMenuItem detailsItem = new JMenuItem("Device Details");
-            detailsItem.addActionListener(actionEvent -> handleDeviceDetails(device));
-            popupMenu.add(detailsItem);
-
-            JMenuItem mirrorItem = new JMenuItem("Mirror Device");
-            mirrorItem.addActionListener(actionEvent -> handleMirrorCommand());
-            popupMenu.add(mirrorItem);
-
-            JMenuItem screenshotItem = new JMenuItem("Capture Screenshot");
-            screenshotItem.addActionListener(actionEvent -> handleScreenshotCommand());
-            popupMenu.add(screenshotItem);
-
-            JMenuItem restartDevice = new JMenuItem("Restart Device");
-            restartDevice.addActionListener(actionEvent -> handleRestartCommand());
-            popupMenu.add(restartDevice);
-
-            JMenuItem termItem = new JMenuItem("Open Terminal");
-            termItem.addActionListener(actionEvent -> handleTermCommand());
-            popupMenu.add(termItem);
-
-            JMenuItem serverItem = new JMenuItem("Edit Custom Field 1...");
-            serverItem.addActionListener(actionEvent -> handleSetProperty(1));
-            popupMenu.add(serverItem);
-
-            JMenuItem notesItem = new JMenuItem("Edit Custom Field 2...");
-            notesItem.addActionListener(actionEvent -> handleSetProperty(2));
-            popupMenu.add(notesItem);
+            UiUtils.addPopupMenuItem(popupMenu, "Device Details", actionEvent -> handleDeviceDetails(device));
+            UiUtils.addPopupMenuItem(popupMenu, "Mirror Device", actionEvent -> handleMirrorCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Record Device", actionEvent -> handleRecordCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Capture Screenshot", actionEvent -> handleScreenshotCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Restart Device", actionEvent -> handleRestartCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Open Terminal", actionEvent -> handleTermCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Edit Custom Field 1...", actionEvent -> handleSetProperty(1));
+            UiUtils.addPopupMenuItem(popupMenu, "Edit Custom Field 2...", actionEvent -> handleSetProperty(2));
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
-                JMenuItem disconnectItem = new JMenuItem("Disconnect " + device.getDisplayName());
-                disconnectItem.addActionListener(actionEvent -> handleDisconnect(device));
-                popupMenu.add(disconnectItem);
+                UiUtils.addPopupMenuItem(popupMenu, "Disconnect " + device.getDisplayName(), actionEvent -> handleDisconnect(device));
             }
         } else {
             // offline device
             if (device.isWireless()) {
-                JMenuItem reconnectItem = new JMenuItem("Reconnect");
-                reconnectItem.addActionListener(actionEvent -> handleReconnectDevice(device));
-                popupMenu.add(reconnectItem);
+                UiUtils.addPopupMenuItem(popupMenu, "Reconnect", actionEvent -> handleReconnectDevice(device));
             }
-            JMenuItem removeItem = new JMenuItem("Remove");
-            removeItem.addActionListener(actionEvent -> handleRemoveDevice(device));
-            popupMenu.add(removeItem);
+            UiUtils.addPopupMenuItem(popupMenu, "Remove", actionEvent -> handleRemoveDevice(device));
         }
         return popupMenu;
     }
@@ -434,21 +399,17 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         trayPopupMenu.setInvoker(trayPopupMenu);
         List<Device> devices = DeviceManager.getInstance().getDevices();
         if (devices.isEmpty()) {
-            JMenuItem openItem = new JMenuItem("Open", UiUtils.getImageIcon("icon_open.png", 15));
-            openItem.addActionListener(e2 -> {
+            UiUtils.addPopupMenuItem(trayPopupMenu, "Open", "icon_open.png", actionEvent -> {
                 trayPopupMenu.setVisible(false);
                 bringWindowToFront();
             });
-            trayPopupMenu.add(openItem);
         } else {
             for (Device device : devices) {
                 addTrayMenuItem(device);
             }
         }
         trayPopupMenu.addSeparator();
-        JMenuItem quitItem = new JMenuItem("Quit", UiUtils.getImageIcon("icon_close.png", 15));
-        quitItem.addActionListener(e2 -> exitApp(true));
-        trayPopupMenu.add(quitItem);
+        UiUtils.addPopupMenuItem(trayPopupMenu, "Quit", "icon_close.png", actionEvent -> exitApp(true));
 
         trayPopupMenu.setVisible(true);
     }
@@ -720,6 +681,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void copyFiles(List<Device> selectedDeviceList, List<File> fileList, DeviceManager.TaskListener listener) {
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), listener);
+        String desc = String.format("Copying %d file(s) to %d device(s)", fileList.size(), selectedDeviceList.size());
+        resultWatcher.setDesc(desc);
         // TODO: where to put files on device?
         String destFolder = "/sdcard/Download/";
         for (Device device : selectedDeviceList) {
@@ -728,7 +691,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 // TOOD: show progress
             }, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
-                resultWatcher.handleResult(isSuccess, null);
+                resultWatcher.handleResult(device.serial, isSuccess, error);
             });
         }
     }
@@ -741,7 +704,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 setDeviceBusy(device, true);
                 DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
                     setDeviceBusy(device, false);
-                    resultWatcher.handleResult(isSuccess, isSuccess ? filename : error);
+                    resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? filename : error);
                 });
             }
         }
@@ -811,9 +774,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             setDeviceBusy(device, true);
             DeviceManager.getInstance().captureScreenshot(device, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
-                String result = null;
-                if (!isSuccess) result = "DEVICE: " + device.getDisplayName() + ", ERROR: " + error;
-                resultWatcher.handleResult(isSuccess, result);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
             });
         }
     }
@@ -988,9 +949,36 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             setDeviceBusy(device, true);
             DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
-                String result = null;
-                if (!isSuccess) result = "DEVICE: " + device.getDisplayName() + ":\n" + error;
-                resultWatcher.handleResult(isSuccess, result);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
+            });
+        }
+    }
+
+    private void handleRecordCommand() {
+        List<Device> selectedDeviceList = getSelectedDevices();
+        if (selectedDeviceList.isEmpty()) {
+            showSelectDevicesDialog();
+            return;
+        } else if (selectedDeviceList.size() > 1) {
+            // prompt to open multiple devices at once
+            int rc = JOptionPane.showConfirmDialog(this,
+                    "Record " + selectedDeviceList.size() + " devices?",
+                    "Record Device",
+                    JOptionPane.YES_NO_OPTION
+            );
+            if (rc != JOptionPane.YES_OPTION) return;
+        }
+
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
+            if (!isSuccess) {
+                UiUtils.showDialog(getRootPane(), error);
+            }
+        });
+        for (Device device : selectedDeviceList) {
+            setDeviceBusy(device, true);
+            DeviceManager.getInstance().recordScreen(device, (isSuccess, error) -> {
+                setDeviceBusy(device, false);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
             });
         }
     }
@@ -1017,44 +1005,180 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         return selectedDeviceList;
     }
 
-    private void setupToolbar() {
+    // configurable toolbar buttons
+    public enum ToolbarButton {
+        CONNECT("icon_add.png", "Connect", "Connect Device"),
+        BROWSE("icon_browse.png", "Browse", "File Explorer"),
+        LOGS("icon_logs.png", "Logs", "Log Viewer"),
+        INPUT("keyboard.png", "Input", "Enter text"),
+        MIRROR("icon_scrcpy.png", "Mirror", "Mirror Device (scrcpy)"),
+        RECORD("record.png", "Record", "Record Device (scrcpy)"),
+        SCREENSHOT("icon_screenshot.png", "Screenshot", "Screenshot"),
+        INSTALL("icon_install.png", "Install", "Install / Copy file"),
+        TERMINAL("icon_terminal.png", "Terminal", "Open Terminal"),
+        ADB("icon_adb.png", "ADB", "Run custom adb command"),
+        SCRIPTS("icon_custom.png", "Scripts", "Run custom scripts"),
+        FILTER(null, "Filter", "Filter devices..."),
+        REFRESH("icon_refresh.png", "Refresh", "Refresh Devices"),
+        SETTINGS("icon_settings.png", "Settings", "Settings"),
+        ;
+
+        public final String image;
+        public final String label;
+        public final String tooltip;
+
+        ToolbarButton(String image, String label, String tooltip) {
+            this.image = image;
+            this.label = label;
+            this.tooltip = tooltip;
+        }
+    }
+
+    public void setupToolbar() {
+        if (toolbar.getComponentCount() > 0) {
+            toolbar.removeAll();
+            toolbar.revalidate();
+            toolbar.doLayout();
+            toolbar.repaint();
+        }
+
         toolbar.setRollover(true);
+        JButton connectBtn = createToolbarButton(toolbar, ToolbarButton.CONNECT, actionEvent -> handleConnectDevice());
+        if (connectBtn != null) toolbar.addSeparator();
 
-        createToolbarButton(toolbar, "icon_add.png", "Connect", "Connect Device", actionEvent -> handleConnectDevice());
-        toolbar.addSeparator();
+        JButton browseBtn = createToolbarButton(toolbar, ToolbarButton.BROWSE, actionEvent -> handleBrowseCommand(null));
 
-        createToolbarButton(toolbar, "icon_browse.png", "Browse", "File Explorer", actionEvent -> handleBrowseCommand(null));
+        JButton logsBtn = createToolbarButton(toolbar, ToolbarButton.LOGS, actionEvent -> handleLogsCommand(null));
 
-        createToolbarButton(toolbar, "icon_script.png", "Logs", "Log Viewer", actionEvent -> handleLogsCommand(null));
+        JButton inputBtn = createToolbarButton(toolbar, ToolbarButton.INPUT, actionEvent -> handleInputCommand());
 
-        createToolbarButton(toolbar, "keyboard.png", "Input", "Enter text", actionEvent -> handleInputCommand());
+        if (browseBtn != null || logsBtn != null || inputBtn != null) toolbar.addSeparator();
 
-        toolbar.addSeparator();
+        JButton mirrorBtn = createToolbarButton(toolbar, ToolbarButton.MIRROR, actionEvent -> handleMirrorCommand());
 
-        createToolbarButton(toolbar, "icon_scrcpy.png", "Mirror", "Mirror (scrcpy)", actionEvent -> handleMirrorCommand());
+        JButton recordBtn = createToolbarButton(toolbar, ToolbarButton.RECORD, actionEvent -> handleRecordCommand());
 
-        createToolbarButton(toolbar, "icon_screenshot.png", "Screenshot", "Screenshot", actionEvent -> handleScreenshotCommand());
+        JButton screenBtn = createToolbarButton(toolbar, ToolbarButton.SCREENSHOT, actionEvent -> handleScreenshotCommand());
 
-        createToolbarButton(toolbar, "icon_install.png", "Install", "Install / Copy file", actionEvent -> handleInstallCommand());
-        createToolbarButton(toolbar, "icon_terminal.png", "Terminal", "Open Terminal (adb shell)", actionEvent -> handleTermCommand());
+        JButton installBtn = createToolbarButton(toolbar, ToolbarButton.INSTALL, actionEvent -> handleInstallCommand());
+        JButton termBtn = createToolbarButton(toolbar, ToolbarButton.TERMINAL, actionEvent -> handleTermCommand());
 
-        toolbar.addSeparator();
-        //createToolbarButton(toolbar, "icon_variable.png", "Set Property", actionEvent -> handleSetPropertyCommand());
+        if (mirrorBtn != null || recordBtn != null || screenBtn != null || installBtn != null || termBtn != null) toolbar.addSeparator();
 
         // create custom action buttons
-        createToolbarButton(toolbar, "icon_custom.png", "ADB", "Run custom adb command", actionEvent -> handleRunCustomCommand());
+        createToolbarButton(toolbar, ToolbarButton.ADB, actionEvent -> handleRunCustomCommand());
+
+        loadCustomScripts(toolbar);
+
+        // -- right side toolbar buttons --
 
         toolbar.add(Box.createHorizontalGlue());
 
         filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
-        filterTextField.setPreferredSize(new Dimension(150, 40));
-        filterTextField.setMinimumSize(new Dimension(10, 40));
-        filterTextField.setMaximumSize(new Dimension(200, 40));
-        toolbar.add(filterTextField);
-//        toolbar.add(Box.createHorizontalGlue());
+        if (!isToobarHidden(ToolbarButton.FILTER)) {
+            filterTextField.setPreferredSize(new Dimension(150, 40));
+            filterTextField.setMinimumSize(new Dimension(10, 40));
+            filterTextField.setMaximumSize(new Dimension(200, 40));
+            filterTextField.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (SwingUtilities.isRightMouseButton(e)) {
+                        JPopupMenu popupMenu = new JPopupMenu();
+                        JMenuItem hideItem = new JMenuItem("Hide " + ToolbarButton.FILTER.label);
+                        hideItem.addActionListener(actionEvent -> {
+                            popupMenu.setVisible(false);
+                            SettingsDialog.addHiddenToolbarItem(ToolbarButton.FILTER.label);
+                            setupToolbar();
+                        });
+                        popupMenu.add(hideItem);
+                        popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                    }
+                }
+            });
+            toolbar.add(filterTextField);
+        }
 
-        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Device List", actionEvent -> refreshDevices());
-        createToolbarButton(toolbar, "icon_settings.png", "Settings", "Settings", actionEvent -> handleSettingsClicked());
+        createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
+        createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> handleSettingsClicked());
+    }
+
+    protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {
+        if (isToobarHidden(toolbarButton)) return null;
+
+        String imageName = toolbarButton.image;
+        String label = toolbarButton.label;
+        String tooltip = toolbarButton.tooltip;
+
+        JButton button = createToolbarButton(toolbar, imageName, label, tooltip, 40, listener);
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (SwingUtilities.isRightMouseButton(e) && toolbarButton != ToolbarButton.SETTINGS) {
+                    JPopupMenu popupMenu = new JPopupMenu();
+                    UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
+                        SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
+                        setupToolbar();
+                    });
+                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                }
+            }
+        });
+        return button;
+    }
+
+    private boolean isToobarHidden(ToolbarButton toolbarButton) {
+        List<String> hiddenToolbarList = SettingsDialog.getHiddenToolbarList();
+        return hiddenToolbarList.contains(toolbarButton.label);
+    }
+
+    private List<File> getCustomScripts() {
+        String homeFolder = Utils.getUserHomeFolder();
+        File customFolder = new File(homeFolder, ".device_manager");
+        if (!customFolder.exists()) return null;
+        File[] files = customFolder.listFiles();
+        if (files == null) return null;
+        List<File> scriptList = new ArrayList<>();
+        for (File file : files) {
+            String name = file.getName();
+            if (TextUtils.endsWithAny(name, true, ".sh", ".bat")) {
+                scriptList.add(file);
+            }
+        }
+        return scriptList;
+    }
+
+    private void loadCustomScripts(JToolBar toolbar) {
+        List<File> scriptList = getCustomScripts();
+        if (scriptList == null || scriptList.isEmpty()) return;
+        JButton scriptButton = createToolbarButton(toolbar, ToolbarButton.SCRIPTS, null);
+        if (scriptButton == null) return;
+        scriptButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                JPopupMenu popupMenu = new JPopupMenu();
+                List<File> scriptList = getCustomScripts();
+                for (File script : scriptList) {
+                    String name = FileUtils.getNameNoExt(script);
+                    JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon("icon_custom.png", 15));
+                    item.addActionListener(e2 -> handleCustomScriptClicked(script, name));
+                    popupMenu.add(item);
+                }
+                popupMenu.show(e.getComponent(), e.getX(), e.getY());
+            }
+        });
+    }
+
+    private void handleCustomScriptClicked(File script, String name) {
+        log.trace("loadCustomScripts: clicked: {}", name);
+        List<String> serialList = new ArrayList<>();
+        for (Device device : getSelectedDevices()) serialList.add(device.serial);
+
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), 1);
+        resultWatcher.setDesc("Running script \"" + name + "\" with " + serialList.size() + " device(s)");
+        DeviceManager.getInstance().runCustomScript((isSuccess, error) -> {
+            log.trace("mousePressed: DONE:{}, {}", isSuccess, error);
+            resultWatcher.handleResult(null, isSuccess, error);
+        }, script.getAbsolutePath(), serialList.toArray(new String[0]));
     }
 
     private void handleSettingsClicked() {

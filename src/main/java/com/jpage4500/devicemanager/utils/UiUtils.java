@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -93,6 +94,14 @@ public class UiUtils {
         }
     }
 
+    public static void showDialog(Component component, String string) {
+        // display results in dialog
+        JTextArea textArea = new JTextArea(string);
+        textArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        JOptionPane.showMessageDialog(component, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
+    }
+
     public interface ClickListener {
         void onClick(MouseEvent e);
     }
@@ -111,4 +120,27 @@ public class UiUtils {
             }
         });
     }
+
+    public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, ActionListener listener) {
+        return addPopupMenuItem(popupMenu, label, null, listener);
+    }
+
+    public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, String iconName, ActionListener listener) {
+        Icon icon = null;
+        if (iconName != null) {
+            icon = getImageIcon(iconName, 15);
+        }
+        JMenuItem menuItem = new JMenuItem(label, icon);
+        menuItem.addActionListener(listener);
+        popupMenu.add(menuItem);
+        return menuItem;
+    }
+
+    public static JMenuItem addMenuItem(JMenu menu, String label, ActionListener listener) {
+        JMenuItem menuItem = new JMenuItem(label);
+        menuItem.addActionListener(listener);
+        menu.add(menuItem);
+        return menuItem;
+    }
+
 }

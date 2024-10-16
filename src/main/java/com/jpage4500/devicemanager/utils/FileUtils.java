@@ -5,7 +5,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 public class FileUtils {
@@ -85,6 +87,14 @@ public class FileUtils {
         return sizeGigDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + SIZE_UNITS[digitGroups];
     }
 
+    public static String getNameNoExt(File file) {
+        if (file == null) return null;
+        String name = file.getName();
+        int i = name.lastIndexOf('.');
+        if (i == -1) return name;
+        return name.substring(0, i);
+    }
+
     public static class FileStats {
         public int numTotal;
         public int numFiles;
@@ -131,5 +141,25 @@ public class FileUtils {
                 stats.numApk++;
             }
         }
+    }
+
+    /**
+     * find available filename (doesn't exist)
+     *
+     * @param path   full path/folder
+     * @param prefix prefix
+     * @param suffix suffix (include ".")
+     * @return available File
+     */
+    public static File findAvailableFile(String path, String prefix, String suffix) {
+        for (int i = 0; i < 100; i++) {
+            String filename;
+            if (i == 0) filename = prefix;
+            else filename = prefix + "-" + i;
+            filename += suffix;
+            File file = new File(path, filename);
+            if (!file.exists()) return file;
+        }
+        return null;
     }
 }

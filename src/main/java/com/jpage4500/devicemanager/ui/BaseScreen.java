@@ -132,11 +132,7 @@ public class BaseScreen extends JFrame {
             action.putValue(Action.ACCELERATOR_KEY, keyStroke);
         }
 
-        JMenuItem menuItem = new JMenuItem(label);
-        menuItem.setAction(action);
-        menu.add(menuItem);
-
-        return menuItem;
+        return UiUtils.addMenuItem(menu, label, action);
     }
 
     /**
@@ -153,9 +149,7 @@ public class BaseScreen extends JFrame {
         action.putValue(Action.ACCELERATOR_KEY, keyStroke);
 
         if (menu != null) {
-            JMenuItem closeItem = new JMenuItem(label);
-            closeItem.setAction(action);
-            menu.add(closeItem);
+            UiUtils.addMenuItem(menu, label, action);
         }
 
         return action;

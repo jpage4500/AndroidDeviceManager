@@ -23,6 +23,7 @@ public class PreferenceUtils {
         PREF_RECENT_INPUT,
         PREF_RECENT_MESSAGE_FILTER,
         PREF_MESSAGE_FILTERS,
+        PREF_HIDDEN_TOOLBAR_ITEMS,
     }
 
     /**
