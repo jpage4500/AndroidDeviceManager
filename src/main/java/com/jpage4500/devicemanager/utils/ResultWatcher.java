@@ -86,7 +86,7 @@ public class ResultWatcher {
                 }
                 if (listener != null) {
                     listener.onTaskComplete(!isError, sb.toString());
-                } else if (!sb.isEmpty()) {
+                } else if (isError && !sb.isEmpty()) {
                     UiUtils.showDialog(component, sb.toString());
                 }
             });

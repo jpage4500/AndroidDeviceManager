@@ -123,15 +123,21 @@ public class DeviceManager {
                     @Override
                     public void onException(Exception e) {
                         log.error("connectAdbServer: onException: {}", e.getMessage());
+                        // change all devices to offline
+                        for (Device device : deviceList) device.isOnline = false;
                         listener.handleException(e);
                     }
                 }).run();
             } catch (Exception e) {
-                log.error("Exception: {}", e.getMessage());
+                log.error("connectAdbServer: Exception: {}", e.getMessage());
                 // likley because adb server isn't running.. try to start it now
                 startServer((isSuccess, error) -> {
                     if (isSuccess && allowRetry) connectAdbServer(false, listener);
-                    else listener.handleException(e);
+                    else {
+                        // change all devices to offline
+                        for (Device device : deviceList) device.isOnline = false;
+                        listener.handleException(e);
+                    }
                 });
             }
         });
@@ -1181,7 +1187,7 @@ public class DeviceManager {
     public void runCustomScript(TaskListener listener, String path, String... args) {
         commandExecutorService.submit(() -> {
             log.debug("runCustomScript: {}", path);
-            AppResult appResult = null;
+            AppResult appResult;
             File scriptFile = getScriptFile(SCRIPT_CUSTOM);
             if (scriptFile != null) {
                 List<String> argsList = new ArrayList<>();

@@ -326,16 +326,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             JPopupMenu popupMenu = new JPopupMenu();
             DeviceTableModel.Columns columnType = model.getColumnType(column);
             if (columnType != null) {
-                JMenuItem hideItem = new JMenuItem("Hide " + columnType.name());
-                hideItem.addActionListener(actionEvent -> handleHideColumn(column));
-                popupMenu.add(hideItem);
-
-                JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
-                sizeToFitItem.addActionListener(actionEvent -> {
+                addPopupMenuItem(popupMenu, "Hide " + columnType.name(), actionEvent -> handleHideColumn(column));
+                addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
                     TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                     adjuster.adjustColumn(column);
                 });
-                popupMenu.add(sizeToFitItem);
                 return popupMenu;
             }
             return null;
@@ -346,62 +341,37 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JPopupMenu popupMenu = new JPopupMenu();
 
         if (device.isOnline) {
-            JMenuItem copyFieldItem = new JMenuItem("Copy Field to Clipboard");
-            copyFieldItem.addActionListener(actionEvent -> handleCopyClipboardFieldCommand());
-            popupMenu.add(copyFieldItem);
-
-            JMenuItem copyItem = new JMenuItem("Copy Line to Clipboard");
-            copyItem.addActionListener(actionEvent -> handleCopyClipboardCommand());
-            popupMenu.add(copyItem);
-
+            addPopupMenuItem(popupMenu, "Copy Field to Clipboard", actionEvent -> handleCopyClipboardFieldCommand());
+            addPopupMenuItem(popupMenu, "Copy Line to Clipboard", actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
-
-            JMenuItem detailsItem = new JMenuItem("Device Details");
-            detailsItem.addActionListener(actionEvent -> handleDeviceDetails(device));
-            popupMenu.add(detailsItem);
-
-            JMenuItem mirrorItem = new JMenuItem("Mirror Device");
-            mirrorItem.addActionListener(actionEvent -> handleMirrorCommand());
-            popupMenu.add(mirrorItem);
-
-            JMenuItem screenshotItem = new JMenuItem("Capture Screenshot");
-            screenshotItem.addActionListener(actionEvent -> handleScreenshotCommand());
-            popupMenu.add(screenshotItem);
-
-            JMenuItem restartDevice = new JMenuItem("Restart Device");
-            restartDevice.addActionListener(actionEvent -> handleRestartCommand());
-            popupMenu.add(restartDevice);
-
-            JMenuItem termItem = new JMenuItem("Open Terminal");
-            termItem.addActionListener(actionEvent -> handleTermCommand());
-            popupMenu.add(termItem);
-
-            JMenuItem serverItem = new JMenuItem("Edit Custom Field 1...");
-            serverItem.addActionListener(actionEvent -> handleSetProperty(1));
-            popupMenu.add(serverItem);
-
-            JMenuItem notesItem = new JMenuItem("Edit Custom Field 2...");
-            notesItem.addActionListener(actionEvent -> handleSetProperty(2));
-            popupMenu.add(notesItem);
+            addPopupMenuItem(popupMenu, "Device Details", actionEvent -> handleDeviceDetails(device));
+            addPopupMenuItem(popupMenu, "Mirror Device", actionEvent -> handleMirrorCommand());
+            addPopupMenuItem(popupMenu, "Record Device", actionEvent -> handleRecordCommand());
+            addPopupMenuItem(popupMenu, "Capture Screenshot", actionEvent -> handleScreenshotCommand());
+            addPopupMenuItem(popupMenu, "Restart Device", actionEvent -> handleRestartCommand());
+            addPopupMenuItem(popupMenu, "Open Terminal", actionEvent -> handleTermCommand());
+            addPopupMenuItem(popupMenu, "Edit Custom Field 1...", actionEvent -> handleSetProperty(1));
+            addPopupMenuItem(popupMenu, "Edit Custom Field 2...", actionEvent -> handleSetProperty(2));
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
-                JMenuItem disconnectItem = new JMenuItem("Disconnect " + device.getDisplayName());
-                disconnectItem.addActionListener(actionEvent -> handleDisconnect(device));
-                popupMenu.add(disconnectItem);
+                addPopupMenuItem(popupMenu, "Disconnect " + device.getDisplayName(), actionEvent -> handleDisconnect(device));
             }
         } else {
             // offline device
             if (device.isWireless()) {
-                JMenuItem reconnectItem = new JMenuItem("Reconnect");
-                reconnectItem.addActionListener(actionEvent -> handleReconnectDevice(device));
-                popupMenu.add(reconnectItem);
+                addPopupMenuItem(popupMenu, "Reconnect", actionEvent -> handleReconnectDevice(device));
             }
-            JMenuItem removeItem = new JMenuItem("Remove");
-            removeItem.addActionListener(actionEvent -> handleRemoveDevice(device));
-            popupMenu.add(removeItem);
+            addPopupMenuItem(popupMenu, "Remove", actionEvent -> handleRemoveDevice(device));
         }
         return popupMenu;
+    }
+
+    private JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, ActionListener listener) {
+        JMenuItem menuItem = new JMenuItem(label);
+        menuItem.addActionListener(listener);
+        popupMenu.add(menuItem);
+        return menuItem;
     }
 
     private void setupSystemTray() {
@@ -1052,8 +1022,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         BROWSE("icon_browse.png", "Browse", "File Explorer"),
         LOGS("icon_logs.png", "Logs", "Log Viewer"),
         INPUT("keyboard.png", "Input", "Enter text"),
-        MIRROR("icon_scrcpy.png", "Mirror", "Mirror (scrcpy)"),
-        RECORD("record.png", "Record", "Record (scrcpy)"),
+        MIRROR("icon_scrcpy.png", "Mirror", "Mirror Device (scrcpy)"),
+        RECORD("record.png", "Record", "Record Device (scrcpy)"),
         SCREENSHOT("icon_screenshot.png", "Screenshot", "Screenshot"),
         INSTALL("icon_install.png", "Install", "Install / Copy file"),
         TERMINAL("icon_terminal.png", "Terminal", "Open Terminal"),
@@ -1156,12 +1126,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             public void mouseClicked(MouseEvent e) {
                 if (SwingUtilities.isRightMouseButton(e) && toolbarButton != ToolbarButton.SETTINGS) {
                     JPopupMenu popupMenu = new JPopupMenu();
-                    JMenuItem hideItem = new JMenuItem("Hide " + label);
-                    hideItem.addActionListener(actionEvent -> {
+                    addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
                         SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
                         setupToolbar();
                     });
-                    popupMenu.add(hideItem);
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
