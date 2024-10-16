@@ -350,13 +350,11 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
         table.setPopupMenuListener((row, column) -> {
             JPopupMenu popupMenu = new JPopupMenu();
             if (row == -1) {
-                JMenuItem sizeToFitItem = new JMenuItem("Size to Fit");
-                sizeToFitItem.addActionListener(actionEvent -> {
+                UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
                     TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                     int tableCol = table.convertColumnIndexToView(column);
                     adjuster.adjustColumn(tableCol);
                 });
-                popupMenu.add(sizeToFitItem);
                 return popupMenu;
             }
 
@@ -371,26 +369,13 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                     case TAG:
                         // filter by value
                         String text = model.getTextValue(row, column);
-                        JMenuItem copyFieldItem = new JMenuItem("Add Filter");
-                        copyFieldItem.addActionListener(actionEvent -> handleQuickAddFilter(columnType, text));
-                        popupMenu.add(copyFieldItem);
+                        UiUtils.addPopupMenuItem(popupMenu, "Add Filter", actionEvent -> handleQuickAddFilter(columnType, text));
                 }
             }
 
-            // copy line(s)
-            JMenuItem copyItem = new JMenuItem("Copy");
-            copyItem.addActionListener(actionEvent -> handleCopyClicked());
-            popupMenu.add(copyItem);
-
-            // copy message
-            JMenuItem copyMessageItem = new JMenuItem("Copy Message");
-            copyMessageItem.addActionListener(actionEvent -> handleCopyMessageClicked());
-            popupMenu.add(copyMessageItem);
-
-            // view message
-            JMenuItem viewItem = new JMenuItem("View Message");
-            viewItem.addActionListener(actionEvent -> handleLogClicked());
-            popupMenu.add(viewItem);
+            UiUtils.addPopupMenuItem(popupMenu, "Copy", actionEvent -> handleCopyClicked());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Message", actionEvent -> handleCopyMessageClicked());
+            UiUtils.addPopupMenuItem(popupMenu, "View Message", actionEvent -> handleLogClicked());
 
             return popupMenu;
         });
@@ -608,12 +593,8 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                     if (i < numSystemFilters) return;
 
                     JPopupMenu popupMenu = new JPopupMenu();
-                    JMenuItem editItem = new JMenuItem("Edit Filter");
-                    editItem.addActionListener(actionEvent -> handleEditFilterClicked());
-                    popupMenu.add(editItem);
-                    JMenuItem deleteItem = new JMenuItem("Delete Filter");
-                    deleteItem.addActionListener(actionEvent -> handleDeleteFilterClicked());
-                    popupMenu.add(deleteItem);
+                    UiUtils.addPopupMenuItem(popupMenu, "Edit Filter", actionEvent -> handleEditFilterClicked());
+                    UiUtils.addPopupMenuItem(popupMenu, "Delete Filter", actionEvent -> handleDeleteFilterClicked());
                 }
             }
         });

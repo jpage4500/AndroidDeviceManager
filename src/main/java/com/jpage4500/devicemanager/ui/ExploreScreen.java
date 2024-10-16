@@ -447,21 +447,10 @@ public class ExploreScreen extends BaseScreen {
     private void setupPopupMenu() {
         JPopupMenu popupMenu = new JPopupMenu();
 
-        JMenuItem downloadItem = new JMenuItem("Download");
-        downloadItem.addActionListener(actionEvent -> handleDownload());
-        popupMenu.add(downloadItem);
-
-        JMenuItem deleteItem = new JMenuItem("Delete");
-        deleteItem.addActionListener(actionEvent -> handleDelete());
-        popupMenu.add(deleteItem);
-
-        JMenuItem copyNameItem = new JMenuItem("Copy Name");
-        copyNameItem.addActionListener(actionEvent -> handleCopyName());
-        popupMenu.add(copyNameItem);
-
-        JMenuItem copyPathItem = new JMenuItem("Copy Path");
-        copyPathItem.addActionListener(actionEvent -> handleCopyPath());
-        popupMenu.add(copyPathItem);
+        UiUtils.addPopupMenuItem(popupMenu, "Download", actionEvent -> handleDownload());
+        UiUtils.addPopupMenuItem(popupMenu, "Delete", actionEvent -> handleDelete());
+        UiUtils.addPopupMenuItem(popupMenu, "Copy Name", actionEvent -> handleCopyName());
+        UiUtils.addPopupMenuItem(popupMenu, "Copy Path", actionEvent -> handleCopyPath());
 
         table.setComponentPopupMenu(popupMenu);
     }

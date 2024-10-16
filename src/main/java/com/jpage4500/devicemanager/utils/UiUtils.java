@@ -102,13 +102,6 @@ public class UiUtils {
         JOptionPane.showMessageDialog(component, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
     }
 
-    public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, ActionListener listener) {
-        JMenuItem menuItem = new JMenuItem(label);
-        menuItem.addActionListener(listener);
-        popupMenu.add(menuItem);
-        return menuItem;
-    }
-
     public interface ClickListener {
         void onClick(MouseEvent e);
     }
@@ -127,4 +120,27 @@ public class UiUtils {
             }
         });
     }
+
+    public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, ActionListener listener) {
+        return addPopupMenuItem(popupMenu, label, null, listener);
+    }
+
+    public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, String iconName, ActionListener listener) {
+        Icon icon = null;
+        if (iconName != null) {
+            icon = getImageIcon(iconName, 15);
+        }
+        JMenuItem menuItem = new JMenuItem(label, icon);
+        menuItem.addActionListener(listener);
+        popupMenu.add(menuItem);
+        return menuItem;
+    }
+
+    public static JMenuItem addMenuItem(JMenu menu, String label, ActionListener listener) {
+        JMenuItem menuItem = new JMenuItem(label);
+        menuItem.addActionListener(listener);
+        menu.add(menuItem);
+        return menuItem;
+    }
+
 }

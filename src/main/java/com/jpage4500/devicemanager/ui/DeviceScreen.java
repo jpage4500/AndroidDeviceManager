@@ -399,21 +399,17 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         trayPopupMenu.setInvoker(trayPopupMenu);
         List<Device> devices = DeviceManager.getInstance().getDevices();
         if (devices.isEmpty()) {
-            JMenuItem openItem = new JMenuItem("Open", UiUtils.getImageIcon("icon_open.png", 15));
-            openItem.addActionListener(e2 -> {
+            UiUtils.addPopupMenuItem(trayPopupMenu, "Open", "icon_open.png", actionEvent -> {
                 trayPopupMenu.setVisible(false);
                 bringWindowToFront();
             });
-            trayPopupMenu.add(openItem);
         } else {
             for (Device device : devices) {
                 addTrayMenuItem(device);
             }
         }
         trayPopupMenu.addSeparator();
-        JMenuItem quitItem = new JMenuItem("Quit", UiUtils.getImageIcon("icon_close.png", 15));
-        quitItem.addActionListener(e2 -> exitApp(true));
-        trayPopupMenu.add(quitItem);
+        UiUtils.addPopupMenuItem(trayPopupMenu, "Quit", "icon_close.png", actionEvent -> exitApp(true));
 
         trayPopupMenu.setVisible(true);
     }

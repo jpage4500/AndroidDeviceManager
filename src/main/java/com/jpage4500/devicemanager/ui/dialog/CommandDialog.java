@@ -61,9 +61,7 @@ public class CommandDialog extends JPanel {
                     list.setSelectedIndex(row);
                     JPopupMenu popupMenu = new JPopupMenu();
 
-                    JMenuItem deleteItem = new JMenuItem("Delete");
-                    deleteItem.addActionListener(actionEvent -> deleteItem(list.getSelectedValue()));
-                    popupMenu.add(deleteItem);
+                    UiUtils.addPopupMenuItem(popupMenu, "Delete", actionEvent -> deleteItem(list.getSelectedValue()));
 
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
