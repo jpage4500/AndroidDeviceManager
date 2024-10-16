@@ -326,8 +326,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             JPopupMenu popupMenu = new JPopupMenu();
             DeviceTableModel.Columns columnType = model.getColumnType(column);
             if (columnType != null) {
-                addPopupMenuItem(popupMenu, "Hide " + columnType.name(), actionEvent -> handleHideColumn(column));
-                addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
+                UiUtils.addPopupMenuItem(popupMenu, "Hide " + columnType.name(), actionEvent -> handleHideColumn(column));
+                UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
                     TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                     adjuster.adjustColumn(column);
                 });
@@ -341,37 +341,30 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JPopupMenu popupMenu = new JPopupMenu();
 
         if (device.isOnline) {
-            addPopupMenuItem(popupMenu, "Copy Field to Clipboard", actionEvent -> handleCopyClipboardFieldCommand());
-            addPopupMenuItem(popupMenu, "Copy Line to Clipboard", actionEvent -> handleCopyClipboardCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", actionEvent -> handleCopyClipboardFieldCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
-            addPopupMenuItem(popupMenu, "Device Details", actionEvent -> handleDeviceDetails(device));
-            addPopupMenuItem(popupMenu, "Mirror Device", actionEvent -> handleMirrorCommand());
-            addPopupMenuItem(popupMenu, "Record Device", actionEvent -> handleRecordCommand());
-            addPopupMenuItem(popupMenu, "Capture Screenshot", actionEvent -> handleScreenshotCommand());
-            addPopupMenuItem(popupMenu, "Restart Device", actionEvent -> handleRestartCommand());
-            addPopupMenuItem(popupMenu, "Open Terminal", actionEvent -> handleTermCommand());
-            addPopupMenuItem(popupMenu, "Edit Custom Field 1...", actionEvent -> handleSetProperty(1));
-            addPopupMenuItem(popupMenu, "Edit Custom Field 2...", actionEvent -> handleSetProperty(2));
+            UiUtils.addPopupMenuItem(popupMenu, "Device Details", actionEvent -> handleDeviceDetails(device));
+            UiUtils.addPopupMenuItem(popupMenu, "Mirror Device", actionEvent -> handleMirrorCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Record Device", actionEvent -> handleRecordCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Capture Screenshot", actionEvent -> handleScreenshotCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Restart Device", actionEvent -> handleRestartCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Open Terminal", actionEvent -> handleTermCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Edit Custom Field 1...", actionEvent -> handleSetProperty(1));
+            UiUtils.addPopupMenuItem(popupMenu, "Edit Custom Field 2...", actionEvent -> handleSetProperty(2));
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
-                addPopupMenuItem(popupMenu, "Disconnect " + device.getDisplayName(), actionEvent -> handleDisconnect(device));
+                UiUtils.addPopupMenuItem(popupMenu, "Disconnect " + device.getDisplayName(), actionEvent -> handleDisconnect(device));
             }
         } else {
             // offline device
             if (device.isWireless()) {
-                addPopupMenuItem(popupMenu, "Reconnect", actionEvent -> handleReconnectDevice(device));
+                UiUtils.addPopupMenuItem(popupMenu, "Reconnect", actionEvent -> handleReconnectDevice(device));
             }
-            addPopupMenuItem(popupMenu, "Remove", actionEvent -> handleRemoveDevice(device));
+            UiUtils.addPopupMenuItem(popupMenu, "Remove", actionEvent -> handleRemoveDevice(device));
         }
         return popupMenu;
-    }
-
-    private JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, ActionListener listener) {
-        JMenuItem menuItem = new JMenuItem(label);
-        menuItem.addActionListener(listener);
-        popupMenu.add(menuItem);
-        return menuItem;
     }
 
     private void setupSystemTray() {
@@ -1126,7 +1119,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             public void mouseClicked(MouseEvent e) {
                 if (SwingUtilities.isRightMouseButton(e) && toolbarButton != ToolbarButton.SETTINGS) {
                     JPopupMenu popupMenu = new JPopupMenu();
-                    addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
+                    UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
                         SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
                         setupToolbar();
                     });

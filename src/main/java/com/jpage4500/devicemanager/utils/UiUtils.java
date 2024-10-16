@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -99,6 +100,13 @@ public class UiUtils {
         textArea.setEditable(false);
         JScrollPane scrollPane = new JScrollPane(textArea);
         JOptionPane.showMessageDialog(component, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
+    }
+
+    public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, ActionListener listener) {
+        JMenuItem menuItem = new JMenuItem(label);
+        menuItem.addActionListener(listener);
+        popupMenu.add(menuItem);
+        return menuItem;
     }
 
     public interface ClickListener {
