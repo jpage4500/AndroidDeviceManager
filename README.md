@@ -24,29 +24,107 @@ Java desktop app to manage multiple Android devices via adb
 
 ## Screenshots ##
 <img src="resources/screenshot-main.jpg" width="600" alt="devices">
-<br>
+
+<details>
+  <summary>More Screenshots</summary>
 <img src="resources/screenshot-mirror.jpg" width="600" alt="devices">
 <br>
 <img src="resources/screenshot-browse.jpg" width="300" alt="file explorer">
 <br>
 <img src="resources/screenshot-logs.jpg" width="600" alt="logs">
 <br>
+</details>
 
-## Requirements
+## Setup / Prerequisites
 
-- Java SDK
-  - min version 17; I'm using openjdk 22.0.1 2024-04-16
-  - MacOSX -> Homebrew -> `brew install openjdk`
-  - Linux - [link](https://www.digitalocean.com/community/tutorials/how-to-install-java-with-apt-on-ubuntu-22-04)
-- **adb**
-  - MacOSX -> homebrew -> `brew cask install android-platform-tools`
-  - Linux -> `sudo apt install adb fastboot`
-  - standalone adb tools can be found [here](https://developer.android.com/tools/releases/platform-tools)
-- **scrcpy** - mirror a connected Android device ([https://github.com/Genymobile/scrcpy](https://github.com/Genymobile/scrcpy))
-  - MacOSX -> homebrew -> `brew install scrcpy`
-  - Linux -> see [link](https://github.com/Genymobile/scrcpy/blob/master/doc/linux.md#latest-version)
-- make sure both `adb` and `scrcpy` are in the current PATH
+- **Java** - min 17 but latest version should be fine
+- **adb** - android debugging tools
+- **scrcpy** - used to mirror a device ([link](https://github.com/Genymobile/scrcpy))
 
+<details>
+  <summary>Mac Setup</summary>
+
+### Install Homebrew
+
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+### Install latest JRE
+
+```
+brew install openjdk
+```
+
+- add java to PATH
+
+```
+echo 'export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"' >> ~/.profile
+```
+
+- create a symlink in /Library/Java/JavaVirtualMachines which is where the Mac launcher looks for java
+
+```
+sudo ln -sfn $HOMEBREW_PREFIX/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk
+```
+
+### Install adb
+
+```
+brew install --cask android-platform-tools
+```
+
+- add adb to PATH
+
+```
+echo 'export ANDROID_HOME=$HOME/Library/Android/sdk' >> ~/.profile
+echo 'export PATH="/opt/homebrew/bin:$ANDROID_HOME/platform-tools:$PATH"' >> ~/.profile
+```
+
+### Install scrcpy
+
+```
+brew install scrcpy
+```
+
+</details>
+
+<details>
+  <summary>Windows Setup</summary>
+
+### Install latest JRE
+download and install the JDK from [Oracle](https://jdk.java.net/) (22+ recommended)
+- test java is in PATH by running “java --version” in a command window
+
+### Install adb
+download from [here](https://developer.android.com/tools/releases/platform-tools) and extract archive
+- move extracted platform-tools/ folder to your <HOME DIR>/Program Files/Android/
+- add the location to your PATH
+- test this by running “adb” in a command window
+
+### Install scrcpy
+
+download and install from [here](https://github.com/Genymobile/scrcpy/blob/master/doc/windows.md)
+- make sure “scrcpy” in in PATH
+</details>
+
+<details>
+  <summary>Linux Setup</summary>
+
+### Install latest JRE
+```
+sudo apt-get install default-jdk
+```
+
+### Install adb
+```
+sudo apt-get install adb
+```
+### Install scrcpy
+see this [link](https://github.com/Genymobile/scrcpy/blob/master/doc/linux.md#latest-version)
+
+</details>
+  
 ## Run
 
 - Download the latest release from here: [https://github.com/jpage4500/AndroidDeviceManager/releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
