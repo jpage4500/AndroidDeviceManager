@@ -172,6 +172,10 @@ public class AppLoggerFactory implements ILoggerFactory {
         return fileLog;
     }
 
+    public void setFileLog(File fileLog) {
+        this.fileLog = fileLog;
+    }
+
     public ExecutorService getFileExecutorService() {
         if (fileExecutorService == null) {
             fileExecutorService = Executors.newSingleThreadExecutor();

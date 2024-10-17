@@ -14,19 +14,25 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 public class MainApplication {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
     private DeviceScreen deviceScreen;
+    private List<File> openFileList;
+
     public static String version;
 
     public MainApplication() {
         setupLogging();
+        handleLaunchParams();
         SwingUtilities.invokeLater(this::initializeUI);
-        log.debug("MainApplication: APP START: {}, java:{}, os:{}", version, Runtime.version(), System.getProperty("os.name"));
+        log.debug("APP START: {}, java:{}, os:{}", version, Runtime.version(), System.getProperty("os.name"));
     }
 
     public static void main(String[] args) {
@@ -59,6 +65,8 @@ public class MainApplication {
             // set log level that application should log at (and higher)
             logger.setDebugLevel(Log.VERBOSE);
             logger.setLogToFile(true);
+            //String tmpDir = System.getProperty("java.io.tmpdir");
+            //logger.setFileLog(new File(tmpDir, "device_manager_log.txt"));
 
             boolean isDebugMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false);
             logger.setFileLogLevel(isDebugMode ? Log.DEBUG : Log.INFO);
@@ -86,6 +94,26 @@ public class MainApplication {
         }
 
         deviceScreen = new DeviceScreen();
+        sendFilesToDevice();
+    }
+
+    private void handleLaunchParams() {
+        Desktop desktop = Desktop.getDesktop();
+        if (desktop.isSupported(Desktop.Action.APP_OPEN_FILE)) {
+            desktop.setOpenFileHandler(e -> {
+                List<File> files = e.getFiles();
+                if (openFileList == null) openFileList = new ArrayList<>();
+                openFileList.addAll(files);
+                sendFilesToDevice();
+            });
+        }
+    }
+
+    private void sendFilesToDevice() {
+        if (deviceScreen != null && openFileList != null && !openFileList.isEmpty()) {
+            deviceScreen.handleFilesOpened(openFileList);
+            openFileList = null;
+        }
     }
 
 }

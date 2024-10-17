@@ -648,7 +648,23 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
-    private void handleFilesDropped(List<File> fileList) {
+    /**
+     * called when user double-clicks on .apk file or selects open with device manager
+     * - similar to handleFilesDropped() but waits a bit until a device is connected
+     */
+    public void handleFilesOpened(List<File> fileList) {
+        log.debug("handleFilesOpened: {}", fileList.size());
+        if (table.getRowCount() > 0) {
+            handleFilesDropped(fileList);
+        } else {
+            Utils.runDelayed(1000, true, () -> {
+                handleFilesDropped(fileList);
+            });
+        }
+    }
+
+    public void handleFilesDropped(List<File> fileList) {
+        log.debug("handleFilesDropped: {}", fileList.size());
         List<Device> selectedDeviceList = getSelectedDevices();
         if (selectedDeviceList.isEmpty()) {
             showSelectDevicesDialog();

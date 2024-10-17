@@ -114,20 +114,24 @@
             <plugin>
                 <groupId>de.perdian.maven.plugins</groupId>
                 <artifactId>macosappbundler-maven-plugin</artifactId>
-                <version>1.19.0</version>
+                <version>1.21.1</version>
                 <configuration>
                     <plist>
                         <CFBundleIconFile>resources/device-manager.icns</CFBundleIconFile>
                         <JVMMainClassName>com.jpage4500.devicemanager.MainApplication</JVMMainClassName>
                         <CFBundleDisplayName>Android Device Manager</CFBundleDisplayName>
                         <CFBundleDevelopmentRegion>English</CFBundleDevelopmentRegion>
-                        <CFBundleTypeExtensions>
-                            <string>apk</string>
-                        </CFBundleTypeExtensions>
+                        <CFBundleDocumentTypes>
+                            <CFBundleDocumentTypes>
+                                <CFBundleTypeExtensions>
+                                    <string>apk</string>
+                                </CFBundleTypeExtensions>
+                            </CFBundleDocumentTypes>
+                        </CFBundleDocumentTypes>
                     </plist>
                     <jdk>
-                        <!-- set to true to package entire JRE (NOTE: resulting app won't be compatible with both arm and x86 macs)-->
-                        <include>false</include>
+                        <!-- set to true to package entire JRE -->
+                        <include>true</include>
                         <!--<location>/Applications/Android Studio Preview.app/Contents/jbr/Contents/Home</location>-->
                     </jdk>
                 </configuration>
