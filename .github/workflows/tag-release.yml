@@ -15,6 +15,9 @@ jobs:
 
       - name: create version
         run: |
-          VERSION=$(date '+%y.%m.%d-%H%M')
-          git tag "VERSION"
+          echo "APP_VERSION=$(date '+%y.%m.%d-%H%M')" >> $GITHUB_ENV
+
+      - name: push tag
+        run: |
+          git tag "${{ env.APP_VERSION }}"
           git push origin --tags
