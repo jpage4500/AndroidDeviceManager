@@ -42,7 +42,7 @@ jobs:
       - name: Install and run jdeploy
         run: |
           npm install jdeploy
-          npm publish
+          npx jdeploy publish
 
 #      - name: Build App Installer Bundles
 #        uses: shannah/jdeploy@master
