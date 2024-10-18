@@ -39,3 +39,5 @@ jobs:
         uses: shannah/jdeploy@master
         with:
           github_token: ${{ github.token }}
+          deploy_target: npm
+          npm_token: ${{ secrets.NPM_TOKEN }}
