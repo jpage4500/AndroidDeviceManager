@@ -39,10 +39,10 @@ jobs:
       - name: set NPM token
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
 
-      - name: Install jdeploy
+      - name: Install and run jdeploy
         run: |
           npm install jdeploy
-          jdeploy publish
+          npm publish
 
 #      - name: Build App Installer Bundles
 #        uses: shannah/jdeploy@master
