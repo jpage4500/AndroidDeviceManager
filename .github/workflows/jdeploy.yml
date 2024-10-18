@@ -5,7 +5,6 @@ name: jDeploy CI with Maven
 
 on:
   push:
-    branches: ['develop']
     tags: ['*']
 
 jobs:
