@@ -42,9 +42,6 @@ jobs:
       - name: Install jdeploy
         run: |
           npm install jdeploy
-
-      - name: use jdeploy to publish app
-        run: |
           jdeploy publish
 
 #      - name: Build App Installer Bundles
