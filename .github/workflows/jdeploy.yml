@@ -3,11 +3,10 @@
 
 name: jDeploy CI with Maven
 
-# TODO: only deploy on pushes to develop branch
-on: [ push ]
-#on:
-#  push:
-#    branches: ['develop']
+#on: [ push ]
+on:
+  push:
+    branches: ['develop']
 
 jobs:
   build:
@@ -36,7 +35,7 @@ jobs:
           cat package.new
           mv package.new package.json
 
-#      - name: Build App Installer Bundles
-#        uses: shannah/jdeploy@master
-#        with:
-#          github_token: ${{ github.token }}
+      - name: Build App Installer Bundles
+        uses: shannah/jdeploy@master
+        with:
+          github_token: ${{ github.token }}
