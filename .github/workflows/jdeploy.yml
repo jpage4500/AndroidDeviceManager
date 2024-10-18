@@ -23,12 +23,14 @@ jobs:
           cache: maven
       - name: Build with Maven
         run: mvn -B package --file pom.xml
-      - name: Set RELEASE_VERSION env variable
+      - name: Set Version
         run: |
-          echo "RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_ENV
+          # set DM_VERSION to maven version (timestamp)
+          echo "DM_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_ENV
+          # update package.json with app version
+          sed -i .bak "s/\"version\": \".*\"/\"version\": \"${{ env.DM_VERSION }}\"/g" package.json
 
       - name: Build App Installer Bundles
         uses: shannah/jdeploy@master
         with:
           github_token: ${{ github.token }}
-          jdeploy_version: ${{ env.RELEASE_VERSION }}
