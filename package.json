@@ -1,0 +1,29 @@
+{
+    "bin": {"AndroidDeviceManager": "jdeploy-bundle/jdeploy.js"},
+    "author": "Joe Page",
+    "description": "Java desktop app to manage multiple Android devices via adb",
+    "main": "index.js",
+    "preferGlobal": true,
+    "repository": "",
+    "version": "1.0.1",
+    "jdeploy": {
+        "jdk": false,
+        "javaVersion": "17",
+        "documentTypes": [{"extension": "apk"}],
+        "jar": "target/AndroidDeviceManager.jar",
+        "javafx": false,
+        "title": "AndroidDeviceManager"
+    },
+    "dependencies": {
+        "command-exists-promise": "^2.0.2",
+        "node-fetch": "2.6.7",
+        "tar": "^4.4.8",
+        "yauzl": "^2.10.0",
+        "shelljs": "^0.8.4"
+    },
+    "license": "ISC",
+    "name": "android-device-manager",
+    "files": ["jdeploy-bundle"],
+    "scripts": {"test": "echo \"Error: no test specified\" && exit 1"},
+    "homepage": ""
+}
