@@ -1,0 +1,18 @@
+# This workflow will create a new git tag with the label: YY.MM.DD-HHmm (ie: 24.10.18-1239)
+
+name: Tag new version
+
+on:
+  push:
+    branches: ['develop']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: create version
+        run: |
+          VERSION=$(date '+%y.%m.%d-%H%M')
+          git tag "VERSION"
+          git push origin --tags

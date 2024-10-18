@@ -3,14 +3,12 @@
 
 name: jDeploy CI with Maven
 
-#on: [ push ]
 on:
   push:
-    branches: ['develop']
+    tags: ['*']
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -21,19 +19,9 @@ jobs:
           java-version: '22'
           distribution: 'temurin'
           cache: maven
+
       - name: Build with Maven
         run: mvn -B package --file pom.xml
-      - name: Fetch Version
-        run: |
-          # set DM_VERSION to maven version (timestamp)
-          echo "DM_VERSION=$(cat target/classes/app.properties | grep version | cut -d= -f2)" >> "$GITHUB_ENV"
-      - name: Update Version in package.json
-        run: |
-          echo "VERSION = ${{ env.DM_VERSION }}"
-          # update package.json with app version
-          cat package.json | sed 's/"version": ".*"/"version": "${{ env.DM_VERSION }}"/g' > package.new
-          cat package.new
-          mv package.new package.json
 
       - name: Build App Installer Bundles
         uses: shannah/jdeploy@master
