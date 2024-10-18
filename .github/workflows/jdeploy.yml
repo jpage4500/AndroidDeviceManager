@@ -32,7 +32,11 @@ jobs:
         run: |
           echo "VERSION = ${{ env.DM_VERSION }}"
           # update package.json with app version
-          sed -i '.bak' "s/\"version\": \".*\"/\"version\": \"${{ env.DM_VERSION }}\"/g" package.json
+          # sed -i '.bak' "s/\"version\": \".*\"/\"version\": \"${{ env.DM_VERSION }}\"/g" package.json
+          # cat package.json | sed 's/\"version\": \".*\"/\"version\": \"${{ env.DM_VERSION }}\"/g' package.json
+          cat package.json | sed 's/"version": ".*"/"version": "${{ env.DM_VERSION }}"/g' > package.new
+          cat package.new
+          mv package.new package.json
 
       - name: Build App Installer Bundles
         uses: shannah/jdeploy@master
