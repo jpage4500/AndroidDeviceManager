@@ -114,10 +114,9 @@ public class Utils {
         else if (TextUtils.isEmpty(v2)) return CompareResult.VERSION_UNKNOWN;
 
         // try to compare 2 version strings..
-        // 4.0.953.beta *VS* 4.0.1000.beta
-        // 311.0.0.44.117 *VS* 304.0.0.39.118
-        String[] v1Arr = v1.split("\\.");
-        String[] v2Arr = v2.split("\\.");
+        // ie: 24.10.18-2233 *VS* 24.10.19
+        String[] v1Arr = v1.split("[.-]");
+        String[] v2Arr = v2.split("[.-]");
         for (int i = 0; i < v1Arr.length; i++) {
             String v1Split = v1Arr[i];
             if (i >= v2Arr.length) {

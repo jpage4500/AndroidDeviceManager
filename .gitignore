@@ -9,6 +9,11 @@
 
 target
 
+# jdeploy files
+node_modules/
+jdeploy/
+jdeploy-bundle/
+
 # ignore log or generated files
 device.log
 device_manager_log.txt
