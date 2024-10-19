@@ -81,10 +81,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         connectAdbServer();
 
         // check for updates (default: true)
-        boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
-        if (checkUpdates) {
-            checkForUpdates();
-        }
+        //boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
+        //if (checkUpdates) {
+        //    checkForUpdates();
+        //}
     }
 
     protected void initalizeUi() {
