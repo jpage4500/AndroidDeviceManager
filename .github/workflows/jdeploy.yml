@@ -44,9 +44,8 @@ jobs:
           npm install jdeploy
           npx jdeploy publish
 
-#      - name: Build App Installer Bundles
-#        uses: shannah/jdeploy@master
-#        with:
-#          github_token: ${{ github.token }}
-#          deploy_target: npm
-#          npm_token: ${{ secrets.NPM_TOKEN }}
+      # also deploy to github
+      - name: Build App Installer Bundles
+        uses: shannah/jdeploy@master
+        with:
+          github_token: ${{ github.token }}
