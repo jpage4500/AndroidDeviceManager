@@ -46,8 +46,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public static final String SHOW_LOG_VIEWER = "Show Device Logs";
 
     public static final boolean UPDATE_CHECK_NPM = true;
-    public static final String UPDATE_SOURCE_NPM = "https://registry.npmjs.org/android-device-manager/latest";
     public static final boolean UPDATE_CHECK_GITHUB = false;
+
+    public static final String UPDATE_SOURCE_NPM = "https://registry.npmjs.org/android-device-manager/latest";
     public static final String UPDATE_SOURCE_GITHUB = "https://api.github.com/repos/jpage4500/AndroidDeviceManager/releases";
     public static final String URL_NPM = "https://www.jdeploy.com/~android-device-manager";
     public static final String URL_GITHUB = "https://github.com/jpage4500/AndroidDeviceManager/releases";
