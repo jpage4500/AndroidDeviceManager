@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.GithubRelease;
+import com.jpage4500.devicemanager.data.NpmRelease;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
@@ -44,6 +45,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public static final String SHOW_BROWSE = "Show File Browser";
     public static final String SHOW_LOG_VIEWER = "Show Device Logs";
 
+    public static final boolean UPDATE_CHECK_NPM = true;
+    public static final boolean UPDATE_CHECK_GITHUB = false;
+
+    public static final String UPDATE_SOURCE_NPM = "https://registry.npmjs.org/android-device-manager/latest";
+    public static final String UPDATE_SOURCE_GITHUB = "https://api.github.com/repos/jpage4500/AndroidDeviceManager/releases";
+    public static final String URL_NPM = "https://www.jdeploy.com/~android-device-manager";
+    public static final String URL_GITHUB = "https://github.com/jpage4500/AndroidDeviceManager/releases";
+
     public CustomTable table;
     public DeviceTableModel model;
     private DeviceRowSorter sorter;
@@ -57,7 +66,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private JLabel countLabel;             // total devices
 
     private boolean hasSelectedDevice;
-    private GithubRelease newerRelease;
+    private String availableVersion;
 
     // open windows (per device)
     private final Map<String, ExploreScreen> exploreViewMap = new HashMap<>();
@@ -72,10 +81,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         connectAdbServer();
 
         // check for updates (default: true)
-        boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
-        if (checkUpdates) {
-            checkForUpdates();
-        }
+        //boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
+        //if (checkUpdates) {
+        //    checkForUpdates();
+        //}
     }
 
     protected void initalizeUi() {
@@ -1309,21 +1318,38 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void checkForUpdates() {
+        availableVersion = null;
         Utils.runBackground(() -> {
-            String response = NetworkUtils.getRequest("https://api.github.com/repos/jpage4500/AndroidDeviceManager/releases");
-            List<GithubRelease> releases = GsonHelper.stringToList(response, GithubRelease.class);
-            if (!releases.isEmpty()) {
-                GithubRelease latestRelease = releases.get(0);
-                Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);
-                if (compareResult == Utils.CompareResult.VERSION_NEWER) {
-                    log.debug("handleVersionClicked: LATEST:{}, CURRENT:{}", latestRelease.tagName, MainApplication.version);
-                    SwingUtilities.invokeLater(() -> {
-                        versionLabel.setToolTipText("Update Available " + latestRelease.tagName);
-                        ImageIcon icon = UiUtils.getImageIcon("icon_update.png", 15);
-                        versionLabel.setIcon(icon);
-                        newerRelease = latestRelease;
-                    });
+            if (UPDATE_CHECK_GITHUB) {
+                String response = NetworkUtils.getRequest(UPDATE_SOURCE_GITHUB);
+                List<GithubRelease> releases = GsonHelper.stringToList(response, GithubRelease.class);
+                if (!releases.isEmpty()) {
+                    GithubRelease latestRelease = releases.get(0);
+                    Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);
+                    if (compareResult == Utils.CompareResult.VERSION_NEWER) {
+                        log.debug("handleVersionClicked: LATEST:{}, CURRENT:{}", latestRelease.tagName, MainApplication.version);
+                        availableVersion = latestRelease.tagName;
+                    }
                 }
+            } else if (UPDATE_CHECK_NPM) {
+                // use npm to check for updates
+                String response = NetworkUtils.getRequest(UPDATE_SOURCE_NPM);
+                NpmRelease npmRelease = GsonHelper.fromJson(response, NpmRelease.class);
+                if (npmRelease != null) {
+                    Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, npmRelease.version);
+                    if (compareResult == Utils.CompareResult.VERSION_NEWER) {
+                        log.debug("handleVersionClicked: CURRENT:{}, LATEST:{}", MainApplication.version, npmRelease.version);
+                        availableVersion = npmRelease.version;
+                    }
+                }
+            }
+
+            if (availableVersion != null) {
+                SwingUtilities.invokeLater(() -> {
+                    versionLabel.setToolTipText("Update Available " + availableVersion);
+                    ImageIcon icon = UiUtils.getImageIcon("icon_update.png", 15);
+                    versionLabel.setIcon(icon);
+                });
             }
         });
     }
@@ -1365,13 +1391,18 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleVersionClicked(MouseEvent e) {
-        if (newerRelease != null) {
+        if (availableVersion != null) {
             // clear update available text
             versionLabel.setText("v" + MainApplication.version);
+            availableVersion = null;
 
             // NOTE: check if app was launched from console or other (IntelliJ, .app)
             // log.debug("handleVersionClicked: CONSOLE:{}", System.console());
-            Utils.openBrowser(newerRelease.htmlUrl);
+            if (UPDATE_CHECK_NPM) {
+                Utils.openBrowser(URL_NPM);
+            } else if (UPDATE_CHECK_GITHUB) {
+                Utils.openBrowser(URL_GITHUB);
+            }
         } else {
             // show logs
             AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
