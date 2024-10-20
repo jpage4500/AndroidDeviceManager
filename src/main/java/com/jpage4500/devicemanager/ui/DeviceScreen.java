@@ -1383,11 +1383,25 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 }
             }
         });
-        JScrollPane scroll = new JScrollPane(list, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-        int w = (Utils.getScreenWidth() / 2);
-        panel.add(scroll, "width " + w + "px");
 
-        JOptionPane.showOptionDialog(this, panel, "Device Info", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        HintTextField filter = new HintTextField("Filter", text -> {
+            listModel.clear();
+            for (Map.Entry<String, String> entry : sortedEnvMap.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+                if (TextUtils.isEmpty(text) || TextUtils.containsAny(key, true, text) ||
+                        TextUtils.containsAny(value, true, text)) {
+                    listModel.addElement(key + " : " + value);
+                }
+            }
+        });
+        panel.add(filter, "width 25%, wrap");
+        filter.addAncestorListener(new RequestFocusListener());
+
+        JScrollPane scroll = new JScrollPane(list, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
+        panel.add(scroll, "width " + (Utils.getScreenWidth() / 2) + "px");
+
+        JOptionPane.showOptionDialog(this, panel, "Environment Variables", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
     }
 
     private void handleVersionClicked(MouseEvent e) {

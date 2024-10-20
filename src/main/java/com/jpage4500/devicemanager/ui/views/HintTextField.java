@@ -78,7 +78,10 @@ public class HintTextField extends JTextField {
             public void keyPressed(KeyEvent e) {
                 super.keyPressed(e);
                 switch (e.getExtendedKeyCode()) {
-                    case KeyEvent.VK_ESCAPE -> setText(null);
+                    case KeyEvent.VK_ESCAPE -> {
+                        setText(null);
+                        e.consume();
+                    }
                 }
             }
 
