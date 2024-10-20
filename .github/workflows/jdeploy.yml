@@ -24,10 +24,10 @@ jobs:
         run: mvn -B package --file pom.xml
 
       # deploy to github
-      - name: Build App Installer Bundles
-        uses: shannah/jdeploy@master
-        with:
-          github_token: ${{ github.token }}
+#      - name: Build App Installer Bundles
+#        uses: shannah/jdeploy@master
+#        with:
+#          github_token: ${{ github.token }}
 
       # deploy to npm:
       # - get app version
