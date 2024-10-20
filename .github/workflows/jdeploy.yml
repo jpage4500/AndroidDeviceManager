@@ -49,7 +49,15 @@ jobs:
           npm install jdeploy
           npx jdeploy publish
 
-      - name: push tag
-        run: |
-          git tag "${{ env.DM_VERSION }}"
-          git push origin --tags
+      - name: "Create Release"
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.DM_VERSION }}
+          generate_release_notes: true
+
+#      - name: push tag
+#        run: |
+#          git tag "${{ env.DM_VERSION }}"
+#          git push origin --tags
