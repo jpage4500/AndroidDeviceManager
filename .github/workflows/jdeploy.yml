@@ -23,12 +23,6 @@ jobs:
       - name: Build with Maven
         run: mvn -B package --file pom.xml
 
-      # deploy to github
-#      - name: Build App Installer Bundles
-#        uses: shannah/jdeploy@master
-#        with:
-#          github_token: ${{ github.token }}
-
       # deploy to npm:
       # - get app version
       # - update package.json
@@ -55,7 +49,7 @@ jobs:
           npm install jdeploy
           npx jdeploy publish
 
-#      - name: push tag
-#        run: |
-#          git tag "${{ env.DM_VERSION }}"
-#          git push origin --tags
+      - name: push tag
+        run: |
+          git tag "${{ env.DM_VERSION }}"
+          git push origin --tags

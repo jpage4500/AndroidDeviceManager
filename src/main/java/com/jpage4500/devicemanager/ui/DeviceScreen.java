@@ -1359,14 +1359,26 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         DefaultListModel<String> listModel = new DefaultListModel<>();
         Map<String, String> envMap = System.getenv();
-        TreeMap<String, String> sortedEnvMap = new TreeMap<>(envMap);
+        TreeMap<String, String> sortedEnvMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        sortedEnvMap.putAll(envMap);
+
+        // add in system properties
+        Properties properties = System.getProperties();
+        for (Map.Entry<Object, Object> prop : properties.entrySet()) {
+            Object key = prop.getKey();
+            Object value = prop.getValue();
+            if (key != null && value != null) {
+                sortedEnvMap.put(key.toString(), value.toString());
+            }
+        }
+
         for (Map.Entry<String, String> entry : sortedEnvMap.entrySet()) {
             listModel.addElement(entry.getKey() + " : " + entry.getValue());
         }
         JList<String> list = new JList<>(listModel);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new AlternatingBackgroundColorRenderer());
-        list.setVisibleRowCount(6);
+        list.setVisibleRowCount(15);
         list.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent evt) {
                 if (evt.getClickCount() == 2) {
