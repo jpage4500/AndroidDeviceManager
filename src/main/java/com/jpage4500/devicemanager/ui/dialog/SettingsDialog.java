@@ -43,7 +43,9 @@ public class SettingsDialog extends JPanel {
         addButton("Download Location", "EDIT", this::showDownloadLocation);
 
         addCheckbox("Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
-        //addCheckbox("Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, null);
+        addCheckbox("Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> {
+            deviceScreen.scheduleUpdateChecks();
+        });
         addCheckbox("Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
             // force table background to be repainted
             deviceScreen.model.fireTableDataChanged();

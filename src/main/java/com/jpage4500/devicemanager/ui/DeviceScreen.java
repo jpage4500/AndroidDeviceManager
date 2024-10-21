@@ -33,6 +33,9 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * create and manage device view
@@ -45,15 +48,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public static final String SHOW_BROWSE = "Show File Browser";
     public static final String SHOW_LOG_VIEWER = "Show Device Logs";
 
-    public static final boolean UPDATE_CHECK_NPM = true;
-    public static final boolean UPDATE_CHECK_GITHUB = false;
-
-    public static final String URL_GITHUB_TAGS = "https://api.github.com/repos/jpage4500/AndroidDeviceManager/tags";
-
-    public static final String UPDATE_SOURCE_NPM = "https://registry.npmjs.org/android-device-manager/latest";
+    // update check for github releases
+    public static final boolean UPDATE_CHECK_GITHUB = true;
     public static final String UPDATE_SOURCE_GITHUB = "https://api.github.com/repos/jpage4500/AndroidDeviceManager/releases";
-    public static final String URL_NPM = "https://www.jdeploy.com/~android-device-manager";
     public static final String URL_GITHUB = "https://github.com/jpage4500/AndroidDeviceManager/releases";
+
+    // update check for npm (which jdeploy uses)
+    public static final boolean UPDATE_CHECK_NPM = false;
+    public static final String UPDATE_SOURCE_NPM = "https://registry.npmjs.org/android-device-manager/latest";
+    public static final String URL_NPM = "https://www.jdeploy.com/~android-device-manager";
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -70,6 +73,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private boolean hasSelectedDevice;
     private String availableVersion;
 
+    private ScheduledExecutorService updateExecutorService;
+
     // open windows (per device)
     private final Map<String, ExploreScreen> exploreViewMap = new HashMap<>();
     private final Map<String, LogsScreen> logsViewMap = new HashMap<>();
@@ -82,11 +87,23 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         connectAdbServer();
 
+        scheduleUpdateChecks();
+    }
+
+    public void scheduleUpdateChecks() {
+        // cancel any current scheduled update checks
+        if (updateExecutorService != null) {
+            updateExecutorService.shutdownNow();
+            updateExecutorService = null;
+        }
+
         // check for updates (default: true)
-        //boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
-        //if (checkUpdates) {
-        //    checkForUpdates();
-        //}
+        boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
+        if (checkUpdates) {
+            updateExecutorService = Executors.newSingleThreadScheduledExecutor();
+            // check after 5 seconds, then again every 12 hours
+            updateExecutorService.scheduleAtFixedRate(this::checkForUpdates, 5, TimeUnit.HOURS.toSeconds(12), TimeUnit.SECONDS);
+        }
     }
 
     protected void initalizeUi() {
@@ -1320,40 +1337,45 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void checkForUpdates() {
-        availableVersion = null;
-        Utils.runBackground(() -> {
-            if (UPDATE_CHECK_GITHUB) {
-                String response = NetworkUtils.getRequest(UPDATE_SOURCE_GITHUB);
-                List<GithubRelease> releases = GsonHelper.stringToList(response, GithubRelease.class);
-                if (!releases.isEmpty()) {
-                    GithubRelease latestRelease = releases.get(0);
-                    Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);
-                    if (compareResult == Utils.CompareResult.VERSION_NEWER) {
-                        log.debug("handleVersionClicked: LATEST:{}, CURRENT:{}", latestRelease.tagName, MainApplication.version);
-                        availableVersion = latestRelease.tagName;
-                    }
-                }
-            } else if (UPDATE_CHECK_NPM) {
-                // use npm to check for updates
-                String response = NetworkUtils.getRequest(UPDATE_SOURCE_NPM);
-                NpmRelease npmRelease = GsonHelper.fromJson(response, NpmRelease.class);
-                if (npmRelease != null) {
-                    Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, npmRelease.version);
-                    if (compareResult == Utils.CompareResult.VERSION_NEWER) {
-                        log.debug("handleVersionClicked: CURRENT:{}, LATEST:{}", MainApplication.version, npmRelease.version);
-                        availableVersion = npmRelease.version;
-                    }
+        // must be run off main/UI thread
+        if (SwingUtilities.isEventDispatchThread()) {
+            Utils.runBackground(this::checkForUpdates);
+            return;
+        }
+        String version = null;
+        if (UPDATE_CHECK_GITHUB) {
+            String response = NetworkUtils.getRequest(UPDATE_SOURCE_GITHUB);
+            List<GithubRelease> releases = GsonHelper.stringToList(response, GithubRelease.class);
+            if (!releases.isEmpty()) {
+                GithubRelease latestRelease = releases.get(0);
+                Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);
+                if (compareResult == Utils.CompareResult.VERSION_NEWER) {
+                    version = latestRelease.tagName;
                 }
             }
+        } else if (UPDATE_CHECK_NPM) {
+            // use npm to check for updates
+            String response = NetworkUtils.getRequest(UPDATE_SOURCE_NPM);
+            NpmRelease npmRelease = GsonHelper.fromJson(response, NpmRelease.class);
+            if (npmRelease != null) {
+                Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, npmRelease.version);
+                if (compareResult == Utils.CompareResult.VERSION_NEWER) {
+                    version = npmRelease.version;
+                }
+            }
+        }
 
-            if (availableVersion != null) {
-                SwingUtilities.invokeLater(() -> {
-                    versionLabel.setToolTipText("Update Available " + availableVersion);
-                    ImageIcon icon = UiUtils.getImageIcon("icon_update.png", 15);
-                    versionLabel.setIcon(icon);
-                });
-            }
-        });
+        if (version != null) {
+            log.debug("checkForUpdates: LATEST:{}, CURRENT:{} ({})", version, MainApplication.version, (UPDATE_CHECK_GITHUB ? "github" : (UPDATE_CHECK_NPM ? "npm" : null)));
+            // update UI on main thread
+            String finalVersion = version;
+            SwingUtilities.invokeLater(() -> {
+                availableVersion = finalVersion;
+                versionLabel.setToolTipText("Update Available " + availableVersion);
+                ImageIcon icon = UiUtils.getImageIcon("icon_update.png", 15);
+                versionLabel.setIcon(icon);
+            });
+        }
     }
 
     private void handleMemoryClicked(MouseEvent mouseEvent) {
@@ -1422,6 +1444,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (availableVersion != null) {
             // clear update available text
             versionLabel.setText("v" + MainApplication.version);
+            versionLabel.setToolTipText(null);
             availableVersion = null;
 
             // NOTE: check if app was launched from console or other (IntelliJ, .app)

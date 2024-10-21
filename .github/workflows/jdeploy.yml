@@ -49,6 +49,7 @@ jobs:
           npm install jdeploy
           npx jdeploy publish
 
+      # create github release - https://github.com/jpage4500/AndroidDeviceManager/releases
       - name: "Create Release"
         uses: softprops/action-gh-release@v2
         env:
@@ -56,3 +57,5 @@ jobs:
         with:
           tag_name: ${{ env.DM_VERSION }}
           generate_release_notes: true
+          files: |
+            target/AndroidDeviceManager.jar
