@@ -56,8 +56,3 @@ jobs:
         with:
           tag_name: ${{ env.DM_VERSION }}
           generate_release_notes: true
-
-#      - name: push tag
-#        run: |
-#          git tag "${{ env.DM_VERSION }}"
-#          git push origin --tags
