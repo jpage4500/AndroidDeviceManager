@@ -7,7 +7,6 @@ import com.jpage4500.devicemanager.data.NpmRelease;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
-import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
@@ -31,6 +30,7 @@ import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -66,12 +66,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private JPopupMenu trayPopupMenu;
 
     // status bar items
-    private HoverLabel versionLabel;       // version
+    private HoverLabel updateLabel;         // update
+    private HoverLabel versionLabel;        // version
     private HoverLabel memoryLabel;
     private JLabel countLabel;             // total devices
 
     private boolean hasSelectedDevice;
-    private String availableVersion;
+    // update checking
+    private String updateVersion;
+    private String updateDesc;
 
     private ScheduledExecutorService updateExecutorService;
 
@@ -195,20 +198,25 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JPanel leftPanel = new JPanel();
         UiUtils.setEmptyBorder(leftPanel, 0, 0);
 
+        // update
+        ImageIcon icon = UiUtils.getImageIcon("icon_update.png", 15);
+        updateLabel = new HoverLabel(icon);
+        updateLabel.setVisible(false);
+        leftPanel.add(updateLabel);
+        UiUtils.addClickListener(updateLabel, this::handleUpdateClicked);
+
         // version
         versionLabel = new HoverLabel();
-        versionLabel.setBorder(0, 0);
         leftPanel.add(versionLabel);
         UiUtils.addClickListener(versionLabel, this::handleVersionClicked);
         versionLabel.setText("v" + MainApplication.version);
 
         // memory
-        ImageIcon icon = UiUtils.getImageIcon("memory.png", 15);
+        icon = UiUtils.getImageIcon("memory.png", 15);
         memoryLabel = new HoverLabel(icon);
-        memoryLabel.setVisible(false);
         memoryLabel.setBorder(0, 0);
         leftPanel.add(memoryLabel);
-        UiUtils.addClickListener(memoryLabel, this::handleMemoryClicked);
+        UiUtils.addClickListener(memoryLabel, this::showSystemEnvironmentDialog);
 
         statusBar.add(leftPanel, BorderLayout.WEST);
 
@@ -295,10 +303,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             table.setPreferredColWidth(DeviceTableModel.Columns.SERIAL.name(), 152);
             table.setPreferredColWidth(DeviceTableModel.Columns.PHONE.name(), 116);
             table.setPreferredColWidth(DeviceTableModel.Columns.IMEI.name(), 147);
+            table.setPreferredColWidth(DeviceTableModel.Columns.OS.name(), 31);
             table.setPreferredColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
             table.setPreferredColWidth(DeviceTableModel.Columns.FREE.name(), 66);
             // set max sizes
             table.setMaxColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
+            table.setMaxColWidth(DeviceTableModel.Columns.OS.name(), 31);
             table.setMaxColWidth(DeviceTableModel.Columns.FREE.name(), 80);
         }
 
@@ -540,16 +550,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             countLabel.setText("total: " + rowCount);
         }
 
-        boolean debugMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false);
-        if (debugMode) {
-            long totalMemory = Runtime.getRuntime().totalMemory();
-            long freeMemory = Runtime.getRuntime().freeMemory();
-            long usedMemory = totalMemory - freeMemory;
-            memoryLabel.setText(FileUtils.bytesToDisplayString(usedMemory));
-            memoryLabel.setVisible(true);
-        } else {
-            memoryLabel.setVisible(false);
-        }
+        // memory
+        long totalMemory = Runtime.getRuntime().totalMemory();
+        long freeMemory = Runtime.getRuntime().freeMemory();
+        long usedMemory = totalMemory - freeMemory;
+        memoryLabel.setText(FileUtils.bytesToDisplayString(usedMemory));
 
         // badge number
         if (Taskbar.isTaskbarSupported()) {
@@ -911,60 +916,22 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void showInstalledApps(Device device) {
         if (device == null) return;
         DeviceManager.getInstance().getInstalledApps(device, appSet -> {
-            final Map<String, String> versionMap = new TreeMap<>();
-            // for every installed app, get version
-            for (String app : appSet) {
-                //log.trace("showInstalledApps: {}", app);
-                DeviceManager.getInstance().fetchAppVersion(device, app, version -> {
-                    synchronized (versionMap) {
-                        versionMap.put(app, version);
-                        if (versionMap.size() == appSet.size()) {
-                            // DONE!
-                            SwingUtilities.invokeLater(() -> {
-                                showAppVersionDialog(versionMap);
-                            });
-                        }
-                    }
+            final Map<String, String> appMep = new TreeMap<>();
+            // convert set to map
+            for (String app : appSet) appMep.put(app, null);
+            DialogHelper.showListDialog(this, "Installed Apps", appMep, (key, value) -> {
+                log.trace("showInstalledApps: click: {}", key);
+                DeviceManager.getInstance().fetchAppVersion(device, key, version -> {
+                    String text = String.format("%s = %s", key, version);
+                    DialogHelper.showTextDialog(this, key, text);
                 });
-            }
+            });
         });
-    }
-
-    private void showAppVersionDialog(Map<String, String> versionMap) {
-        JPanel panel = new JPanel(new MigLayout());
-
-        DefaultListModel<String> listModel = new DefaultListModel<>();
-        for (Map.Entry<String, String> entry : versionMap.entrySet()) {
-            listModel.addElement(entry.getKey() + " : " + entry.getValue());
-        }
-        JList<String> list = new JList<>(listModel);
-        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setCellRenderer(new AlternatingBackgroundColorRenderer());
-        list.setVisibleRowCount(6);
-        JScrollPane scroll = new JScrollPane(list, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-        int w = (Utils.getScreenWidth() / 2);
-        panel.add(scroll, "width " + w + "px");
-
-        JOptionPane.showOptionDialog(this, panel, "Installed Apps / Versions", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
     }
 
     private void showDeviceProperties(Device device) {
         if (device == null || device.propMap == null) return;
-        JPanel panel = new JPanel(new MigLayout());
-
-        DefaultListModel<String> listModel = new DefaultListModel<>();
-        for (Map.Entry<String, String> entry : device.propMap.entrySet()) {
-            listModel.addElement(entry.getKey() + " : " + entry.getValue());
-        }
-        JList<String> list = new JList<>(listModel);
-        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setCellRenderer(new AlternatingBackgroundColorRenderer());
-        list.setVisibleRowCount(6);
-        JScrollPane scroll = new JScrollPane(list, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-        int w = (Utils.getScreenWidth() / 2);
-        panel.add(scroll, "width " + w + "px");
-
-        JOptionPane.showOptionDialog(this, panel, "Device Properties", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        DialogHelper.showListDialog(this, "Device Properties", device.propMap, null);
     }
 
     private void addDeviceDetail(JPanel panel, String label, String value) {
@@ -1015,7 +982,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
             if (!isSuccess) {
-                UiUtils.showDialog(getRootPane(), error);
+                DialogHelper.showTextDialog(getRootPane(), "Results", error);
             }
         });
         for (Device device : selectedDeviceList) {
@@ -1343,6 +1310,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             return;
         }
         String version = null;
+        String desc = null;
         if (UPDATE_CHECK_GITHUB) {
             String response = NetworkUtils.getRequest(UPDATE_SOURCE_GITHUB);
             List<GithubRelease> releases = GsonHelper.stringToList(response, GithubRelease.class);
@@ -1351,6 +1319,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);
                 if (compareResult == Utils.CompareResult.VERSION_NEWER) {
                     version = latestRelease.tagName;
+                    desc = latestRelease.body;
                 }
             }
         } else if (UPDATE_CHECK_NPM) {
@@ -1369,19 +1338,21 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             log.debug("checkForUpdates: LATEST:{}, CURRENT:{} ({})", version, MainApplication.version, (UPDATE_CHECK_GITHUB ? "github" : (UPDATE_CHECK_NPM ? "npm" : null)));
             // update UI on main thread
             String finalVersion = version;
+            String finalDesc = desc;
             SwingUtilities.invokeLater(() -> {
-                availableVersion = finalVersion;
-                versionLabel.setToolTipText("Update Available " + availableVersion);
-                ImageIcon icon = UiUtils.getImageIcon("icon_update.png", 15);
-                versionLabel.setIcon(icon);
+                updateVersion = finalVersion;
+                updateDesc = finalDesc;
+                updateLabel.setToolTipText("Update Available " + updateVersion + ", desc: " + finalDesc);
+                updateLabel.setVisible(true);
             });
         }
     }
 
-    private void handleMemoryClicked(MouseEvent mouseEvent) {
-        JPanel panel = new JPanel(new MigLayout());
-
-        DefaultListModel<String> listModel = new DefaultListModel<>();
+    /**
+     * show dialog with system properties and environment
+     */
+    private void showSystemEnvironmentDialog(MouseEvent mouseEvent) {
+        // get system environment variables
         Map<String, String> envMap = System.getenv();
         TreeMap<String, String> sortedEnvMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         sortedEnvMap.putAll(envMap);
@@ -1396,57 +1367,51 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
         }
 
-        for (Map.Entry<String, String> entry : sortedEnvMap.entrySet()) {
-            listModel.addElement(entry.getKey() + " : " + entry.getValue());
-        }
-        JList<String> list = new JList<>(listModel);
-        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setCellRenderer(new AlternatingBackgroundColorRenderer());
-        list.setVisibleRowCount(15);
-        list.addMouseListener(new MouseAdapter() {
-            public void mouseClicked(MouseEvent evt) {
-                if (evt.getClickCount() == 2) {
-                    //int index = list.locationToIndex(evt.getPoint());
-                    String value = list.getSelectedValue();
-                    JTextArea textArea = new JTextArea(value);
-                    textArea.setLineWrap(true);
-                    textArea.setEditable(false);
-                    JScrollPane scrollPane = new JScrollPane(textArea, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-                    int maxW = Utils.getScreenWidth() / 2;
-                    //scrollPane.setSize(new Dimension(maxW, 300));
-                    scrollPane.setPreferredSize(new Dimension(maxW, 300));
-                    JOptionPane.showMessageDialog(DeviceScreen.this, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
-                }
-            }
-        });
-
-        HintTextField filter = new HintTextField("Filter", text -> {
-            listModel.clear();
-            for (Map.Entry<String, String> entry : sortedEnvMap.entrySet()) {
-                String key = entry.getKey();
-                String value = entry.getValue();
-                if (TextUtils.isEmpty(text) || TextUtils.containsAny(key, true, text) ||
-                        TextUtils.containsAny(value, true, text)) {
-                    listModel.addElement(key + " : " + value);
-                }
-            }
-        });
-        panel.add(filter, "width 25%, wrap");
-        filter.addAncestorListener(new RequestFocusListener());
-
-        JScrollPane scroll = new JScrollPane(list, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-        panel.add(scroll, "width " + (Utils.getScreenWidth() / 2) + "px");
-
-        JOptionPane.showOptionDialog(this, panel, "Environment Variables", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        DialogHelper.showListDialog(this, "System Environment", sortedEnvMap, null);
     }
 
-    private void handleVersionClicked(MouseEvent e) {
-        if (availableVersion != null) {
-            // clear update available text
-            versionLabel.setText("v" + MainApplication.version);
-            versionLabel.setToolTipText(null);
-            availableVersion = null;
+    private void handleUpdateClicked(MouseEvent e) {
+        if (updateVersion == null) return;
+        // Jdeploy will auto-update app on start
+        String jdeployPath = System.getProperty("jdeploy.launcher.path");
+        boolean isJdeploy = jdeployPath != null;
+        int index = TextUtils.indexOf(jdeployPath, "/Contents/MacOS/Client4JLauncher");
+        if (index > 0) {
+            // remove the launcher part and just open "Android Device Manager.app"
+            // "/Users/USERNAME/Applications/Android Device Manager.app/Contents/MacOS/Client4JLauncher";
+            jdeployPath = jdeployPath.substring(0, index);
+        }
 
+        String msg = String.format("Update %s Available\n\n%s", updateVersion, updateDesc);
+        String yesOption;
+        if (isJdeploy) {
+            msg += "\n\nRestart app?";
+            yesOption = "Restart";
+        } else {
+            msg += "\n\nView release in browser?";
+            yesOption = "View";
+        }
+        Object[] choices = {yesOption, "Cancel"};
+        int rc = JOptionPane.showOptionDialog(DeviceScreen.this,
+                msg, "Update Available", JOptionPane.DEFAULT_OPTION,
+                JOptionPane.WARNING_MESSAGE, null, choices, null);
+        if (rc != JOptionPane.YES_OPTION) return;
+
+        if (isJdeploy) {
+            // exit and restart app
+            //  ~/Applications/Android Device Manager.app/Contents/MacOS/Client4JLauncher
+            final ArrayList<String> command = new ArrayList<>();
+            command.add("open");
+            command.add(jdeployPath);
+
+            final ProcessBuilder builder = new ProcessBuilder(command);
+            try {
+                builder.start();
+                System.exit(0);
+            } catch (IOException ex) {
+                log.error("handleVersionClicked: IOException: {}", ex.getMessage());
+            }
+        } else {
             // NOTE: check if app was launched from console or other (IntelliJ, .app)
             // log.debug("handleVersionClicked: CONSOLE:{}", System.console());
             if (UPDATE_CHECK_NPM) {
@@ -1454,15 +1419,17 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             } else if (UPDATE_CHECK_GITHUB) {
                 Utils.openBrowser(URL_GITHUB);
             }
-        } else {
-            // show logs
-            AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
-            File logsFile = logger.getFileLog();
-            boolean rc = Utils.editFile(logsFile);
-            if (!rc) {
-                // open failed
-                JOptionPane.showConfirmDialog(this, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
-            }
+        }
+    }
+
+    private void handleVersionClicked(MouseEvent e) {
+        // show logs
+        AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
+        File logsFile = logger.getFileLog();
+        boolean rc = Utils.editFile(logsFile);
+        if (!rc) {
+            // open failed
+            JOptionPane.showConfirmDialog(this, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
         }
     }
 

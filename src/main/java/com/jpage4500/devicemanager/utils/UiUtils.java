@@ -1,6 +1,5 @@
 package com.jpage4500.devicemanager.utils;
 
-import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,14 +91,6 @@ public class UiUtils {
             button.setText(displayText);
             button.setToolTipText(hintText);
         }
-    }
-
-    public static void showDialog(Component component, String string) {
-        // display results in dialog
-        JTextArea textArea = new JTextArea(string);
-        textArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        JOptionPane.showMessageDialog(component, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
     }
 
     public interface ClickListener {
