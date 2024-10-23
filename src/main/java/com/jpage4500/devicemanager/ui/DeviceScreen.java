@@ -106,7 +106,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (checkUpdates) {
             updateExecutorService = Executors.newSingleThreadScheduledExecutor();
             // check after 5 seconds, then again every 12 hours
-            updateExecutorService.scheduleAtFixedRate(this::checkForUpdates, 5, TimeUnit.HOURS.toSeconds(12), TimeUnit.SECONDS);
+            updateExecutorService.scheduleAtFixedRate(() -> checkForUpdates(null), 5, TimeUnit.HOURS.toSeconds(12), TimeUnit.SECONDS);
         }
     }
 
@@ -202,7 +202,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // update
         ImageIcon icon = UiUtils.getImageIcon("icon_update.png", 15);
         updateLabel = new HoverLabel(icon);
-        updateLabel.setVisible(false);
+        updateLabel.setToolTipText("Check for updates");
         leftPanel.add(updateLabel);
         UiUtils.addClickListener(updateLabel, this::handleUpdateClicked);
 
@@ -1239,6 +1239,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void filterDevices(String text) {
         if (sorter != null) sorter.setFilterText(text);
+        // required to refresh table & scrollview that contains it
+        table.invalidate();
         refreshUi();
     }
 
@@ -1306,10 +1308,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         logsScreen.show();
     }
 
-    private void checkForUpdates() {
+    private interface UpdateListener {
+        void onUpdateCheckComplete(String version, String desc);
+    }
+
+    private void checkForUpdates(UpdateListener updateListener) {
         // must be run off main/UI thread
         if (SwingUtilities.isEventDispatchThread()) {
-            Utils.runBackground(this::checkForUpdates);
+            Utils.runBackground(() -> checkForUpdates(updateListener));
             return;
         }
         String version = null;
@@ -1337,18 +1343,26 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
         }
 
+        // update UI on main thread
+        String finalVersion = version;
+        String finalDesc = desc;
         if (version != null) {
             log.debug("checkForUpdates: LATEST:{}, CURRENT:{} ({})", version, MainApplication.version, (UPDATE_CHECK_GITHUB ? "github" : (UPDATE_CHECK_NPM ? "npm" : null)));
-            // update UI on main thread
-            String finalVersion = version;
-            String finalDesc = desc;
             SwingUtilities.invokeLater(() -> {
                 updateVersion = finalVersion;
                 updateDesc = finalDesc;
                 updateLabel.setToolTipText("Update Available " + updateVersion + ", desc: " + finalDesc);
+                BufferedImage image = UiUtils.getImage("icon_update.png", 15, 15, Colors.COLOR_ERROR);
+                if (image != null) updateLabel.setIcon(new ImageIcon(image));
                 updateLabel.setVisible(true);
+                if (updateListener != null) updateListener.onUpdateCheckComplete(finalVersion, finalDesc);
+            });
+        } else if (updateListener != null) {
+            SwingUtilities.invokeLater(() -> {
+                updateListener.onUpdateCheckComplete(finalVersion, finalDesc);
             });
         }
+
     }
 
     /**
@@ -1374,7 +1388,17 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleUpdateClicked(MouseEvent e) {
-        if (updateVersion == null) return;
+        if (updateVersion == null) {
+            // check for new version
+            checkForUpdates((version, desc) -> {
+                if (updateVersion != null) {
+                    handleUpdateClicked(null);
+                } else {
+                    JOptionPane.showMessageDialog(this, "No Updates");
+                }
+            });
+            return;
+        }
         // Jdeploy will auto-update app on start
         String jdeployPath = System.getProperty("jdeploy.launcher.path");
         boolean isJdeploy = jdeployPath != null;

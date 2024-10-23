@@ -164,6 +164,12 @@ public class CustomTable extends JTable {
         emptyImage = UiUtils.getImage("empty_image.png", 500);
     }
 
+    @Override
+    public void invalidate() {
+        super.invalidate();
+        scrollPane.repaint();
+    }
+
     private void createScrollPane() {
         scrollPane = new JScrollPane(this) {
             @Override
