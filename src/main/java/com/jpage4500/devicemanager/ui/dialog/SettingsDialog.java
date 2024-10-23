@@ -1,12 +1,16 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
+import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
+import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
+import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import com.jpage4500.devicemanager.utils.Utils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -18,6 +22,7 @@ import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.prefs.Preferences;
 
 public class SettingsDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(SettingsDialog.class);
@@ -37,7 +42,7 @@ public class SettingsDialog extends JPanel {
     }
 
     private void initalizeUi() {
-        addButton("Visible Columns", "EDIT", this::showColumns);
+        addButton("Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
         addButton("Custom Apps", "EDIT", this::showAppsSettings);
         addButton("Customize Toolbar", "EDIT", this::showToolbarOptions);
         addButton("Download Location", "EDIT", this::showDownloadLocation);
@@ -119,9 +124,12 @@ public class SettingsDialog extends JPanel {
         PreferenceUtils.resetAll();
 
         removeAll();
+        // update UI to show updated states
         initalizeUi();
-        // force table background to be repainted
-        deviceScreen.model.fireTableDataChanged();
+        // force table to be re-created and show columns in order
+        deviceScreen.setupTable();
+        List<Device> deviceList = DeviceManager.getInstance().getDevices();
+        deviceScreen.handleDevicesUpdated(deviceList);
     }
 
     private void viewLogs() {
@@ -140,23 +148,34 @@ public class SettingsDialog extends JPanel {
         return GsonHelper.stringToList(hiddenColsStr, String.class);
     }
 
-    private void showColumns() {
-        List<String> hiddenColList = getHiddenColumnList();
-        CheckBoxList checkBoxList = new CheckBoxList();
-        DeviceTableModel.Columns[] columnsArr = DeviceTableModel.Columns.values();
-        for (DeviceTableModel.Columns column : columnsArr) {
-            String colName = column.name();
-            boolean isHidden = hiddenColList.contains(colName);
-            checkBoxList.addItem(colName, !isHidden);
-        }
-
+    public static void showManageDeviceColumnsDialog(DeviceScreen deviceScreen) {
         JPanel panel = new JPanel(new MigLayout());
         panel.add(new JLabel("Select columns to SHOW"), "span");
 
+        CheckBoxList checkBoxList = new CheckBoxList();
+        populateHiddelColumns(checkBoxList);
         JScrollPane scroll = new JScrollPane(checkBoxList);
         panel.add(scroll, "grow, span, wrap");
 
-        int rc = JOptionPane.showOptionDialog(deviceScreen, panel, "Visible Columns", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        HoverLabel resetLabel = new HoverLabel("Reset to defaults", UiUtils.getImageIcon("icon_trash.png", 15));
+        resetLabel.addActionListener(actionEvent -> {
+            int rc = JOptionPane.showConfirmDialog(deviceScreen, "Reset Table to defaults?", "Reset Table?", JOptionPane.YES_NO_OPTION);
+            if (rc != JOptionPane.YES_OPTION) return;
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, null);
+
+            Preferences prefs = Preferences.userRoot();
+            log.debug("showManageDeviceColumnsDialog: reset table");
+            prefs.remove(DeviceScreen.PREF_KEY_DEVICES + "-details");
+            populateHiddelColumns(checkBoxList);
+            checkBoxList.invalidate();
+            // force table to be re-created and show columns in order
+            deviceScreen.setupTable();
+            List<Device> deviceList = DeviceManager.getInstance().getDevices();
+            deviceScreen.handleDevicesUpdated(deviceList);
+        });
+        panel.add(resetLabel, "newline 20px, al right, span, wrap");
+
+        int rc = JOptionPane.showOptionDialog(deviceScreen, panel, "Manage Columns", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
         if (rc != JOptionPane.YES_OPTION) return;
 
         // save columns that are NOT selected
@@ -164,6 +183,17 @@ public class SettingsDialog extends JPanel {
         log.debug("HIDDEN: {}", GsonHelper.toJson(selectedItems));
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(selectedItems));
         deviceScreen.restoreTable();
+    }
+
+    private static void populateHiddelColumns(CheckBoxList checkBoxList) {
+        checkBoxList.removeAll();
+        List<String> hiddenColList = getHiddenColumnList();
+        DeviceTableModel.Columns[] columnsArr = DeviceTableModel.Columns.values();
+        for (DeviceTableModel.Columns column : columnsArr) {
+            String colName = column.name();
+            boolean isHidden = hiddenColList.contains(colName);
+            checkBoxList.addItem(colName, !isHidden);
+        }
     }
 
     public static List<String> getHiddenToolbarList() {

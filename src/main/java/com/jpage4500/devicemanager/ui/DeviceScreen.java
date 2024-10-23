@@ -47,6 +47,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public static final String SHOW_DEVICE_LIST = "Show Device List";
     public static final String SHOW_BROWSE = "Show File Browser";
     public static final String SHOW_LOG_VIEWER = "Show Device Logs";
+    public static final String PREF_KEY_DEVICES = "devices";
 
     // update check for github releases
     public static final boolean UPDATE_CHECK_GITHUB = true;
@@ -119,7 +120,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         panel.add(toolbar, BorderLayout.NORTH);
 
         // -- table --
-        table = new CustomTable("devices");
+        table = new CustomTable(PREF_KEY_DEVICES);
         setupTable();
         panel.add(table.getScrollPane(), BorderLayout.CENTER);
 
@@ -281,7 +282,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         toolbar.setVisible(!toolbar.isVisible());
     }
 
-    private void setupTable() {
+    public void setupTable() {
         model = new DeviceTableModel();
 
         // restore previous settings
@@ -368,6 +369,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
                     TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                     adjuster.adjustColumn(column);
+                });
+                UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> {
+                    SettingsDialog.showManageDeviceColumnsDialog(this);
                 });
                 return popupMenu;
             }
@@ -618,7 +622,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // set max sizes
         table.setMaxColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
         table.setMaxColWidth(DeviceTableModel.Columns.FREE.name(), 80);
-
     }
 
     private void handleCopyClipboardFieldCommand() {
