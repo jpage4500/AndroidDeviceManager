@@ -108,7 +108,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
 
         // -- add filter button --
         JButton addFilterButton = new JButton("Add Filter");
-        addFilterButton.setIcon(UiUtils.getImageIcon("icon_add.png", 20));
+        addFilterButton.setIcon(UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_ICON));
         addFilterButton.addActionListener(this::handleAddFilterClicked);
         leftPanel.add(addFilterButton, BorderLayout.SOUTH);
 
@@ -561,7 +561,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
 
     private void updateLoggingButton() {
         String imageName = isLoggedPaused ? "icon_play.png" : "icon_stop.png";
-        ImageIcon icon = UiUtils.getImageIcon(imageName, 20, 20);
+        ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
         logButton.setIcon(icon);
         logButton.setText(isLoggedPaused ? "Start" : "Stop");
     }

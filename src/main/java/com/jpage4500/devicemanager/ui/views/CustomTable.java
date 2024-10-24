@@ -474,8 +474,8 @@ public class CustomTable extends JTable {
         public CustomTableHeader(JTable t) {
             super(t.getColumnModel());
 
-            arrowUpIcon = UiUtils.getImageIcon("arrow_down.png", 15);
-            arrowDownIcon = UiUtils.getImageIcon("arrow_up.png", 15);
+            arrowUpIcon = UiUtils.getImageIcon("arrow_down.png", UiUtils.IMG_SIZE_SMALL);
+            arrowDownIcon = UiUtils.getImageIcon("arrow_up.png", UiUtils.IMG_SIZE_SMALL);
 
             setBackground(COLOR_HEADER);
 

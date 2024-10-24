@@ -52,7 +52,7 @@ public class AddFilterDialog extends JPanel {
 
         // add/update filter
         JButton addButton = new JButton();
-        addButton.setIcon(UiUtils.getImageIcon("icon_add.png", 20));
+        addButton.setIcon(UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_ICON));
         addButton.addActionListener(e -> handleAddClicked());
         //add(addButton, "skip 3, wrap");
     }
@@ -67,9 +67,7 @@ public class AddFilterDialog extends JPanel {
         revalidate();
         repaint();
 
-        filterPanel.deleteButton.addActionListener(actionEvent -> {
-            deletePanel(filterPanel);
-        });
+        filterPanel.deleteButton.addActionListener(actionEvent -> deletePanel(filterPanel));
 
         panelList.add(filterPanel);
     }
@@ -108,7 +106,7 @@ public class AddFilterDialog extends JPanel {
             expressionComboBox.setSelectedIndex(exprIndex);
 
             deleteButton = new JButton();
-            deleteButton.setIcon(UiUtils.getImageIcon("icon_delete.png", 20));
+            deleteButton.setIcon(UiUtils.getImageIcon("icon_delete.png", UiUtils.IMG_SIZE_ICON));
 
             valueField = new HintTextField("Value", null);
         }

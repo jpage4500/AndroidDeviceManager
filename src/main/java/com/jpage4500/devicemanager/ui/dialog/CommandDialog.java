@@ -156,7 +156,7 @@ public class CommandDialog extends JPanel {
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
             log.trace("handleEnterPressed: {}, {}", isSuccess, error);
             String img = isSuccess ? "icon_success.png" : "icon_error.png";
-            BufferedImage image = UiUtils.getImage(img, 20);
+            BufferedImage image = UiUtils.getImage(img, UiUtils.IMG_SIZE_ICON);
             Color color = isSuccess ? Colors.COLOR_SUCCESS : Colors.COLOR_ERROR;
             image = UiUtils.replaceColor(image, color);
             resultsLabel.setVisible(true);
@@ -166,9 +166,7 @@ public class CommandDialog extends JPanel {
             resultsMsg = error;
         });
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
-                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
-            });
+            DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error));
         }
     }
 

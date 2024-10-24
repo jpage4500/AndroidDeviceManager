@@ -85,14 +85,14 @@ public class BaseScreen extends JFrame {
     }
 
     protected JButton createSmallToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
-        return createToolbarButton(toolbar, imageName, label, tooltip, 20, listener);
+        return createToolbarButton(toolbar, imageName, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR_SMALL, listener);
     }
 
     /**
      * create a 'standard' toolbar button with 40x40 image and label below
      */
     protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
-        return createToolbarButton(toolbar, imageName, label, tooltip, 40, listener);
+        return createToolbarButton(toolbar, imageName, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
     }
 
     protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, int size, ActionListener listener) {

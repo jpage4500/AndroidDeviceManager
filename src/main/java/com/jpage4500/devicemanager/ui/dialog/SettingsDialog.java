@@ -48,9 +48,7 @@ public class SettingsDialog extends JPanel {
         addButton("Download Location", "EDIT", this::showDownloadLocation);
 
         addCheckbox("Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
-        addCheckbox("Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> {
-            deviceScreen.scheduleUpdateChecks();
-        });
+        addCheckbox("Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> deviceScreen.scheduleUpdateChecks());
         addCheckbox("Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
             // force table background to be repainted
             deviceScreen.model.fireTableDataChanged();
@@ -157,7 +155,7 @@ public class SettingsDialog extends JPanel {
         JScrollPane scroll = new JScrollPane(checkBoxList);
         panel.add(scroll, "grow, span, wrap");
 
-        HoverLabel resetLabel = new HoverLabel("Reset to defaults", UiUtils.getImageIcon("icon_trash.png", 15));
+        HoverLabel resetLabel = new HoverLabel("Reset to defaults", UiUtils.getImageIcon("icon_trash.png", UiUtils.IMG_SIZE_SMALL));
         resetLabel.addActionListener(actionEvent -> {
             int rc = JOptionPane.showConfirmDialog(deviceScreen, "Reset Table to defaults?", "Reset Table?", JOptionPane.YES_NO_OPTION);
             if (rc != JOptionPane.YES_OPTION) return;

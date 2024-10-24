@@ -115,7 +115,7 @@ public class ExploreScreen extends BaseScreen {
         UiUtils.setEmptyBorder(statusBar, 0, 0);
 
         // bookmark
-        ImageIcon icon = UiUtils.getImageIcon("icon_bookmark.png", 15);
+        ImageIcon icon = UiUtils.getImageIcon("icon_bookmark.png", UiUtils.IMG_SIZE_SMALL);
         pathLabel = new HoverLabel(selectedPath, icon);
         UiUtils.addClickListener(pathLabel, this::showFavoritePopup);
         statusBar.add(pathLabel, BorderLayout.WEST);
@@ -140,7 +140,7 @@ public class ExploreScreen extends BaseScreen {
         for (String path : pathList) {
             if (TextUtils.equals(path, selectedPath)) continue;
             String fav = TextUtils.truncateStart(path, 25);
-            JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon("icon_open_folder.png", 15));
+            JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon("icon_open_folder.png", UiUtils.IMG_SIZE_SMALL));
             item.addActionListener(actionEvent -> showFolder(path));
             UiUtils.setEmptyBorder(item);
             popupMenu.add(item);
@@ -159,21 +159,21 @@ public class ExploreScreen extends BaseScreen {
         if (!pathList.contains(selectedPath)) {
             // add current item
             String path = TextUtils.truncateStart(selectedPath, 25);
-            ImageIcon favIcon = UiUtils.getImageIcon("icon_star.png", 15);
+            ImageIcon favIcon = UiUtils.getImageIcon("icon_star.png", UiUtils.IMG_SIZE_SMALL);
             JMenuItem currentItem = new JMenuItem("Bookmark [" + path + "]", favIcon);
             currentItem.addActionListener(actionEvent -> bookmarkPath(selectedPath));
             UiUtils.setEmptyBorder(currentItem);
             popupMenu.add(currentItem);
         } else {
             // remove current item
-            JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon("icon_trash.png", 15));
+            JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon("icon_trash.png", UiUtils.IMG_SIZE_SMALL));
             currentItem.addActionListener(actionEvent -> removeBookmark(selectedPath));
             UiUtils.setEmptyBorder(currentItem);
             popupMenu.add(currentItem);
         }
         popupMenu.addSeparator();
         // go to folder
-        JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon("icon_edit.png", 15));
+        JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon("icon_edit.png", UiUtils.IMG_SIZE_SMALL));
         goToItem.addActionListener(actionEvent -> handleGoToFolder());
         UiUtils.setEmptyBorder(goToItem);
         popupMenu.add(goToItem);
@@ -512,7 +512,7 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void refreshRootButton() {
-        ImageIcon icon = UiUtils.getImageIcon(useRoot ? "root_enabled.png" : "root.png", 40);
+        ImageIcon icon = UiUtils.getImageIcon(useRoot ? "root_enabled.png" : "root.png", UiUtils.IMG_SIZE_TOOLBAR);
         rootButton.setIcon(icon);
         rootButton.setToolTipText(useRoot ? "Disable root mode" : "Enable root mode");
     }

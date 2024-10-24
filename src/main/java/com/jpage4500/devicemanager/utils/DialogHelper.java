@@ -84,9 +84,7 @@ public class DialogHelper {
             }
         });
 
-        HintTextField filter = new HintTextField("Filter", text -> {
-            filterList(listModel, keyValueMap, text);
-        });
+        HintTextField filter = new HintTextField("Filter", text -> filterList(listModel, keyValueMap, text));
         panel.add(filter, "width 25%, wrap");
         filter.addAncestorListener(new RequestFocusListener());
 

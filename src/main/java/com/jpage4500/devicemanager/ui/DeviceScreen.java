@@ -3,7 +3,6 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.GithubRelease;
-import com.jpage4500.devicemanager.data.NpmRelease;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
@@ -50,14 +49,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public static final String PREF_KEY_DEVICES = "devices";
 
     // update check for github releases
-    public static final boolean UPDATE_CHECK_GITHUB = true;
     public static final String UPDATE_SOURCE_GITHUB = "https://api.github.com/repos/jpage4500/AndroidDeviceManager/releases";
     public static final String URL_GITHUB = "https://github.com/jpage4500/AndroidDeviceManager/releases";
-
-    // update check for npm (which jdeploy uses)
-    public static final boolean UPDATE_CHECK_NPM = false;
-    public static final String UPDATE_SOURCE_NPM = "https://registry.npmjs.org/android-device-manager/latest";
-    public static final String URL_NPM = "https://www.jdeploy.com/~android-device-manager";
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -144,9 +137,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                     quitResponse.performQuit();
                 });
             } else {
-                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                    exitApp(true);
-                }));
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> exitApp(true)));
             }
         } else {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> exitApp(true)));
@@ -157,9 +148,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
         switch (state) {
-            case CLOSING -> {
-                exitApp(false);
-            }
+            case CLOSING -> exitApp(false);
             case DEACTIVATED -> {
                 if (trayPopupMenu != null) trayPopupMenu.setVisible(false);
             }
@@ -200,7 +189,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         UiUtils.setEmptyBorder(leftPanel, 0, 0);
 
         // update
-        ImageIcon icon = UiUtils.getImageIcon("icon_update.png", 15);
+        ImageIcon icon = UiUtils.getImageIcon("icon_update.png", UiUtils.IMG_SIZE_SMALL);
         updateLabel = new HoverLabel(icon);
         updateLabel.setToolTipText("Check for updates");
         leftPanel.add(updateLabel);
@@ -213,7 +202,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         versionLabel.setText("v" + MainApplication.version);
 
         // memory
-        icon = UiUtils.getImageIcon("memory.png", 15);
+        icon = UiUtils.getImageIcon("memory.png", UiUtils.IMG_SIZE_SMALL);
         memoryLabel = new HoverLabel(icon);
         memoryLabel.setBorder(0, 0);
         leftPanel.add(memoryLabel);
@@ -233,9 +222,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> {
-            exitApp(false);
-        });
+        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> exitApp(false));
 
         // [CMD + 2] = show explorer
         createCmdAction(windowMenu, SHOW_BROWSE, KeyEvent.VK_2, e -> handleBrowseCommand(null));
@@ -370,9 +357,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                     TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                     adjuster.adjustColumn(column);
                 });
-                UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> {
-                    SettingsDialog.showManageDeviceColumnsDialog(this);
-                });
+                UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this));
                 return popupMenu;
             }
             return null;
@@ -693,9 +678,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (table.getRowCount() > 0) {
             handleFilesDropped(fileList);
         } else {
-            Utils.runDelayed(1000, true, () -> {
-                handleFilesDropped(fileList);
-            });
+            Utils.runDelayed(1000, true, () -> handleFilesDropped(fileList));
         }
     }
 
@@ -902,7 +885,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         addDeviceDetail(panel, "Custom2", device.getCustomProperty(Device.CUST_PROP_2));
 
         // device properties
-        ImageIcon icon = UiUtils.getImageIcon("arrow_right.png", 15);
+        ImageIcon icon = UiUtils.getImageIcon("arrow_right.png", UiUtils.IMG_SIZE_SMALL);
         if (device.propMap != null) {
             HoverLabel devicePropLabel = new HoverLabel("Device Properties", icon);
             UiUtils.addClickListener(devicePropLabel, mouseEvent -> showDeviceProperties(device));
@@ -1173,7 +1156,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 List<File> scriptList = getCustomScripts();
                 for (File script : scriptList) {
                     String name = FileUtils.getNameNoExt(script);
-                    JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon("icon_custom.png", 15));
+                    JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon("icon_custom.png", UiUtils.IMG_SIZE_SMALL));
                     item.addActionListener(e2 -> handleCustomScriptClicked(script, name));
                     popupMenu.add(item);
                 }
@@ -1320,26 +1303,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
         String version = null;
         String desc = null;
-        if (UPDATE_CHECK_GITHUB) {
-            String response = NetworkUtils.getRequest(UPDATE_SOURCE_GITHUB);
-            List<GithubRelease> releases = GsonHelper.stringToList(response, GithubRelease.class);
-            if (!releases.isEmpty()) {
-                GithubRelease latestRelease = releases.get(0);
-                Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);
-                if (compareResult == Utils.CompareResult.VERSION_NEWER) {
-                    version = latestRelease.tagName;
-                    desc = latestRelease.body;
-                }
-            }
-        } else if (UPDATE_CHECK_NPM) {
-            // use npm to check for updates
-            String response = NetworkUtils.getRequest(UPDATE_SOURCE_NPM);
-            NpmRelease npmRelease = GsonHelper.fromJson(response, NpmRelease.class);
-            if (npmRelease != null) {
-                Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, npmRelease.version);
-                if (compareResult == Utils.CompareResult.VERSION_NEWER) {
-                    version = npmRelease.version;
-                }
+        String response = NetworkUtils.getRequest(UPDATE_SOURCE_GITHUB);
+        List<GithubRelease> releases = GsonHelper.stringToList(response, GithubRelease.class);
+        if (!releases.isEmpty()) {
+            GithubRelease latestRelease = releases.get(0);
+            Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);
+            if (compareResult == Utils.CompareResult.VERSION_NEWER) {
+                version = latestRelease.tagName;
+                desc = latestRelease.body;
             }
         }
 
@@ -1347,22 +1318,19 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         String finalVersion = version;
         String finalDesc = desc;
         if (version != null) {
-            log.debug("checkForUpdates: LATEST:{}, CURRENT:{} ({})", version, MainApplication.version, (UPDATE_CHECK_GITHUB ? "github" : (UPDATE_CHECK_NPM ? "npm" : null)));
+            log.debug("checkForUpdates: LATEST:{}, CURRENT:{}", version, MainApplication.version);
             SwingUtilities.invokeLater(() -> {
                 updateVersion = finalVersion;
                 updateDesc = finalDesc;
                 updateLabel.setToolTipText("Update Available " + updateVersion + ", desc: " + finalDesc);
-                BufferedImage image = UiUtils.getImage("icon_update.png", 15, 15, Colors.COLOR_ERROR);
+                BufferedImage image = UiUtils.getImage("icon_update.png", UiUtils.IMG_SIZE_SMALL, UiUtils.IMG_SIZE_SMALL, Colors.COLOR_ERROR);
                 if (image != null) updateLabel.setIcon(new ImageIcon(image));
                 updateLabel.setVisible(true);
                 if (updateListener != null) updateListener.onUpdateCheckComplete(finalVersion, finalDesc);
             });
         } else if (updateListener != null) {
-            SwingUtilities.invokeLater(() -> {
-                updateListener.onUpdateCheckComplete(finalVersion, finalDesc);
-            });
+            SwingUtilities.invokeLater(() -> updateListener.onUpdateCheckComplete(null, null));
         }
-
     }
 
     /**
@@ -1441,11 +1409,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         } else {
             // NOTE: check if app was launched from console or other (IntelliJ, .app)
             // log.debug("handleVersionClicked: CONSOLE:{}", System.console());
-            if (UPDATE_CHECK_NPM) {
-                Utils.openBrowser(URL_NPM);
-            } else if (UPDATE_CHECK_GITHUB) {
-                Utils.openBrowser(URL_GITHUB);
-            }
+            Utils.openBrowser(URL_GITHUB);
         }
     }
 
