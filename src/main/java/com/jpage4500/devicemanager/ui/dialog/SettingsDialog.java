@@ -8,10 +8,7 @@ import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.UiUtils;
-import com.jpage4500.devicemanager.utils.Utils;
+import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -115,8 +112,7 @@ public class SettingsDialog extends JPanel {
     }
 
     private void resetPreferences() {
-        int rc = JOptionPane.showConfirmDialog(this, "Reset All Preferences?", "Reset Preferences", JOptionPane.YES_NO_OPTION);
-        if (rc != JOptionPane.YES_OPTION) return;
+        if (!DialogHelper.showConfirmDialog(deviceScreen, "Reset Preferences", "Reset All Preferences?")) return;
 
         log.debug("resetPreferences: ");
         PreferenceUtils.resetAll();
@@ -137,7 +133,7 @@ public class SettingsDialog extends JPanel {
         boolean rc = Utils.editFile(logsFile);
         if (!rc) {
             // open failed
-            JOptionPane.showConfirmDialog(deviceScreen, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
+            DialogHelper.showDialog(this, "Error", "Failed to open logs: " + logsFile.getAbsolutePath());
         }
     }
 
@@ -157,8 +153,7 @@ public class SettingsDialog extends JPanel {
 
         HoverLabel resetLabel = new HoverLabel("Reset to defaults", UiUtils.getImageIcon("icon_trash.png", UiUtils.IMG_SIZE_SMALL));
         resetLabel.addActionListener(actionEvent -> {
-            int rc = JOptionPane.showConfirmDialog(deviceScreen, "Reset Table to defaults?", "Reset Table?", JOptionPane.YES_NO_OPTION);
-            if (rc != JOptionPane.YES_OPTION) return;
+            if (!DialogHelper.showConfirmDialog(deviceScreen, "Reset Table?", "Reset Table to defaults?")) return;
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, null);
 
             Preferences prefs = Preferences.userRoot();

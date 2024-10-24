@@ -659,8 +659,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             return;
         } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(this, "Open Terminal for " + selectedDeviceList.size() + " devices?", "Open Terminal", JOptionPane.YES_NO_OPTION);
-            if (rc != JOptionPane.YES_OPTION) return;
+            if (!DialogHelper.showConfirmDialog(this, "Open Terminal", "Open Terminal for " + selectedDeviceList.size() + " devices?")) return;
         }
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().openTerminal(device, (isSuccess, error) -> {
@@ -705,8 +704,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // NOTE: using JDialog.setAlwaysOnTap to bring app to foreground on drag and drop operations
         final JDialog dialog = new JDialog();
         dialog.setAlwaysOnTop(true);
-        int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
-        if (rc != JOptionPane.YES_OPTION) return;
+        if (!DialogHelper.showConfirmDialog(this, title, msg)) return;
         if (isInstall) {
             installFiles(selectedDeviceList, fileList, listener);
         } else {
@@ -801,8 +799,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             return;
         } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(this, "Take screenshot of " + selectedDeviceList.size() + " devices?", "Screenshot", JOptionPane.YES_NO_OPTION);
-            if (rc != JOptionPane.YES_OPTION) return;
+            if (!DialogHelper.showConfirmDialog(this, "Screenshot", "Take screenshot of " + selectedDeviceList.size() + " devices?")) return;
         }
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
         for (Device device : selectedDeviceList) {
@@ -933,12 +930,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             return;
         } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(this,
-                    "Mirror " + selectedDeviceList.size() + " devices?",
-                    "Mirror Device",
-                    JOptionPane.YES_NO_OPTION
-            );
-            if (rc != JOptionPane.YES_OPTION) return;
+            if (!DialogHelper.showConfirmDialog(this, "Mirror Device", "Mirror " + selectedDeviceList.size() + " devices?")) return;
         }
 
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
@@ -958,12 +950,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             return;
         } else if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
-            int rc = JOptionPane.showConfirmDialog(this,
-                    "Record " + selectedDeviceList.size() + " devices?",
-                    "Record Device",
-                    JOptionPane.YES_NO_OPTION
-            );
-            if (rc != JOptionPane.YES_OPTION) return;
+            if (!DialogHelper.showConfirmDialog(this, "Record Device", "Record " + selectedDeviceList.size() + " devices?")) return;
         }
 
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
@@ -1204,10 +1191,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
 
         // prompt to install/copy
-        int rc = JOptionPane.showConfirmDialog(this,
-                "Restart " + selectedDeviceList.size() + " device(s)?",
-                "Restart devices?", JOptionPane.YES_NO_OPTION);
-        if (rc != JOptionPane.YES_OPTION) return;
+        if (!DialogHelper.showConfirmDialog(this, "Restart", "Restart " + selectedDeviceList.size() + " device(s)?")) return;
 
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().restartDevice(device, (isSuccess, error) -> refreshDevices());
@@ -1216,7 +1200,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void showSelectDevicesDialog() {
         if (model.getRowCount() > 0) {
-            JOptionPane.showConfirmDialog(this, "Select 1 or more devices to use this feature", "No devices selected", JOptionPane.DEFAULT_OPTION);
+            DialogHelper.showDialog(this, "No devices selected", "Select 1 or more devices to use this feature");
         }
     }
 
@@ -1357,7 +1341,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void handleUpdateClicked(MouseEvent e) {
         if (updateVersion == null) {
-            // check for new version
+            // prompt to check for new version
+            if (!DialogHelper.showConfirmDialog(this, "Update Check", "Check for update?")) return;
+
             checkForUpdates((version, desc) -> {
                 if (updateVersion != null) {
                     handleUpdateClicked(null);
@@ -1420,7 +1406,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         boolean rc = Utils.editFile(logsFile);
         if (!rc) {
             // open failed
-            JOptionPane.showConfirmDialog(this, "Failed to open logs: " + logsFile.getAbsolutePath(), "Error", JOptionPane.DEFAULT_OPTION);
+            DialogHelper.showDialog(this, "Error", "Failed to open logs: " + logsFile.getAbsolutePath());
         }
     }
 

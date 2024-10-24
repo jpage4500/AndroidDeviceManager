@@ -464,8 +464,7 @@ public class ExploreScreen extends BaseScreen {
         dialog.setAlwaysOnTop(true);
         String title = "Copy File(s)";
         String msg = "Copy " + stats.numTotal + " file(s) to " + selectedPath + "?";
-        int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
-        if (rc != JOptionPane.YES_OPTION) return;
+        if (!DialogHelper.showConfirmDialog(dialog, title, msg)) return;
 
         deviceScreen.setDeviceBusy(device, true);
         DeviceManager deviceManager = DeviceManager.getInstance();
@@ -560,10 +559,7 @@ public class ExploreScreen extends BaseScreen {
             DeviceManager.getInstance().downloadFile(device, selectedPath, file, downloadFile, (isSuccess, error) -> {
                 if (isSuccess && isSingleFile) {
                     if (downloadFile.exists()) {
-                        int openRc = JOptionPane.showConfirmDialog(this,
-                                "Open " + downloadFile.getName() + "?",
-                                "Open File?", JOptionPane.YES_NO_OPTION);
-                        if (openRc != JOptionPane.YES_OPTION) return;
+                        if (!DialogHelper.showConfirmDialog(this, "Open File?", "Open " + downloadFile.getName() + "?")) return;
                         Utils.openFile(downloadFile);
                     }
                 }
@@ -672,7 +668,7 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void showSelectDevicesDialog() {
-        JOptionPane.showConfirmDialog(this, "Select 1 or more files to use this feature", "No files selected", JOptionPane.DEFAULT_OPTION);
+        DialogHelper.showDialog(this, "No files selected", "Select 1 or more files to use this feature");
     }
 
     private void filterDevices(String text) {

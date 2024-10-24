@@ -18,6 +18,23 @@ public class DialogHelper {
     private static final Logger log = LoggerFactory.getLogger(DialogHelper.class);
     public static final String KEY_VALUE_DELIM = " : ";
 
+    /**
+     * show a simple dialog
+     */
+    public static void showDialog(Component component, String title, String text) {
+        JOptionPane.showConfirmDialog(component, text, title, JOptionPane.DEFAULT_OPTION);
+    }
+
+    /**
+     * show a YES/NO prompt dialog
+     *
+     * @return true if YES is selected
+     */
+    public static boolean showConfirmDialog(Component component, String title, String text) {
+        int rc = JOptionPane.showConfirmDialog(component, text, title, JOptionPane.YES_NO_OPTION);
+        return (rc == JOptionPane.YES_OPTION);
+    }
+
     public static void showTextDialog(Component component, String title, String text) {
         // display results in dialog
         JTextArea textArea = new JTextArea(text);
