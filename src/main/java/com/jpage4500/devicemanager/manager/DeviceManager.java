@@ -91,7 +91,7 @@ public class DeviceManager {
         commandExecutorService = Executors.newFixedThreadPool(10);
         scheduledExecutorService = Executors.newScheduledThreadPool(3);
 
-        tempFolder = System.getProperty("java.io.tmpdir");
+        tempFolder = Utils.getTempFolder();
         copyResourcesToFiles();
     }
 

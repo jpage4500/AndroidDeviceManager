@@ -320,7 +320,7 @@ public class ExploreScreen extends BaseScreen {
             refreshUi();
             return;
         }
-        List<DeviceFile> selectedFiles = getSelectedFiles(true);
+        List<DeviceFile> selectedFiles = getSelectedFiles(true, false);
         if (log.isTraceEnabled()) log.trace("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
         if (selectedFiles.isEmpty()) return;
         DeviceFile selectedFile = selectedFiles.get(0);
@@ -532,11 +532,8 @@ public class ExploreScreen extends BaseScreen {
 
     private void handleDownload() {
         if (!device.isOnline) return;
-        List<DeviceFile> selectedFileList = getSelectedFiles(false);
-        if (selectedFileList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<DeviceFile> selectedFileList = getSelectedFiles(false, true);
+        if (selectedFileList.isEmpty()) return;
 
         boolean isSingleFile = selectedFileList.size() == 1;
         String msg = isSingleFile ?
@@ -569,15 +566,11 @@ public class ExploreScreen extends BaseScreen {
 
     private void handleDelete() {
         if (!device.isOnline) return;
-        List<DeviceFile> selectedFileList = getSelectedFiles(false);
-        if (selectedFileList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<DeviceFile> selectedFileList = getSelectedFiles(false, true);
+        if (selectedFileList.isEmpty()) return;
 
         StringBuilder sb = new StringBuilder();
-        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
-            DeviceFile file = iterator.next();
+        for (DeviceFile file : selectedFileList) {
             if (!sb.isEmpty()) sb.append('\n');
             sb.append(file.name);
         }
@@ -613,15 +606,11 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void handleCopyPath() {
-        List<DeviceFile> selectedFileList = getSelectedFiles(false);
-        if (selectedFileList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<DeviceFile> selectedFileList = getSelectedFiles(false, true);
+        if (selectedFileList.isEmpty()) return;
 
         StringBuilder sb = new StringBuilder();
-        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
-            DeviceFile file = iterator.next();
+        for (DeviceFile file : selectedFileList) {
             if (sb.length() > 0) sb.append('\n');
             sb.append(selectedPath + "/" + file.name);
         }
@@ -632,11 +621,8 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void handleCopyName() {
-        List<DeviceFile> selectedFileList = getSelectedFiles(false);
-        if (selectedFileList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<DeviceFile> selectedFileList = getSelectedFiles(false, true);
+        if (selectedFileList.isEmpty()) return;
 
         StringBuilder sb = new StringBuilder();
         for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
@@ -650,7 +636,7 @@ public class ExploreScreen extends BaseScreen {
         clipboard.setContents(stringSelection, null);
     }
 
-    private List<DeviceFile> getSelectedFiles(boolean includeUpFolder) {
+    private List<DeviceFile> getSelectedFiles(boolean includeUpFolder, boolean showError) {
         List<DeviceFile> selectedDeviceList = new ArrayList<>();
         int[] selectedRows = table.getSelectedRows();
         for (int selectedRow : selectedRows) {
@@ -663,11 +649,10 @@ public class ExploreScreen extends BaseScreen {
                 selectedDeviceList.add(deviceFile);
             }
         }
+        if (showError && selectedDeviceList.isEmpty()) {
+            DialogHelper.showDialog(this, "No files selected", "Select 1 or more files to use this feature");
+        }
         return selectedDeviceList;
-    }
-
-    private void showSelectDevicesDialog() {
-        DialogHelper.showDialog(this, "No files selected", "Select 1 or more files to use this feature");
     }
 
     private void filterDevices(String text) {

@@ -83,7 +83,7 @@ public class MessageViewScreen extends BaseScreen {
 
     private void editMessage() {
         // save to temp file
-        String tempFolder = System.getProperty("java.io.tmpdir");
+        String tempFolder = Utils.getTempFolder();
         Random rand = new Random();
         int randInt = rand.nextInt(1000);
         File tempFile = new File(tempFolder, "msg-" + randInt + ".txt");

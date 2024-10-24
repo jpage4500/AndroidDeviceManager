@@ -83,6 +83,10 @@ public class Utils {
         return System.getProperty("user.home");
     }
 
+    public static String getTempFolder() {
+        return System.getProperty("java.io.tmpdir");
+    }
+
     public static String getDownloadFolder() {
         String downloadFolder = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_DOWNLOAD_FOLDER);
         if (TextUtils.isEmpty(downloadFolder)) {
