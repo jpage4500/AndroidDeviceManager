@@ -33,9 +33,7 @@ public class CommandDialog extends JPanel {
 
     public static void showCommandDialog(Component frame, List<Device> selectedDeviceList) {
         CommandDialog screen = new CommandDialog(selectedDeviceList);
-        int rc = JOptionPane.showOptionDialog(frame, screen, "Send ADB Command", JOptionPane.DEFAULT_OPTION,
-                JOptionPane.PLAIN_MESSAGE, null, new Object[]{}, null);
-        if (rc != JOptionPane.YES_OPTION) return;
+        DialogHelper.showCustomDialog(frame, screen, "Send ADB Command", null);
     }
 
     public CommandDialog(List<Device> selectedDeviceList) {
@@ -81,7 +79,7 @@ public class CommandDialog extends JPanel {
             @Override
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    handleEnterPressed();
+                    runCommand();
                     e.consume();
                 }
             }
@@ -103,17 +101,14 @@ public class CommandDialog extends JPanel {
         add(resultsLabel, "span 2, wrap");
 
         JButton sendButton = new JButton("Send Command");
-        sendButton.addActionListener(e -> handleEnterPressed());
+        sendButton.addActionListener(e -> runCommand());
         add(sendButton, "newline, al right, span 2, wrap");
     }
 
     private void handleResultsClicked() {
         if (resultsMsg == null) return;
         // display results in dialog
-        JTextArea textArea = new JTextArea(resultsMsg);
-        textArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        JOptionPane.showMessageDialog(this, scrollPane, "Results", JOptionPane.PLAIN_MESSAGE);
+        DialogHelper.showTextDialog(this, "Results", resultsMsg);
     }
 
     private void deleteItem(String command) {
@@ -124,7 +119,7 @@ public class CommandDialog extends JPanel {
         populateRecent();
     }
 
-    private void handleEnterPressed() {
+    private void runCommand() {
         String command = textField.getText();
         if (TextUtils.isEmpty(command)) return;
 
@@ -152,9 +147,9 @@ public class CommandDialog extends JPanel {
         // update displayed list
         populateRecent();
 
-        log.debug("handleRunCustomCommand: {}, devices:{}", command, selectedDeviceList.size());
+        log.debug("runCommand: {}, devices:{}", command, selectedDeviceList.size());
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
-            log.trace("handleEnterPressed: {}, {}", isSuccess, error);
+            log.trace("runCommand: {}, {}", isSuccess, error);
             String img = isSuccess ? "icon_success.png" : "icon_error.png";
             BufferedImage image = UiUtils.getImage(img, UiUtils.IMG_SIZE_ICON);
             Color color = isSuccess ? Colors.COLOR_SUCCESS : Colors.COLOR_ERROR;
@@ -166,7 +161,9 @@ public class CommandDialog extends JPanel {
             resultsMsg = error;
         });
         for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error));
+            DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
+                resultWatcher.handleResult(device.serial, isSuccess, error);
+            });
         }
     }
 

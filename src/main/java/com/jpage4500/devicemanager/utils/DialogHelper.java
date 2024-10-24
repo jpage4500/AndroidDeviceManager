@@ -1,6 +1,8 @@
 package com.jpage4500.devicemanager.utils;
 
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
+import com.jpage4500.devicemanager.ui.DeviceScreen;
+import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -22,6 +24,7 @@ public class DialogHelper {
      * show a simple dialog
      */
     public static void showDialog(Component component, String title, String text) {
+        if (title == null) title = "Alert";
         JOptionPane.showConfirmDialog(component, text, title, JOptionPane.DEFAULT_OPTION);
     }
 
@@ -35,12 +38,31 @@ public class DialogHelper {
         return (rc == JOptionPane.YES_OPTION);
     }
 
+    /**
+     * show a prompt dialog with custom buttons
+     *
+     * @return true if YES is selected
+     */
+    public static boolean showOptionDialog(Component component, String title, String text, String[] buttons) {
+        int rc = JOptionPane.showOptionDialog(component,
+                text, title, JOptionPane.DEFAULT_OPTION,
+                JOptionPane.QUESTION_MESSAGE, null, buttons, null);
+        return (rc == JOptionPane.YES_OPTION);
+    }
+
     public static void showTextDialog(Component component, String title, String text) {
         // display results in dialog
         JTextArea textArea = new JTextArea(text);
         textArea.setEditable(false);
         JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(Utils.getScreenWidth() / 2, Utils.getScreenHeight() - 200));
         JOptionPane.showMessageDialog(component, scrollPane, title, JOptionPane.PLAIN_MESSAGE);
+    }
+
+    public static boolean showCustomDialog(Component frame, Component component, String title, String[] buttonArr) {
+        int rc = JOptionPane.showOptionDialog(frame, component, title, JOptionPane.DEFAULT_OPTION,
+                JOptionPane.PLAIN_MESSAGE, null, buttonArr, null);
+        return (rc == JOptionPane.YES_OPTION);
     }
 
     public interface DoubleClickListener {

@@ -26,9 +26,9 @@ public class SettingsDialog extends JPanel {
 
     private DeviceScreen deviceScreen;
 
-    public static int showSettings(DeviceScreen deviceScreen) {
+    public static void showSettings(DeviceScreen deviceScreen) {
         SettingsDialog settingsScreen = new SettingsDialog(deviceScreen);
-        return JOptionPane.showOptionDialog(deviceScreen, settingsScreen, "Settings", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, null, null);
+        DialogHelper.showCustomDialog(deviceScreen, settingsScreen, "Settings", null);
     }
 
     private SettingsDialog(DeviceScreen deviceScreen) {
@@ -41,7 +41,7 @@ public class SettingsDialog extends JPanel {
     private void initalizeUi() {
         addButton("Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
         addButton("Custom Apps", "EDIT", this::showAppsSettings);
-        addButton("Customize Toolbar", "EDIT", this::showToolbarOptions);
+        addButton("Customize Toolbar", "EDIT", this::showManageToolbar);
         addButton("Download Location", "EDIT", this::showDownloadLocation);
 
         addCheckbox("Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
@@ -143,7 +143,7 @@ public class SettingsDialog extends JPanel {
     }
 
     public static void showManageDeviceColumnsDialog(DeviceScreen deviceScreen) {
-        JPanel panel = new JPanel(new MigLayout());
+        JPanel panel = new JPanel(new MigLayout("fillx"));
         panel.add(new JLabel("Select columns to SHOW"), "span");
 
         CheckBoxList checkBoxList = new CheckBoxList();
@@ -168,8 +168,7 @@ public class SettingsDialog extends JPanel {
         });
         panel.add(resetLabel, "newline 20px, al right, span, wrap");
 
-        int rc = JOptionPane.showOptionDialog(deviceScreen, panel, "Manage Columns", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
-        if (rc != JOptionPane.YES_OPTION) return;
+        if (!DialogHelper.showCustomDialog(deviceScreen, panel, "Manage Columns", null)) return;
 
         // save columns that are NOT selected
         List<String> selectedItems = checkBoxList.getUnSelectedItems();
@@ -200,7 +199,7 @@ public class SettingsDialog extends JPanel {
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenToolbarList));
     }
 
-    private void showToolbarOptions() {
+    private void showManageToolbar() {
         List<String> hiddenColList = getHiddenToolbarList();
         CheckBoxList checkBoxList = new CheckBoxList();
         DeviceScreen.ToolbarButton[] arr = DeviceScreen.ToolbarButton.values();
@@ -209,14 +208,13 @@ public class SettingsDialog extends JPanel {
             checkBoxList.addItem(val.label, !isHidden);
         }
 
-        JPanel panel = new JPanel(new MigLayout());
+        JPanel panel = new JPanel(new MigLayout("fillx"));
         panel.add(new JLabel("Select buttons to SHOW"), "span");
 
         JScrollPane scroll = new JScrollPane(checkBoxList);
         panel.add(scroll, "grow, span, wrap");
 
-        int rc = JOptionPane.showOptionDialog(deviceScreen, panel, "Toolbar Buttons", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
-        if (rc != JOptionPane.YES_OPTION) return;
+        if (!DialogHelper.showCustomDialog(deviceScreen, panel, "Toolbar Buttons", null)) return;
 
         // save columns that are NOT selected
         List<String> selectedItems = checkBoxList.getUnSelectedItems();

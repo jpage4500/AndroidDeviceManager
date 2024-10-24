@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.utils.ArrayUtils;
+import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -24,10 +25,8 @@ public class AddFilterDialog extends JPanel {
     public static LogFilter showAddFilterDialog(Component frame, LogFilter logFilter) {
         String okButton = logFilter == null ? "Save" : "Update";
         AddFilterDialog screen = new AddFilterDialog(logFilter);
-        int rc = JOptionPane.showOptionDialog(frame, screen, "Add Filter", JOptionPane.DEFAULT_OPTION,
-                JOptionPane.PLAIN_MESSAGE, null, new String[]{okButton, "Cancel"}, null);
-        if (rc != JOptionPane.YES_OPTION) return null;
-
+        String[] buttonArr = {okButton, "Cancel"};
+        DialogHelper.showCustomDialog(frame, screen, "Add Filter", buttonArr);
         // SAVE/UPDATE filter
 
         return screen.logFilter;

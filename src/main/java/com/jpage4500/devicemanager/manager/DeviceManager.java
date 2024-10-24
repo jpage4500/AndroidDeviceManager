@@ -983,7 +983,7 @@ public class DeviceManager {
                 while ((line = input.readLine()) != null) {
                     LogEntry logEntry = new LogEntry(line, dateFormat, year);
                     if (logEntry.date == null) continue;
-                    else if (startTime != null && startTime > logEntry.timestamp) {
+                    else if (startTime != null && (logEntry.timestamp == null || startTime > logEntry.timestamp)) {
                         //log.trace("startLogging: too old: {} ({}) vs {}", logEntry.timestamp, logEntry.date, startTime);
                         continue;
                     }

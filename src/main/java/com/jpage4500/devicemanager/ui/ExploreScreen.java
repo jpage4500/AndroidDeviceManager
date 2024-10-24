@@ -388,7 +388,7 @@ public class ExploreScreen extends BaseScreen {
                 errorMessage = error;
                 boolean doRefresh = false;
                 if (useRoot && TextUtils.equals(error, DeviceManager.ERR_ROOT_NOT_AVAILABLE)) {
-                    JOptionPane.showMessageDialog(this, "ROOT not available!");
+                    DialogHelper.showDialog(this, null, "ROOT not available!");
                     toggleRoot();
                 } else if (TextUtils.equals(error, DeviceManager.ERR_NOT_A_DIRECTORY)) {
                     if (prevPathList.isEmpty() && TextUtils.equals(selectedPath, "/sdcard")) {
@@ -596,8 +596,7 @@ public class ExploreScreen extends BaseScreen {
         List<String> pathList = getFavoritePathList();
         JComboBox comboBox = new JComboBox(pathList.toArray(new String[]{}));
         comboBox.setEditable(true);
-        int rc = JOptionPane.showOptionDialog(this, comboBox, "Go to folder", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
-        if (rc != JOptionPane.YES_OPTION) return;
+        if (!DialogHelper.showCustomDialog(this, comboBox, "Go to folder", null)) return;
 
         Object selectedObj = comboBox.getSelectedItem();
         if (selectedObj == null) return;

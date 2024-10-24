@@ -831,14 +831,16 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         ConnectDialog.showConnectDialog(this, (isSuccess, error) -> {
             log.debug("handleConnectDevice: {}", isSuccess);
             if (!isSuccess) {
-                JOptionPane.showMessageDialog(this, "Unable to connect!\n\nCheck if the device is showing an prompt to authorize");
+                DialogHelper.showDialog(this, null, "Unable to connect!\n\nCheck if the device is showing an prompt to authorize");
             }
         });
     }
 
     private void handleDisconnect(Device device) {
         DeviceManager.getInstance().disconnectDevice(device.serial, (isSuccess, error) -> {
-            if (!isSuccess) JOptionPane.showMessageDialog(this, "Unable to disconnect!");
+            if (!isSuccess) {
+                DialogHelper.showDialog(this, null, "Unable to disconnect!");
+            }
         });
     }
 
@@ -861,7 +863,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
 
         DeviceManager.getInstance().connectDevice(ip, port, (isSuccess, error) -> {
-            if (!isSuccess) JOptionPane.showMessageDialog(this, "Unable to connect!");
+            if (!isSuccess) {
+                DialogHelper.showDialog(this, null, "Unable to connect!");
+            }
         });
     }
 
@@ -893,7 +897,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         UiUtils.addClickListener(appsLabel, mouseEvent -> showInstalledApps(device));
         panel.add(appsLabel, "wrap");
 
-        JOptionPane.showOptionDialog(this, panel, "Device Info", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        DialogHelper.showCustomDialog(this, panel, "Device Info", null);
     }
 
     private void showInstalledApps(Device device) {
@@ -1348,7 +1352,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 if (updateVersion != null) {
                     handleUpdateClicked(null);
                 } else {
-                    JOptionPane.showMessageDialog(this, "No Updates");
+                    DialogHelper.showDialog(this, null, "No Updates");
                 }
             });
             return;
@@ -1372,11 +1376,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             msg += "\n\nView release in browser?";
             yesOption = "View";
         }
-        Object[] choices = {yesOption, "Cancel"};
-        int rc = JOptionPane.showOptionDialog(DeviceScreen.this,
-                msg, "Update Available", JOptionPane.DEFAULT_OPTION,
-                JOptionPane.WARNING_MESSAGE, null, choices, null);
-        if (rc != JOptionPane.YES_OPTION) return;
+        String[] choices = {yesOption, "Cancel"};
+        if (!DialogHelper.showOptionDialog(this, "Update Available", msg, choices)) return;
 
         if (isJdeploy) {
             // exit and restart app
