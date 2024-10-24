@@ -1376,8 +1376,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             // "/Users/USERNAME/Applications/Android Device Manager.app/Contents/MacOS/Client4JLauncher";
             jdeployPath = jdeployPath.substring(0, index);
         }
-
-        String msg = String.format("Update %s Available\n\n%s", updateVersion, updateDesc);
+        String divider = "--------------------------------------------------------";
+        String msg = String.format("Update %s Available\n\n%s\n%s\n%s", updateVersion, divider, updateDesc, divider);
         String yesOption;
         if (isJdeploy) {
             msg += "\n\nRestart app?";
