@@ -126,13 +126,15 @@ public class BaseScreen extends JFrame {
                 listener.actionPerformed(e);
             }
         };
+
+        JMenuItem item = UiUtils.addMenuItem(menu, label, action);
         if (key != 0) {
             int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
             KeyStroke keyStroke = KeyStroke.getKeyStroke(key, mask);
             action.putValue(Action.ACCELERATOR_KEY, keyStroke);
+            item.setAccelerator(keyStroke);
         }
-
-        return UiUtils.addMenuItem(menu, label, action);
+        return item;
     }
 
     /**

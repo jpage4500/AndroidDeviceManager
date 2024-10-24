@@ -131,6 +131,13 @@ public class HintTextField extends JTextField implements KeyListener {
 
     @Override
     public void keyPressed(KeyEvent e) {
+        int modifiers = e.getModifiersEx();
+        switch (modifiers) {
+            case KeyEvent.META_DOWN_MASK:
+            case KeyEvent.CTRL_DOWN_MASK:
+            case KeyEvent.ALT_DOWN_MASK:
+                return;
+        }
         char keyChar = e.getKeyChar();
         int keyCode = e.getKeyCode();
         String cleanText = getCleanText();
