@@ -115,7 +115,7 @@ public class ExploreScreen extends BaseScreen {
         UiUtils.setEmptyBorder(statusBar, 0, 0);
 
         // bookmark
-        ImageIcon icon = UiUtils.getImageIcon("icon_bookmark.png", 15);
+        ImageIcon icon = UiUtils.getImageIcon("icon_bookmark.png", UiUtils.IMG_SIZE_SMALL);
         pathLabel = new HoverLabel(selectedPath, icon);
         UiUtils.addClickListener(pathLabel, this::showFavoritePopup);
         statusBar.add(pathLabel, BorderLayout.WEST);
@@ -140,7 +140,7 @@ public class ExploreScreen extends BaseScreen {
         for (String path : pathList) {
             if (TextUtils.equals(path, selectedPath)) continue;
             String fav = TextUtils.truncateStart(path, 25);
-            JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon("icon_open_folder.png", 15));
+            JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon("icon_open_folder.png", UiUtils.IMG_SIZE_SMALL));
             item.addActionListener(actionEvent -> showFolder(path));
             UiUtils.setEmptyBorder(item);
             popupMenu.add(item);
@@ -159,21 +159,21 @@ public class ExploreScreen extends BaseScreen {
         if (!pathList.contains(selectedPath)) {
             // add current item
             String path = TextUtils.truncateStart(selectedPath, 25);
-            ImageIcon favIcon = UiUtils.getImageIcon("icon_star.png", 15);
+            ImageIcon favIcon = UiUtils.getImageIcon("icon_star.png", UiUtils.IMG_SIZE_SMALL);
             JMenuItem currentItem = new JMenuItem("Bookmark [" + path + "]", favIcon);
             currentItem.addActionListener(actionEvent -> bookmarkPath(selectedPath));
             UiUtils.setEmptyBorder(currentItem);
             popupMenu.add(currentItem);
         } else {
             // remove current item
-            JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon("icon_trash.png", 15));
+            JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon("icon_trash.png", UiUtils.IMG_SIZE_SMALL));
             currentItem.addActionListener(actionEvent -> removeBookmark(selectedPath));
             UiUtils.setEmptyBorder(currentItem);
             popupMenu.add(currentItem);
         }
         popupMenu.addSeparator();
         // go to folder
-        JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon("icon_edit.png", 15));
+        JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon("icon_edit.png", UiUtils.IMG_SIZE_SMALL));
         goToItem.addActionListener(actionEvent -> handleGoToFolder());
         UiUtils.setEmptyBorder(goToItem);
         popupMenu.add(goToItem);
@@ -320,7 +320,7 @@ public class ExploreScreen extends BaseScreen {
             refreshUi();
             return;
         }
-        List<DeviceFile> selectedFiles = getSelectedFiles(true);
+        List<DeviceFile> selectedFiles = getSelectedFiles(true, false);
         if (log.isTraceEnabled()) log.trace("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
         if (selectedFiles.isEmpty()) return;
         DeviceFile selectedFile = selectedFiles.get(0);
@@ -388,7 +388,7 @@ public class ExploreScreen extends BaseScreen {
                 errorMessage = error;
                 boolean doRefresh = false;
                 if (useRoot && TextUtils.equals(error, DeviceManager.ERR_ROOT_NOT_AVAILABLE)) {
-                    JOptionPane.showMessageDialog(this, "ROOT not available!");
+                    DialogHelper.showDialog(this, null, "ROOT not available!");
                     toggleRoot();
                 } else if (TextUtils.equals(error, DeviceManager.ERR_NOT_A_DIRECTORY)) {
                     if (prevPathList.isEmpty() && TextUtils.equals(selectedPath, "/sdcard")) {
@@ -464,8 +464,7 @@ public class ExploreScreen extends BaseScreen {
         dialog.setAlwaysOnTop(true);
         String title = "Copy File(s)";
         String msg = "Copy " + stats.numTotal + " file(s) to " + selectedPath + "?";
-        int rc = JOptionPane.showConfirmDialog(dialog, msg, title, JOptionPane.YES_NO_OPTION);
-        if (rc != JOptionPane.YES_OPTION) return;
+        if (!DialogHelper.showConfirmDialog(dialog, title, msg)) return;
 
         deviceScreen.setDeviceBusy(device, true);
         DeviceManager deviceManager = DeviceManager.getInstance();
@@ -512,7 +511,7 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void refreshRootButton() {
-        ImageIcon icon = UiUtils.getImageIcon(useRoot ? "root_enabled.png" : "root.png", 40);
+        ImageIcon icon = UiUtils.getImageIcon(useRoot ? "root_enabled.png" : "root.png", UiUtils.IMG_SIZE_TOOLBAR);
         rootButton.setIcon(icon);
         rootButton.setToolTipText(useRoot ? "Disable root mode" : "Enable root mode");
     }
@@ -533,11 +532,8 @@ public class ExploreScreen extends BaseScreen {
 
     private void handleDownload() {
         if (!device.isOnline) return;
-        List<DeviceFile> selectedFileList = getSelectedFiles(false);
-        if (selectedFileList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<DeviceFile> selectedFileList = getSelectedFiles(false, true);
+        if (selectedFileList.isEmpty()) return;
 
         boolean isSingleFile = selectedFileList.size() == 1;
         String msg = isSingleFile ?
@@ -560,10 +556,7 @@ public class ExploreScreen extends BaseScreen {
             DeviceManager.getInstance().downloadFile(device, selectedPath, file, downloadFile, (isSuccess, error) -> {
                 if (isSuccess && isSingleFile) {
                     if (downloadFile.exists()) {
-                        int openRc = JOptionPane.showConfirmDialog(this,
-                                "Open " + downloadFile.getName() + "?",
-                                "Open File?", JOptionPane.YES_NO_OPTION);
-                        if (openRc != JOptionPane.YES_OPTION) return;
+                        if (!DialogHelper.showConfirmDialog(this, "Open File?", "Open " + downloadFile.getName() + "?")) return;
                         Utils.openFile(downloadFile);
                     }
                 }
@@ -573,15 +566,11 @@ public class ExploreScreen extends BaseScreen {
 
     private void handleDelete() {
         if (!device.isOnline) return;
-        List<DeviceFile> selectedFileList = getSelectedFiles(false);
-        if (selectedFileList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<DeviceFile> selectedFileList = getSelectedFiles(false, true);
+        if (selectedFileList.isEmpty()) return;
 
         StringBuilder sb = new StringBuilder();
-        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
-            DeviceFile file = iterator.next();
+        for (DeviceFile file : selectedFileList) {
             if (!sb.isEmpty()) sb.append('\n');
             sb.append(file.name);
         }
@@ -600,8 +589,7 @@ public class ExploreScreen extends BaseScreen {
         List<String> pathList = getFavoritePathList();
         JComboBox comboBox = new JComboBox(pathList.toArray(new String[]{}));
         comboBox.setEditable(true);
-        int rc = JOptionPane.showOptionDialog(this, comboBox, "Go to folder", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
-        if (rc != JOptionPane.YES_OPTION) return;
+        if (!DialogHelper.showCustomDialog(this, comboBox, "Go to folder", null)) return;
 
         Object selectedObj = comboBox.getSelectedItem();
         if (selectedObj == null) return;
@@ -618,15 +606,11 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void handleCopyPath() {
-        List<DeviceFile> selectedFileList = getSelectedFiles(false);
-        if (selectedFileList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<DeviceFile> selectedFileList = getSelectedFiles(false, true);
+        if (selectedFileList.isEmpty()) return;
 
         StringBuilder sb = new StringBuilder();
-        for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
-            DeviceFile file = iterator.next();
+        for (DeviceFile file : selectedFileList) {
             if (sb.length() > 0) sb.append('\n');
             sb.append(selectedPath + "/" + file.name);
         }
@@ -637,11 +621,8 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void handleCopyName() {
-        List<DeviceFile> selectedFileList = getSelectedFiles(false);
-        if (selectedFileList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<DeviceFile> selectedFileList = getSelectedFiles(false, true);
+        if (selectedFileList.isEmpty()) return;
 
         StringBuilder sb = new StringBuilder();
         for (Iterator<DeviceFile> iterator = selectedFileList.iterator(); iterator.hasNext(); ) {
@@ -655,7 +636,7 @@ public class ExploreScreen extends BaseScreen {
         clipboard.setContents(stringSelection, null);
     }
 
-    private List<DeviceFile> getSelectedFiles(boolean includeUpFolder) {
+    private List<DeviceFile> getSelectedFiles(boolean includeUpFolder, boolean showError) {
         List<DeviceFile> selectedDeviceList = new ArrayList<>();
         int[] selectedRows = table.getSelectedRows();
         for (int selectedRow : selectedRows) {
@@ -668,11 +649,10 @@ public class ExploreScreen extends BaseScreen {
                 selectedDeviceList.add(deviceFile);
             }
         }
+        if (showError && selectedDeviceList.isEmpty()) {
+            DialogHelper.showDialog(this, "No files selected", "Select 1 or more files to use this feature");
+        }
         return selectedDeviceList;
-    }
-
-    private void showSelectDevicesDialog() {
-        JOptionPane.showConfirmDialog(this, "Select 1 or more files to use this feature", "No files selected", JOptionPane.DEFAULT_OPTION);
     }
 
     private void filterDevices(String text) {

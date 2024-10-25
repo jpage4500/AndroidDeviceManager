@@ -9,7 +9,7 @@ DIR=$(pwd)
 
 function handleMacOSX() {
   if [[ -d /Applications/iTerm.app ]]; then
-      echo "iTerm.app installed"
+      echo "using iTerm"
       osascript <<END
       tell application "iTerm2"
           activate
@@ -23,7 +23,7 @@ function handleMacOSX() {
       end tell
 END
   else
-      echo "iTerm.app not installed"
+      echo "using Terminal"
       osascript <<END
       tell application "Terminal"
           activate

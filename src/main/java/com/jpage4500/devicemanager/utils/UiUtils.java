@@ -16,6 +16,11 @@ import java.net.URL;
 public class UiUtils {
     private static final Logger log = LoggerFactory.getLogger(UiUtils.class);
 
+    public static final int IMG_SIZE_SMALL = 15;
+    public static final int IMG_SIZE_ICON = 20;
+    public static final int IMG_SIZE_TOOLBAR = 40;
+    public static final int IMG_SIZE_TOOLBAR_SMALL = 20;
+
     public static BufferedImage getImage(String path, int size) {
         return getImage(path, size, size);
     }
@@ -119,7 +124,7 @@ public class UiUtils {
     public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, String iconName, ActionListener listener) {
         Icon icon = null;
         if (iconName != null) {
-            icon = getImageIcon(iconName, 15);
+            icon = getImageIcon(iconName, UiUtils.IMG_SIZE_SMALL);
         }
         JMenuItem menuItem = new JMenuItem(label, icon);
         menuItem.addActionListener(listener);

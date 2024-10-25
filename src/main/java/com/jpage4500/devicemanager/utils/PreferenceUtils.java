@@ -111,7 +111,11 @@ public class PreferenceUtils {
     }
 
     private static void setPreference(String key, String value) {
-        getPreferences().put(key, value);
+        if (value == null) {
+            getPreferences().remove(key);
+        } else {
+            getPreferences().put(key, value);
+        }
     }
 
     private static void setPreference(String key, boolean value) {

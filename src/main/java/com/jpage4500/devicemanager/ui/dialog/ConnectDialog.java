@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
+import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
@@ -35,9 +36,8 @@ public class ConnectDialog extends JPanel {
 
     public static void showConnectDialog(Component frame, DeviceManager.TaskListener listener) {
         ConnectDialog screen = new ConnectDialog();
-        Object[] choices = {"Connect", "Cancel"};
-        int rc = JOptionPane.showOptionDialog(frame, screen, "Connect to device", JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, choices, null);
-        if (rc != JOptionPane.YES_OPTION) return;
+        String[] choices = {"Connect", "Cancel"};
+        if (!DialogHelper.showCustomDialog(frame, screen, "Connect to device", choices)) return;
 
         String ip = screen.serverField.getText();
         int port;

@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.utils.ArrayUtils;
+import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -24,10 +25,8 @@ public class AddFilterDialog extends JPanel {
     public static LogFilter showAddFilterDialog(Component frame, LogFilter logFilter) {
         String okButton = logFilter == null ? "Save" : "Update";
         AddFilterDialog screen = new AddFilterDialog(logFilter);
-        int rc = JOptionPane.showOptionDialog(frame, screen, "Add Filter", JOptionPane.DEFAULT_OPTION,
-                JOptionPane.PLAIN_MESSAGE, null, new String[]{okButton, "Cancel"}, null);
-        if (rc != JOptionPane.YES_OPTION) return null;
-
+        String[] buttonArr = {okButton, "Cancel"};
+        DialogHelper.showCustomDialog(frame, screen, "Add Filter", buttonArr);
         // SAVE/UPDATE filter
 
         return screen.logFilter;
@@ -52,7 +51,7 @@ public class AddFilterDialog extends JPanel {
 
         // add/update filter
         JButton addButton = new JButton();
-        addButton.setIcon(UiUtils.getImageIcon("icon_add.png", 20));
+        addButton.setIcon(UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_ICON));
         addButton.addActionListener(e -> handleAddClicked());
         //add(addButton, "skip 3, wrap");
     }
@@ -67,9 +66,7 @@ public class AddFilterDialog extends JPanel {
         revalidate();
         repaint();
 
-        filterPanel.deleteButton.addActionListener(actionEvent -> {
-            deletePanel(filterPanel);
-        });
+        filterPanel.deleteButton.addActionListener(actionEvent -> deletePanel(filterPanel));
 
         panelList.add(filterPanel);
     }
@@ -108,7 +105,7 @@ public class AddFilterDialog extends JPanel {
             expressionComboBox.setSelectedIndex(exprIndex);
 
             deleteButton = new JButton();
-            deleteButton.setIcon(UiUtils.getImageIcon("icon_delete.png", 20));
+            deleteButton.setIcon(UiUtils.getImageIcon("icon_delete.png", UiUtils.IMG_SIZE_ICON));
 
             valueField = new HintTextField("Value", null);
         }

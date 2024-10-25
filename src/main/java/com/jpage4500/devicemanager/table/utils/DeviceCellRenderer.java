@@ -30,7 +30,7 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
         setOpaque(true);
         UiUtils.setEmptyBorder(this, 5, 5);
 
-        BufferedImage image = UiUtils.getImage("device_status.png", 20, 20);
+        BufferedImage image = UiUtils.getImage("device_status.png", UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON);
 
         BufferedImage offlineImage = UiUtils.replaceColor(image, Color.GRAY);
         statusOfflineIcon = new ImageIcon(offlineImage);
@@ -54,9 +54,9 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
         Icon icon = chargingIconMap.get(key);
         if (icon == null) {
             // create overlay icon
-            Icon levelIcon = UiUtils.getImageIcon(level, 20);
+            Icon levelIcon = UiUtils.getImageIcon(level, UiUtils.IMG_SIZE_ICON);
             if (isCharging) {
-                Icon chargingIcon = UiUtils.getImageIcon("charging.png", 20);
+                Icon chargingIcon = UiUtils.getImageIcon("charging.png", UiUtils.IMG_SIZE_ICON);
                 icon = new ComboIcon(levelIcon, chargingIcon);
             } else {
                 // use as-is

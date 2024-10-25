@@ -50,6 +50,10 @@ public class CheckBoxList extends JList {
         setListData(newList);
     }
 
+    public void removeAll() {
+        setListData(new JCheckBox[0]);
+    }
+
     /**
      * @return List of items that are selected (checked)
      */
