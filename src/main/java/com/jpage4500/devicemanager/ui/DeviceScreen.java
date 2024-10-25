@@ -1079,6 +1079,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                             setupToolbar();
                         });
                         popupMenu.add(hideItem);
+                        UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this));
                         popupMenu.show(e.getComponent(), e.getX(), e.getY());
                     }
                 }
@@ -1107,6 +1108,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                         SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
                         setupToolbar();
                     });
+                    UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this));
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
             }

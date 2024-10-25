@@ -41,7 +41,7 @@ public class SettingsDialog extends JPanel {
     private void initalizeUi() {
         addButton("Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
         addButton("Custom Apps", "EDIT", this::showAppsSettings);
-        addButton("Customize Toolbar", "EDIT", this::showManageToolbar);
+        addButton("Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen));
         addButton("Download Location", "EDIT", this::showDownloadLocation);
 
         addCheckbox("Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
@@ -199,7 +199,7 @@ public class SettingsDialog extends JPanel {
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenToolbarList));
     }
 
-    private void showManageToolbar() {
+    public static void showManageToolbar(DeviceScreen deviceScreen) {
         List<String> hiddenColList = getHiddenToolbarList();
         CheckBoxList checkBoxList = new CheckBoxList();
         DeviceScreen.ToolbarButton[] arr = DeviceScreen.ToolbarButton.values();
