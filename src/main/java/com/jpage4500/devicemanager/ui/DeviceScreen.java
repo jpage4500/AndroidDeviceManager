@@ -1366,18 +1366,23 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             // "/Users/USERNAME/Applications/Android Device Manager.app/Contents/MacOS/Client4JLauncher";
             jdeployPath = jdeployPath.substring(0, index);
         }
-        String divider = "--------------------------------------------------------";
-        String msg = String.format("Update %s Available\n\n%s\n%s\n%s", updateVersion, divider, updateDesc, divider);
+
+        JPanel panel = new JPanel(new MigLayout());
+        panel.add(new JLabel(String.format("Update %s Available", updateVersion)), "wrap");
+        JTextArea textArea = new JTextArea(updateDesc);
+        textArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        panel.add(scrollPane, "newline 20px, wrap");
         String yesOption;
         if (isJdeploy) {
-            msg += "\n\nRestart app?";
+            panel.add(new JLabel("Restart App?"), "newline 20px, wrap");
             yesOption = "Restart";
         } else {
-            msg += "\n\nView release in browser?";
+            panel.add(new JLabel("View release in browser?"), "newline 20px, wrap");
             yesOption = "View";
         }
         String[] choices = {yesOption, "Cancel"};
-        if (!DialogHelper.showOptionDialog(this, "Update Available", msg, choices)) return;
+        if (!DialogHelper.showCustomDialog(this, panel, "Update Available", choices)) return;
 
         if (isJdeploy) {
             // exit and restart app
