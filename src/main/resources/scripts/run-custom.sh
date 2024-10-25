@@ -1,13 +1,16 @@
 #!/bin/bash
 ###############################################################################
 # run custom script
-# ARG1: script name (full path)
-# ARG2-N: selected device serial numbers
+# ARG1: device serial
+# ARG2: script name (full path)
+# ARG3: download directory
 ###############################################################################
 
-SCRIPT=$1
+ADB_DEVICE=$1
+SCRIPT=$2
+DOWNLOAD_DIR=$3
 
 cd "$(/usr/bin/dirname $0)"
 source ./env-vars.sh
 
-${SCRIPT} "${@:2}"
+${SCRIPT} "${ADB_DEVICE}" "${DOWNLOAD_DIR}"

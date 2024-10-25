@@ -612,12 +612,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void handleCopyClipboardFieldCommand() {
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
-
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
         if (table.getSelectedColumn() < 0) return;
 
         StringBuilder sb = new StringBuilder();
@@ -633,11 +629,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void handleCopyClipboardCommand() {
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
 
         StringBuilder sb = new StringBuilder();
         for (Device device : selectedDeviceList) {
@@ -653,11 +646,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleTermCommand() {
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        } else if (selectedDeviceList.size() > 1) {
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
+
+        if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
             if (!DialogHelper.showConfirmDialog(this, "Open Terminal", "Open Terminal for " + selectedDeviceList.size() + " devices?")) return;
         }
@@ -683,11 +675,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     public void handleFilesDropped(List<File> fileList) {
         log.debug("handleFilesDropped: {}", fileList.size());
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
         installOrCopyFiles(selectedDeviceList, fileList, null);
     }
 
@@ -748,7 +737,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
      * uses "persist.dm.custom[number]" for key and prompts user for value
      */
     private void handleSetProperty(int number) {
-        List<Device> selectedDeviceList = getSelectedDevices();
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
         String customValue = "";
         String message;
         if (selectedDeviceList.size() == 1) {
@@ -793,11 +783,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleScreenshotCommand() {
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        } else if (selectedDeviceList.size() > 1) {
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
+        if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
             if (!DialogHelper.showConfirmDialog(this, "Screenshot", "Take screenshot of " + selectedDeviceList.size() + " devices?")) return;
         }
@@ -928,11 +916,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleMirrorCommand() {
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        } else if (selectedDeviceList.size() > 1) {
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
+        if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
             if (!DialogHelper.showConfirmDialog(this, "Mirror Device", "Mirror " + selectedDeviceList.size() + " devices?")) return;
         }
@@ -948,11 +934,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleRecordCommand() {
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        } else if (selectedDeviceList.size() > 1) {
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
             if (!DialogHelper.showConfirmDialog(this, "Record Device", "Record " + selectedDeviceList.size() + " devices?")) return;
         }
@@ -972,12 +955,18 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private Device getFirstSelectedDevice() {
-        List<Device> selectedDevices = getSelectedDevices();
+        List<Device> selectedDevices = getSelectedDevices(false);
         if (!selectedDevices.isEmpty()) return selectedDevices.get(0);
         else return null;
     }
 
-    private List<Device> getSelectedDevices() {
+    /**
+     * get list of selected devices
+     * NOTE: if no devices are selected but only 1 device, this will be returned
+     *
+     * @param showError - true to display error if nothing selected
+     */
+    private List<Device> getSelectedDevices(boolean showError) {
         List<Device> selectedDeviceList = new ArrayList<>();
         int[] selectedRows = table.getSelectedRows();
         for (int selectedRow : selectedRows) {
@@ -989,6 +978,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (selectedDeviceList.isEmpty() && model.getRowCount() == 1) {
             Device device = model.getDeviceAtRow(0);
             selectedDeviceList.add(device);
+        }
+        if (showError && selectedDeviceList.isEmpty()) {
+            showSelectDevicesDialog();
         }
         return selectedDeviceList;
     }
@@ -1148,7 +1140,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 JPopupMenu popupMenu = new JPopupMenu();
                 List<File> scriptList = getCustomScripts();
                 for (File script : scriptList) {
-                    String name = FileUtils.getNameNoExt(script);
+                    String name = FileUtils.getNameNoExt(script).replaceAll("_", " ");
                     JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon("icon_custom.png", UiUtils.IMG_SIZE_SMALL));
                     item.addActionListener(e2 -> handleCustomScriptClicked(script, name));
                     popupMenu.add(item);
@@ -1159,16 +1151,20 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleCustomScriptClicked(File script, String name) {
-        log.trace("loadCustomScripts: clicked: {}", name);
-        List<String> serialList = new ArrayList<>();
-        for (Device device : getSelectedDevices()) serialList.add(device.serial);
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
 
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), 1);
-        resultWatcher.setDesc("Running script \"" + name + "\" with " + serialList.size() + " device(s)");
-        DeviceManager.getInstance().runCustomScript((isSuccess, error) -> {
-            log.trace("mousePressed: DONE:{}, {}", isSuccess, error);
-            resultWatcher.handleResult(null, isSuccess, error);
-        }, script.getAbsolutePath(), serialList.toArray(new String[0]));
+        log.trace("handleCustomScriptClicked: {}, {}", name, script.getAbsolutePath());
+
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
+        for (Device device : selectedDeviceList) {
+            setDeviceBusy(device, true);
+            DeviceManager.getInstance().runCustomScript((isSuccess, error) -> {
+                log.trace("mousePressed: DONE:{}, {}", isSuccess, error);
+                setDeviceBusy(device, false);
+                resultWatcher.handleResult(device.serial, isSuccess, error);
+            }, script.getAbsolutePath(), device.serial);
+        }
     }
 
     private void handleSettingsClicked() {
@@ -1180,21 +1176,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleRunCustomCommand() {
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
 
         CommandDialog.showCommandDialog(this, selectedDeviceList);
     }
 
     private void handleRestartCommand() {
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
 
         // prompt to install/copy
         if (!DialogHelper.showConfirmDialog(this, "Restart", "Restart " + selectedDeviceList.size() + " device(s)?")) return;
@@ -1218,11 +1208,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleInstallCommand() {
-        List<Device> selectedDeviceList = getSelectedDevices();
-        if (selectedDeviceList.isEmpty()) {
-            showSelectDevicesDialog();
-            return;
-        }
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
 
         String downloadFolder = Utils.getDownloadFolder();
 
