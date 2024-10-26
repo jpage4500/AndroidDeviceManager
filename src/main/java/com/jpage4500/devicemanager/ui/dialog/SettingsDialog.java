@@ -204,6 +204,12 @@ public class SettingsDialog extends JPanel {
         CheckBoxList checkBoxList = new CheckBoxList();
         DeviceScreen.ToolbarButton[] arr = DeviceScreen.ToolbarButton.values();
         for (DeviceScreen.ToolbarButton val : arr) {
+            // prevent some buttons from being hidden
+            switch (val) {
+                case SETTINGS:
+                //case HIDDEN:
+                    continue;
+            }
             boolean isHidden = hiddenColList.contains(val.label);
             checkBoxList.addItem(val.label, !isHidden);
         }

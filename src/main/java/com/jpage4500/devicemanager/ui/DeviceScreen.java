@@ -810,9 +810,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             if (busyCounter > 0) return;
         }
 
+        // only update model on UI thread
         if (SwingUtilities.isEventDispatchThread()) {
             model.updateDevice(device);
-        } else SwingUtilities.invokeLater(() -> model.updateDevice(device));
+        } else SwingUtilities.invokeLater(() -> {
+            model.updateDevice(device);
+        });
     }
 
     private void handleConnectDevice() {
@@ -915,6 +918,24 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
+    private void handleCaptureLogs() {
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
+        if (selectedDeviceList.size() > 1) {
+            // prompt to open multiple devices at once
+            if (!DialogHelper.showConfirmDialog(this, "Capture Logs", "Capture " + selectedDeviceList.size() + " device logs?")) return;
+        }
+
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
+        for (Device device : selectedDeviceList) {
+            setDeviceBusy(device, true);
+            DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
+                setDeviceBusy(device, false);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
+            });
+        }
+    }
+
     private void handleMirrorCommand() {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
@@ -996,6 +1017,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         SCREENSHOT("icon_screenshot.png", "Screenshot", "Screenshot"),
         INSTALL("icon_install.png", "Install", "Install / Copy file"),
         TERMINAL("icon_terminal.png", "Terminal", "Open Terminal"),
+        //HIDDEN("icon_more.png", "More", "Hidden Toolbar Icons"),
         ADB("icon_adb.png", "ADB", "Run custom adb command"),
         SCRIPTS("icon_custom.png", "Scripts", "Run custom scripts"),
         FILTER(null, "Filter", "Filter devices..."),
@@ -1011,6 +1033,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             this.image = image;
             this.label = label;
             this.tooltip = tooltip;
+        }
+
+        public static ToolbarButton buttonFromLabel(String label) {
+            for (ToolbarButton button : values()) {
+                if (button.label.equals(label)) return button;
+            }
+            return null;
         }
     }
 
@@ -1081,6 +1110,71 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
         createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> handleSettingsClicked());
+
+        // add all hidden toolbar buttons
+/*
+        List<String> hiddenToolbarList = SettingsDialog.getHiddenToolbarList();
+        if (!hiddenToolbarList.isEmpty()) {
+            JButton moreButton = createToolbarButton(toolbar, ToolbarButton.HIDDEN, null);
+            moreButton.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    JPopupMenu popupMenu = new JPopupMenu();
+                    for (String hiddenItem : hiddenToolbarList) {
+                        ToolbarButton hiddenBtn = ToolbarButton.buttonFromLabel(hiddenItem);
+                        if (hiddenBtn == null) continue;
+                        JMenuItem item = new JMenuItem(hiddenBtn.label, UiUtils.getImageIcon(hiddenBtn.image, UiUtils.IMG_SIZE_SMALL));
+                        item.addActionListener(e2 -> {
+                            switch (hiddenBtn) {
+                                case CONNECT:
+                                    handleConnectDevice();
+                                    break;
+                                case BROWSE:
+                                    handleBrowseCommand(null);
+                                    break;
+                                case LOGS:
+                                    handleLogsCommand(null);
+                                    break;
+                                case INPUT:
+                                    handleInputCommand();
+                                    break;
+                                case MIRROR:
+                                    handleMirrorCommand();
+                                    break;
+                                case RECORD:
+                                    handleRecordCommand();
+                                    break;
+                                case SCREENSHOT:
+                                    handleScreenshotCommand();
+                                    break;
+                                case INSTALL:
+                                    handleInstallCommand();
+                                    break;
+                                case TERMINAL:
+                                    handleTermCommand();
+                                    break;
+                                case ADB:
+                                    handleRunCustomCommand();
+                                    break;
+                                case SCRIPTS:
+                                    handleRunCustomCommand();
+                                    break;
+                                case REFRESH:
+                                    refreshDevices();
+                                    break;
+                                case SETTINGS:
+                                    handleSettingsClicked();
+                                    break;
+                            }
+                        });
+                        popupMenu.add(item);
+                    }
+
+                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                }
+            });
+        }
+*/
     }
 
     protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {
@@ -1094,7 +1188,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         button.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (SwingUtilities.isRightMouseButton(e) && toolbarButton != ToolbarButton.SETTINGS) {
+                if (SwingUtilities.isRightMouseButton(e) && toolbarButton != ToolbarButton.SETTINGS /*&& toolbarButton != ToolbarButton.HIDDEN*/) {
                     JPopupMenu popupMenu = new JPopupMenu();
                     UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
                         SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
