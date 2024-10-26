@@ -207,7 +207,6 @@ public class SettingsDialog extends JPanel {
             // prevent some buttons from being hidden
             switch (val) {
                 case SETTINGS:
-                //case HIDDEN:
                     continue;
             }
             boolean isHidden = hiddenColList.contains(val.label);
