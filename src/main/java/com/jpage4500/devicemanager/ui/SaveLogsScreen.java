@@ -359,6 +359,7 @@ public class SaveLogsScreen extends BaseScreen {
 
     private void closeWindow() {
         log.trace("closeWindow");
+        stopLogging();
         saveFrameSize();
         deviceScreen.handleSaveLogsClosed();
         dispose();
