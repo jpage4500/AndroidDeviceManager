@@ -33,6 +33,8 @@ Java desktop app to manage multiple Android devices via adb
 <br>
 <img src="resources/screenshot-logs.jpg" width="600" alt="logs">
 <br>
+<img src="resources/screenshot-savelogs.jpg" width="600" alt="logs">
+<br>
 </details>
 
 ## Prerequisites
