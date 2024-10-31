@@ -221,7 +221,7 @@ public class ExploreScreen extends BaseScreen {
         });
 
         // [CMD + 3] = show logs
-        createCmdAction(windowMenu, DeviceScreen.SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> deviceScreen.handleLogsCommand(null));
+        createCmdAction(windowMenu, DeviceScreen.SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
 
         // [CMD + T] = hide toolbar
         createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
@@ -518,13 +518,8 @@ public class ExploreScreen extends BaseScreen {
 
     private void handleNewFolder() {
         if (!device.isOnline) return;
-        String result = (String) JOptionPane.showInputDialog(this,
-                "Enter Folder Name",
-                "New Folder",
-                JOptionPane.QUESTION_MESSAGE,
-                null,
-                null,
-                null);
+
+        String result = DialogHelper.showInputDialog(this, "New Folder", "Enter Folder Name", null);
         if (TextUtils.isEmpty(result)) return;
 
         DeviceManager.getInstance().createFolder(device, selectedPath + "/" + result, (isSuccess, error) -> refreshFiles());

@@ -69,7 +69,7 @@ public class DeviceManager {
     private final ScheduledExecutorService scheduledExecutorService;
     private ScheduledFuture<?> deviceRefreshRuture;
 
-    private final AtomicBoolean isLogging = new AtomicBoolean(false);
+    private final Map<String, AtomicBoolean> loggingStateMap = new HashMap<>();
 
     private JadbConnection connection;
 
@@ -257,7 +257,7 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             Timer timer = new Timer();
             // show device as 'busy'
-            device.busyCounter.incrementAndGet();
+            device.setBusy(true);
             listener.handleDeviceUpdated(device);
 
             // NOTE: if device just restarted, the initial fullRefresh will fail so try again next time
@@ -309,10 +309,10 @@ public class DeviceManager {
             } else {
                 if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: REFRESH:{}: {}", timer, GsonHelper.toJson(device));
             }
-            int busyCount = device.busyCounter.decrementAndGet();
-            if (busyCount == 0) listener.handleDeviceUpdated(device);
+            boolean isBusy = device.setBusy(false);
+            if (!isBusy) listener.handleDeviceUpdated(device);
 
-            // if devicce isn't fully booted yet, schedule another refresh
+            // if device isn't fully booted yet, schedule another refresh
             if (!device.isBooted) {
                 scheduledExecutorService.schedule(() -> {
                     log.trace("fetchDeviceDetails: try again for {}", device.getDisplayName());
@@ -964,11 +964,21 @@ public class DeviceManager {
         void handleProcessMap(Map<String, String> processMap);
     }
 
+    private AtomicBoolean getLoggingState(String serial, boolean createIfNotFound) {
+        AtomicBoolean loggingState = loggingStateMap.get(serial);
+        if (loggingState == null && createIfNotFound) {
+            loggingState = new AtomicBoolean(true);
+            loggingStateMap.put(serial, loggingState);
+        }
+        return loggingState;
+    }
+
     public void startLogging(Device device, Long startTime, DeviceLogListener listener) {
         stopLogging(device);
         commandExecutorService.submit(() -> {
-            log.debug("startLogging: {}", startTime);
-            isLogging.set(true);
+            log.debug("startLogging: {}, startTime:{}", device.serial, startTime);
+            AtomicBoolean loggingState = getLoggingState(device.serial, true);
+            loggingState.set(true);
             InputStream inputStream = null;
             try {
                 String[] args = new String[]{"-v", "threadtime"};
@@ -998,7 +1008,9 @@ public class DeviceManager {
                         lastUpdateMs = System.currentTimeMillis();
 
                         // check if logging is still running
-                        if (!isLogging.get()) break;
+                        if (!loggingState.get()) {
+                            loggingStateMap.remove(device.serial);
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -1020,7 +1032,7 @@ public class DeviceManager {
                 listener.handleProcessMap(pidMap);
             }
             // check if logging is still running and schedule next lookup
-            if (isLogging.get()) {
+            if (isLogging(device.serial)) {
                 scheduleNextProcessCheck(device, listener);
             }
         });
@@ -1028,12 +1040,12 @@ public class DeviceManager {
 
     private void scheduleNextProcessCheck(Device device, DeviceLogListener listener) {
         // make sure logging is still running
-        if (!isLogging.get()) return;
+        if (!isLogging(device.serial)) return;
 
         // run in 30 seconds
         scheduledExecutorService.schedule(() -> {
             // make sure logging is still running
-            if (!isLogging.get()) return;
+            if (!isLogging(device.serial)) return;
 
             Map<String, String> pidMap = getProcessMap(device);
             listener.handleProcessMap(pidMap);
@@ -1061,14 +1073,20 @@ public class DeviceManager {
     }
 
     public void stopLogging(Device device) {
-        if (isLogging.get()) {
-            log.debug("stopLogging: ");
-            isLogging.set(false);
+        AtomicBoolean loggingState = getLoggingState(device.serial, false);
+        if (loggingState != null && loggingState.get()) {
+            log.debug("stopLogging: {}", device.serial);
+            loggingState.set(false);
         }
     }
 
     public boolean isLogging(Device device) {
-        return isLogging.get();
+        return isLogging(device.serial);
+    }
+
+    private boolean isLogging(String serial) {
+        AtomicBoolean loggingState = getLoggingState(serial, false);
+        return loggingState != null && loggingState.get();
     }
 
     public void handleExit() {

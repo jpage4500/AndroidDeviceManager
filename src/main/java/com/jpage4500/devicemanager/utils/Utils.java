@@ -1,6 +1,5 @@
 package com.jpage4500.devicemanager.utils;
 
-import com.jpage4500.devicemanager.ui.ExploreScreen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,11 +9,12 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.text.DecimalFormat;
 import java.util.concurrent.TimeUnit;
-import java.util.prefs.Preferences;
 
 public class Utils {
     private static final Logger log = LoggerFactory.getLogger(Utils.class);
+    private static final DecimalFormat sizeDisplayFormat = new DecimalFormat("#,##0.#");
 
     public static boolean isWindows() {
         return TextUtils.containsIgnoreCase(System.getProperty("os.name"), "windows");
@@ -55,6 +55,7 @@ public class Utils {
     }
 
     public static boolean openFile(File outputfile) {
+        if (outputfile == null) return false;
         try {
             Desktop.getDesktop().open(outputfile);
             return true;
@@ -77,6 +78,19 @@ public class Utils {
             log.error("editFile: Exception: {}, {}", file.getAbsolutePath(), e.getMessage());
             return false;
         }
+    }
+
+    public static boolean openFolder(File file) {
+        try {
+            Desktop desktop = Desktop.getDesktop();
+            if (desktop.isSupported(Desktop.Action.BROWSE_FILE_DIR)) {
+                desktop.browseFileDirectory(file);
+                return true;
+            }
+        } catch (Exception e) {
+            log.error("openFolder: Exception: {}, {}", file.getAbsolutePath(), e.getMessage());
+        }
+        return false;
     }
 
     public static String getUserHomeFolder() {
@@ -208,6 +222,17 @@ public class Utils {
      */
     public static int getRandomNumber(int min, int max) {
         return min + (int) (Math.random() * ((max - min) + 1));
+    }
+
+    private static final String[] SIZE_UNITS = new String[]{"b", "k", "M", "GB", "TB"};
+
+    /**
+     * return string description of number of bytes (45k, 320b, 1.1M)
+     */
+    public static String bytesToDisplayString(long sizeInBytes) {
+        if (sizeInBytes <= 0) return String.valueOf(sizeInBytes);
+        int digitGroups = (int) (Math.log10(sizeInBytes) / Math.log10(1024));
+        return sizeDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + SIZE_UNITS[digitGroups];
     }
 
 }

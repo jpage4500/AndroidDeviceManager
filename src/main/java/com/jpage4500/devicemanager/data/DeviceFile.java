@@ -1,6 +1,5 @@
 package com.jpage4500.devicemanager.data;
 
-import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -49,7 +49,7 @@ public class Device {
 
     // counter of running tasks like mirroring a device; used to show a 'busy' icon
     @ExcludeFromSerialization
-    public AtomicInteger busyCounter = new AtomicInteger(0);
+    private final AtomicInteger busyCounter = new AtomicInteger(0);
 
     // last time device was seen (online or offline)
     public Long lastUpdateMs;
@@ -109,6 +109,27 @@ public class Device {
     public void setCustomProperty(String key, String value) {
         if (customPropertyMap == null) customPropertyMap = new HashMap<>();
         customPropertyMap.put(key, value);
+    }
+
+    public boolean isBusy() {
+        return busyCounter.get() > 0;
+    }
+
+    /**
+     * set device to BUSY state
+     *
+     * @return true if device is BUSY
+     */
+    public boolean setBusy(boolean isBusy) {
+        int newValue;
+        if (isBusy) newValue = busyCounter.incrementAndGet();
+        else newValue = busyCounter.decrementAndGet();
+        // safety-check
+        if (newValue < 0) {
+            newValue = 0;
+            busyCounter.set(0);
+        }
+        return newValue > 0;
     }
 
     @Override

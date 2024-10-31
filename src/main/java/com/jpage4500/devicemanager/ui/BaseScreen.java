@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,14 +53,14 @@ public class BaseScreen extends JFrame {
         });
 
         // TODO: handle window resizing
-        //if (PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE)) {
-        //    addComponentListener(new ComponentAdapter() {
-        //        @Override
-        //        public void componentResized(ComponentEvent componentEvent) {
-        //            log.trace("componentResized: {}: W:{}, H:{}", prefKey, getWidth(), getHeight());
-        //        }
-        //    });
-        //}
+        if (PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE)) {
+            addComponentListener(new ComponentAdapter() {
+                @Override
+                public void componentResized(ComponentEvent componentEvent) {
+                    log.trace("componentResized: {}: W:{}, H:{}", prefKey, getWidth(), getHeight());
+                }
+            });
+        }
 
         // NOTE: this breaks dragging the scrollbar on Mac
         // getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);
@@ -163,6 +164,7 @@ public class BaseScreen extends JFrame {
     protected void saveFrameSize() {
         Preferences prefs = Preferences.userRoot();
         Rectangle rect = getBounds();
+        log.trace("saveFrameSize: {}, w:{}, h:{}", prefKey, rect.width, rect.height);
         prefs.put(prefKey, GsonHelper.toJson(rect));
     }
 

@@ -95,6 +95,31 @@ public class FileUtils {
         return name.substring(0, i);
     }
 
+    public static void writeToFile(File file, boolean append, String text) {
+        try {
+            FileOutputStream fos = new FileOutputStream(file, append);
+            OutputStreamWriter writer = new OutputStreamWriter(fos);
+            writer.write(text);
+            writer.close();
+        } catch (Exception e) {
+            log.error("writeToFile: {}, {}", file.getAbsolutePath(), e.getMessage());
+        }
+    }
+
+    public static void deleteFolder(File folder) {
+        if (folder == null) return;
+        else if (folder.isDirectory()) {
+            for (File file : folder.listFiles()) {
+                deleteFolder(file);
+            }
+            boolean isOk = folder.delete();
+            log.trace("deleteFolder: FOLDER: {} -> {}", isOk, folder.getAbsolutePath());
+        } else {
+            boolean isOk = folder.delete();
+            log.trace("deleteFolder: FILE: {} -> {}", isOk, folder.getAbsolutePath());
+        }
+    }
+
     public static class FileStats {
         public int numTotal;
         public int numFiles;
