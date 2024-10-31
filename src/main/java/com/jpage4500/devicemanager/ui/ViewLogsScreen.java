@@ -34,8 +34,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * create and manage device view
  */
-public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogListener {
-    private static final Logger log = LoggerFactory.getLogger(LogsScreen.class);
+public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLogListener {
+    private static final Logger log = LoggerFactory.getLogger(ViewLogsScreen.class);
 
     private static final String HINT_FILTER = "Filter...";
     private static final String HINT_SEARCH = "Search...";
@@ -62,7 +62,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
 
-    public LogsScreen(DeviceScreen deviceScreen, Device device) {
+    public ViewLogsScreen(DeviceScreen deviceScreen, Device device) {
         super("logs-" + device.serial, 1100, 800);
         this.deviceScreen = deviceScreen;
         this.device = device;
@@ -488,6 +488,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
     }
 
     private void stopLogging() {
+        deviceScreen.setDeviceBusy(device, false);
         DeviceManager.getInstance().stopLogging(device);
     }
 
@@ -499,6 +500,7 @@ public class LogsScreen extends BaseScreen implements DeviceManager.DeviceLogLis
                 // - can speed up initial launch
                 startTime = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(2);
             }
+            deviceScreen.setDeviceBusy(device, true);
             DeviceManager.getInstance().startLogging(device, startTime, this);
         }
     }

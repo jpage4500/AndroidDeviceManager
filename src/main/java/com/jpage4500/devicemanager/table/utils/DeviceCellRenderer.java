@@ -96,7 +96,7 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
                     align = SwingConstants.RIGHT;
                     break;
                 case NAME:
-                    if (device.busyCounter.get() > 0) {
+                    if (device.isBusy()) {
                         icon = statusBusyIcon;
                     } else if (device.isOnline) {
                         if (!device.isBooted) icon = statusNotReadyIcon;

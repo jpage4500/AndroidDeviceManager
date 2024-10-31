@@ -74,8 +74,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     // open windows (per device)
     private final Map<String, ExploreScreen> exploreViewMap = new HashMap<>();
-    private final Map<String, LogsScreen> logsViewMap = new HashMap<>();
+    private final Map<String, ViewLogsScreen> logsViewMap = new HashMap<>();
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
+    private SaveLogsScreen saveLogsScreen;
 
     public DeviceScreen() {
         super("main", 900, 300);
@@ -169,10 +170,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         saveFrameSize();
         table.saveTable();
 
-        // save positions/sizes of any other open windows (only save position of
+        // save positions/sizes of any other open windows
+        // NOTE: only saving FIRST open window position
         if (!exploreViewMap.isEmpty()) (exploreViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
         if (!logsViewMap.isEmpty()) (logsViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
         if (!inputViewMap.isEmpty()) (inputViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
+        if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(WindowState.CLOSED);
 
         DeviceManager.getInstance().handleExit();
 
@@ -228,7 +231,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         createCmdAction(windowMenu, SHOW_BROWSE, KeyEvent.VK_2, e -> handleBrowseCommand(null));
 
         // [CMD + 3] = show logs
-        createCmdAction(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleLogsCommand(null));
+        createCmdAction(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleViewLogsCommand(null));
 
         // [CMD + ,] = settings
         createCmdAction(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> handleSettingsClicked());
@@ -488,11 +491,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     @Override
     public void handleException(Exception e) {
         SwingUtilities.invokeLater(() -> {
-            Object[] choices = {"Retry", "Cancel"};
-            int rc = JOptionPane.showOptionDialog(DeviceScreen.this,
-                    "Unable to connect to ADB server. Please check that it's running and re-try"
-                    , "ADB Server", JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, choices, null);
-            if (rc != JOptionPane.YES_OPTION) return;
+            String[] choices = {"Retry", "Cancel"};
+            if (!DialogHelper.showOptionDialog(DeviceScreen.this, "ADB Server",
+                    "Unable to connect to ADB server. Please check that it's running and re-try", choices)) return;
 
             connectAdbServer();
         });
@@ -519,11 +520,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         ExploreScreen exploreScreen = exploreViewMap.get(device.serial);
         if (exploreScreen != null) exploreScreen.updateDeviceState();
 
-        LogsScreen logsScreen = logsViewMap.get(device.serial);
+        ViewLogsScreen logsScreen = logsViewMap.get(device.serial);
         if (logsScreen != null) logsScreen.updateDeviceState();
 
         InputScreen inputScreen = inputViewMap.get(device.serial);
         if (inputScreen != null) inputScreen.updateDeviceState();
+
+        if (saveLogsScreen != null) saveLogsScreen.updateDeviceState();
     }
 
     private void refreshUi() {
@@ -576,7 +579,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         });
         item.addButton("Logs", actionEvent -> {
             trayPopupMenu.setVisible(false);
-            handleLogsCommand(device);
+            handleViewLogsCommand(device);
         });
         item.addActionListener(e2 -> {
             trayPopupMenu.setVisible(false);
@@ -749,13 +752,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             message = "Enter Custom Note for " + selectedDeviceList.size() + " devices";
         }
 
-        String result = (String) JOptionPane.showInputDialog(this,
-                message,
-                "Custom Note (" + number + ")",
-                JOptionPane.QUESTION_MESSAGE,
-                null,
-                null,
-                customValue);
+        String result = DialogHelper.showInputDialog(this, "Custom Note (" + number + ")", message, customValue);
         // allow empty input to go through (clear current value)
         if (result == null) return;
 
@@ -800,19 +797,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     public void setDeviceBusy(Device device, boolean isBusy) {
-        if (isBusy) {
-            int busyCounter = device.busyCounter.incrementAndGet();
-            // check if already busy (ie: no change)
-            if (busyCounter > 1) return;
-        } else {
-            int busyCounter = device.busyCounter.decrementAndGet();
-            // check if still busy (ie: no change)
-            if (busyCounter > 0) return;
-        }
+        device.setBusy(isBusy);
 
+        // only update model on UI thread
         if (SwingUtilities.isEventDispatchThread()) {
             model.updateDevice(device);
-        } else SwingUtilities.invokeLater(() -> model.updateDevice(device));
+        } else SwingUtilities.invokeLater(() -> {
+            model.updateDevice(device);
+        });
     }
 
     private void handleConnectDevice() {
@@ -915,6 +907,24 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
+    private void handleCaptureLogs() {
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
+        if (selectedDeviceList.size() > 1) {
+            // prompt to open multiple devices at once
+            if (!DialogHelper.showConfirmDialog(this, "Capture Logs", "Capture " + selectedDeviceList.size() + " device logs?")) return;
+        }
+
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
+        for (Device device : selectedDeviceList) {
+            setDeviceBusy(device, true);
+            DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
+                setDeviceBusy(device, false);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
+            });
+        }
+    }
+
     private void handleMirrorCommand() {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
@@ -989,7 +999,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public enum ToolbarButton {
         CONNECT("icon_add.png", "Connect", "Connect Device"),
         BROWSE("icon_browse.png", "Browse", "File Explorer"),
-        LOGS("icon_logs.png", "Logs", "Log Viewer"),
+        LOGS("icon_logs.png", "View Logs", "Log Viewer"),
+        SAVE_LOGS("icon_save.png", "Save Logs", "Save Logs to Disk"),
         INPUT("keyboard.png", "Input", "Enter text"),
         MIRROR("icon_scrcpy.png", "Mirror", "Mirror Device (scrcpy)"),
         RECORD("record.png", "Record", "Record Device (scrcpy)"),
@@ -1012,6 +1023,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             this.label = label;
             this.tooltip = tooltip;
         }
+
+        public static ToolbarButton buttonFromLabel(String label) {
+            for (ToolbarButton button : values()) {
+                if (button.label.equals(label)) return button;
+            }
+            return null;
+        }
     }
 
     public void setupToolbar() {
@@ -1028,11 +1046,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         JButton browseBtn = createToolbarButton(toolbar, ToolbarButton.BROWSE, actionEvent -> handleBrowseCommand(null));
 
-        JButton logsBtn = createToolbarButton(toolbar, ToolbarButton.LOGS, actionEvent -> handleLogsCommand(null));
+        JButton viewLogsBtn = createToolbarButton(toolbar, ToolbarButton.LOGS, actionEvent -> handleViewLogsCommand(null));
+
+        JButton saveLogsBtn = createToolbarButton(toolbar, ToolbarButton.SAVE_LOGS, actionEvent -> handleSaveLogsCommand());
 
         JButton inputBtn = createToolbarButton(toolbar, ToolbarButton.INPUT, actionEvent -> handleInputCommand());
 
-        if (browseBtn != null || logsBtn != null || inputBtn != null) toolbar.addSeparator();
+        if (browseBtn != null || viewLogsBtn != null || inputBtn != null || saveLogsBtn != null) toolbar.addSeparator();
 
         JButton mirrorBtn = createToolbarButton(toolbar, ToolbarButton.MIRROR, actionEvent -> handleMirrorCommand());
 
@@ -1081,6 +1101,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
         createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> handleSettingsClicked());
+
     }
 
     protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {
@@ -1255,17 +1276,34 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         inputViewMap.remove(serial);
     }
 
-    public void handleLogsCommand(Device selectedDevice) {
+    public void handleSaveLogsClosed() {
+        if (saveLogsScreen != null) {
+            saveLogsScreen = null;
+        }
+    }
+
+    public void handleViewLogsCommand(Device selectedDevice) {
         if (selectedDevice == null) selectedDevice = getFirstSelectedDevice();
         if (selectedDevice == null) return;
 
-        LogsScreen logsScreen = logsViewMap.get(selectedDevice.serial);
+        ViewLogsScreen logsScreen = logsViewMap.get(selectedDevice.serial);
         if (logsScreen == null) {
             if (!selectedDevice.isOnline) return;
-            logsScreen = new LogsScreen(this, selectedDevice);
+            logsScreen = new ViewLogsScreen(this, selectedDevice);
             logsViewMap.put(selectedDevice.serial, logsScreen);
         }
         logsScreen.show();
+    }
+
+    private void handleSaveLogsCommand() {
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
+
+        if (saveLogsScreen == null) {
+            saveLogsScreen = new SaveLogsScreen(this);
+        }
+        saveLogsScreen.setDeviceList(selectedDeviceList);
+        saveLogsScreen.show();
     }
 
     private interface UpdateListener {

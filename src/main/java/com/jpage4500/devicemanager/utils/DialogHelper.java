@@ -1,8 +1,6 @@
 package com.jpage4500.devicemanager.utils;
 
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
-import com.jpage4500.devicemanager.ui.DeviceScreen;
-import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -44,8 +42,7 @@ public class DialogHelper {
      * @return true if YES is selected
      */
     public static boolean showOptionDialog(Component component, String title, String text, String[] buttons) {
-        int rc = JOptionPane.showOptionDialog(component,
-                text, title, JOptionPane.DEFAULT_OPTION,
+        int rc = JOptionPane.showOptionDialog(component, text, title, JOptionPane.DEFAULT_OPTION,
                 JOptionPane.QUESTION_MESSAGE, null, buttons, null);
         return (rc == JOptionPane.YES_OPTION);
     }
@@ -63,6 +60,12 @@ public class DialogHelper {
         int rc = JOptionPane.showOptionDialog(frame, component, title, JOptionPane.DEFAULT_OPTION,
                 JOptionPane.PLAIN_MESSAGE, null, buttonArr, null);
         return (rc == JOptionPane.YES_OPTION);
+    }
+
+    public static String showInputDialog(Component component, String title, String text, String defaultValue) {
+        String result = (String) JOptionPane.showInputDialog(component, text, title,
+                JOptionPane.QUESTION_MESSAGE, null, null, defaultValue);
+        return result;
     }
 
     public interface DoubleClickListener {
@@ -125,7 +128,7 @@ public class DialogHelper {
 
         HintTextField filter = new HintTextField("Filter", text -> filterList(listModel, keyValueMap, text));
         panel.add(filter, "width 25%, wrap");
-        filter.addAncestorListener(new RequestFocusListener());
+        //filter.addAncestorListener(new RequestFocusListener());
 
         JScrollPane scroll = new JScrollPane(list, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
         panel.add(scroll, "width " + (Utils.getScreenWidth() / 2) + "px");

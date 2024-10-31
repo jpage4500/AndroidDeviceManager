@@ -24,6 +24,8 @@ public class PreferenceUtils {
         PREF_RECENT_MESSAGE_FILTER,
         PREF_MESSAGE_FILTERS,
         PREF_HIDDEN_TOOLBAR_ITEMS,
+        PREF_SAVE_LOGS_TAG_FILTER,              // save logs: TAG filter
+        PREF_SAVE_LOGS_MSG_FILTER,              // save logs: MESSAGE filter
     }
 
     /**
