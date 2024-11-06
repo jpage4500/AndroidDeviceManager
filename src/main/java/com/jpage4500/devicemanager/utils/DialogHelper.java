@@ -151,4 +151,27 @@ public class DialogHelper {
             }
         }
     }
+
+    /**
+     * create JButton for use in JOptionPane dialog;
+     * example - can be dynamically enabled/disabled
+     */
+    public static JButton createDialogButton(String text) {
+        JButton button = new JButton(text);
+        button.addActionListener(e -> {
+            JOptionPane pane = DialogHelper.getOptionPane((JComponent) e.getSource());
+            if (pane != null) pane.setValue(button);
+        });
+        return button;
+    }
+
+    public static JOptionPane getOptionPane(JComponent parent) {
+        if (parent == null) return null;
+        if (!(parent instanceof JOptionPane)) {
+            return getOptionPane((JComponent) parent.getParent());
+        } else {
+            return (JOptionPane) parent;
+        }
+    }
+
 }

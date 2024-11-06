@@ -9,7 +9,7 @@ public class AlternatingBackgroundColorRenderer extends DefaultListCellRenderer 
     public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
         super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
         if (isSelected) {
-            setBackground(list.hasFocus() ? Color.BLUE : new Color(0, 81, 255, 108));
+            setBackground(list.hasFocus() ? Color.BLUE : Colors.COLOR_LIST_SELECTED_NO_FOCUS);
             setForeground(Color.WHITE);
         } else {
             setForeground(Color.BLACK);

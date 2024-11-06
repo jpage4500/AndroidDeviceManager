@@ -48,22 +48,7 @@ public class HintTextField extends JTextField implements KeyListener {
             }
         });
 
-        getDocument().addDocumentListener(
-                new DocumentListener() {
-                    @Override
-                    public void insertUpdate(DocumentEvent documentEvent) {
-                        if (listener != null) listener.textChanged(getCleanText());
-                    }
-
-                    @Override
-                    public void removeUpdate(DocumentEvent documentEvent) {
-                        if (listener != null) listener.textChanged(getCleanText());
-                    }
-
-                    @Override
-                    public void changedUpdate(DocumentEvent documentEvent) {
-                    }
-                });
+        addTextListener(listener);
 
         addKeyListener(new KeyAdapter() {
             @Override
@@ -87,6 +72,26 @@ public class HintTextField extends JTextField implements KeyListener {
                 super.keyReleased(e);
             }
         });
+    }
+
+    public void addTextListener(TextListener listener) {
+        if (listener == null) return;
+        getDocument().addDocumentListener(
+                new DocumentListener() {
+                    @Override
+                    public void insertUpdate(DocumentEvent documentEvent) {
+                        listener.textChanged(getCleanText());
+                    }
+
+                    @Override
+                    public void removeUpdate(DocumentEvent documentEvent) {
+                        listener.textChanged(getCleanText());
+                    }
+
+                    @Override
+                    public void changedUpdate(DocumentEvent documentEvent) {
+                    }
+                });
     }
 
     /**

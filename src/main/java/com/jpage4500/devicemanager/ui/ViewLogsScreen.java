@@ -1,11 +1,12 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.FilterItem;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.data.LogFilter;
+import com.jpage4500.devicemanager.data.LogFilterEntry;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.LogsTableModel;
+import com.jpage4500.devicemanager.table.utils.LogFilterRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
@@ -13,10 +14,7 @@ import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.TextUtils;
-import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,9 +24,8 @@ import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -53,8 +50,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     // filter logs
     private HintTextField filterField;
-    private JList<FilterItem> filterList;
-    private int numSystemFilters;
+    private JList<LogFilter> filterList;
 
     private LogsRowSorter sorter;
     private MessageViewScreen viewScreen;
@@ -98,7 +94,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         JPanel leftPanel = new JPanel(new BorderLayout());
 
         // -- filter text --
-        filterField = new HintTextField(HINT_FILTER, this::filterDevices);
+        filterField = new HintTextField(HINT_FILTER, this::doFilter);
         leftPanel.add(filterField, BorderLayout.NORTH);
 
         // -- filter list --
@@ -139,11 +135,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // restore previous filter
         String recentFilterText = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_RECENT_MESSAGE_FILTER);
         filterField.setText(recentFilterText);
-    }
-
-    private void handleAddFilterClicked(ActionEvent actionEvent) {
-        // TODO...
-        AddFilterDialog.showAddFilterDialog(this, null);
     }
 
     @Override
@@ -411,6 +402,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 }
             }
         });
+
+        searchField.setupSearch(table);
     }
 
     private void handleCopyMessageClicked() {
@@ -574,12 +567,14 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         } else {
             model.setSearchText(text);
         }
+        refreshUi();
     }
 
     private void setupFilterList() {
         populateFilters();
         filterList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        filterList.addListSelectionListener(e -> filterDevices(filterField.getCleanText()));
+        filterList.setCellRenderer(new LogFilterRenderer());
+        filterList.addListSelectionListener(e -> handleFilterSelected());
         filterList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -591,65 +586,170 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                     // select item
                     filterList.setSelectedIndex(i);
 
-                    // only show popup menu for user filters
-                    if (i < numSystemFilters) return;
+                    LogFilter selectedFilter = filterList.getSelectedValue();
+                    if (selectedFilter.isSystemFilter) return;
 
                     JPopupMenu popupMenu = new JPopupMenu();
-                    UiUtils.addPopupMenuItem(popupMenu, "Edit Filter", actionEvent -> handleEditFilterClicked());
-                    UiUtils.addPopupMenuItem(popupMenu, "Delete Filter", actionEvent -> handleDeleteFilterClicked());
+                    UiUtils.addPopupMenuItem(popupMenu, "Edit Filter", actionEvent -> handleEditFilterClicked(selectedFilter));
+                    UiUtils.addPopupMenuItem(popupMenu, "Duplicate Filter", actionEvent -> handleCopyFilterClicked(selectedFilter));
+                    UiUtils.addPopupMenuItem(popupMenu, "Delete Filter", actionEvent -> handleDeleteFilterClicked(selectedFilter));
+                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
         });
     }
 
     private void populateFilters() {
-        List<FilterItem> filterItemList = new ArrayList<>();
-        // -- system filteres --
-        addLogLevel(filterItemList, "All Messages", null);
-        addLogLevel(filterItemList, "Log Level Debug+", "level:D+");
-        addLogLevel(filterItemList, "Log Level Info+", "level:I+");
-        addLogLevel(filterItemList, "Log Level Warn+", "level:W+");
-        addLogLevel(filterItemList, "Log Level Error+", "level:E");
-        numSystemFilters = filterItemList.size();
+        List<LogFilter> selectedList = filterList.getSelectedValuesList();
+
+        List<LogFilter> logFilterList = new ArrayList<>();
+        // -- system filters --
+        logFilterList.add(createFilter("All Messages", null));
+        logFilterList.add(createFilter("Log Level Debug+", "level:D+"));
+        logFilterList.add(createFilter("Log Level Info+", "level:I+"));
+        logFilterList.add(createFilter("Log Level Warn+", "level:W+"));
+        logFilterList.add(createFilter("Log Level Error+", "level:E"));
+        logFilterList.add(createFilter(null, null));
 
         // -- user filters --
-        String filterStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS);
-        List<FilterItem> userFilterList = GsonHelper.stringToList(filterStr, FilterItem.class);
+        List<LogFilter> userFilterList = getFilters();
         // sort A-Z (name)
         userFilterList.sort((lhs, rhs) -> TextUtils.compareToIgnoreCase(lhs.name, rhs.name));
+        logFilterList.addAll(userFilterList);
+        // replace all filters
+        filterList.setListData(logFilterList.toArray(new LogFilter[0]));
 
-        filterItemList.addAll(userFilterList);
-        filterList.setListData(filterItemList.toArray(new FilterItem[0]));
+        // re-select previously selected filters
+        if (!logFilterList.isEmpty()) {
+            List<Integer> selectedIndexList = new ArrayList<>();
+            for (int i = 0; i < logFilterList.size(); i++) {
+                LogFilter filter = logFilterList.get(i);
+                for (LogFilter prevSelectedFilter : selectedList) {
+                    if (TextUtils.equals(prevSelectedFilter.name, filter.name)) {
+                        selectedIndexList.add(i);
+                        break;
+                    }
+                }
+            }
+            int[] indexArr = selectedIndexList.stream()
+                    .filter(Objects::nonNull)
+                    .mapToInt(Integer::intValue)
+                    .toArray();
+            log.trace("populateFilters: select:{}", GsonHelper.toJson(indexArr));
+            filterList.setSelectedIndices(indexArr);
+        }
     }
 
-    private void handleDeleteFilterClicked() {
-
+    private void selectFilter(LogFilter filter) {
+        ListModel<LogFilter> listModel = filterList.getModel();
+        for (int i = 0; i < listModel.getSize(); i++) {
+            LogFilter value = listModel.getElementAt(i);
+            if (TextUtils.equals(value.name, filter.name)) {
+                filterList.setSelectedIndex(i);
+                break;
+            }
+        }
     }
 
-    private void handleEditFilterClicked() {
-
+    /**
+     * remove filter by name from filter list
+     *
+     * @param userFilterList - may be null
+     * @param filter         - filter to remove
+     */
+    private void removeFilter(List<LogFilter> userFilterList, LogFilter filter) {
+        if (userFilterList == null) userFilterList = getFilters();
+        for (Iterator<LogFilter> iterator = userFilterList.iterator(); iterator.hasNext(); ) {
+            LogFilter userFilter = iterator.next();
+            if (TextUtils.equals(userFilter.name, filter.name)) {
+                log.trace("removeFilter: REMOVE: {}", filter);
+                iterator.remove();
+                break;
+            }
+        }
     }
 
-    private void addLogLevel(List<FilterItem> filterItemList, String label, String filter) {
-        FilterItem item = new FilterItem();
+    private List<LogFilter> getFilters() {
+        String filterStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS);
+        return GsonHelper.stringToList(filterStr, LogFilter.class);
+    }
+
+    private void handleAddFilterClicked(ActionEvent actionEvent) {
+        LogFilter filter = AddFilterDialog.showAddFilterDialog(this, null);
+        if (filter != null) {
+            addFilter(null, filter);
+        }
+    }
+
+    private void addFilter(List<LogFilter> userFilterList, LogFilter filter) {
+        if (userFilterList == null) userFilterList = getFilters();
+        userFilterList.add(filter);
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS, GsonHelper.toJson(userFilterList));
+        populateFilters();
+        selectFilter(filter);
+    }
+
+    private void handleFilterSelected() {
+        doFilter(filterField.getCleanText());
+    }
+
+    private void handleCopyFilterClicked(LogFilter selectedFilter) {
+        LogFilter copy = new LogFilter(selectedFilter);
+        addFilter(null, copy);
+        handleEditFilterClicked(copy);
+    }
+
+    private void handleEditFilterClicked(LogFilter selectedFilter) {
+        LogFilter filter = AddFilterDialog.showAddFilterDialog(this, selectedFilter);
+        if (filter != null) {
+            List<LogFilter> userFilterList = getFilters();
+            removeFilter(userFilterList, selectedFilter);
+            addFilter(userFilterList, filter);
+        }
+    }
+
+    private void handleDeleteFilterClicked(LogFilter selectedFilter) {
+        String msg = String.format("Delete Filter \"%s\"?", selectedFilter.name);
+        boolean isYes = DialogHelper.showConfirmDialog(this, "Delete Filter", msg);
+        if (isYes) {
+            List<LogFilter> userFilterList = getFilters();
+            for (Iterator<LogFilter> iterator = userFilterList.iterator(); iterator.hasNext(); ) {
+                LogFilter userFilter = iterator.next();
+                if (TextUtils.equals(userFilter.name, selectedFilter.name)) {
+                    iterator.remove();
+                    break;
+                }
+            }
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS, GsonHelper.toJson(userFilterList));
+            populateFilters();
+        }
+    }
+
+    private LogFilter createFilter(String label, String filter) {
+        LogFilter item = LogFilter.parse(filter);
         item.name = label;
-        item.filter = LogFilter.parse(filter);
-        log.debug("addLogLevel: {}, {}", label, item.filter);
-        filterItemList.add(item);
+        item.isSystemFilter = true;
+        log.trace("addLogLevel: {}, {}", label, filter);
+        return item;
     }
 
-    private void filterDevices(String text) {
+    private void doFilter(String text) {
         List<LogFilter> list = new ArrayList<>();
 
-        // get currently selected filter
-        List<FilterItem> selectedList = filterList.getSelectedValuesList();
+        // add currently selected filter(s)
+        List<LogFilter> selectedList = filterList.getSelectedValuesList();
         StringBuilder sb = new StringBuilder();
-        for (FilterItem item : selectedList) {
-            if (item.filter != null) list.add(item.filter);
-            if (!sb.isEmpty()) sb.append(" && ");
-            sb.append(item.name);
+        for (LogFilter item : selectedList) {
+            if (item.filterList != null) {
+                list.add(item);
+                for (LogFilterEntry expression : item.filterList) {
+                    if (!sb.isEmpty()) sb.append(" && ");
+                    sb.append(expression);
+                }
+            }
         }
 
+        // add custom text filter
         if (TextUtils.notEmpty(text)) {
             LogFilter searchFilter;
             if (TextUtils.indexOf(text, ':') >= 0) {
@@ -657,17 +757,17 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             } else {
                 searchFilter = LogFilter.parse("*:*" + text + "*");
             }
-            log.debug("filterDevices: {}", searchFilter);
+            //log.trace("filterDevices: {}", searchFilter);
             list.add(searchFilter);
             if (!sb.isEmpty()) sb.append(" && ");
-            sb.append(text);
+            sb.append("\"" + text + "\"");
         }
 
         sorter.setFilter(list.toArray(new LogFilter[0]));
 
-        // TODO: set label
         statusBar.setCenterLabel(sb.toString());
         model.fireTableDataChanged();
+        refreshUi();
     }
 
     @Override
