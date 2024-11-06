@@ -44,13 +44,14 @@ public class LogFilter {
 
     @Override
     public String toString() {
-        if (filterList == null) return "null";
         StringBuilder sb = new StringBuilder();
-        for (LogFilterEntry expression : filterList) {
-            if (!sb.isEmpty()) sb.append(" && ");
-            sb.append(expression);
+        if (filterList != null) {
+            for (LogFilterEntry expression : filterList) {
+                if (!sb.isEmpty()) sb.append(" && ");
+                sb.append(expression);
+            }
         }
-        return sb.toString();
+        return name + " -> " + sb;
     }
 
     public static LogFilter parse(String filterText) {

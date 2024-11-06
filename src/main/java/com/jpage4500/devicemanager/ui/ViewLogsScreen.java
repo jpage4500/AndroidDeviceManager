@@ -57,6 +57,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
+    public JButton quickViewButton;
+    public boolean isQuickViewEnabled; // true when user clicks on 'quick view'
 
     public ViewLogsScreen(DeviceScreen deviceScreen, Device device) {
         super("logs-" + device.serial, 1100, 800);
@@ -525,6 +527,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         logButton = createSmallToolbarButton(toolbar, null, null, "Start Logging", actionEvent -> toggleLoggingButton());
         updateLoggingButton();
 
+        quickViewButton = createSmallToolbarButton(toolbar, null, null, "", actionEvent -> toggleQuickViewButton());
+        updateQuickViewButton();
+
         toolbar.add(Box.createHorizontalGlue());
 
         // toolbar.addSeparator(new Dimension(10, 0));
@@ -561,6 +566,41 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         logButton.setText(isLoggedPaused ? "Start" : "Stop");
     }
 
+    private void toggleQuickViewButton() {
+        isQuickViewEnabled = !isQuickViewEnabled;
+        updateQuickViewButton();
+
+        List<String> hiddenColList = new ArrayList<>();
+        if (isQuickViewEnabled) {
+            hiddenColList.add(LogsTableModel.Columns.DATE.name());
+            hiddenColList.add(LogsTableModel.Columns.APP.name());
+            hiddenColList.add(LogsTableModel.Columns.TID.name());
+            hiddenColList.add(LogsTableModel.Columns.PID.name());
+        }
+        model.setHiddenColumns(hiddenColList);
+
+        // use some default column sizes
+        table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
+        table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
+        table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
+        table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
+        table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
+        table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
+        table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
+
+        table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
+        table.setMaxColWidth(LogsTableModel.Columns.PID.toString(), 100);
+        table.setMaxColWidth(LogsTableModel.Columns.TID.toString(), 100);
+    }
+
+    private void updateQuickViewButton() {
+        String imageName = isQuickViewEnabled ? "eye_closed.png" : "eye_open.png";
+        ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
+        quickViewButton.setIcon(icon);
+        quickViewButton.setText(isQuickViewEnabled ? "Restore" : "Hide");
+        quickViewButton.setToolTipText(isQuickViewEnabled ? "Restore Distraction Free Mode" : "Enter Distraction Free Mode");
+    }
+
     private void doSearch(String text) {
         if (TextUtils.isEmpty(text)) {
             model.setSearchText(null);
@@ -572,7 +612,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void setupFilterList() {
         populateFilters();
-        filterList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        filterList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         filterList.setCellRenderer(new LogFilterRenderer());
         filterList.addListSelectionListener(e -> handleFilterSelected());
         filterList.addMouseListener(new MouseAdapter() {
@@ -602,17 +642,12 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private void populateFilters() {
         List<LogFilter> selectedList = filterList.getSelectedValuesList();
 
-        List<LogFilter> logFilterList = new ArrayList<>();
         // -- system filters --
-        logFilterList.add(createFilter("All Messages", null));
-        logFilterList.add(createFilter("Log Level Debug+", "level:D+"));
-        logFilterList.add(createFilter("Log Level Info+", "level:I+"));
-        logFilterList.add(createFilter("Log Level Warn+", "level:W+"));
-        logFilterList.add(createFilter("Log Level Error+", "level:E"));
-        logFilterList.add(createFilter(null, null));
+        List<LogFilter> systemFilterList = getSystemFilters();
+        List<LogFilter> logFilterList = new ArrayList<>(systemFilterList);
 
         // -- user filters --
-        List<LogFilter> userFilterList = getFilters();
+        List<LogFilter> userFilterList = getUserFilters();
         // sort A-Z (name)
         userFilterList.sort((lhs, rhs) -> TextUtils.compareToIgnoreCase(lhs.name, rhs.name));
         logFilterList.addAll(userFilterList);
@@ -620,7 +655,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         filterList.setListData(logFilterList.toArray(new LogFilter[0]));
 
         // re-select previously selected filters
-        if (!logFilterList.isEmpty()) {
+        if (!selectedList.isEmpty() && !logFilterList.isEmpty()) {
             List<Integer> selectedIndexList = new ArrayList<>();
             for (int i = 0; i < logFilterList.size(); i++) {
                 LogFilter filter = logFilterList.get(i);
@@ -631,13 +666,26 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                     }
                 }
             }
-            int[] indexArr = selectedIndexList.stream()
-                    .filter(Objects::nonNull)
-                    .mapToInt(Integer::intValue)
-                    .toArray();
-            log.trace("populateFilters: select:{}", GsonHelper.toJson(indexArr));
-            filterList.setSelectedIndices(indexArr);
+            if (!selectedIndexList.isEmpty()) {
+                int[] indexArr = selectedIndexList.stream()
+                        .filter(Objects::nonNull)
+                        .mapToInt(Integer::intValue)
+                        .toArray();
+                log.trace("populateFilters: re-select:{}", GsonHelper.toJson(indexArr));
+                filterList.setSelectedIndices(indexArr);
+            }
         }
+    }
+
+    public static List<LogFilter> getSystemFilters() {
+        List<LogFilter> systemList = new ArrayList<>();
+        systemList.add(createFilter("All Messages", null));
+        systemList.add(createFilter("Log Level Debug+", "level:D+"));
+        systemList.add(createFilter("Log Level Info+", "level:I+"));
+        systemList.add(createFilter("Log Level Warn+", "level:W+"));
+        systemList.add(createFilter("Log Level Error+", "level:E"));
+        systemList.add(createFilter(null, null));
+        return systemList;
     }
 
     private void selectFilter(LogFilter filter) {
@@ -658,7 +706,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
      * @param filter         - filter to remove
      */
     private void removeFilter(List<LogFilter> userFilterList, LogFilter filter) {
-        if (userFilterList == null) userFilterList = getFilters();
+        if (userFilterList == null) userFilterList = getUserFilters();
         for (Iterator<LogFilter> iterator = userFilterList.iterator(); iterator.hasNext(); ) {
             LogFilter userFilter = iterator.next();
             if (TextUtils.equals(userFilter.name, filter.name)) {
@@ -669,7 +717,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
     }
 
-    private List<LogFilter> getFilters() {
+    public static List<LogFilter> getUserFilters() {
         String filterStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS);
         return GsonHelper.stringToList(filterStr, LogFilter.class);
     }
@@ -678,15 +726,15 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         LogFilter filter = AddFilterDialog.showAddFilterDialog(this, null);
         if (filter != null) {
             addFilter(null, filter);
+            populateFilters();
+            selectFilter(filter);
         }
     }
 
-    private void addFilter(List<LogFilter> userFilterList, LogFilter filter) {
-        if (userFilterList == null) userFilterList = getFilters();
+    public static void addFilter(List<LogFilter> userFilterList, LogFilter filter) {
+        if (userFilterList == null) userFilterList = getUserFilters();
         userFilterList.add(filter);
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS, GsonHelper.toJson(userFilterList));
-        populateFilters();
-        selectFilter(filter);
     }
 
     private void handleFilterSelected() {
@@ -696,15 +744,19 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private void handleCopyFilterClicked(LogFilter selectedFilter) {
         LogFilter copy = new LogFilter(selectedFilter);
         addFilter(null, copy);
+        populateFilters();
+        selectFilter(copy);
         handleEditFilterClicked(copy);
     }
 
     private void handleEditFilterClicked(LogFilter selectedFilter) {
         LogFilter filter = AddFilterDialog.showAddFilterDialog(this, selectedFilter);
         if (filter != null) {
-            List<LogFilter> userFilterList = getFilters();
+            List<LogFilter> userFilterList = getUserFilters();
             removeFilter(userFilterList, selectedFilter);
             addFilter(userFilterList, filter);
+            populateFilters();
+            selectFilter(filter);
         }
     }
 
@@ -712,7 +764,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         String msg = String.format("Delete Filter \"%s\"?", selectedFilter.name);
         boolean isYes = DialogHelper.showConfirmDialog(this, "Delete Filter", msg);
         if (isYes) {
-            List<LogFilter> userFilterList = getFilters();
+            List<LogFilter> userFilterList = getUserFilters();
             for (Iterator<LogFilter> iterator = userFilterList.iterator(); iterator.hasNext(); ) {
                 LogFilter userFilter = iterator.next();
                 if (TextUtils.equals(userFilter.name, selectedFilter.name)) {
@@ -725,11 +777,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
     }
 
-    private LogFilter createFilter(String label, String filter) {
+    private static LogFilter createFilter(String label, String filter) {
         LogFilter item = LogFilter.parse(filter);
         item.name = label;
         item.isSystemFilter = true;
-        log.trace("addLogLevel: {}, {}", label, filter);
         return item;
     }
 
