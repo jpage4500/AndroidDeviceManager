@@ -175,33 +175,33 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
+        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
         // [CMD + 1] = show devices
-        createCmdAction(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
+        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
             deviceScreen.setVisible(true);
             deviceScreen.toFront();
         });
 
         // [CMD + 2] = show explorer
-        createCmdAction(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand(device));
+        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand(device));
 
         // [CMD + T] = hide toolbar
-        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
+        createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
         JMenu logsMenu = new JMenu("Logs");
 
         // [CMD + ENTER] = toggle auto scroll
-        createCmdAction(logsMenu, "Auto Scroll", KeyEvent.VK_ENTER, e -> {
+        createCmdMenuItem(logsMenu, "Auto Scroll", KeyEvent.VK_ENTER, e -> {
             autoScrollCheckBox.setSelected(!autoScrollCheckBox.isSelected());
             scrollToFollow();
         });
 
         // [CMD + K] = clear logs
-        createCmdAction(logsMenu, "Clear logs", KeyEvent.VK_K, e -> model.clearLogs());
+        createCmdMenuItem(logsMenu, "Clear logs", KeyEvent.VK_K, e -> model.clearLogs());
 
         // [CMD + KEY_UP] = scroll to top
-        createCmdAction(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
+        createCmdMenuItem(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
             autoScrollCheckBox.setSelected(false);
             table.scrollToTop();
         });
@@ -209,28 +209,76 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         JMenu editMenu = new JMenu("Edit");
 
         // [CMD + KEY_DOWN] = scroll to bottom
-        createCmdAction(editMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
+        createCmdMenuItem(editMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
 
-        // [CMD + KEY_UP] = page up
-        createOptionAction(editMenu, "Page Up", KeyEvent.VK_UP, e -> table.pageUp());
+        // [OPTION + KEY_UP] = page up
+        KeyStroke optionUpKey = KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK);
+        createMenuItem(editMenu, "Page Up", optionUpKey, e -> table.pageUp());
 
-        // [CMD + KE_DOWN] = page down
-        createOptionAction(editMenu, "Page Down", KeyEvent.VK_DOWN, e -> table.pageDown());
+        // [OPTION + KE_DOWN] = page down
+        KeyStroke optionDownKey = KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK);
+        createMenuItem(editMenu, "Page Down", optionDownKey, e -> table.pageDown());
 
         // [CMD + +] = increase font size
-        createCmdAction(editMenu, "Increase Font Size", KeyEvent.VK_EQUALS, e -> increaseFontSize());
+        createCmdMenuItem(editMenu, "Increase Font Size", KeyEvent.VK_EQUALS, e -> increaseFontSize());
 
         // [CMD + -] = increase font size
-        createCmdAction(editMenu, "Decrease Font Size", KeyEvent.VK_MINUS, e -> decreaseFontSize());
+        createCmdMenuItem(editMenu, "Decrease Font Size", KeyEvent.VK_MINUS, e -> decreaseFontSize());
 
         // [CMD + F] = focus search field
-        createCmdAction(editMenu, "Search for...", KeyEvent.VK_F, e -> searchField.requestFocus());
+        createCmdMenuItem(editMenu, "Search for...", KeyEvent.VK_F, e -> searchField.requestFocus());
+
+        // [CMD + G] = find next
+        createCmdMenuItem(editMenu, "Find Next", KeyEvent.VK_G, e -> findNext(true));
+
+        // [SHIFT + CMD + G] = find previous
+        KeyStroke findPrevKey = KeyStroke.getKeyStroke("shift meta G");
+        createMenuItem(editMenu, "Find Previous", findPrevKey, e -> findNext(false));
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
         menubar.add(editMenu);
         menubar.add(logsMenu);
         setJMenuBar(menubar);
+    }
+
+    private void findNext(boolean isForward) {
+        int rowCount = table.getRowCount();
+        if (rowCount == 0) return;
+        String searchFor = searchField.getCleanText();
+        if (TextUtils.isEmpty(searchFor)) return;
+
+        int startIndex = table.getSelectedRow();
+        boolean isSelected = startIndex >= 0;
+        // if nothing selected, start at first or last visible row
+        if (!isSelected) startIndex = isForward ? 0 : rowCount - 1;
+
+        int searchIndex = startIndex;
+        // start searching at the next row after selected
+        if (isSelected) searchIndex += isForward ? 1 : -1;
+
+        LogFilter filter = LogFilter.parse("*:*" + searchFor + "*");
+
+        for (int i = 0; i < rowCount; i++) {
+            // convert viewable row into model row to get LogEntry
+            int modelRow = sorter.convertRowIndexToModel(searchIndex);
+            LogEntry logEntry = (LogEntry) model.getValueAt(modelRow, 0);
+            if (filter.isMatch(logEntry)) {
+                log.trace("findNext: MATCH! row:{}", modelRow);
+                table.changeSelection(modelRow, 0, false, false);
+                break;
+            }
+
+            searchIndex += isForward ? 1 : -1;
+            // if we reached the end/beginning, start over from top/bottom
+            if (isForward && searchIndex >= rowCount) {
+                searchIndex = 0;
+                Toolkit.getDefaultToolkit().beep();
+            } else if (!isForward && searchIndex < 0) {
+                searchIndex = rowCount - 1;
+                Toolkit.getDefaultToolkit().beep();
+            }
+        }
     }
 
     public void increaseFontSize() {
@@ -308,26 +356,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 handleLogClicked();
             }
         });
-
-//        // CMD+PLUS -> inceaase font
-//        KeyStroke increaseFont = KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, InputEvent.META_DOWN_MASK);
-//        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(increaseFont, "Increase Font Size");
-//        table.getActionMap().put("Increase Font Size", new AbstractAction() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                increaseFontSize();
-//            }
-//        });
-//
-//        // CMD+MINUS -> decrease font
-//        KeyStroke decreaseFont = KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, InputEvent.META_DOWN_MASK);
-//        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(decreaseFont, "Decrease Font Size");
-//        table.getActionMap().put("Decrease Font Size", new AbstractAction() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                decreaseFontSize();
-//            }
-//        });
 
         table.getSelectionModel().addListSelectionListener(event -> {
             if (event.getValueIsAdjusting()) return;
@@ -409,6 +437,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void handleCopyMessageClicked() {
+        log.trace("handleCopyMessageClicked: ");
         List<LogEntry> logEntryList = getSelectedLogEntries();
         StringBuilder sb = new StringBuilder();
         for (LogEntry logEntry : logEntryList) {
@@ -427,19 +456,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         StringBuilder sb = new StringBuilder();
         for (LogEntry logEntry : logEntryList) {
             if (!sb.isEmpty()) sb.append("\n");
-            sb.append(logEntry.date);
-            sb.append(", ");
-            sb.append(logEntry.app);
-            sb.append(", ");
-            sb.append(logEntry.tid);
-            sb.append(", ");
-            sb.append(logEntry.pid);
-            sb.append(", ");
-            sb.append(logEntry.level);
-            sb.append(", ");
-            sb.append(logEntry.tag);
-            sb.append(", ");
-            sb.append(logEntry.message);
+            sb.append(logEntry.toString());
         }
         if (sb.isEmpty()) return;
 

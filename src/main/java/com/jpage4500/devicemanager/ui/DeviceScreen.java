@@ -225,19 +225,19 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> exitApp(false));
+        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> exitApp(false));
 
         // [CMD + 2] = show explorer
-        createCmdAction(windowMenu, SHOW_BROWSE, KeyEvent.VK_2, e -> handleBrowseCommand(null));
+        createCmdMenuItem(windowMenu, SHOW_BROWSE, KeyEvent.VK_2, e -> handleBrowseCommand(null));
 
         // [CMD + 3] = show logs
-        createCmdAction(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleViewLogsCommand(null));
+        createCmdMenuItem(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleViewLogsCommand(null));
 
         // [CMD + ,] = settings
-        createCmdAction(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> handleSettingsClicked());
+        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> handleSettingsClicked());
 
         // [CMD + T] = hide toolbar
-        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
+        createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
         // always on top
         JCheckBoxMenuItem onTopItem = new JCheckBoxMenuItem();
@@ -257,10 +257,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JMenu deviceMenu = new JMenu("Devices");
 
         // [CMD + F] = focus search box
-        createCmdAction(deviceMenu, "Filter", KeyEvent.VK_F, e -> filterTextField.requestFocus());
+        createCmdMenuItem(deviceMenu, "Filter", KeyEvent.VK_F, e -> filterTextField.requestFocus());
 
         // [CMD + N] = connect device
-        createCmdAction(deviceMenu, "Connect Device", KeyEvent.VK_N, e -> handleConnectDevice());
+        createCmdMenuItem(deviceMenu, "Connect Device", KeyEvent.VK_N, e -> handleConnectDevice());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);

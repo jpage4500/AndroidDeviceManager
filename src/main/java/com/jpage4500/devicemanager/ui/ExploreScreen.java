@@ -212,27 +212,27 @@ public class ExploreScreen extends BaseScreen {
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
+        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
         // [CMD + 1] = show devices
-        createCmdAction(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
+        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
             deviceScreen.setVisible(true);
             deviceScreen.toFront();
         });
 
         // [CMD + 3] = show logs
-        createCmdAction(windowMenu, DeviceScreen.SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
+        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
 
         // [CMD + T] = hide toolbar
-        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
+        createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
         JMenu fileMenu = new JMenu("Files");
 
         // [CMD + BACKSPACE] = delete files
-        createCmdAction(fileMenu, "Delete", KeyEvent.VK_BACK_SPACE, e -> handleDelete());
+        createCmdMenuItem(fileMenu, "Delete", KeyEvent.VK_BACK_SPACE, e -> handleDelete());
 
         // [CMD + G] = go to folder
-        createCmdAction(fileMenu, "Go to folder..", KeyEvent.VK_G, e -> handleGoToFolder());
+        createCmdMenuItem(fileMenu, "Go to folder..", KeyEvent.VK_G, e -> handleGoToFolder());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);

@@ -13,6 +13,8 @@ import java.awt.event.*;
 public class HintTextField extends JTextField implements KeyListener {
     private static final Logger log = LoggerFactory.getLogger(HintTextField.class);
 
+    private static final int SHIFT_COMMAND_MASK = InputEvent.SHIFT_DOWN_MASK | InputEvent.META_DOWN_MASK;
+
     private final Font origFont;
     private final Font hintFont;
     private final String hintText;
@@ -143,8 +145,12 @@ public class HintTextField extends JTextField implements KeyListener {
             case KeyEvent.ALT_DOWN_MASK:
                 return;
         }
+        if ((modifiers & SHIFT_COMMAND_MASK) == SHIFT_COMMAND_MASK) {
+            return;
+        }
         char keyChar = e.getKeyChar();
         int keyCode = e.getKeyCode();
+        if (keyCode == KeyEvent.VK_SHIFT) return;
         String cleanText = getCleanText();
         switch (keyCode) {
             case KeyEvent.VK_SPACE:
@@ -157,6 +163,10 @@ public class HintTextField extends JTextField implements KeyListener {
                 break;
             case KeyEvent.VK_ESCAPE:
                 cleanText = null;
+                break;
+            case '_':
+            case '-':
+                cleanText += keyChar;
                 break;
             default:
                 if (Character.isLetterOrDigit(keyChar)) {

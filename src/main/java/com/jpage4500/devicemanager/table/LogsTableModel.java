@@ -162,7 +162,6 @@ public class LogsTableModel extends AbstractTableModel {
 
     public Object getValueAt(int row, int col) {
         if (row >= logEntryList.size()) return null;
-        else if (col >= getColumnCount()) return null;
         return logEntryList.get(row);
     }
 

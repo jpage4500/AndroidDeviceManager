@@ -120,7 +120,19 @@ public class BaseScreen extends JFrame {
     /**
      * create shortcut key using CMD key
      */
-    protected JMenuItem createCmdAction(JMenu menu, String label, int key, CustomActionListener listener) {
+    protected JMenuItem createCmdMenuItem(JMenu menu, String label, int key, CustomActionListener listener) {
+        int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        KeyStroke keyStroke = KeyStroke.getKeyStroke(key, mask);
+        return createMenuItem(menu, label, keyStroke, listener);
+    }
+
+    /**
+     * create JMenuItem with label and can be actived using KeyStroke
+     *
+     * @param keyStroke - optional keystroke used to active menu item
+     * @param listener  - listener when menu item is selected
+     */
+    protected JMenuItem createMenuItem(JMenu menu, String label, KeyStroke keyStroke, CustomActionListener listener) {
         Action action = new AbstractAction(label) {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -129,33 +141,11 @@ public class BaseScreen extends JFrame {
         };
 
         JMenuItem item = UiUtils.addMenuItem(menu, label, action);
-        if (key != 0) {
-            int mask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
-            KeyStroke keyStroke = KeyStroke.getKeyStroke(key, mask);
+        if (keyStroke != null) {
             action.putValue(Action.ACCELERATOR_KEY, keyStroke);
             item.setAccelerator(keyStroke);
         }
         return item;
-    }
-
-    /**
-     * create shortcut key using OPTION key
-     */
-    protected Action createOptionAction(JMenu menu, String label, int key, CustomActionListener listener) {
-        Action action = new AbstractAction(label) {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                listener.actionPerformed(e);
-            }
-        };
-        KeyStroke keyStroke = KeyStroke.getKeyStroke(key, InputEvent.ALT_DOWN_MASK);
-        action.putValue(Action.ACCELERATOR_KEY, keyStroke);
-
-        if (menu != null) {
-            UiUtils.addMenuItem(menu, label, action);
-        }
-
-        return action;
     }
 
     /**

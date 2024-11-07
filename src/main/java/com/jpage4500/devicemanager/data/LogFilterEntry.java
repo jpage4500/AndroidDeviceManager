@@ -115,7 +115,7 @@ public class LogFilterEntry {
         String key = entryArr[0].trim();
         String value = entryArr[1].trim();
         LogFilterEntry expr = new LogFilterEntry();
-        if (TextUtils.notEmpty(key)) {
+        if (TextUtils.notEmpty(key) && !TextUtils.equals(key, "*")) {
             String colName = key.toUpperCase();
             try {
                 expr.column = LogsTableModel.Columns.valueOf(colName);

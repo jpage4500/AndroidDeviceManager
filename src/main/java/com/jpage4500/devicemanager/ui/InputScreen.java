@@ -112,13 +112,13 @@ public class InputScreen extends BaseScreen {
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
+        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
         // [CMD + 1] = show devices
-        createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
+        createCmdMenuItem(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
 
         // [CMD + 3] = show logs
-        createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
+        createCmdMenuItem(windowMenu, "View Logs", KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);

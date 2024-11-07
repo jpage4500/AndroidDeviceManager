@@ -1,13 +1,10 @@
 package com.jpage4500.devicemanager.data;
 
-import com.jpage4500.devicemanager.table.LogsTableModel;
-import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * represents a named filter - which can contain multiple filter expressions
