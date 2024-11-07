@@ -2,12 +2,13 @@ package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.data.SaveLogEntry;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.SaveLogsTableModel;
 import com.jpage4500.devicemanager.table.utils.SaveLogsCellRenderer;
+import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
-import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
@@ -16,6 +17,8 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -35,6 +38,8 @@ public class SaveLogsScreen extends BaseScreen {
     private boolean isRecording;
     private final Icon iconStartRecording;
     private final Icon iconStopRecording;
+    private final Icon filterSetIcon;
+    private final Icon noFilterIcon;
     private File lastLogsFolder;
 
     public StatusBar statusBar;
@@ -43,11 +48,11 @@ public class SaveLogsScreen extends BaseScreen {
     public CustomTable table;
     public SaveLogsTableModel model;
 
-    private HintTextField tagFilter;
-    private HintTextField messageFilter;
+    private LogFilter logFilter;
 
     private JButton logButton;
     private JButton deleteButton;
+    private JButton filterButton;
 
     public SaveLogsScreen(DeviceScreen deviceScreen) {
         super("savelogs", 450, 230);
@@ -63,6 +68,9 @@ public class SaveLogsScreen extends BaseScreen {
         BufferedImage stopImg = UiUtils.getImage("icon_stop.png", UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
         BufferedImage redStopImg = UiUtils.replaceColor(stopImg, Colors.COLOR_STOP_RECORDING);
         iconStopRecording = new ImageIcon(redStopImg);
+
+        filterSetIcon = UiUtils.getImageIcon("icon_filter.png", UiUtils.IMG_SIZE_TOOLBAR);
+        noFilterIcon = UiUtils.getImageIcon("clear_filter.png", UiUtils.IMG_SIZE_TOOLBAR);
 
         initalizeUi();
     }
@@ -100,11 +108,7 @@ public class SaveLogsScreen extends BaseScreen {
         if (isRecording) return;
         lastLogsFolder = createLogsFolder();
         List<SaveLogEntry> entryList = model.getEntryList();
-        String tagFilterText = tagFilter.getCleanText();
-        String messageFilterText = messageFilter.getCleanText();
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SAVE_LOGS_TAG_FILTER, tagFilterText);
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SAVE_LOGS_MSG_FILTER, messageFilterText);
-        log.trace("startLogging: TAG:{}, MSG:{}", tagFilterText, messageFilterText);
+        log.trace("startLogging: filter:{}", logFilter);
         for (SaveLogEntry entry : entryList) {
             entry.numLines = 0;
             entry.size = 0;
@@ -119,11 +123,9 @@ public class SaveLogsScreen extends BaseScreen {
                     StringBuilder sb = new StringBuilder();
                     int numLines = 0;
                     for (LogEntry entry : logEntryList) {
-                        // filter tag
-                        if (TextUtils.notEmpty(tagFilterText) && !TextUtils.containsIgnoreCase(entry.tag, tagFilterText)) continue;
-
-                        // filter message
-                        if (TextUtils.notEmpty(messageFilterText) && !TextUtils.containsIgnoreCase(entry.message, messageFilterText)) continue;
+                        if (logFilter != null) {
+                            if (!logFilter.isMatch(entry)) return;
+                        }
 
                         sb.append(entry.date);
                         sb.append('\t');
@@ -188,9 +190,11 @@ public class SaveLogsScreen extends BaseScreen {
     private void refreshUi() {
         logButton.setIcon(isRecording ? iconStopRecording : iconStartRecording);
         logButton.setText(isRecording ? "Stop Logging" : "Start Logging");
-        tagFilter.setEnabled(!isRecording);
-        messageFilter.setEnabled(!isRecording);
+
         deleteButton.setEnabled(!isRecording && lastLogsFolder != null);
+
+        filterButton.setIcon(logFilter != null ? filterSetIcon : noFilterIcon);
+        filterButton.setEnabled(!isRecording);
     }
 
     private void initalizeUi() {
@@ -279,13 +283,13 @@ public class SaveLogsScreen extends BaseScreen {
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
+        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
         // [CMD + 1] = show devices
-        createCmdAction(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
+        createCmdMenuItem(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
 
         // [CMD + 3] = show logs
-        createCmdAction(windowMenu, "View Logs", KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
+        createCmdMenuItem(windowMenu, "View Logs", KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -309,22 +313,55 @@ public class SaveLogsScreen extends BaseScreen {
         // right-align filters
         toolbar.add(Box.createHorizontalGlue());
 
-        // filters
-        tagFilter = new HintTextField("TAG Filter", null);
-        tagFilter.setPreferredSize(new Dimension(100, 40));
-        tagFilter.setMinimumSize(new Dimension(10, 40));
-        tagFilter.setMaximumSize(new Dimension(100, 40));
-        String defTag = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SAVE_LOGS_TAG_FILTER);
-        if (TextUtils.notEmpty(defTag)) tagFilter.setText(defTag);
-        toolbar.add(tagFilter);
+        // filter
+        filterButton = createToolbarButton(toolbar, "clear_filter.png", "Filter", "Set Filter", null);
+        filterButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                JPopupMenu popupMenu = new JPopupMenu();
 
-        messageFilter = new HintTextField("MESSAGE Filter", null);
-        messageFilter.setPreferredSize(new Dimension(150, 40));
-        messageFilter.setMinimumSize(new Dimension(10, 40));
-        messageFilter.setMaximumSize(new Dimension(150, 40));
-        String defMsg = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SAVE_LOGS_MSG_FILTER);
-        if (TextUtils.notEmpty(defMsg)) messageFilter.setText(defMsg);
-        toolbar.add(messageFilter);
+                if (SaveLogsScreen.this.logFilter != null) {
+                    JMenuItem item = new JMenuItem("Clear Filter", UiUtils.getImageIcon("clear_filter.png", UiUtils.IMG_SIZE_SMALL));
+                    item.addActionListener(e2 -> handleFilterClicked(null));
+                    popupMenu.add(item);
+                }
+
+                List<LogFilter> systemList = ViewLogsScreen.getSystemFilters();
+                List<LogFilter> filterList = ViewLogsScreen.getUserFilters();
+                systemList.addAll(filterList);
+                for (LogFilter filter : systemList) {
+                    if (filter.filterList == null || filter.filterList.isEmpty()) continue;
+                    JMenuItem item = new JMenuItem(filter.name, UiUtils.getImageIcon("icon_filter.png", UiUtils.IMG_SIZE_SMALL));
+                    item.addActionListener(e2 -> handleFilterClicked(filter));
+                    popupMenu.add(item);
+                }
+
+                JMenuItem item = new JMenuItem("Add Filter", UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_SMALL));
+                item.addActionListener(e2 -> handleAddFilterClicked());
+                popupMenu.add(item);
+
+                popupMenu.show(e.getComponent(), e.getX(), e.getY());
+            }
+        });
+    }
+
+    private void handleAddFilterClicked() {
+        LogFilter filter = AddFilterDialog.showAddFilterDialog(this, null);
+        if (filter != null) {
+            ViewLogsScreen.addFilter(null, filter);
+            logFilter = filter;
+            refreshUi();
+        }
+    }
+
+    private void handleFilterClicked(LogFilter filter) {
+        this.logFilter = filter;
+        if (filter != null) {
+            filterButton.setToolTipText("Filter: " + filter);
+        } else {
+            filterButton.setToolTipText("Click to set filter");
+        }
+        refreshUi();
     }
 
     private void openLogsFolder() {
@@ -359,6 +396,7 @@ public class SaveLogsScreen extends BaseScreen {
 
     private void closeWindow() {
         log.trace("closeWindow");
+        stopLogging();
         saveFrameSize();
         deviceScreen.handleSaveLogsClosed();
         dispose();

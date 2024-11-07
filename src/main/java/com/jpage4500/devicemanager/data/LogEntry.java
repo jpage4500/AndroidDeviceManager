@@ -54,4 +54,22 @@ public class LogEntry {
             message = message.substring(tagPos + 1).trim();
         }
     }
+
+    @Override
+    public String toString() {
+        // NOTE: toString() is called when pressing CMD+C on JTable
+        return date +
+                ", " +
+                app +
+                ", " +
+                tid +
+                ", " +
+                pid +
+                ", " +
+                level +
+                ", " +
+                tag +
+                ", " +
+                message;
+    }
 }

@@ -1010,6 +1010,7 @@ public class DeviceManager {
                         // check if logging is still running
                         if (!loggingState.get()) {
                             loggingStateMap.remove(device.serial);
+                            break;
                         }
                     }
                 }

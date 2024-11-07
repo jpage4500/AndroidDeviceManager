@@ -81,7 +81,7 @@ public class MessageViewScreen extends BaseScreen {
         editButton = createSmallToolbarButton(toolbar, "icon_edit.png", "Edit", "Edit message in default editor", actionEvent -> editMessage());
     }
 
-    private void editMessage() {
+    public void editMessage() {
         // save to temp file
         String tempFolder = Utils.getTempFolder();
         Random rand = new Random();
@@ -102,30 +102,40 @@ public class MessageViewScreen extends BaseScreen {
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
+        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
         // [CMD + 1] = show devices
-        createCmdAction(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
+        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
             deviceScreen.setVisible(true);
             deviceScreen.toFront();
         });
 
         // [CMD + 2] = show explorer
-        createCmdAction(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand(null));
+        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand(null));
 
         JMenu messageMenu = new JMenu("Message");
 
         // [CMD + E] = edit message
-        createCmdAction(messageMenu, "Edit Message", KeyEvent.VK_E, e -> editMessage());
+        createCmdMenuItem(messageMenu, "Edit Message", KeyEvent.VK_E, e -> editMessage());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
+        menubar.add(messageMenu);
         setJMenuBar(menubar);
     }
 
+    @Override
+    protected void onWindowStateChanged(WindowState state) {
+        super.onWindowStateChanged(state);
+        if (state == WindowState.CLOSED) {
+            closeWindow();
+        }
+    }
+
     private void closeWindow() {
-        setVisible(false);
-        //dispose();
+        log.trace("closeWindow");
+        saveFrameSize();
+        dispose();
     }
 
     public void setLogEntry(LogEntry... logEntryArr) {

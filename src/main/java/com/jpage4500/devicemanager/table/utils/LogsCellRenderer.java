@@ -77,7 +77,7 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
             }
         }
 
-        Color textColor = isSelected ? Color.WHITE : Color.BLACK;
+        Color textColor = isSelected && table.hasFocus() ? Color.WHITE : Color.BLACK;
         if (!isSelected && logEntry.level != null) {
             switch (logEntry.level) {
                 case "V":

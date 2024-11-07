@@ -21,13 +21,15 @@ public class LogsTableModel extends AbstractTableModel {
     private final Map<String, String> processMap;
     private String searchText;
 
+    private Columns[] visibleColumns;
+
     /**
      * get text value for a given LogEntry and column
      */
     public String getTextValue(int row, int column) {
         LogEntry logEntry = (LogEntry) getValueAt(row, column);
         if (logEntry == null) return null;
-        LogsTableModel.Columns col = LogsTableModel.Columns.values()[column];
+        Columns col = visibleColumns[column]; //LogsTableModel.Columns.values()[column];
         return switch (col) {
             case DATE -> logEntry.date;
             case APP -> {
@@ -44,7 +46,6 @@ public class LogsTableModel extends AbstractTableModel {
             case TAG -> logEntry.tag;
             case MSG -> logEntry.message;
         };
-
     }
 
     public enum Columns {
@@ -56,7 +57,7 @@ public class LogsTableModel extends AbstractTableModel {
         TAG("Tag"),
         MSG("Message"),
         ;
-        String desc;
+        public String desc;
 
         Columns(String desc) {
             this.desc = desc;
@@ -66,11 +67,19 @@ public class LogsTableModel extends AbstractTableModel {
         public String toString() {
             return desc;
         }
+
+        public static Columns fromDesc(String desc) {
+            for (Columns col : Columns.values()) {
+                if (col.desc.equals(desc)) return col;
+            }
+            return null;
+        }
     }
 
     public LogsTableModel() {
         logEntryList = new ArrayList<>();
         processMap = new HashMap<>();
+        setHiddenColumns(null);
     }
 
     public void clearLogs() {
@@ -121,7 +130,7 @@ public class LogsTableModel extends AbstractTableModel {
     }
 
     public int getColumnCount() {
-        return Columns.values().length;
+        return visibleColumns.length;
     }
 
     @Override
@@ -133,17 +142,15 @@ public class LogsTableModel extends AbstractTableModel {
      * return one of the predefined columns
      */
     public LogsTableModel.Columns getColumnType(int colIndex) {
-        Columns[] values = Columns.values();
-        if (colIndex < values.length) {
-            return values[colIndex];
+        if (colIndex >= 0 && colIndex < visibleColumns.length) {
+            return visibleColumns[colIndex];
         }
         return null;
     }
 
     public String getColumnName(int i) {
-        Columns[] columns = Columns.values();
-        if (i < columns.length) {
-            Columns colType = columns[i];
+        if (i < visibleColumns.length) {
+            Columns colType = visibleColumns[i];
             return colType.toString();
         }
         return null;
@@ -155,7 +162,6 @@ public class LogsTableModel extends AbstractTableModel {
 
     public Object getValueAt(int row, int col) {
         if (row >= logEntryList.size()) return null;
-        else if (col >= getColumnCount()) return null;
         return logEntryList.get(row);
     }
 
@@ -165,6 +171,24 @@ public class LogsTableModel extends AbstractTableModel {
 
     public String getSearchText() {
         return searchText;
+    }
+
+    public void setHiddenColumns(List<String> hiddenColumns) {
+        Columns[] columns = Columns.values();
+        int numColumns = columns.length;
+        int numHiddenColumns = hiddenColumns == null ? 0 : hiddenColumns.size();
+        if (numHiddenColumns > numColumns) numHiddenColumns = 0;
+        int numVisible = numColumns - numHiddenColumns;
+        visibleColumns = new Columns[numVisible];
+
+        int index = 0;
+        for (Columns column : columns) {
+            if (hiddenColumns == null || !hiddenColumns.contains(column.name())) {
+                visibleColumns[index] = column;
+                index++;
+            }
+        }
+        fireTableStructureChanged();
     }
 
 }

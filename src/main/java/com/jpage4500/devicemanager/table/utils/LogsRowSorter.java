@@ -9,6 +9,9 @@ import javax.swing.*;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 
+/**
+ * used to filter logs (not sort)
+ */
 public class LogsRowSorter extends TableRowSorter<TableModel> {
     private static final Logger log = LoggerFactory.getLogger(LogsRowSorter.class);
 

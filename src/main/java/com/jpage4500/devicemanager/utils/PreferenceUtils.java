@@ -21,11 +21,11 @@ public class PreferenceUtils {
         PREF_LAST_DEVICE_IP,
         PREF_CUSTOM_COMMAND_LIST,
         PREF_RECENT_INPUT,
-        PREF_RECENT_MESSAGE_FILTER,
         PREF_MESSAGE_FILTERS,
         PREF_HIDDEN_TOOLBAR_ITEMS,
-        PREF_SAVE_LOGS_TAG_FILTER,              // save logs: TAG filter
-        PREF_SAVE_LOGS_MSG_FILTER,              // save logs: MESSAGE filter
+        PREF_LOGS_HIDDEN_COLUMNS,
+        PREF_LOGS_CUSTOM_FILTER,              // logs: last custom filter
+        PREF_LOGS_SELECTED_FILTERS,           // logs: last selected filters
     }
 
     /**

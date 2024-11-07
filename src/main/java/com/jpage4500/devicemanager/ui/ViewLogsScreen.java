@@ -1,11 +1,12 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.FilterItem;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.data.LogFilter;
+import com.jpage4500.devicemanager.data.LogFilterEntry;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.LogsTableModel;
+import com.jpage4500.devicemanager.table.utils.LogFilterRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
@@ -13,10 +14,7 @@ import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.TextUtils;
-import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,9 +24,8 @@ import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -53,14 +50,15 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     // filter logs
     private HintTextField filterField;
-    private JList<FilterItem> filterList;
-    private int numSystemFilters;
+    private JList<LogFilter> filterList;
 
     private LogsRowSorter sorter;
     private MessageViewScreen viewScreen;
 
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
+    public JButton quickViewButton;
+    public boolean isQuickViewEnabled; // true when user clicks on 'quick view'
 
     public ViewLogsScreen(DeviceScreen deviceScreen, Device device) {
         super("logs-" + device.serial, 1100, 800);
@@ -98,7 +96,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         JPanel leftPanel = new JPanel(new BorderLayout());
 
         // -- filter text --
-        filterField = new HintTextField(HINT_FILTER, this::filterDevices);
+        filterField = new HintTextField(HINT_FILTER, this::doFilter);
         leftPanel.add(filterField, BorderLayout.NORTH);
 
         // -- filter list --
@@ -135,15 +133,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         setVisible(true);
         table.requestFocus();
         autoScrollCheckBox.setSelected(true);
-
-        // restore previous filter
-        String recentFilterText = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_RECENT_MESSAGE_FILTER);
-        filterField.setText(recentFilterText);
-    }
-
-    private void handleAddFilterClicked(ActionEvent actionEvent) {
-        // TODO...
-        AddFilterDialog.showAddFilterDialog(this, null);
     }
 
     @Override
@@ -182,62 +171,121 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         JMenu windowMenu = new JMenu("Window");
 
         // [CMD + W] = close window
-        createCmdAction(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
+        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
         // [CMD + 1] = show devices
-        createCmdAction(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
+        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
             deviceScreen.setVisible(true);
             deviceScreen.toFront();
         });
 
         // [CMD + 2] = show explorer
-        createCmdAction(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand(device));
+        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand(device));
 
         // [CMD + T] = hide toolbar
-        createCmdAction(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
+        createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
+        // -----------------------------------------------------------
+        // -----------------------------------------------------------
+
+        JMenu editMenu = new JMenu("Edit");
+
+        // [CMD + +] = increase font size
+        createCmdMenuItem(editMenu, "Increase Font Size", KeyEvent.VK_EQUALS, e -> increaseFontSize());
+
+        // [CMD + -] = increase font size
+        createCmdMenuItem(editMenu, "Decrease Font Size", KeyEvent.VK_MINUS, e -> decreaseFontSize());
+
+        // [CMD + F] = focus search field
+        createCmdMenuItem(editMenu, "Search for...", KeyEvent.VK_F, e -> searchField.requestFocus());
+
+        // [CMD + G] = find next
+        createCmdMenuItem(editMenu, "Find Next", KeyEvent.VK_G, e -> findNext(true));
+
+        // [SHIFT + CMD + G] = find previous
+        KeyStroke findPrevKey = KeyStroke.getKeyStroke("shift meta G");
+        createMenuItem(editMenu, "Find Previous", findPrevKey, e -> findNext(false));
+
+        // -----------------------------------------------------------
+        // -----------------------------------------------------------
         JMenu logsMenu = new JMenu("Logs");
 
         // [CMD + ENTER] = toggle auto scroll
-        createCmdAction(logsMenu, "Auto Scroll", KeyEvent.VK_ENTER, e -> {
+        createCmdMenuItem(logsMenu, "Auto Scroll", KeyEvent.VK_ENTER, e -> {
             autoScrollCheckBox.setSelected(!autoScrollCheckBox.isSelected());
             scrollToFollow();
         });
 
         // [CMD + K] = clear logs
-        createCmdAction(logsMenu, "Clear logs", KeyEvent.VK_K, e -> model.clearLogs());
+        createCmdMenuItem(logsMenu, "Clear logs", KeyEvent.VK_K, e -> model.clearLogs());
+
+        // [CMD + V] = view logs
+        createCmdMenuItem(logsMenu, "View selected", KeyEvent.VK_V, e -> handleViewLogsClicked());
+
+        // [CMD + E] = edit logs
+        createCmdMenuItem(logsMenu, "Edit selected", KeyEvent.VK_E, e -> handleEditLogsClicked());
 
         // [CMD + KEY_UP] = scroll to top
-        createCmdAction(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
+        createCmdMenuItem(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
             autoScrollCheckBox.setSelected(false);
             table.scrollToTop();
         });
 
-        JMenu editMenu = new JMenu("Edit");
-
         // [CMD + KEY_DOWN] = scroll to bottom
-        createCmdAction(editMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
+        createCmdMenuItem(logsMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
 
-        // [CMD + KEY_UP] = page up
-        createOptionAction(editMenu, "Page Up", KeyEvent.VK_UP, e -> table.pageUp());
+        // [OPTION + KEY_UP] = page up
+        KeyStroke optionUpKey = KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK);
+        createMenuItem(logsMenu, "Page Up", optionUpKey, e -> table.pageUp());
 
-        // [CMD + KE_DOWN] = page down
-        createOptionAction(editMenu, "Page Down", KeyEvent.VK_DOWN, e -> table.pageDown());
-
-        // [CMD + +] = increase font size
-        createCmdAction(editMenu, "Increase Font Size", KeyEvent.VK_EQUALS, e -> increaseFontSize());
-
-        // [CMD + -] = increase font size
-        createCmdAction(editMenu, "Decrease Font Size", KeyEvent.VK_MINUS, e -> decreaseFontSize());
-
-        // [CMD + F] = focus search field
-        createCmdAction(editMenu, "Search for...", KeyEvent.VK_F, e -> searchField.requestFocus());
+        // [OPTION + KE_DOWN] = page down
+        KeyStroke optionDownKey = KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK);
+        createMenuItem(logsMenu, "Page Down", optionDownKey, e -> table.pageDown());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
         menubar.add(editMenu);
         menubar.add(logsMenu);
         setJMenuBar(menubar);
+    }
+
+    private void findNext(boolean isForward) {
+        int rowCount = table.getRowCount();
+        if (rowCount == 0) return;
+        String searchFor = searchField.getCleanText();
+        if (TextUtils.isEmpty(searchFor)) return;
+
+        int startIndex = table.getSelectedRow();
+        boolean isSelected = startIndex >= 0;
+        // if nothing selected, start at first or last visible row
+        if (!isSelected) startIndex = isForward ? 0 : rowCount - 1;
+
+        int searchIndex = startIndex;
+        // start searching at the next row after selected
+        if (isSelected) searchIndex += isForward ? 1 : -1;
+
+        LogFilter filter = LogFilter.parse("*:*" + searchFor + "*");
+
+        for (int i = 0; i < rowCount; i++) {
+            // convert viewable row into model row to get LogEntry
+            int modelRow = sorter.convertRowIndexToModel(searchIndex);
+            LogEntry logEntry = (LogEntry) model.getValueAt(modelRow, 0);
+            if (filter.isMatch(logEntry)) {
+                log.trace("findNext: MATCH! row:{}", modelRow);
+                table.changeSelection(modelRow, 0, false, false);
+                break;
+            }
+
+            searchIndex += isForward ? 1 : -1;
+            // if we reached the end/beginning, start over from top/bottom
+            if (isForward && searchIndex >= rowCount) {
+                searchIndex = 0;
+                Toolkit.getDefaultToolkit().beep();
+            } else if (!isForward && searchIndex < 0) {
+                searchIndex = rowCount - 1;
+                Toolkit.getDefaultToolkit().beep();
+            }
+        }
     }
 
     public void increaseFontSize() {
@@ -264,8 +312,15 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         log.trace("closeWindow: {}", device.getDisplayName());
         // save last filter
         String filterText = filterField.getCleanText();
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_RECENT_MESSAGE_FILTER, filterText);
-        //stopLogging();
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_CUSTOM_FILTER, filterText.trim());
+
+        // save last selected filters
+        List<LogFilter> selectedList = filterList.getSelectedValuesList();
+        List<String> selectedFilterList = new ArrayList<>();
+        for (LogFilter filter : selectedList) selectedFilterList.add(filter.name);
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS, GsonHelper.toJson(selectedFilterList));
+
+        stopLogging();
         deviceScreen.handleLogsClosed(device.serial);
         dispose();
     }
@@ -302,7 +357,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         table.getActionMap().put("Enter", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                handleLogClicked();
+                handleViewLogsClicked();
             }
         });
 
@@ -312,29 +367,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         table.getActionMap().put("View", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                handleLogClicked();
+                handleViewLogsClicked();
             }
         });
-
-//        // CMD+PLUS -> inceaase font
-//        KeyStroke increaseFont = KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, InputEvent.META_DOWN_MASK);
-//        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(increaseFont, "Increase Font Size");
-//        table.getActionMap().put("Increase Font Size", new AbstractAction() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                increaseFontSize();
-//            }
-//        });
-//
-//        // CMD+MINUS -> decrease font
-//        KeyStroke decreaseFont = KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, InputEvent.META_DOWN_MASK);
-//        table.getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(decreaseFont, "Decrease Font Size");
-//        table.getActionMap().put("Decrease Font Size", new AbstractAction() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                decreaseFontSize();
-//            }
-//        });
 
         table.getSelectionModel().addListSelectionListener(event -> {
             if (event.getValueIsAdjusting()) return;
@@ -373,9 +408,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 }
             }
 
-            UiUtils.addPopupMenuItem(popupMenu, "Copy", actionEvent -> handleCopyClicked());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Line", actionEvent -> handleCopyClicked());
             UiUtils.addPopupMenuItem(popupMenu, "Copy Message", actionEvent -> handleCopyMessageClicked());
-            UiUtils.addPopupMenuItem(popupMenu, "View Message", actionEvent -> handleLogClicked());
+            UiUtils.addPopupMenuItem(popupMenu, "View Message", actionEvent -> handleViewLogsClicked());
 
             return popupMenu;
         });
@@ -411,9 +446,12 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 }
             }
         });
+
+        searchField.setupSearch(table);
     }
 
     private void handleCopyMessageClicked() {
+        log.trace("handleCopyMessageClicked: ");
         List<LogEntry> logEntryList = getSelectedLogEntries();
         StringBuilder sb = new StringBuilder();
         for (LogEntry logEntry : logEntryList) {
@@ -432,19 +470,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         StringBuilder sb = new StringBuilder();
         for (LogEntry logEntry : logEntryList) {
             if (!sb.isEmpty()) sb.append("\n");
-            sb.append(logEntry.date);
-            sb.append(", ");
-            sb.append(logEntry.app);
-            sb.append(", ");
-            sb.append(logEntry.tid);
-            sb.append(", ");
-            sb.append(logEntry.pid);
-            sb.append(", ");
-            sb.append(logEntry.level);
-            sb.append(", ");
-            sb.append(logEntry.tag);
-            sb.append(", ");
-            sb.append(logEntry.message);
+            sb.append(logEntry.toString());
         }
         if (sb.isEmpty()) return;
 
@@ -453,7 +479,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         clipboard.setContents(stringSelection, null);
     }
 
-    private void handleLogClicked() {
+    private void handleViewLogsClicked() {
         List<LogEntry> logEntryList = getSelectedLogEntries();
         if (!logEntryList.isEmpty()) {
             viewMessage(logEntryList.toArray(new LogEntry[0]));
@@ -475,6 +501,17 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
         viewScreen.setLogEntry(logEntry);
         viewScreen.setVisible(true);
+    }
+
+    private void handleEditLogsClicked() {
+        List<LogEntry> logEntryList = getSelectedLogEntries();
+        if (logEntryList.isEmpty()) return;
+
+        if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
+        viewScreen.setLogEntry(logEntryList.toArray(new LogEntry[0]));
+
+        viewScreen.editMessage();
+        viewScreen.setVisible(false);
     }
 
     private void handleQuickAddFilter(LogsTableModel.Columns columnType, String text) {
@@ -532,6 +569,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         logButton = createSmallToolbarButton(toolbar, null, null, "Start Logging", actionEvent -> toggleLoggingButton());
         updateLoggingButton();
 
+        quickViewButton = createSmallToolbarButton(toolbar, null, null, "", actionEvent -> toggleQuickViewButton());
+        updateQuickViewButton();
+
         toolbar.add(Box.createHorizontalGlue());
 
         // toolbar.addSeparator(new Dimension(10, 0));
@@ -568,88 +608,251 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         logButton.setText(isLoggedPaused ? "Start" : "Stop");
     }
 
+    private void toggleQuickViewButton() {
+        isQuickViewEnabled = !isQuickViewEnabled;
+        updateQuickViewButton();
+
+        List<String> hiddenColList = new ArrayList<>();
+        if (isQuickViewEnabled) {
+            hiddenColList.add(LogsTableModel.Columns.DATE.name());
+            hiddenColList.add(LogsTableModel.Columns.APP.name());
+            hiddenColList.add(LogsTableModel.Columns.TID.name());
+            hiddenColList.add(LogsTableModel.Columns.PID.name());
+        }
+        model.setHiddenColumns(hiddenColList);
+
+        // use some default column sizes
+        table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
+        table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
+        table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
+        table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
+        table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
+        table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
+        table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
+
+        table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
+        table.setMaxColWidth(LogsTableModel.Columns.PID.toString(), 100);
+        table.setMaxColWidth(LogsTableModel.Columns.TID.toString(), 100);
+    }
+
+    private void updateQuickViewButton() {
+        String imageName = isQuickViewEnabled ? "eye_closed.png" : "eye_open.png";
+        ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
+        quickViewButton.setIcon(icon);
+        quickViewButton.setText(isQuickViewEnabled ? "Restore" : "Hide");
+        quickViewButton.setToolTipText(isQuickViewEnabled ? "Restore Distraction Free Mode" : "Enter Distraction Free Mode");
+    }
+
     private void doSearch(String text) {
         if (TextUtils.isEmpty(text)) {
             model.setSearchText(null);
         } else {
             model.setSearchText(text);
         }
+        refreshUi();
     }
 
     private void setupFilterList() {
         populateFilters();
-        filterList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        filterList.addListSelectionListener(e -> filterDevices(filterField.getCleanText()));
+        restoreSelectedFilters();
+        filterList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        filterList.setCellRenderer(new LogFilterRenderer());
+        filterList.addListSelectionListener(e -> handleFilterSelected());
         filterList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 // single click
-                Point point = e.getPoint();
-                int i = filterList.locationToIndex(point);
-                if (i < 0) return;
                 if (SwingUtilities.isRightMouseButton(e)) {
                     // select item
+                    Point point = e.getPoint();
+                    int i = filterList.locationToIndex(point);
+                    if (i < 0) return;
                     filterList.setSelectedIndex(i);
 
-                    // only show popup menu for user filters
-                    if (i < numSystemFilters) return;
+                    LogFilter selectedFilter = filterList.getSelectedValue();
+                    if (selectedFilter == null || selectedFilter.isSystemFilter) return;
 
                     JPopupMenu popupMenu = new JPopupMenu();
-                    UiUtils.addPopupMenuItem(popupMenu, "Edit Filter", actionEvent -> handleEditFilterClicked());
-                    UiUtils.addPopupMenuItem(popupMenu, "Delete Filter", actionEvent -> handleDeleteFilterClicked());
+                    UiUtils.addPopupMenuItem(popupMenu, "Edit Filter", actionEvent -> handleEditFilterClicked(selectedFilter));
+                    UiUtils.addPopupMenuItem(popupMenu, "Duplicate Filter", actionEvent -> handleCopyFilterClicked(selectedFilter));
+                    UiUtils.addPopupMenuItem(popupMenu, "Delete Filter", actionEvent -> handleDeleteFilterClicked(selectedFilter));
+                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                } else if (e.getClickCount() >= 2) {
+                    LogFilter selectedFilter = filterList.getSelectedValue();
+                    if (selectedFilter == null || selectedFilter.isSystemFilter) return;
+                    handleEditFilterClicked(selectedFilter);
                 }
             }
         });
     }
 
-    private void populateFilters() {
-        List<FilterItem> filterItemList = new ArrayList<>();
-        // -- system filteres --
-        addLogLevel(filterItemList, "All Messages", null);
-        addLogLevel(filterItemList, "Log Level Debug+", "level:D+");
-        addLogLevel(filterItemList, "Log Level Info+", "level:I+");
-        addLogLevel(filterItemList, "Log Level Warn+", "level:W+");
-        addLogLevel(filterItemList, "Log Level Error+", "level:E");
-        numSystemFilters = filterItemList.size();
-
-        // -- user filters --
-        String filterStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS);
-        List<FilterItem> userFilterList = GsonHelper.stringToList(filterStr, FilterItem.class);
-        // sort A-Z (name)
-        userFilterList.sort((lhs, rhs) -> TextUtils.compareToIgnoreCase(lhs.name, rhs.name));
-
-        filterItemList.addAll(userFilterList);
-        filterList.setListData(filterItemList.toArray(new FilterItem[0]));
-    }
-
-    private void handleDeleteFilterClicked() {
-
-    }
-
-    private void handleEditFilterClicked() {
-
-    }
-
-    private void addLogLevel(List<FilterItem> filterItemList, String label, String filter) {
-        FilterItem item = new FilterItem();
-        item.name = label;
-        item.filter = LogFilter.parse(filter);
-        log.debug("addLogLevel: {}, {}", label, item.filter);
-        filterItemList.add(item);
-    }
-
-    private void filterDevices(String text) {
-        List<LogFilter> list = new ArrayList<>();
-
-        // get currently selected filter
-        List<FilterItem> selectedList = filterList.getSelectedValuesList();
-        StringBuilder sb = new StringBuilder();
-        for (FilterItem item : selectedList) {
-            if (item.filter != null) list.add(item.filter);
-            if (!sb.isEmpty()) sb.append(" && ");
-            sb.append(item.name);
+    private void restoreSelectedFilters() {
+        // select last used filter(s)
+        String recentFilterStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS);
+        List<String> recentFilterList = GsonHelper.stringToList(recentFilterStr, String.class);
+        ListModel<LogFilter> filterListModel = filterList.getModel();
+        List<Integer> selectedIndexList = new ArrayList<>();
+        for (int i = 0; i < filterListModel.getSize(); i++) {
+            LogFilter filter = filterListModel.getElementAt(i);
+            if (recentFilterList.contains(filter.name)) {
+                selectedIndexList.add(i);
+            }
+        }
+        if (!selectedIndexList.isEmpty()) {
+            int[] indexArr = selectedIndexList.stream()
+                    .filter(Objects::nonNull)
+                    .mapToInt(Integer::intValue)
+                    .toArray();
+            log.trace("setupFilterList: re-select:{}", GsonHelper.toJson(indexArr));
+            filterList.setSelectedIndices(indexArr);
         }
 
+        // restore previous custom filter
+        String recentFilterText = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LOGS_CUSTOM_FILTER);
+        if (TextUtils.notEmpty(recentFilterText)) {
+            filterField.setText(recentFilterText);
+        }
+
+    }
+
+    private void populateFilters() {
+        // -- system filters --
+        List<LogFilter> systemFilterList = getSystemFilters();
+        List<LogFilter> logFilterList = new ArrayList<>(systemFilterList);
+
+        // -- user filters --
+        List<LogFilter> userFilterList = getUserFilters();
+        // sort A-Z (name)
+        userFilterList.sort((lhs, rhs) -> TextUtils.compareToIgnoreCase(lhs.name, rhs.name));
+        logFilterList.addAll(userFilterList);
+        // replace all filters
+        filterList.setListData(logFilterList.toArray(new LogFilter[0]));
+    }
+
+    public static List<LogFilter> getSystemFilters() {
+        List<LogFilter> systemList = new ArrayList<>();
+        systemList.add(createFilter("All Messages", null));
+        systemList.add(createFilter("Log Level Debug+", "level:D+"));
+        systemList.add(createFilter("Log Level Info+", "level:I+"));
+        systemList.add(createFilter("Log Level Warn+", "level:W+"));
+        systemList.add(createFilter("Log Level Error+", "level:E"));
+        systemList.add(createFilter(null, null));
+        return systemList;
+    }
+
+    private void selectFilter(LogFilter filter) {
+        ListModel<LogFilter> listModel = filterList.getModel();
+        for (int i = 0; i < listModel.getSize(); i++) {
+            LogFilter value = listModel.getElementAt(i);
+            if (TextUtils.equals(value.name, filter.name)) {
+                filterList.setSelectedIndex(i);
+                break;
+            }
+        }
+    }
+
+    /**
+     * remove filter by name from filter list
+     *
+     * @param userFilterList - may be null
+     * @param filter         - filter to remove
+     */
+    private void removeFilter(List<LogFilter> userFilterList, LogFilter filter) {
+        if (userFilterList == null) userFilterList = getUserFilters();
+        for (Iterator<LogFilter> iterator = userFilterList.iterator(); iterator.hasNext(); ) {
+            LogFilter userFilter = iterator.next();
+            if (TextUtils.equals(userFilter.name, filter.name)) {
+                log.trace("removeFilter: REMOVE: {}", filter);
+                iterator.remove();
+                break;
+            }
+        }
+    }
+
+    public static List<LogFilter> getUserFilters() {
+        String filterStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS);
+        return GsonHelper.stringToList(filterStr, LogFilter.class);
+    }
+
+    private void handleAddFilterClicked(ActionEvent actionEvent) {
+        LogFilter filter = AddFilterDialog.showAddFilterDialog(this, null);
+        if (filter != null) {
+            addFilter(null, filter);
+            populateFilters();
+            selectFilter(filter);
+        }
+    }
+
+    public static void addFilter(List<LogFilter> userFilterList, LogFilter filter) {
+        if (userFilterList == null) userFilterList = getUserFilters();
+        userFilterList.add(filter);
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS, GsonHelper.toJson(userFilterList));
+    }
+
+    private void handleFilterSelected() {
+        doFilter(filterField.getCleanText());
+    }
+
+    private void handleCopyFilterClicked(LogFilter selectedFilter) {
+        LogFilter copy = new LogFilter(selectedFilter);
+        addFilter(null, copy);
+        populateFilters();
+        selectFilter(copy);
+        handleEditFilterClicked(copy);
+    }
+
+    private void handleEditFilterClicked(LogFilter selectedFilter) {
+        LogFilter filter = AddFilterDialog.showAddFilterDialog(this, selectedFilter);
+        if (filter != null) {
+            List<LogFilter> userFilterList = getUserFilters();
+            removeFilter(userFilterList, selectedFilter);
+            addFilter(userFilterList, filter);
+            populateFilters();
+            selectFilter(filter);
+        }
+    }
+
+    private void handleDeleteFilterClicked(LogFilter selectedFilter) {
+        String msg = String.format("Delete Filter \"%s\"?", selectedFilter.name);
+        boolean isYes = DialogHelper.showConfirmDialog(this, "Delete Filter", msg);
+        if (isYes) {
+            List<LogFilter> userFilterList = getUserFilters();
+            for (Iterator<LogFilter> iterator = userFilterList.iterator(); iterator.hasNext(); ) {
+                LogFilter userFilter = iterator.next();
+                if (TextUtils.equals(userFilter.name, selectedFilter.name)) {
+                    iterator.remove();
+                    break;
+                }
+            }
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_MESSAGE_FILTERS, GsonHelper.toJson(userFilterList));
+            populateFilters();
+        }
+    }
+
+    private static LogFilter createFilter(String label, String filter) {
+        LogFilter item = LogFilter.parse(filter);
+        item.name = label;
+        item.isSystemFilter = true;
+        return item;
+    }
+
+    private void doFilter(String text) {
+        List<LogFilter> list = new ArrayList<>();
+
+        // add currently selected filter(s)
+        List<LogFilter> selectedList = filterList.getSelectedValuesList();
+        StringBuilder sb = new StringBuilder();
+        for (LogFilter item : selectedList) {
+            if (item.filterList != null) {
+                list.add(item);
+                for (LogFilterEntry expression : item.filterList) {
+                    if (!sb.isEmpty()) sb.append(" && ");
+                    sb.append(expression);
+                }
+            }
+        }
+
+        // add custom text filter
         if (TextUtils.notEmpty(text)) {
             LogFilter searchFilter;
             if (TextUtils.indexOf(text, ':') >= 0) {
@@ -657,17 +860,17 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             } else {
                 searchFilter = LogFilter.parse("*:*" + text + "*");
             }
-            log.debug("filterDevices: {}", searchFilter);
+            //log.trace("filterDevices: {}", searchFilter);
             list.add(searchFilter);
             if (!sb.isEmpty()) sb.append(" && ");
-            sb.append(text);
+            sb.append("\"" + text + "\"");
         }
 
         sorter.setFilter(list.toArray(new LogFilter[0]));
 
-        // TODO: set label
         statusBar.setCenterLabel(sb.toString());
         model.fireTableDataChanged();
+        refreshUi();
     }
 
     @Override

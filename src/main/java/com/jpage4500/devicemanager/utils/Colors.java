@@ -9,6 +9,7 @@ public class Colors {
     public static final Color COLOR_NOT_READY = new Color(251, 247, 8);
 
     public static final Color COLOR_LIGHT_GRAY = new Color(232, 232, 232);
+    public static final Color COLOR_LIST_SELECTED_NO_FOCUS = new Color(0, 81, 255, 108);
 
     public static final Color COLOR_SUCCESS = new Color(24, 134, 0);
     public static final Color COLOR_ERROR = new Color(255, 0, 0);
