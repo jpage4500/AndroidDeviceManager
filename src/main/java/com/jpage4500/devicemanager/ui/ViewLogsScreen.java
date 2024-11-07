@@ -133,10 +133,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         setVisible(true);
         table.requestFocus();
         autoScrollCheckBox.setSelected(true);
-
-        // restore previous filter
-        String recentFilterText = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_RECENT_MESSAGE_FILTER);
-        filterField.setText(recentFilterText);
     }
 
     @Override
@@ -189,35 +185,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // [CMD + T] = hide toolbar
         createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
-        JMenu logsMenu = new JMenu("Logs");
-
-        // [CMD + ENTER] = toggle auto scroll
-        createCmdMenuItem(logsMenu, "Auto Scroll", KeyEvent.VK_ENTER, e -> {
-            autoScrollCheckBox.setSelected(!autoScrollCheckBox.isSelected());
-            scrollToFollow();
-        });
-
-        // [CMD + K] = clear logs
-        createCmdMenuItem(logsMenu, "Clear logs", KeyEvent.VK_K, e -> model.clearLogs());
-
-        // [CMD + KEY_UP] = scroll to top
-        createCmdMenuItem(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
-            autoScrollCheckBox.setSelected(false);
-            table.scrollToTop();
-        });
+        // -----------------------------------------------------------
+        // -----------------------------------------------------------
 
         JMenu editMenu = new JMenu("Edit");
-
-        // [CMD + KEY_DOWN] = scroll to bottom
-        createCmdMenuItem(editMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
-
-        // [OPTION + KEY_UP] = page up
-        KeyStroke optionUpKey = KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK);
-        createMenuItem(editMenu, "Page Up", optionUpKey, e -> table.pageUp());
-
-        // [OPTION + KE_DOWN] = page down
-        KeyStroke optionDownKey = KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK);
-        createMenuItem(editMenu, "Page Down", optionDownKey, e -> table.pageDown());
 
         // [CMD + +] = increase font size
         createCmdMenuItem(editMenu, "Increase Font Size", KeyEvent.VK_EQUALS, e -> increaseFontSize());
@@ -234,6 +205,42 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // [SHIFT + CMD + G] = find previous
         KeyStroke findPrevKey = KeyStroke.getKeyStroke("shift meta G");
         createMenuItem(editMenu, "Find Previous", findPrevKey, e -> findNext(false));
+
+        // -----------------------------------------------------------
+        // -----------------------------------------------------------
+        JMenu logsMenu = new JMenu("Logs");
+
+        // [CMD + ENTER] = toggle auto scroll
+        createCmdMenuItem(logsMenu, "Auto Scroll", KeyEvent.VK_ENTER, e -> {
+            autoScrollCheckBox.setSelected(!autoScrollCheckBox.isSelected());
+            scrollToFollow();
+        });
+
+        // [CMD + K] = clear logs
+        createCmdMenuItem(logsMenu, "Clear logs", KeyEvent.VK_K, e -> model.clearLogs());
+
+        // [CMD + V] = view logs
+        createCmdMenuItem(logsMenu, "View selected", KeyEvent.VK_V, e -> handleViewLogsClicked());
+
+        // [CMD + E] = edit logs
+        createCmdMenuItem(logsMenu, "Edit selected", KeyEvent.VK_E, e -> handleEditLogsClicked());
+
+        // [CMD + KEY_UP] = scroll to top
+        createCmdMenuItem(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
+            autoScrollCheckBox.setSelected(false);
+            table.scrollToTop();
+        });
+
+        // [CMD + KEY_DOWN] = scroll to bottom
+        createCmdMenuItem(logsMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
+
+        // [OPTION + KEY_UP] = page up
+        KeyStroke optionUpKey = KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK);
+        createMenuItem(logsMenu, "Page Up", optionUpKey, e -> table.pageUp());
+
+        // [OPTION + KE_DOWN] = page down
+        KeyStroke optionDownKey = KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK);
+        createMenuItem(logsMenu, "Page Down", optionDownKey, e -> table.pageDown());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -305,8 +312,15 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         log.trace("closeWindow: {}", device.getDisplayName());
         // save last filter
         String filterText = filterField.getCleanText();
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_RECENT_MESSAGE_FILTER, filterText);
-        //stopLogging();
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_CUSTOM_FILTER, filterText.trim());
+
+        // save last selected filters
+        List<LogFilter> selectedList = filterList.getSelectedValuesList();
+        List<String> selectedFilterList = new ArrayList<>();
+        for (LogFilter filter : selectedList) selectedFilterList.add(filter.name);
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS, GsonHelper.toJson(selectedFilterList));
+
+        stopLogging();
         deviceScreen.handleLogsClosed(device.serial);
         dispose();
     }
@@ -343,7 +357,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         table.getActionMap().put("Enter", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                handleLogClicked();
+                handleViewLogsClicked();
             }
         });
 
@@ -353,7 +367,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         table.getActionMap().put("View", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                handleLogClicked();
+                handleViewLogsClicked();
             }
         });
 
@@ -396,7 +410,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
             UiUtils.addPopupMenuItem(popupMenu, "Copy Line", actionEvent -> handleCopyClicked());
             UiUtils.addPopupMenuItem(popupMenu, "Copy Message", actionEvent -> handleCopyMessageClicked());
-            UiUtils.addPopupMenuItem(popupMenu, "View Message", actionEvent -> handleLogClicked());
+            UiUtils.addPopupMenuItem(popupMenu, "View Message", actionEvent -> handleViewLogsClicked());
 
             return popupMenu;
         });
@@ -465,7 +479,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         clipboard.setContents(stringSelection, null);
     }
 
-    private void handleLogClicked() {
+    private void handleViewLogsClicked() {
         List<LogEntry> logEntryList = getSelectedLogEntries();
         if (!logEntryList.isEmpty()) {
             viewMessage(logEntryList.toArray(new LogEntry[0]));
@@ -487,6 +501,17 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
         viewScreen.setLogEntry(logEntry);
         viewScreen.setVisible(true);
+    }
+
+    private void handleEditLogsClicked() {
+        List<LogEntry> logEntryList = getSelectedLogEntries();
+        if (logEntryList.isEmpty()) return;
+
+        if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
+        viewScreen.setLogEntry(logEntryList.toArray(new LogEntry[0]));
+
+        viewScreen.editMessage();
+        viewScreen.setVisible(false);
     }
 
     private void handleQuickAddFilter(LogsTableModel.Columns columnType, String text) {
@@ -629,6 +654,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void setupFilterList() {
         populateFilters();
+        restoreSelectedFilters();
         filterList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         filterList.setCellRenderer(new LogFilterRenderer());
         filterList.addListSelectionListener(e -> handleFilterSelected());
@@ -660,9 +686,36 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         });
     }
 
-    private void populateFilters() {
-        List<LogFilter> selectedList = filterList.getSelectedValuesList();
+    private void restoreSelectedFilters() {
+        // select last used filter(s)
+        String recentFilterStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS);
+        List<String> recentFilterList = GsonHelper.stringToList(recentFilterStr, String.class);
+        ListModel<LogFilter> filterListModel = filterList.getModel();
+        List<Integer> selectedIndexList = new ArrayList<>();
+        for (int i = 0; i < filterListModel.getSize(); i++) {
+            LogFilter filter = filterListModel.getElementAt(i);
+            if (recentFilterList.contains(filter.name)) {
+                selectedIndexList.add(i);
+            }
+        }
+        if (!selectedIndexList.isEmpty()) {
+            int[] indexArr = selectedIndexList.stream()
+                    .filter(Objects::nonNull)
+                    .mapToInt(Integer::intValue)
+                    .toArray();
+            log.trace("setupFilterList: re-select:{}", GsonHelper.toJson(indexArr));
+            filterList.setSelectedIndices(indexArr);
+        }
 
+        // restore previous custom filter
+        String recentFilterText = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LOGS_CUSTOM_FILTER);
+        if (TextUtils.notEmpty(recentFilterText)) {
+            filterField.setText(recentFilterText);
+        }
+
+    }
+
+    private void populateFilters() {
         // -- system filters --
         List<LogFilter> systemFilterList = getSystemFilters();
         List<LogFilter> logFilterList = new ArrayList<>(systemFilterList);
@@ -674,28 +727,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         logFilterList.addAll(userFilterList);
         // replace all filters
         filterList.setListData(logFilterList.toArray(new LogFilter[0]));
-
-        // re-select previously selected filters
-        if (!selectedList.isEmpty() && !logFilterList.isEmpty()) {
-            List<Integer> selectedIndexList = new ArrayList<>();
-            for (int i = 0; i < logFilterList.size(); i++) {
-                LogFilter filter = logFilterList.get(i);
-                for (LogFilter prevSelectedFilter : selectedList) {
-                    if (TextUtils.equals(prevSelectedFilter.name, filter.name)) {
-                        selectedIndexList.add(i);
-                        break;
-                    }
-                }
-            }
-            if (!selectedIndexList.isEmpty()) {
-                int[] indexArr = selectedIndexList.stream()
-                        .filter(Objects::nonNull)
-                        .mapToInt(Integer::intValue)
-                        .toArray();
-                log.trace("populateFilters: re-select:{}", GsonHelper.toJson(indexArr));
-                filterList.setSelectedIndices(indexArr);
-            }
-        }
     }
 
     public static List<LogFilter> getSystemFilters() {

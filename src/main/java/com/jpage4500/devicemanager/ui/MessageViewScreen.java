@@ -81,7 +81,7 @@ public class MessageViewScreen extends BaseScreen {
         editButton = createSmallToolbarButton(toolbar, "icon_edit.png", "Edit", "Edit message in default editor", actionEvent -> editMessage());
     }
 
-    private void editMessage() {
+    public void editMessage() {
         // save to temp file
         String tempFolder = Utils.getTempFolder();
         Random rand = new Random();
