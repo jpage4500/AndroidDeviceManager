@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
+import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
@@ -24,8 +25,9 @@ import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
 public class ConnectDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(ConnectDialog.class);
 
-    private JTextField serverField;
-    private JTextField portField;
+    private JButton okButton;
+    private HintTextField serverField;
+    private HintTextField portField;
 
     // used to persist the most recent X wireless devices
     private static class WirelessDevice {
@@ -35,16 +37,22 @@ public class ConnectDialog extends JPanel {
     }
 
     public static void showConnectDialog(Component frame, DeviceManager.TaskListener listener) {
-        ConnectDialog screen = new ConnectDialog();
-        String[] choices = {"Connect", "Cancel"};
-        if (!DialogHelper.showCustomDialog(frame, screen, "Connect to device", choices)) return;
+        ConnectDialog dialog = new ConnectDialog();
+        dialog.okButton = DialogHelper.createDialogButton("Connect");
+        JButton cancelButton = DialogHelper.createDialogButton("Cancel");
 
-        String ip = screen.serverField.getText();
+        int rc = JOptionPane.showOptionDialog(frame, dialog, "Connect to device", JOptionPane.DEFAULT_OPTION,
+                JOptionPane.PLAIN_MESSAGE, null, new Object[]{dialog.okButton, cancelButton}, dialog.okButton);
+        boolean isOk = (rc == JOptionPane.YES_OPTION);
+        if (!isOk) return;
+
+        String ip = dialog.serverField.getCleanText();
+        String portStr = dialog.portField.getCleanText();
         int port;
         try {
-            port = Integer.parseInt(screen.portField.getText());
+            port = Integer.parseInt(portStr);
         } catch (NumberFormatException e) {
-            log.error("Invalid port: " + screen.portField.getText());
+            log.error("Invalid port: " + portStr);
             return;
         }
 
@@ -106,8 +114,33 @@ public class ConnectDialog extends JPanel {
 
         add(new JSeparator(), "growx, spanx, wrap");
 
-        serverField = new JTextField(lastIp);
-        portField = new JTextField(String.valueOf(lastPort));
+        // -- SERVER --
+        serverField = new HintTextField("IP Address", text -> {
+            enableOkButton();
+        });
+        serverField.setText(lastIp);
+
+        // -- PORT --
+        portField = new HintTextField("Port", null);
+        portField.setText(String.valueOf(lastPort));
+        portField.addKeyListener(new KeyAdapter() {
+            public void keyTyped(KeyEvent e) {
+                char c = e.getKeyChar();
+                if (c == KeyEvent.VK_BACK_SPACE || c == KeyEvent.VK_DELETE) {
+                    // always allowed
+                    enableOkButton();
+                    return;
+                }
+                int length = portField.getText().length();
+                int selectedLen = TextUtils.length(portField.getSelectedText());
+                if (length - selectedLen >= 5) {
+                    e.consume();
+                } else if (!(c >= '0' && c <= '9')) {
+                    e.consume();
+                }
+                enableOkButton();
+            }
+        });
 
         serverField.setHorizontalAlignment(SwingConstants.RIGHT);
         portField.setHorizontalAlignment(SwingConstants.RIGHT);
@@ -141,23 +174,23 @@ public class ConnectDialog extends JPanel {
         add(serverField, "al right, width 100:150, wrap");
 
         add(new JLabel("Port"), "");
-        portField.addKeyListener(new KeyAdapter() {
-            public void keyTyped(KeyEvent e) {
-                char c = e.getKeyChar();
-                if (c == KeyEvent.VK_BACK_SPACE || c == KeyEvent.VK_DELETE) {
-                    // always allowed
-                    return;
-                }
-                int length = portField.getText().length();
-                int selectedLen = TextUtils.length(portField.getSelectedText());
-                if (length - selectedLen >= 5) {
-                    e.consume();
-                } else if (!(c >= '0' && c <= '9')) {
-                    e.consume();
-                }
-            }
-        });
         add(portField, "al right, width 100:150, wrap");
+    }
+
+    private void enableOkButton() {
+        if (okButton == null) return;
+        if (serverField == null || portField == null) return;
+        String ip = serverField.getCleanText();
+        String port = portField.getCleanText();
+        boolean isEnabled = (!TextUtils.isEmptyAny(ip, port));
+        if (isEnabled) {
+            try {
+                Integer.parseInt(port);
+            } catch (NumberFormatException e) {
+                isEnabled = false;
+            }
+        }
+        okButton.setEnabled(isEnabled);
     }
 
     public static List<WirelessDevice> getRecentWirelessDevices() {

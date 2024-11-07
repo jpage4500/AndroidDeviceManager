@@ -366,7 +366,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 }
             }
 
-            UiUtils.addPopupMenuItem(popupMenu, "Copy", actionEvent -> handleCopyClicked());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Line", actionEvent -> handleCopyClicked());
             UiUtils.addPopupMenuItem(popupMenu, "Copy Message", actionEvent -> handleCopyMessageClicked());
             UiUtils.addPopupMenuItem(popupMenu, "View Message", actionEvent -> handleLogClicked());
 
@@ -619,21 +619,25 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             @Override
             public void mouseClicked(MouseEvent e) {
                 // single click
-                Point point = e.getPoint();
-                int i = filterList.locationToIndex(point);
-                if (i < 0) return;
                 if (SwingUtilities.isRightMouseButton(e)) {
                     // select item
+                    Point point = e.getPoint();
+                    int i = filterList.locationToIndex(point);
+                    if (i < 0) return;
                     filterList.setSelectedIndex(i);
 
                     LogFilter selectedFilter = filterList.getSelectedValue();
-                    if (selectedFilter.isSystemFilter) return;
+                    if (selectedFilter == null || selectedFilter.isSystemFilter) return;
 
                     JPopupMenu popupMenu = new JPopupMenu();
                     UiUtils.addPopupMenuItem(popupMenu, "Edit Filter", actionEvent -> handleEditFilterClicked(selectedFilter));
                     UiUtils.addPopupMenuItem(popupMenu, "Duplicate Filter", actionEvent -> handleCopyFilterClicked(selectedFilter));
                     UiUtils.addPopupMenuItem(popupMenu, "Delete Filter", actionEvent -> handleDeleteFilterClicked(selectedFilter));
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                } else if (e.getClickCount() >= 2) {
+                    LogFilter selectedFilter = filterList.getSelectedValue();
+                    if (selectedFilter == null || selectedFilter.isSystemFilter) return;
+                    handleEditFilterClicked(selectedFilter);
                 }
             }
         });

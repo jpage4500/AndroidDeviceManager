@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
+import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
@@ -17,13 +18,16 @@ import java.util.List;
 
 import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
 
+/**
+ * send custom ADB command
+ */
 public class CommandDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(CommandDialog.class);
 
     public static final int MAX_RECENT_COMMANDS = 10;
 
     private Component frame;
-    private JTextField textField;
+    private HintTextField textField;
     private JList<String> list;
     private DefaultListModel<String> listModel;
     private List<Device> selectedDeviceList;
@@ -33,7 +37,7 @@ public class CommandDialog extends JPanel {
 
     public static void showCommandDialog(Component frame, List<Device> selectedDeviceList) {
         CommandDialog screen = new CommandDialog(selectedDeviceList);
-        DialogHelper.showCustomDialog(frame, screen, "Send ADB Command", null);
+        DialogHelper.showCustomDialog(frame, screen, "Send ADB Command", new String[0]);
     }
 
     public CommandDialog(List<Device> selectedDeviceList) {
@@ -72,7 +76,7 @@ public class CommandDialog extends JPanel {
 
         add(new JSeparator(), "growx, spanx, wrap");
 
-        textField = new JTextField();
+        textField = new HintTextField("ADB Command", null);
         textField.setHorizontalAlignment(SwingConstants.RIGHT);
 
         textField.addKeyListener(new KeyAdapter() {
@@ -120,7 +124,7 @@ public class CommandDialog extends JPanel {
     }
 
     private void runCommand() {
-        String command = textField.getText();
+        String command = textField.getCleanText();
         if (TextUtils.isEmpty(command)) return;
 
         // remove "adb " from commands
@@ -160,6 +164,7 @@ public class CommandDialog extends JPanel {
             resultsLabel.setText(msg);
             resultsMsg = error;
         });
+        resultWatcher.setDesc("-- COMMAND -- \n" + command);
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().runCustomCommand(device, command, (isSuccess, error) -> {
                 resultWatcher.handleResult(device.serial, isSuccess, error);

@@ -32,12 +32,11 @@ public class AddFilterDialog extends JPanel {
     public static LogFilter showAddFilterDialog(Component frame, LogFilter filter) {
         AddFilterDialog dialog = new AddFilterDialog(filter);
         String okText = filter == null ? "Save" : "Update";
-        JButton okButton = DialogHelper.createDialogButton(okText);
-        dialog.setOkButton(okButton);
+        dialog.okButton = DialogHelper.createDialogButton(okText);
         JButton cancelButton = DialogHelper.createDialogButton("Cancel");
 
         int rc = JOptionPane.showOptionDialog(frame, dialog, "Add Filter", JOptionPane.DEFAULT_OPTION,
-                JOptionPane.PLAIN_MESSAGE, null, new Object[]{okButton, cancelButton}, okButton);
+                JOptionPane.PLAIN_MESSAGE, null, new Object[]{dialog.okButton, cancelButton}, dialog.okButton);
         boolean isOk = (rc == JOptionPane.YES_OPTION);
         if (isOk) {
             return dialog.getLogFilter();
@@ -51,10 +50,6 @@ public class AddFilterDialog extends JPanel {
         panelList = new ArrayList<>();
 
         initalizeUi();
-    }
-
-    private void setOkButton(JButton okButton) {
-        this.okButton = okButton;
     }
 
     /**
@@ -119,8 +114,6 @@ public class AddFilterDialog extends JPanel {
             String valueText = panel.valueField.getCleanText();
             if (TextUtils.notEmpty(valueText)) numFilters++;
         }
-        log.trace("enableOkButton: {}", numFilters);
-
         if (okButton != null) okButton.setEnabled(TextUtils.notEmpty(name) && numFilters > 0);
     }
 
