@@ -65,6 +65,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         this.deviceScreen = deviceScreen;
         this.device = device;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
         initalizeUi();
         updateDeviceState();
     }
@@ -190,6 +191,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         JMenu editMenu = new JMenu("Edit");
 
+        createMenuItem(editMenu, "Select Font", null, e -> showFontSelection());
+
         // [CMD + +] = increase font size
         createCmdMenuItem(editMenu, "Increase Font Size", KeyEvent.VK_EQUALS, e -> increaseFontSize());
 
@@ -291,12 +294,12 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public void increaseFontSize() {
         int fontOffset = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, 0);
         fontOffset++;
-        setFontSize(fontOffset);
+        if (fontOffset > 10) fontOffset = 10;
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, fontOffset);
+        notifyFontChanged();
     }
 
-    private void setFontSize(int fontOffset) {
-        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, fontOffset);
-
+    private void notifyFontChanged() {
         LogsCellRenderer cellRenderer = (LogsCellRenderer) table.getDefaultRenderer(LogEntry.class);
         cellRenderer.notifyFontChanged();
         model.fireTableDataChanged();
@@ -305,7 +308,24 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public void decreaseFontSize() {
         int fontOffset = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, 0);
         fontOffset--;
-        setFontSize(fontOffset);
+        if (fontOffset < -10) fontOffset = -10;
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, fontOffset);
+        notifyFontChanged();
+    }
+
+    private void showFontSelection() {
+        JFontChooser fontChooser = new JFontChooser();
+        LogsCellRenderer cellRenderer = (LogsCellRenderer) table.getDefaultRenderer(LogEntry.class);
+        fontChooser.setSelectedFont(cellRenderer.getFont());
+        int rc = fontChooser.showDialog(deviceScreen);
+        if (rc != JOptionPane.YES_OPTION) return;
+        Font font = fontChooser.getSelectedFont();
+        log.trace("showFontSelection: font:{}", font);
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_FONT_NAME, font.getName());
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOGS_FONT_STYLE, font.getStyle());
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOGS_FONT_SIZE, font.getSize());
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, 0);
+        notifyFontChanged();
     }
 
     private void closeWindow() {
@@ -334,6 +354,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setModel(model);
         table.setDefaultRenderer(LogEntry.class, new LogsCellRenderer());
+
+        int unitIncrement = table.getScrollPane().getHorizontalScrollBar().getUnitIncrement();
+        log.trace("setupTable: {}", unitIncrement);
+        table.getScrollPane().getHorizontalScrollBar().setUnitIncrement(unitIncrement * 4);
 
         // restore user-defined column sizes
         if (!table.restoreTable()) {

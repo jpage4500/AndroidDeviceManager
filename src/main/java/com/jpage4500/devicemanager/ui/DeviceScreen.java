@@ -677,9 +677,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     public void handleFilesDropped(List<File> fileList) {
-        log.debug("handleFilesDropped: {}", fileList.size());
         List<Device> selectedDeviceList = getSelectedDevices(true);
-        if (selectedDeviceList.isEmpty()) return;
+        if (selectedDeviceList.isEmpty()) {
+            log.error("handleFilesDropped: no devices! {}", fileList);
+            return;
+        }
+        log.debug("handleFilesDropped: {}, #devices:{}", fileList, selectedDeviceList.size());
         installOrCopyFiles(selectedDeviceList, fileList, null);
     }
 
@@ -1135,9 +1138,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private List<File> getCustomScripts() {
-        String homeFolder = Utils.getUserHomeFolder();
-        File customFolder = new File(homeFolder, ".device_manager");
-        if (!customFolder.exists()) return null;
+        File customFolder = Utils.getDeviceManagerFolder();
         File[] files = customFolder.listFiles();
         if (files == null) return null;
         List<File> scriptList = new ArrayList<>();

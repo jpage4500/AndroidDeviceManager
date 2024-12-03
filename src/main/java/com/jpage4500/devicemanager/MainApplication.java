@@ -65,9 +65,9 @@ public class MainApplication {
             // set log level that application should log at (and higher)
             logger.setDebugLevel(Log.VERBOSE);
             logger.setLogToFile(true);
-            // save logs to temp folder
-            String tmpDir = Utils.getTempFolder();
-            logger.setFileLog(new File(tmpDir, "device_manager_log.txt"));
+            // save logs to ~/.device_manager folder
+            File deviceManagerFolder = Utils.getDeviceManagerFolder();
+            logger.setFileLog(new File(deviceManagerFolder, "device_manager_log.txt"));
 
             boolean isDebugMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false);
             logger.setFileLogLevel(isDebugMode ? Log.DEBUG : Log.INFO);
@@ -105,6 +105,7 @@ public class MainApplication {
                 List<File> files = e.getFiles();
                 if (openFileList == null) openFileList = new ArrayList<>();
                 openFileList.addAll(files);
+                log.debug("handleLaunchParams: {}", openFileList);
                 sendFilesToDevice();
             });
         }
