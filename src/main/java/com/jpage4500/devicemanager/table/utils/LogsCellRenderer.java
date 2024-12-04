@@ -104,7 +104,15 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
     }
 
     public void notifyFontChanged() {
+        String fontName = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LOGS_FONT_NAME, "Courier");
+        int fontStyle = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_FONT_STYLE, Font.PLAIN);
+        int fontSize = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_FONT_SIZE, defaultFontSize);
         int fontOffset = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, 0);
-        setFont(getFont().deriveFont(Font.PLAIN, fontOffset + defaultFontSize));
+        int size = fontSize + fontOffset;
+        if (size > 25) size = 25;
+        else if (size < 8) size = 8;
+        log.trace("notifyFontChanged: {}, {}, {}, offset:{}", fontName, fontStyle, fontSize, fontOffset);
+        Font font = new Font(fontName, fontStyle, size);
+        setFont(font);
     }
 }

@@ -56,6 +56,10 @@ public class Utils {
 
     public static boolean openFile(File outputfile) {
         if (outputfile == null) return false;
+        else if (!outputfile.exists()) {
+            log.warn("openFile: file doesn't exist: {}", outputfile.getAbsolutePath());
+            return false;
+        }
         try {
             Desktop.getDesktop().open(outputfile);
             return true;
@@ -99,6 +103,13 @@ public class Utils {
 
     public static String getTempFolder() {
         return System.getProperty("java.io.tmpdir");
+    }
+
+    public static File getDeviceManagerFolder() {
+        String homeFolder = Utils.getUserHomeFolder();
+        File deviceFolder = new File(homeFolder, ".device_manager");
+        if (!deviceFolder.exists()) deviceFolder.mkdirs();
+        return deviceFolder;
     }
 
     public static String getDownloadFolder() {

@@ -26,6 +26,7 @@ public class PreferenceUtils {
         PREF_LOGS_HIDDEN_COLUMNS,
         PREF_LOGS_CUSTOM_FILTER,              // logs: last custom filter
         PREF_LOGS_SELECTED_FILTERS,           // logs: last selected filters
+        PREF_LOGS_FONT_NAME,
     }
 
     /**
@@ -48,10 +49,16 @@ public class PreferenceUtils {
     public enum PrefInt {
         PREF_LAST_DEVICE_PORT,
         PREF_FONT_SIZE_OFFSET,
+        PREF_LOGS_FONT_SIZE,
+        PREF_LOGS_FONT_STYLE,
     }
 
     public static String getPreference(Pref pref) {
-        return getPreference(pref.name());
+        return getPreference(pref.name(), null);
+    }
+
+    public static String getPreference(Pref pref, String defaultValue) {
+        return getPreference(pref.name(), defaultValue);
     }
 
     public static boolean getPreference(PrefBoolean pref) {
@@ -100,8 +107,8 @@ public class PreferenceUtils {
     // ------------------------------------------------------------------------
     // ------------------------------------------------------------------------
 
-    private static String getPreference(String pref) {
-        return getPreferences().get(pref, null);
+    private static String getPreference(String pref, String defaultValue) {
+        return getPreferences().get(pref, defaultValue);
     }
 
     private static boolean getPreferenceBool(String pref, boolean defaultValue) {
