@@ -9,7 +9,13 @@
     "jdeploy": {
         "jdk": false,
         "javaVersion": "17",
-        "documentTypes": [{"extension": "apk"}],
+        "documentTypes": [
+            {
+                "extension": "apk",
+                "mimetype": "application/vnd.android.package-archive",
+                "editor": false
+            }
+        ],
         "jar": "target/AndroidDeviceManager.jar",
         "javafx": false,
         "title": "Android Device Manager"
