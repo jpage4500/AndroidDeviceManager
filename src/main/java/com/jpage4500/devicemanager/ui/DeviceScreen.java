@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.GithubRelease;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
@@ -51,6 +52,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     // update check for github releases
     public static final String UPDATE_SOURCE_GITHUB = "https://api.github.com/repos/jpage4500/AndroidDeviceManager/releases";
     public static final String URL_GITHUB = "https://github.com/jpage4500/AndroidDeviceManager/releases";
+    public static final String PACKAGE_PREFIX = "package:";
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -485,7 +487,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             updateDeviceState(device);
             sorter.sort();
         });
-
     }
 
     @Override
@@ -889,13 +890,57 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             final Map<String, String> appMep = new TreeMap<>();
             // convert set to map
             for (String app : appSet) appMep.put(app, null);
-            DialogHelper.showListDialog(this, "Installed Apps", appMep, (key, value) -> {
-                log.trace("showInstalledApps: click: {}", key);
-                DeviceManager.getInstance().fetchAppVersion(device, key, version -> {
-                    String text = String.format("%s = %s", key, version);
-                    DialogHelper.showTextDialog(this, key, text);
-                });
+            DialogHelper.showListDialog(this, "Installed Apps", appMep, new DialogHelper.ListListener() {
+                @Override
+                public void handleDoubleClick(String key, String value) {
+                    log.trace("showInstalledApps: click: {}", key);
+                    DeviceManager.getInstance().fetchAppVersion(device, key, version -> {
+                        String text = String.format("%s = %s", key, version);
+                        DialogHelper.showTextDialog(DeviceScreen.this, key, text);
+                    });
+                }
+
+                @Override
+                public void handleRightClick(String key, String value, JPopupMenu popupMenu) {
+                    UiUtils.addPopupMenuItem(popupMenu, "Download App", actionEvent -> {
+                        extractApk(device, key);
+                    });
+                }
             });
+        });
+    }
+
+    private void extractApk(Device device, String key) {
+        String command = "pm path " + key;
+        DeviceManager deviceManager = DeviceManager.getInstance();
+        deviceManager.runCustomCommand(device, command, (result) -> {
+            if (!result.isSuccess) {
+                String msg = "Unable to download " + key + "\n\n" + result;
+                DialogHelper.showDialog(this, "Error", msg);
+                return;
+            }
+            // download to new folder
+            String downloadFolder = Utils.getDownloadFolder();
+            File appFolder = new File(downloadFolder, key);
+            appFolder.mkdirs();
+
+            for (String path : result.resultList) {
+                if (!TextUtils.startsWith(path, PACKAGE_PREFIX)) {
+                    log.trace("extractApk: BAD LINE: {}", path);
+                    continue;
+                }
+                path = path.substring(PACKAGE_PREFIX.length());
+                int pos = path.lastIndexOf('/');
+                if (pos < 1) continue;
+                DeviceFile file = new DeviceFile();
+                file.name = path.substring(pos+1);
+                path = path.substring(0, pos);
+
+                File saveFile = new File(appFolder, file.name);
+                deviceManager.downloadFile(device, path, file, saveFile, (isSuccess, error) -> {
+                    log.trace("extractApk: {}: {}", isSuccess, error);
+                });
+            }
         });
     }
 

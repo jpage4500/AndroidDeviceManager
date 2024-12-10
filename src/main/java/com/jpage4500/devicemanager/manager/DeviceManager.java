@@ -479,8 +479,8 @@ public class DeviceManager {
     }
 
     public static class ShellResult {
-        boolean isSuccess;
-        List<String> resultList;
+        public boolean isSuccess;
+        public List<String> resultList;
 
         public String getResult(int index) {
             if (resultList != null && resultList.size() > index) return resultList.get(index);
@@ -750,17 +750,12 @@ public class DeviceManager {
         });
     }
 
-    public void runCustomCommand(Device device, String customCommand, TaskListener listener) {
+    public void runCustomCommand(Device device, String customCommand, CommandListener listener) {
         commandExecutorService.submit(() -> {
             ShellResult result = runShell(device, customCommand);
             boolean isSuccess = result.isSuccess;
             log.trace("runCustomCommand: DONE: success:{}, {}", isSuccess, GsonHelper.toJson(result.resultList));
-            String displayStr = TextUtils.join(result.resultList, "\n");
-            // check if command runs but fails
-            if (TextUtils.containsIgnoreCase(displayStr, "inaccessible or not found")) {
-                isSuccess = false;
-            }
-            if (listener != null) listener.onTaskComplete(isSuccess, displayStr);
+            if (listener != null) listener.onTaskComplete(result);
         });
     }
 
@@ -847,9 +842,17 @@ public class DeviceManager {
         void onTaskComplete(boolean isSuccess, String error);
     }
 
+    public interface CommandListener {
+        void onTaskComplete(ShellResult result);
+    }
+
     public void downloadFile(Device device, String path, DeviceFile file, File saveFile, TaskListener listener) {
         log.debug("downloadFile: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
-        commandExecutorService.submit(() -> downloadFileInternal(device, path, file, saveFile));
+        commandExecutorService.submit(() -> {
+            downloadFileInternal(device, path, file, saveFile);
+            // test if file was created
+            listener.onTaskComplete(saveFile.exists(), null);
+        });
     }
 
     /**
