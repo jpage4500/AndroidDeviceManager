@@ -97,6 +97,13 @@ public class AppLoggerFactory implements ILoggerFactory {
         this.fileLogLevel = fileLogLevel;
     }
 
+    /**
+     * @return log level which app is logging at
+     */
+    public int getFileLogLevel() {
+        return fileLogLevel;
+    }
+
     @Override
     public org.slf4j.Logger getLogger(final String name) {
         AppLogger appLogger = this.nameToLogMap.get(name);

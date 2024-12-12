@@ -69,8 +69,8 @@ public class MainApplication {
             File deviceManagerFolder = Utils.getDeviceManagerFolder();
             logger.setFileLog(new File(deviceManagerFolder, "device_manager_log.txt"));
 
-            boolean isDebugMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false);
-            logger.setFileLogLevel(isDebugMode ? Log.DEBUG : Log.INFO);
+            int logLevel = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOG_LEVEL, Log.INFO);
+            logger.setFileLogLevel(logLevel);
         } else {
             System.out.println("ERROR: no logger found: " + iLoggerFactory.getClass().getSimpleName());
         }

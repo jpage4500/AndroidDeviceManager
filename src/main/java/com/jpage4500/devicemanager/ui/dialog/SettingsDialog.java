@@ -50,10 +50,10 @@ public class SettingsDialog extends JPanel {
             // force table background to be repainted
             deviceScreen.model.fireTableDataChanged();
         });
-        addCheckbox("Debug Mode", PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false, isChecked -> {
-            AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
-            logger.setFileLogLevel(isChecked ? Log.DEBUG : Log.INFO);
-        });
+
+        JButton logButton = addButton("Log Level", "EDIT", null);
+        UiUtils.addClickListener(logButton, e -> toggleLogLevels(logButton));
+        updateLogLevel(logButton);
 
         addButton("View Logs", "VIEW", this::viewLogs);
         addButton("Reset Preferences", "RESET", this::resetPreferences);
@@ -62,20 +62,60 @@ public class SettingsDialog extends JPanel {
         invalidate();
     }
 
+    private void updateLogLevel(JButton logButton) {
+        int logLevel = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOG_LEVEL, Log.INFO);
+        String name;
+        switch (logLevel) {
+            case Log.INFO:
+                name = "Info";
+                break;
+            case Log.DEBUG:
+                name = "Debug";
+                break;
+            case Log.VERBOSE:
+            default:
+                name = "Trace";
+                break;
+        }
+        logButton.setText(name);
+    }
+
+    private void toggleLogLevels(JButton logButton) {
+        int logLevel = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOG_LEVEL, Log.INFO);
+        switch (logLevel) {
+            case Log.INFO:
+                logLevel = Log.DEBUG;
+                break;
+            case Log.DEBUG:
+                logLevel = Log.VERBOSE;
+                break;
+            case Log.VERBOSE:
+            default:
+                logLevel = Log.INFO;
+                break;
+        }
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOG_LEVEL, logLevel);
+
+        AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
+        logger.setFileLogLevel(logLevel);
+
+        updateLogLevel(logButton);
+    }
+
     public interface ButtonListener {
         void onClicked();
     }
 
-    private void addButton(String label, String action, ButtonListener listener) {
+    private JButton addButton(String label, String action, ButtonListener listener) {
         add(new JLabel(label));
         JButton button = new JButton(action);
-        button.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
+        if (listener != null) {
+            UiUtils.addClickListener(button, e -> {
                 listener.onClicked();
-            }
-        });
+            });
+        }
         add(button, "wrap");
+        return button;
     }
 
     public interface CheckBoxListener {

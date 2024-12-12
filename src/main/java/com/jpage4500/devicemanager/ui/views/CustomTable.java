@@ -422,7 +422,7 @@ public class CustomTable extends JTable {
                 return column;
             }
         }
-        log.error("getColumnByName: NOT_FOUND:{}, {}", searchName, Utils.getStackTraceString());
+        if (log.isTraceEnabled()) log.trace("getColumnByName: NOT_FOUND:{}, {}", searchName, Utils.getStackTraceString());
         return null;
     }
 

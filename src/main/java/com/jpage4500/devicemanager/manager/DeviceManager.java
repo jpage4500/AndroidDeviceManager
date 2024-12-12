@@ -697,7 +697,7 @@ public class DeviceManager {
                 packageManager.install(file);
                 if (listener != null) listener.onTaskComplete(true, null);
             } catch (Exception e) {
-                log.error("installApp: {}, {}", file.getAbsolutePath(), e.getMessage());
+                log.error("installApp: ERROR: {}, file:{}", e.getMessage(), file.getAbsolutePath());
                 device.status = "failed: " + e.getMessage();
                 if (listener != null) listener.onTaskComplete(false, e.getMessage());
             }

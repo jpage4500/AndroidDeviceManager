@@ -684,10 +684,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             return;
         }
         log.debug("handleFilesDropped: {}, #devices:{}", fileList, selectedDeviceList.size());
-        installOrCopyFiles(selectedDeviceList, fileList, null);
+        installOrCopyFiles(selectedDeviceList, fileList);
     }
 
-    public void installOrCopyFiles(List<Device> selectedDeviceList, List<File> fileList, DeviceManager.TaskListener listener) {
+    public void installOrCopyFiles(List<Device> selectedDeviceList, List<File> fileList) {
         FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
         // if all files are .apk, do install instead of copy
         boolean isInstall = stats.numApk == stats.numTotal;
@@ -702,14 +702,16 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         dialog.setAlwaysOnTop(true);
         if (!DialogHelper.showConfirmDialog(this, title, msg)) return;
         if (isInstall) {
-            installFiles(selectedDeviceList, fileList, listener);
+            installFiles(selectedDeviceList, fileList);
         } else {
-            copyFiles(selectedDeviceList, fileList, listener);
+            copyFiles(selectedDeviceList, fileList);
         }
     }
 
-    private void copyFiles(List<Device> selectedDeviceList, List<File> fileList, DeviceManager.TaskListener listener) {
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), listener);
+    private void copyFiles(List<Device> selectedDeviceList, List<File> fileList) {
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
+
+        });
         String desc = String.format("Copying %d file(s) to %d device(s)", fileList.size(), selectedDeviceList.size());
         resultWatcher.setDesc(desc);
         // TODO: where to put files on device?
@@ -725,8 +727,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
-    private void installFiles(List<Device> selectedDeviceList, List<File> apkList, DeviceManager.TaskListener listener) {
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size() * apkList.size(), listener);
+    private void installFiles(List<Device> selectedDeviceList, List<File> apkList) {
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size() * apkList.size(), (isSuccess, error) -> {
+            if (isSuccess) {
+                // TODO: prompt to open app
+                // - requires figuring out the package name from .apk (aapt2?)
+            } else {
+                DialogHelper.showDialog(this, "Install Failed", error);
+            }
+        });
         for (Device device : selectedDeviceList) {
             for (File file : apkList) {
                 String filename = file.getName();

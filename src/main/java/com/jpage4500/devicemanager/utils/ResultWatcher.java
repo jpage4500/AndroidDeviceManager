@@ -52,7 +52,7 @@ public class ResultWatcher {
         this.desc = desc;
     }
 
-    public void handleResult(String device, boolean isSuccess, String message) {
+    public boolean handleResult(String device, boolean isSuccess, String message) {
         synchronized (resultList) {
             resultList.add(new Result(device, isSuccess, message));
         }
@@ -65,18 +65,17 @@ public class ResultWatcher {
                 boolean isError = false;
                 StringBuilder sb = new StringBuilder();
                 if (desc != null) sb.append(desc + "\n\n");
-                sb.append("-- RESULTS --\n");
                 for (int i = 0; i < resultList.size(); i++) {
                     if (i > 0) sb.append("\n");
                     Result result = resultList.get(i);
                     // only show results with a message
                     if (result.message == null) continue;
 
-                    if (device != null) {
+                    if (device != null && numResults > 1) {
                         sb.append(result.device);
                         sb.append(": ");
                     }
-                    sb.append(result.isSucess ? "OK" : "FAIL");
+                    sb.append(result.isSucess ? "OK" : "ERROR");
                     sb.append(": ");
                     sb.append(result.message);
                     if (!result.isSucess) {
@@ -90,7 +89,9 @@ public class ResultWatcher {
                     DialogHelper.showTextDialog(component, "Results", sb.toString());
                 }
             });
+            return true;
         }
+        return false;
     }
 
 }
