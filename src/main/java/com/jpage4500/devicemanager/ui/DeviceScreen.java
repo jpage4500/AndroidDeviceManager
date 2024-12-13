@@ -289,6 +289,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
         table.setEmptyText("No Connected Devices!");
 
+        boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
+        int flag = autoResize ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
+        table.setAutoResizeMode(flag);
+
         // restore user-defined column sizes
         if (!table.restoreTable()) {
             // use some default column sizes
@@ -363,6 +367,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                     adjuster.adjustColumn(column);
                 });
                 UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this));
+
+                boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
+                String resizeDesc = autoResize ? "ON" : "OFF";
+                UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, actionEvent -> {
+                    boolean update = !autoResize;
+                    PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, update);
+                    int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
+                    table.setAutoResizeMode(flag);
+                });
                 return popupMenu;
             }
             return null;
@@ -942,7 +955,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 int pos = path.lastIndexOf('/');
                 if (pos < 1) continue;
                 DeviceFile file = new DeviceFile();
-                file.name = path.substring(pos+1);
+                file.name = path.substring(pos + 1);
                 path = path.substring(0, pos);
 
                 File saveFile = new File(appFolder, file.name);

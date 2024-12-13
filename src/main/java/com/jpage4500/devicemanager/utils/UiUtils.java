@@ -139,4 +139,52 @@ public class UiUtils {
         return menuItem;
     }
 
+    public interface ButtonListener {
+        void onClicked();
+    }
+
+    public static JButton addSettingButton(Container panel, String label, String action, ButtonListener listener) {
+        panel.add(new JLabel(label));
+        JButton button = new JButton(action);
+        if (listener != null) {
+            UiUtils.addClickListener(button, e -> {
+                listener.onClicked();
+            });
+        }
+        panel.add(button, "wrap");
+        return button;
+    }
+
+    public interface CheckBoxListener {
+        void onChecked(boolean isChecked);
+    }
+
+    public static JCheckBox addSettingCheckbox(Container panel, String label, PreferenceUtils.PrefBoolean pref, boolean defaultValue, CheckBoxListener listener) {
+        JLabel textLabel = new JLabel(label);
+        panel.add(textLabel);
+
+        JCheckBox checkbox = new JCheckBox();
+        boolean currentChecked = PreferenceUtils.getPreference(pref, defaultValue);
+        checkbox.setSelected(currentChecked);
+        checkbox.setHorizontalTextPosition(SwingConstants.LEFT);
+        panel.add(checkbox, "align center, wrap");
+
+        checkbox.addActionListener(actionEvent -> {
+            boolean selected = checkbox.isSelected();
+            PreferenceUtils.setPreference(pref, selected);
+            if (listener != null) listener.onChecked(selected);
+        });
+
+        textLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent mouseEvent) {
+                // TODO: fire checkbox action listener directly
+                boolean selected = !checkbox.isSelected();
+                checkbox.setSelected(selected);
+                PreferenceUtils.setPreference(pref, selected);
+                if (listener != null) listener.onChecked(selected);
+            }
+        });
+        return checkbox;
+    }
 }

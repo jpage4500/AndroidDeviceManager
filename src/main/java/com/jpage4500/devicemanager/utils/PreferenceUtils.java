@@ -40,6 +40,7 @@ public class PreferenceUtils {
         PREF_AUTO_FORMAT_MESSAGE,
         PREF_WRAP_MESSAGE,
         PREF_EXIT_TO_TRAY,
+        PREF_DEVICE_AUTO_RESIZE,
     }
 
     /**

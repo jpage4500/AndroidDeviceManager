@@ -14,8 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,24 +37,24 @@ public class SettingsDialog extends JPanel {
     }
 
     private void initalizeUi() {
-        addButton("Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
-        addButton("Custom Apps", "EDIT", this::showAppsSettings);
-        addButton("Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen));
-        addButton("Download Location", "EDIT", this::showDownloadLocation);
+        UiUtils.addSettingButton(this, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
+        UiUtils.addSettingButton(this, "Custom Apps", "EDIT", this::showAppsSettings);
+        UiUtils.addSettingButton(this, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen));
+        UiUtils.addSettingButton(this, "Download Location", "EDIT", this::showDownloadLocation);
 
-        addCheckbox("Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
-        addCheckbox("Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> deviceScreen.scheduleUpdateChecks());
-        addCheckbox("Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
+        UiUtils.addSettingCheckbox(this, "Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
+        UiUtils.addSettingCheckbox(this, "Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> deviceScreen.scheduleUpdateChecks());
+        UiUtils.addSettingCheckbox(this, "Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
             // force table background to be repainted
             deviceScreen.model.fireTableDataChanged();
         });
 
-        JButton logButton = addButton("Log Level", "EDIT", null);
+        JButton logButton = UiUtils.addSettingButton(this, "Log Level", "EDIT", null);
         UiUtils.addClickListener(logButton, e -> toggleLogLevels(logButton));
         updateLogLevel(logButton);
 
-        addButton("View Logs", "VIEW", this::viewLogs);
-        addButton("Reset Preferences", "RESET", this::resetPreferences);
+        UiUtils.addSettingButton(this, "View Logs", "VIEW", this::viewLogs);
+        UiUtils.addSettingButton(this, "Reset Preferences", "RESET", this::resetPreferences);
 
         doLayout();
         invalidate();
@@ -100,55 +98,6 @@ public class SettingsDialog extends JPanel {
         logger.setFileLogLevel(logLevel);
 
         updateLogLevel(logButton);
-    }
-
-    public interface ButtonListener {
-        void onClicked();
-    }
-
-    private JButton addButton(String label, String action, ButtonListener listener) {
-        add(new JLabel(label));
-        JButton button = new JButton(action);
-        if (listener != null) {
-            UiUtils.addClickListener(button, e -> {
-                listener.onClicked();
-            });
-        }
-        add(button, "wrap");
-        return button;
-    }
-
-    public interface CheckBoxListener {
-        void onChecked(boolean isChecked);
-    }
-
-    private void addCheckbox(String label, PreferenceUtils.PrefBoolean pref, boolean defaultValue, CheckBoxListener listener) {
-        JLabel textLabel = new JLabel(label);
-        add(textLabel);
-
-        JCheckBox checkbox = new JCheckBox();
-        boolean currentChecked = PreferenceUtils.getPreference(pref, defaultValue);
-        checkbox.setSelected(currentChecked);
-        checkbox.setHorizontalTextPosition(SwingConstants.LEFT);
-        add(checkbox, "align center, wrap");
-
-        checkbox.addActionListener(actionEvent -> {
-            boolean selected = checkbox.isSelected();
-            PreferenceUtils.setPreference(pref, selected);
-            if (listener != null) listener.onChecked(selected);
-        });
-
-        textLabel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent mouseEvent) {
-                // TODO: fire checkbox action listener directly
-                boolean selected = !checkbox.isSelected();
-                checkbox.setSelected(selected);
-                PreferenceUtils.setPreference(pref, selected);
-                if (listener != null) listener.onChecked(selected);
-            }
-        });
-
     }
 
     private void resetPreferences() {
