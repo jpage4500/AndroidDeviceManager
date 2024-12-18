@@ -38,7 +38,7 @@ public class SettingsDialog extends JPanel {
 
     private void initalizeUi() {
         UiUtils.addSettingButton(this, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
-        UiUtils.addSettingButton(this, "Custom Apps", "EDIT", this::showAppsSettings);
+        UiUtils.addSettingButton(this, "Custom Columns", "EDIT", this::showAppsSettings);
         UiUtils.addSettingButton(this, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen));
         UiUtils.addSettingButton(this, "Download Location", "EDIT", this::showDownloadLocation);
 
@@ -218,18 +218,34 @@ public class SettingsDialog extends JPanel {
     }
 
     private void showAppsSettings() {
-        List<String> appList = getCustomApps();
-        List<String> resultList = showMultilineEditDialog("Custom Apps", "Enter package name(s) to track - 1 per line", appList);
+        String msg = """
+                <html>
+                <b>Format: "LABEL:TYPE:VALUE"</b>
+                <ul>
+                <li>LABEL is the column header<br/></li>
+                <li>TYPE describes the VALUE. one of: [VER|PROP]<br/></li>
+                <li>VALUE is a package name or property</li>
+                <li>Each line is a column</li>
+                </ul>
+                Examples:
+                <ul>
+                <li>TG:VER:org.telegram.messenger.web</li>
+                <li>Groups:PROP:my.cust.prop</li>
+                </ul>
+                </html>
+                """;
+        List<String> appList = getCustomColumns();
+        List<String> resultList = showMultilineEditDialog("Custom Columns", msg, appList);
         if (resultList == null) return;
 
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_CUSTOM_APPS, GsonHelper.toJson(resultList));
-        deviceScreen.model.setAppList(resultList);
+        deviceScreen.setCustomColumns();
     }
 
     /**
-     * get list of custom monitored apps
+     * get list of custom columns
      */
-    public static List<String> getCustomApps() {
+    public static List<String> getCustomColumns() {
         String appPrefs = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_CUSTOM_APPS);
         return GsonHelper.stringToList(appPrefs, String.class);
     }

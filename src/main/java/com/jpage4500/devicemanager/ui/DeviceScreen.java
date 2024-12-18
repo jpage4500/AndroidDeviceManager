@@ -278,13 +278,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         model = new DeviceTableModel();
 
         // restore previous settings
-        List<String> appList = SettingsDialog.getCustomApps();
-        model.setAppList(appList);
+        setCustomColumns();
 
         List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
         model.setHiddenColumns(hiddenColList);
 
-        //table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setModel(model);
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
         table.setEmptyText("No Connected Devices!");
@@ -352,6 +350,18 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         filterTextField.setupSearch(table);
     }
 
+    public void setCustomColumns() {
+        List<String> entryList = SettingsDialog.getCustomColumns();
+        List<String> nameList = new ArrayList<>();
+        for (String entry : entryList) {
+            if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
+            String[] entryArr = entry.split(":");
+            String label = entryArr.length >= 1 ? entryArr[0].trim() : entry;
+            nameList.add(label);
+        }
+        model.setCustomColumnList(nameList);
+    }
+
     /**
      * @return PopupMenu to display or null
      */
@@ -366,6 +376,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                     TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                     adjuster.adjustColumn(column);
                 });
+
+                popupMenu.addSeparator();
+
                 UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this));
 
                 boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);

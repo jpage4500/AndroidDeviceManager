@@ -14,7 +14,7 @@ public class DeviceTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(DeviceTableModel.class);
 
     private final List<Device> deviceList;
-    private final List<String> appList;
+    private final List<String> customColumnList;
     private Columns[] visibleColumns;
 
     public enum Columns {
@@ -44,7 +44,7 @@ public class DeviceTableModel extends AbstractTableModel {
 
     public DeviceTableModel() {
         deviceList = new ArrayList<>();
-        appList = new ArrayList<>();
+        customColumnList = new ArrayList<>();
         setHiddenColumns(null);
     }
 
@@ -125,17 +125,17 @@ public class DeviceTableModel extends AbstractTableModel {
         return -1;
     }
 
-    public void setAppList(List<String> appList) {
-        if (this.appList.equals(appList)) return;
-        this.appList.clear();
-        this.appList.addAll(appList);
+    public void setCustomColumnList(List<String> appList) {
+        if (this.customColumnList.equals(appList)) return;
+        this.customColumnList.clear();
+        this.customColumnList.addAll(appList);
 
         // update columns
         fireTableStructureChanged();
     }
 
     public int getColumnCount() {
-        return visibleColumns.length + appList.size();
+        return visibleColumns.length + customColumnList.size();
     }
 
     @Override
@@ -148,7 +148,7 @@ public class DeviceTableModel extends AbstractTableModel {
             Columns colType = visibleColumns[i];
             return colType.toString();
         } else {
-            return appList.get(i - visibleColumns.length);
+            return customColumnList.get(i - visibleColumns.length);
         }
     }
 
@@ -181,9 +181,9 @@ public class DeviceTableModel extends AbstractTableModel {
                 case CUSTOM2 -> device.getCustomProperty(Device.CUST_PROP_2);
             };
         } else {
-            // custom app version
+            // custom columns
             if (device.customAppVersionList != null) {
-                String appName = appList.get(column - visibleColumns.length);
+                String appName = customColumnList.get(column - visibleColumns.length);
                 return device.customAppVersionList.get(appName);
             } else {
                 return null;
