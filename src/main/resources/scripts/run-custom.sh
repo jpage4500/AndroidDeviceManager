@@ -1,16 +1,57 @@
 #!/bin/bash
 ###############################################################################
 # run custom script
-# ARG1: device serial
-# ARG2: script name (full path)
-# ARG3: download directory
+# ARG1: script name (full path)
+# ARG*: serial number
 ###############################################################################
 
-ADB_DEVICE=$1
-SCRIPT=$2
-DOWNLOAD_DIR=$3
+SCRIPT=$1
+shift
+DEVICES="$@"
 
 cd "$(/usr/bin/dirname $0)"
 source ./env-vars.sh
 
-${SCRIPT} "${ADB_DEVICE}" "${DOWNLOAD_DIR}"
+function handleMacOSX() {
+  if [[ -d /Applications/iTerm.app ]]; then
+      echo "using iTerm"
+      osascript <<END
+      tell application "iTerm2"
+          activate
+          tell current window
+          create tab with default profile
+              tell current session
+                  write text "${SCRIPT} ${DEVICES}"
+              end tell
+          end tell
+      end tell
+END
+  else
+      echo "using Terminal"
+      osascript <<END
+      tell application "Terminal"
+          activate
+          tell application "System Events" to keystroke "t" using command down
+          repeat while contents of selected tab of window 1 starts with linefeed
+              delay 0.01
+          end repeat
+          do script "${SCRIPT} ${DEVICES}" in window 1
+      end tell
+END
+  fi
+}
+
+function handleLinux() {
+    # TODO: TEST
+    gnome-terminal -- bash -c "${SCRIPT} ${DEVICES}"
+}
+
+##
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    handleMacOSX
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    handleLinux
+else
+    echo "unknown OS: $OSTYPE"
+    exit 1
+fi

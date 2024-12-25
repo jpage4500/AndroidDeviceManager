@@ -33,7 +33,6 @@ public class PreferenceUtils {
      * Boolean value preferences
      */
     public enum PrefBoolean {
-        PREF_DEBUG_MODE,
         PREF_CHECK_UPDATES,
         PREF_ALWAYS_ON_TOP,
         PREF_USE_ROOT,
@@ -41,12 +40,14 @@ public class PreferenceUtils {
         PREF_AUTO_FORMAT_MESSAGE,
         PREF_WRAP_MESSAGE,
         PREF_EXIT_TO_TRAY,
+        PREF_DEVICE_AUTO_RESIZE,
     }
 
     /**
      * Boolean value preferences
      */
     public enum PrefInt {
+        PREF_LOG_LEVEL,
         PREF_LAST_DEVICE_PORT,
         PREF_FONT_SIZE_OFFSET,
         PREF_LOGS_FONT_SIZE,

@@ -14,8 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,76 +37,67 @@ public class SettingsDialog extends JPanel {
     }
 
     private void initalizeUi() {
-        addButton("Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
-        addButton("Custom Apps", "EDIT", this::showAppsSettings);
-        addButton("Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen));
-        addButton("Download Location", "EDIT", this::showDownloadLocation);
+        UiUtils.addSettingButton(this, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
+        UiUtils.addSettingButton(this, "Custom Columns", "EDIT", this::showAppsSettings);
+        UiUtils.addSettingButton(this, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen));
+        UiUtils.addSettingButton(this, "Download Location", "EDIT", this::showDownloadLocation);
 
-        addCheckbox("Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
-        addCheckbox("Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> deviceScreen.scheduleUpdateChecks());
-        addCheckbox("Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
+        UiUtils.addSettingCheckbox(this, "Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
+        UiUtils.addSettingCheckbox(this, "Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> deviceScreen.scheduleUpdateChecks());
+        UiUtils.addSettingCheckbox(this, "Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
             // force table background to be repainted
             deviceScreen.model.fireTableDataChanged();
         });
-        addCheckbox("Debug Mode", PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE, false, isChecked -> {
-            AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
-            logger.setFileLogLevel(isChecked ? Log.DEBUG : Log.INFO);
-        });
 
-        addButton("View Logs", "VIEW", this::viewLogs);
-        addButton("Reset Preferences", "RESET", this::resetPreferences);
+        JButton logButton = UiUtils.addSettingButton(this, "Log Level", "EDIT", null);
+        UiUtils.addClickListener(logButton, e -> toggleLogLevels(logButton));
+        updateLogLevel(logButton);
+
+        UiUtils.addSettingButton(this, "View Logs", "VIEW", this::viewLogs);
+        UiUtils.addSettingButton(this, "Reset Preferences", "RESET", this::resetPreferences);
 
         doLayout();
         invalidate();
     }
 
-    public interface ButtonListener {
-        void onClicked();
+    private void updateLogLevel(JButton logButton) {
+        int logLevel = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOG_LEVEL, Log.INFO);
+        String name;
+        switch (logLevel) {
+            case Log.INFO:
+                name = "Info";
+                break;
+            case Log.DEBUG:
+                name = "Debug";
+                break;
+            case Log.VERBOSE:
+            default:
+                name = "Trace";
+                break;
+        }
+        logButton.setText(name);
     }
 
-    private void addButton(String label, String action, ButtonListener listener) {
-        add(new JLabel(label));
-        JButton button = new JButton(action);
-        button.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                listener.onClicked();
-            }
-        });
-        add(button, "wrap");
-    }
+    private void toggleLogLevels(JButton logButton) {
+        int logLevel = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOG_LEVEL, Log.INFO);
+        switch (logLevel) {
+            case Log.INFO:
+                logLevel = Log.DEBUG;
+                break;
+            case Log.DEBUG:
+                logLevel = Log.VERBOSE;
+                break;
+            case Log.VERBOSE:
+            default:
+                logLevel = Log.INFO;
+                break;
+        }
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOG_LEVEL, logLevel);
 
-    public interface CheckBoxListener {
-        void onChecked(boolean isChecked);
-    }
+        AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
+        logger.setFileLogLevel(logLevel);
 
-    private void addCheckbox(String label, PreferenceUtils.PrefBoolean pref, boolean defaultValue, CheckBoxListener listener) {
-        JLabel textLabel = new JLabel(label);
-        add(textLabel);
-
-        JCheckBox checkbox = new JCheckBox();
-        boolean currentChecked = PreferenceUtils.getPreference(pref, defaultValue);
-        checkbox.setSelected(currentChecked);
-        checkbox.setHorizontalTextPosition(SwingConstants.LEFT);
-        add(checkbox, "align center, wrap");
-
-        checkbox.addActionListener(actionEvent -> {
-            boolean selected = checkbox.isSelected();
-            PreferenceUtils.setPreference(pref, selected);
-            if (listener != null) listener.onChecked(selected);
-        });
-
-        textLabel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent mouseEvent) {
-                // TODO: fire checkbox action listener directly
-                boolean selected = !checkbox.isSelected();
-                checkbox.setSelected(selected);
-                PreferenceUtils.setPreference(pref, selected);
-                if (listener != null) listener.onChecked(selected);
-            }
-        });
-
+        updateLogLevel(logButton);
     }
 
     private void resetPreferences() {
@@ -229,18 +218,34 @@ public class SettingsDialog extends JPanel {
     }
 
     private void showAppsSettings() {
-        List<String> appList = getCustomApps();
-        List<String> resultList = showMultilineEditDialog("Custom Apps", "Enter package name(s) to track - 1 per line", appList);
+        String msg = """
+                <html>
+                <b>Format: "LABEL:TYPE:VALUE"</b>
+                <ul>
+                <li>LABEL is the column header<br/></li>
+                <li>TYPE describes the VALUE. one of: [VER|PROP]<br/></li>
+                <li>VALUE is a package name (version) or property (getprop)</li>
+                <li>Each line is a column</li>
+                </ul>
+                Examples:
+                <ul>
+                <li>TG:VER:org.telegram.messenger.web</li>
+                <li>Groups:PROP:my.cust.prop</li>
+                </ul>
+                </html>
+                """;
+        List<String> appList = getCustomColumns();
+        List<String> resultList = showMultilineEditDialog("Custom Columns", msg, appList);
         if (resultList == null) return;
 
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_CUSTOM_APPS, GsonHelper.toJson(resultList));
-        deviceScreen.model.setAppList(resultList);
+        deviceScreen.setCustomColumns();
     }
 
     /**
-     * get list of custom monitored apps
+     * get list of custom columns
      */
-    public static List<String> getCustomApps() {
+    public static List<String> getCustomColumns() {
         String appPrefs = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_CUSTOM_APPS);
         return GsonHelper.stringToList(appPrefs, String.class);
     }

@@ -292,8 +292,8 @@ public class DeviceManager {
             // -- disk free space --
             fetchFreeDiskSpace(device);
 
-            // -- version of installed apps --
-            fetchInstalledAppVersions(device);
+            // -- custom apps --
+            fetchCustomColumns(device);
 
             // -- battery level, charging status, etc --
             fetchBatteryInfo(device);
@@ -369,12 +369,32 @@ public class DeviceManager {
         }
     }
 
-    private void fetchInstalledAppVersions(Device device) {
-        List<String> customApps = SettingsDialog.getCustomApps();
-        for (String customApp : customApps) {
-            String versionName = getAppVersion(device, customApp);
-            if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
-            device.customAppVersionList.put(customApp, versionName);
+    private void fetchCustomColumns(Device device) {
+        List<String> entryList = SettingsDialog.getCustomColumns();
+        for (String entry : entryList) {
+            if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
+            String[] entryArr = entry.split(":");
+            String label = entryArr.length >= 1 ? entryArr[0].trim() : entry;
+            String type = entryArr.length >= 2 ? entryArr[1].trim() : "VER";
+            String val = entryArr.length >= 3 ? entryArr[2].trim() : null;
+
+            String value = null;
+            if (TextUtils.equalsIgnoreCase(type, "VER")) {
+                value = getAppVersion(device, val);
+            } else if (TextUtils.equalsIgnoreCase(type, "PROP")) {
+                ShellResult result = runShell(device, "getprop " + val);
+                log.trace("fetchCustomColumns: {} -> {}", val, result);
+                if (result.isSuccess) {
+                    value = result.getResult(0);
+                }
+            } else {
+                log.trace("fetchCustomColumns: unknown type:{}", type);
+            }
+
+            if (value != null) {
+                if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
+                device.customAppVersionList.put(label, value);
+            }
         }
     }
 
@@ -479,8 +499,8 @@ public class DeviceManager {
     }
 
     public static class ShellResult {
-        boolean isSuccess;
-        List<String> resultList;
+        public boolean isSuccess;
+        public List<String> resultList;
 
         public String getResult(int index) {
             if (resultList != null && resultList.size() > index) return resultList.get(index);
@@ -697,7 +717,7 @@ public class DeviceManager {
                 packageManager.install(file);
                 if (listener != null) listener.onTaskComplete(true, null);
             } catch (Exception e) {
-                log.error("installApp: {}, {}", file.getAbsolutePath(), e.getMessage());
+                log.error("installApp: ERROR: {}, file:{}", e.getMessage(), file.getAbsolutePath());
                 device.status = "failed: " + e.getMessage();
                 if (listener != null) listener.onTaskComplete(false, e.getMessage());
             }
@@ -750,17 +770,12 @@ public class DeviceManager {
         });
     }
 
-    public void runCustomCommand(Device device, String customCommand, TaskListener listener) {
+    public void runCustomCommand(Device device, String customCommand, CommandListener listener) {
         commandExecutorService.submit(() -> {
             ShellResult result = runShell(device, customCommand);
             boolean isSuccess = result.isSuccess;
             log.trace("runCustomCommand: DONE: success:{}, {}", isSuccess, GsonHelper.toJson(result.resultList));
-            String displayStr = TextUtils.join(result.resultList, "\n");
-            // check if command runs but fails
-            if (TextUtils.containsIgnoreCase(displayStr, "inaccessible or not found")) {
-                isSuccess = false;
-            }
-            if (listener != null) listener.onTaskComplete(isSuccess, displayStr);
+            if (listener != null) listener.onTaskComplete(result);
         });
     }
 
@@ -847,9 +862,17 @@ public class DeviceManager {
         void onTaskComplete(boolean isSuccess, String error);
     }
 
+    public interface CommandListener {
+        void onTaskComplete(ShellResult result);
+    }
+
     public void downloadFile(Device device, String path, DeviceFile file, File saveFile, TaskListener listener) {
         log.debug("downloadFile: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
-        commandExecutorService.submit(() -> downloadFileInternal(device, path, file, saveFile));
+        commandExecutorService.submit(() -> {
+            downloadFileInternal(device, path, file, saveFile);
+            // test if file was created
+            listener.onTaskComplete(saveFile.exists(), null);
+        });
     }
 
     /**

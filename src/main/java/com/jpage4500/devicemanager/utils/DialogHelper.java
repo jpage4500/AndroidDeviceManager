@@ -68,15 +68,17 @@ public class DialogHelper {
         return result;
     }
 
-    public interface DoubleClickListener {
+    public interface ListListener {
         void handleDoubleClick(String key, String value);
+
+        void handleRightClick(String key, String value, JPopupMenu menu);
     }
 
     /**
      * show a UI List of key-value pairs
      * NOTE: contains a filter to quickly narrow the list
      */
-    public static void showListDialog(Component component, String title, Map<String, String> keyValueMap, DoubleClickListener listener) {
+    public static void showListDialog(Component component, String title, Map<String, String> keyValueMap, ListListener listener) {
         JPanel panel = new JPanel(new MigLayout());
         DefaultListModel<String> listModel = new DefaultListModel<>();
 
@@ -91,8 +93,11 @@ public class DialogHelper {
                     list.requestFocus();
                     int index = list.locationToIndex(evt.getPoint());
                     list.setSelectedIndex(index);
-                    String value = list.getSelectedValue();
+                    String[] valueArr = TextUtils.split(list.getSelectedValue(), KEY_VALUE_DELIM);
+                    String key = valueArr[0];
+                    String value = valueArr.length > 1 ? valueArr[1] : null;
                     JPopupMenu popupMenu = new JPopupMenu();
+                    if (listener != null) listener.handleRightClick(key, value, popupMenu);
                     UiUtils.addPopupMenuItem(popupMenu, "Copy to Clipboard", actionEvent -> {
                         log.trace("mouseClicked: copy: {}", value);
                         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -103,15 +108,9 @@ public class DialogHelper {
                 } else if (evt.getClickCount() == 2) {
                     String selectedValue = list.getSelectedValue();
                     if (listener != null) {
-                        String key, value;
-                        int i = selectedValue.indexOf(KEY_VALUE_DELIM);
-                        if (i > 0) {
-                            key = selectedValue.substring(0, i);
-                            value = selectedValue.substring(i + 1);
-                        } else {
-                            key = selectedValue;
-                            value = null;
-                        }
+                        String[] valueArr = TextUtils.split(list.getSelectedValue(), KEY_VALUE_DELIM);
+                        String key = valueArr[0];
+                        String value = valueArr.length > 1 ? valueArr[1] : null;
                         listener.handleDoubleClick(key, value);
                     } else {
                         JTextArea textArea = new JTextArea(selectedValue);

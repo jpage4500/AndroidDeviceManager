@@ -53,14 +53,12 @@ public class BaseScreen extends JFrame {
         });
 
         // TODO: handle window resizing
-        if (PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEBUG_MODE)) {
-            addComponentListener(new ComponentAdapter() {
-                @Override
-                public void componentResized(ComponentEvent componentEvent) {
-                    log.trace("componentResized: {}: W:{}, H:{}", prefKey, getWidth(), getHeight());
-                }
-            });
-        }
+        //addComponentListener(new ComponentAdapter() {
+        //    @Override
+        //    public void componentResized(ComponentEvent componentEvent) {
+        //        log.trace("componentResized: {}: W:{}, H:{}", prefKey, getWidth(), getHeight());
+        //    }
+        //});
 
         // NOTE: this breaks dragging the scrollbar on Mac
         // getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);

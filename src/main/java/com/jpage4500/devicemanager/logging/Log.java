@@ -31,4 +31,5 @@ public final class Log {
      * Priority constant for the println method.
      */
     public static final int ASSERT = 7;
+
 }

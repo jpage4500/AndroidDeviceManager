@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.GithubRelease;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
@@ -51,6 +52,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     // update check for github releases
     public static final String UPDATE_SOURCE_GITHUB = "https://api.github.com/repos/jpage4500/AndroidDeviceManager/releases";
     public static final String URL_GITHUB = "https://github.com/jpage4500/AndroidDeviceManager/releases";
+    public static final String PACKAGE_PREFIX = "package:";
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -276,16 +278,18 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         model = new DeviceTableModel();
 
         // restore previous settings
-        List<String> appList = SettingsDialog.getCustomApps();
-        model.setAppList(appList);
+        setCustomColumns();
 
         List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
         model.setHiddenColumns(hiddenColList);
 
-        //table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setModel(model);
         table.setDefaultRenderer(Device.class, new DeviceCellRenderer());
         table.setEmptyText("No Connected Devices!");
+
+        boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
+        int flag = autoResize ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
+        table.setAutoResizeMode(flag);
 
         // restore user-defined column sizes
         if (!table.restoreTable()) {
@@ -346,6 +350,18 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         filterTextField.setupSearch(table);
     }
 
+    public void setCustomColumns() {
+        List<String> entryList = SettingsDialog.getCustomColumns();
+        List<String> nameList = new ArrayList<>();
+        for (String entry : entryList) {
+            if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
+            String[] entryArr = entry.split(":");
+            String label = entryArr.length >= 1 ? entryArr[0].trim() : entry;
+            nameList.add(label);
+        }
+        model.setCustomColumnList(nameList);
+    }
+
     /**
      * @return PopupMenu to display or null
      */
@@ -355,15 +371,33 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             JPopupMenu popupMenu = new JPopupMenu();
             DeviceTableModel.Columns columnType = model.getColumnType(column);
             if (columnType != null) {
+                // standard columns (all others are custom)
                 UiUtils.addPopupMenuItem(popupMenu, "Hide " + columnType.name(), actionEvent -> handleHideColumn(column));
-                UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
-                    TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
-                    adjuster.adjustColumn(column);
-                });
-                UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this));
-                return popupMenu;
             }
-            return null;
+            UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
+                TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
+                adjuster.adjustColumn(column);
+            });
+
+            popupMenu.addSeparator();
+
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this));
+
+            boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
+            String resizeDesc = autoResize ? "ON" : "OFF";
+            UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, actionEvent -> {
+                boolean update = !autoResize;
+                PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, update);
+                int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
+                table.setAutoResizeMode(flag);
+            });
+            if (!autoResize) {
+                UiUtils.addPopupMenuItem(popupMenu, "Size ALL to Fit", actionEvent -> {
+                    TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
+                    adjuster.adjustColumns();
+                });
+            }
+            return popupMenu;
         }
         Device device = model.getDeviceAtRow(row);
         if (device == null) return null;
@@ -485,7 +519,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             updateDeviceState(device);
             sorter.sort();
         });
-
     }
 
     @Override
@@ -683,10 +716,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             return;
         }
         log.debug("handleFilesDropped: {}, #devices:{}", fileList, selectedDeviceList.size());
-        installOrCopyFiles(selectedDeviceList, fileList, null);
+        installOrCopyFiles(selectedDeviceList, fileList);
     }
 
-    public void installOrCopyFiles(List<Device> selectedDeviceList, List<File> fileList, DeviceManager.TaskListener listener) {
+    public void installOrCopyFiles(List<Device> selectedDeviceList, List<File> fileList) {
         FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
         // if all files are .apk, do install instead of copy
         boolean isInstall = stats.numApk == stats.numTotal;
@@ -701,14 +734,16 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         dialog.setAlwaysOnTop(true);
         if (!DialogHelper.showConfirmDialog(this, title, msg)) return;
         if (isInstall) {
-            installFiles(selectedDeviceList, fileList, listener);
+            installFiles(selectedDeviceList, fileList);
         } else {
-            copyFiles(selectedDeviceList, fileList, listener);
+            copyFiles(selectedDeviceList, fileList);
         }
     }
 
-    private void copyFiles(List<Device> selectedDeviceList, List<File> fileList, DeviceManager.TaskListener listener) {
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), listener);
+    private void copyFiles(List<Device> selectedDeviceList, List<File> fileList) {
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
+
+        });
         String desc = String.format("Copying %d file(s) to %d device(s)", fileList.size(), selectedDeviceList.size());
         resultWatcher.setDesc(desc);
         // TODO: where to put files on device?
@@ -724,8 +759,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
-    private void installFiles(List<Device> selectedDeviceList, List<File> apkList, DeviceManager.TaskListener listener) {
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size() * apkList.size(), listener);
+    private void installFiles(List<Device> selectedDeviceList, List<File> apkList) {
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size() * apkList.size(), (isSuccess, error) -> {
+            if (isSuccess) {
+                // TODO: prompt to open app
+                // - requires figuring out the package name from .apk (aapt2?)
+            } else {
+                DialogHelper.showDialog(this, "Install Failed", error);
+            }
+        });
         for (Device device : selectedDeviceList) {
             for (File file : apkList) {
                 String filename = file.getName();
@@ -886,22 +928,68 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void showInstalledApps(Device device) {
         if (device == null) return;
         DeviceManager.getInstance().getInstalledApps(device, appSet -> {
-            final Map<String, String> appMep = new TreeMap<>();
+            final Map<String, String> appMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             // convert set to map
-            for (String app : appSet) appMep.put(app, null);
-            DialogHelper.showListDialog(this, "Installed Apps", appMep, (key, value) -> {
-                log.trace("showInstalledApps: click: {}", key);
-                DeviceManager.getInstance().fetchAppVersion(device, key, version -> {
-                    String text = String.format("%s = %s", key, version);
-                    DialogHelper.showTextDialog(this, key, text);
-                });
+            for (String app : appSet) appMap.put(app, null);
+            DialogHelper.showListDialog(this, "Installed Apps", appMap, new DialogHelper.ListListener() {
+                @Override
+                public void handleDoubleClick(String key, String value) {
+                    log.trace("showInstalledApps: click: {}", key);
+                    DeviceManager.getInstance().fetchAppVersion(device, key, version -> {
+                        String text = String.format("%s = %s", key, version);
+                        DialogHelper.showTextDialog(DeviceScreen.this, key, text);
+                    });
+                }
+
+                @Override
+                public void handleRightClick(String key, String value, JPopupMenu popupMenu) {
+                    UiUtils.addPopupMenuItem(popupMenu, "Download App", actionEvent -> {
+                        extractApk(device, key);
+                    });
+                }
             });
+        });
+    }
+
+    private void extractApk(Device device, String key) {
+        String command = "pm path " + key;
+        DeviceManager deviceManager = DeviceManager.getInstance();
+        deviceManager.runCustomCommand(device, command, (result) -> {
+            if (!result.isSuccess) {
+                String msg = "Unable to download " + key + "\n\n" + result;
+                DialogHelper.showDialog(this, "Error", msg);
+                return;
+            }
+            // download to new folder
+            String downloadFolder = Utils.getDownloadFolder();
+            File appFolder = new File(downloadFolder, key);
+            appFolder.mkdirs();
+
+            for (String path : result.resultList) {
+                if (!TextUtils.startsWith(path, PACKAGE_PREFIX)) {
+                    log.trace("extractApk: BAD LINE: {}", path);
+                    continue;
+                }
+                path = path.substring(PACKAGE_PREFIX.length());
+                int pos = path.lastIndexOf('/');
+                if (pos < 1) continue;
+                DeviceFile file = new DeviceFile();
+                file.name = path.substring(pos + 1);
+                path = path.substring(0, pos);
+
+                File saveFile = new File(appFolder, file.name);
+                deviceManager.downloadFile(device, path, file, saveFile, (isSuccess, error) -> {
+                    log.trace("extractApk: {}: {}", isSuccess, error);
+                });
+            }
         });
     }
 
     private void showDeviceProperties(Device device) {
         if (device == null || device.propMap == null) return;
-        DialogHelper.showListDialog(this, "Device Properties", device.propMap, null);
+        TreeMap<String, String> sortedPropMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        sortedPropMap.putAll(device.propMap);
+        DialogHelper.showListDialog(this, "Device Properties", sortedPropMap, null);
     }
 
     private void addDeviceDetail(JPanel panel, String label, String value) {
@@ -1174,19 +1262,23 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void handleCustomScriptClicked(File script, String name) {
         List<Device> selectedDeviceList = getSelectedDevices(true);
-        if (selectedDeviceList.isEmpty()) return;
+        //if (selectedDeviceList.isEmpty()) return;
 
         log.trace("handleCustomScriptClicked: {}, {}", name, script.getAbsolutePath());
 
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
-        for (Device device : selectedDeviceList) {
+        String[] serialArr = new String[selectedDeviceList.size()];
+        for (int i = 0; i < selectedDeviceList.size(); i++) {
+            Device device = selectedDeviceList.get(i);
             setDeviceBusy(device, true);
-            DeviceManager.getInstance().runCustomScript((isSuccess, error) -> {
-                log.trace("mousePressed: DONE:{}, {}", isSuccess, error);
-                setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.serial, isSuccess, error);
-            }, script.getAbsolutePath(), device.serial);
+            serialArr[i] = device.serial;
         }
+
+        DeviceManager.getInstance().runCustomScript((isSuccess, error) -> {
+            log.trace("handleCustomScriptClicked: DONE:{}, {}", isSuccess, error);
+            for (Device device : selectedDeviceList) {
+                setDeviceBusy(device, false);
+            }
+        }, script.getAbsolutePath(), serialArr);
     }
 
     private void handleSettingsClicked() {
