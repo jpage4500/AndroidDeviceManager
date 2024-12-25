@@ -371,27 +371,33 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             JPopupMenu popupMenu = new JPopupMenu();
             DeviceTableModel.Columns columnType = model.getColumnType(column);
             if (columnType != null) {
+                // standard columns (all others are custom)
                 UiUtils.addPopupMenuItem(popupMenu, "Hide " + columnType.name(), actionEvent -> handleHideColumn(column));
-                UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
-                    TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
-                    adjuster.adjustColumn(column);
-                });
-
-                popupMenu.addSeparator();
-
-                UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this));
-
-                boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
-                String resizeDesc = autoResize ? "ON" : "OFF";
-                UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, actionEvent -> {
-                    boolean update = !autoResize;
-                    PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, update);
-                    int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
-                    table.setAutoResizeMode(flag);
-                });
-                return popupMenu;
             }
-            return null;
+            UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
+                TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
+                adjuster.adjustColumn(column);
+            });
+
+            popupMenu.addSeparator();
+
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this));
+
+            boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
+            String resizeDesc = autoResize ? "ON" : "OFF";
+            UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, actionEvent -> {
+                boolean update = !autoResize;
+                PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, update);
+                int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
+                table.setAutoResizeMode(flag);
+            });
+            if (!autoResize) {
+                UiUtils.addPopupMenuItem(popupMenu, "Size ALL to Fit", actionEvent -> {
+                    TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
+                    adjuster.adjustColumns();
+                });
+            }
+            return popupMenu;
         }
         Device device = model.getDeviceAtRow(row);
         if (device == null) return null;
@@ -922,10 +928,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void showInstalledApps(Device device) {
         if (device == null) return;
         DeviceManager.getInstance().getInstalledApps(device, appSet -> {
-            final Map<String, String> appMep = new TreeMap<>();
+            final Map<String, String> appMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             // convert set to map
-            for (String app : appSet) appMep.put(app, null);
-            DialogHelper.showListDialog(this, "Installed Apps", appMep, new DialogHelper.ListListener() {
+            for (String app : appSet) appMap.put(app, null);
+            DialogHelper.showListDialog(this, "Installed Apps", appMap, new DialogHelper.ListListener() {
                 @Override
                 public void handleDoubleClick(String key, String value) {
                     log.trace("showInstalledApps: click: {}", key);
@@ -981,7 +987,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void showDeviceProperties(Device device) {
         if (device == null || device.propMap == null) return;
-        DialogHelper.showListDialog(this, "Device Properties", device.propMap, null);
+        TreeMap<String, String> sortedPropMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        sortedPropMap.putAll(device.propMap);
+        DialogHelper.showListDialog(this, "Device Properties", sortedPropMap, null);
     }
 
     private void addDeviceDetail(JPanel panel, String label, String value) {
@@ -1254,19 +1262,23 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void handleCustomScriptClicked(File script, String name) {
         List<Device> selectedDeviceList = getSelectedDevices(true);
-        if (selectedDeviceList.isEmpty()) return;
+        //if (selectedDeviceList.isEmpty()) return;
 
         log.trace("handleCustomScriptClicked: {}, {}", name, script.getAbsolutePath());
 
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
-        for (Device device : selectedDeviceList) {
+        String[] serialArr = new String[selectedDeviceList.size()];
+        for (int i = 0; i < selectedDeviceList.size(); i++) {
+            Device device = selectedDeviceList.get(i);
             setDeviceBusy(device, true);
-            DeviceManager.getInstance().runCustomScript((isSuccess, error) -> {
-                log.trace("mousePressed: DONE:{}, {}", isSuccess, error);
-                setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.serial, isSuccess, error);
-            }, script.getAbsolutePath(), device.serial);
+            serialArr[i] = device.serial;
         }
+
+        DeviceManager.getInstance().runCustomScript((isSuccess, error) -> {
+            log.trace("handleCustomScriptClicked: DONE:{}, {}", isSuccess, error);
+            for (Device device : selectedDeviceList) {
+                setDeviceBusy(device, false);
+            }
+        }, script.getAbsolutePath(), serialArr);
     }
 
     private void handleSettingsClicked() {

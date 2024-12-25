@@ -224,7 +224,7 @@ public class SettingsDialog extends JPanel {
                 <ul>
                 <li>LABEL is the column header<br/></li>
                 <li>TYPE describes the VALUE. one of: [VER|PROP]<br/></li>
-                <li>VALUE is a package name or property</li>
+                <li>VALUE is a package name (version) or property (getprop)</li>
                 <li>Each line is a column</li>
                 </ul>
                 Examples:
