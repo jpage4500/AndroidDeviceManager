@@ -381,6 +381,15 @@ public class TextUtils {
         return defValue;
     }
 
+    public static boolean isNumber(String text) {
+        try {
+            Integer.parseInt(text);
+            return true;
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
     public static int compareToIgnoreCase(String value1, String value2) {
         if (value1 == value2) return 0;
         else if (value1 == null || value2 == null) {
