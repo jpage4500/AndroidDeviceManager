@@ -9,18 +9,25 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
 public class DeviceRowSorter extends TableRowSorter<TableModel> {
     private static final Logger log = LoggerFactory.getLogger(DeviceRowSorter.class);
 
     private final DeviceRowFilter deviceRowFilter;
 
+    private final Map<String, SortType> sortTypeMap;
+
+    enum SortType {
+        TYPE_ALPHA,
+        TYPE_NUMBER,
+        TYPE_VERSION,
+    }
+
     public DeviceRowSorter(TableModel model) {
         super(model);
         deviceRowFilter = new DeviceRowFilter();
+        sortTypeMap = new HashMap<>();
 
         // default sort
         List<SortKey> sortKeys = new ArrayList<>();
@@ -51,8 +58,33 @@ public class DeviceRowSorter extends TableRowSorter<TableModel> {
             if (columnType == DeviceTableModel.Columns.BATTERY) {
                 return Integer.compare(d1.batteryLevel, d2.batteryLevel);
             }
+
             String value1 = model.deviceValue(d1, c);
             String value2 = model.deviceValue(d2, c);
+
+            if (columnType == null) {
+                // custom columns
+                String colName = model.getColumnName(c);
+                SortType sortType = sortTypeMap.get(colName);
+                if (sortType == null) {
+                    boolean isNumber1 = TextUtils.isNumber(value1);
+                    boolean isNumber2 = TextUtils.isNumber(value2);
+                    if (isNumber1 && isNumber2) {
+                        sortType = SortType.TYPE_NUMBER;
+                    } else {
+                        sortType = SortType.TYPE_ALPHA;
+                    }
+                    sortTypeMap.put(colName, sortType);
+                }
+
+                if (sortType == SortType.TYPE_NUMBER) {
+                    long number1 = TextUtils.getNumberLong(value1, 0);
+                    long number2 = TextUtils.getNumberLong(value2, 0);
+                    return Long.compare(number1, number2);
+                }
+            }
+
+            // default sort by alpha (case insensitive)
             int rc = TextUtils.compareToIgnoreCase(value1, value2);
             return rc;
         };

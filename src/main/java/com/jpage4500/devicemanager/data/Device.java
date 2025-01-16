@@ -14,7 +14,8 @@ public class Device {
     public final static String PROP_SDK = "ro.build.version.sdk";
     public final static String PROP_MODEL = "ro.product.model";
     public final static String PROP_OS = "ro.build.version.release";
-    public final static String PROP_CARRIER = "gsm.sim.operator.alpha";
+    private final static String PROP_CARRIER = "gsm.sim.operator.alpha";
+    private final static String PROP_CARRIER_2 = "gsm.operator.alpha";
     public final static String PROP_BRAND = "ro.product.brand";
     public final static String PROP_NAME = "ro.product.name";
 
@@ -99,6 +100,34 @@ public class Device {
     public String getProperty(String key) {
         if (propMap == null) return null;
         else return propMap.get(key);
+    }
+
+    /**
+     * get phone carrier (ie: T-Mobile)
+     */
+    public String getCarrier() {
+        String prop = getProperty(Device.PROP_CARRIER);
+        // often we just get "," for the carrier
+        prop = cleanCarrierString(prop);
+        if (TextUtils.isEmpty(prop)) {
+            prop = getProperty(Device.PROP_CARRIER_2);
+            prop = cleanCarrierString(prop);
+            if (TextUtils.isEmpty(prop)) {
+                // TODO: try some other properties..
+            }
+        }
+        return prop;
+    }
+
+    /**
+     * often we just get "," for the carrier or "T-Mobile,"
+     * - remove the comma
+     */
+    private String cleanCarrierString(String carrier) {
+        int pos = TextUtils.indexOf(carrier, ",");
+        if (pos == 0) return null;
+        else if (pos > 0) return carrier.substring(0, pos);
+        return carrier;
     }
 
     public String getCustomProperty(String key) {

@@ -293,7 +293,9 @@ public class CustomTable extends JTable {
         if (row == -1) {
             // header
             JTableHeader header = getTableHeader();
-            TableColumn column = header.getColumnModel().getColumn(col);
+            TableColumnModel headerColumnModel = header.getColumnModel();
+            if (col < 0 || col >= headerColumnModel.getColumnCount()) return "";
+            TableColumn column = headerColumnModel.getColumn(col);
             Object value = column.getHeaderValue();
             int width = column.getWidth();
             Component c = header.getDefaultRenderer().getTableCellRendererComponent(this, value, false, false, row, col);

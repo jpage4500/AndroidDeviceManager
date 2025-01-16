@@ -650,12 +650,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
-        if (table.getSelectedColumn() < 0) return;
+        int selectedColumn = table.getSelectedColumn();
+        int modelCol = table.convertColumnIndexToModel(selectedColumn);
+        if (modelCol < 0) return;
+        log.trace("handleCopyClipboardFieldCommand: col:{}, devices:{}", modelCol, selectedDeviceList.size());
 
         StringBuilder sb = new StringBuilder();
         for (Device device : selectedDeviceList) {
             if (!sb.isEmpty()) sb.append("\n");
-            String value = model.deviceValue(device, table.getSelectedColumn());
+            String value = model.deviceValue(device, modelCol);
             sb.append(value != null ? value : "");
         }
         StringSelection stringSelection = new StringSelection(sb.toString());
@@ -903,7 +906,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         addDeviceDetail(panel, "Model", device.getProperty(Device.PROP_MODEL));
         addDeviceDetail(panel, "Phone", device.phone);
         addDeviceDetail(panel, "IMEI", device.imei);
-        addDeviceDetail(panel, "Carrier", device.getProperty(Device.PROP_CARRIER));
+        addDeviceDetail(panel, "Carrier", device.getCarrier());
         addDeviceDetail(panel, "OS", device.getProperty(Device.PROP_OS));
         addDeviceDetail(panel, "SDK", device.getProperty(Device.PROP_SDK));
         addDeviceDetail(panel, "Free Space", FileUtils.bytesToDisplayString(device.freeSpace));
