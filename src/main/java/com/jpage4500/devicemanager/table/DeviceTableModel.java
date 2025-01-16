@@ -168,7 +168,7 @@ public class DeviceTableModel extends AbstractTableModel {
                 case NAME -> TextUtils.firstValid(device.nickname, device.getProperty(Device.PROP_MODEL));
                 case MODEL -> device.getProperty(Device.PROP_MODEL);
                 case OS -> device.getProperty(Device.PROP_OS);
-                case CARRIER -> device.getProperty(Device.PROP_CARRIER);
+                case CARRIER -> device.getCarrier();
                 case PHONE -> device.phone;
                 case IMEI -> device.imei;
                 case FREE -> FileUtils.bytesToGigDisplayString(device.freeSpace);

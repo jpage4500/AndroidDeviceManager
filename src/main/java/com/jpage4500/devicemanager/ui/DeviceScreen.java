@@ -903,7 +903,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         addDeviceDetail(panel, "Model", device.getProperty(Device.PROP_MODEL));
         addDeviceDetail(panel, "Phone", device.phone);
         addDeviceDetail(panel, "IMEI", device.imei);
-        addDeviceDetail(panel, "Carrier", device.getProperty(Device.PROP_CARRIER));
+        addDeviceDetail(panel, "Carrier", device.getCarrier());
         addDeviceDetail(panel, "OS", device.getProperty(Device.PROP_OS));
         addDeviceDetail(panel, "SDK", device.getProperty(Device.PROP_SDK));
         addDeviceDetail(panel, "Free Space", FileUtils.bytesToDisplayString(device.freeSpace));
