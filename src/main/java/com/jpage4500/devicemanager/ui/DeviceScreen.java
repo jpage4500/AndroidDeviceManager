@@ -650,12 +650,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
-        if (table.getSelectedColumn() < 0) return;
+        int selectedColumn = table.getSelectedColumn();
+        int modelCol = table.convertColumnIndexToModel(selectedColumn);
+        if (modelCol < 0) return;
+        log.trace("handleCopyClipboardFieldCommand: col:{}, devices:{}", modelCol, selectedDeviceList.size());
 
         StringBuilder sb = new StringBuilder();
         for (Device device : selectedDeviceList) {
             if (!sb.isEmpty()) sb.append("\n");
-            String value = model.deviceValue(device, table.getSelectedColumn());
+            String value = model.deviceValue(device, modelCol);
             sb.append(value != null ? value : "");
         }
         StringSelection stringSelection = new StringSelection(sb.toString());
