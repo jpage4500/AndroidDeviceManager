@@ -3,19 +3,24 @@ package com.jpage4500.devicemanager.table.utils;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.ui.views.ComboIcon;
+import com.jpage4500.devicemanager.ui.views.IconTextField;
 import com.jpage4500.devicemanager.utils.Colors;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.table.TableCellRenderer;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultHighlighter;
+import javax.swing.text.Highlighter;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
+public class DeviceCellRenderer extends IconTextField implements TableCellRenderer {
     private static final Logger log = LoggerFactory.getLogger(DeviceCellRenderer.class);
 
     private final Icon statusOfflineIcon;
@@ -23,6 +28,11 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
     private final Icon statusBusyIcon;
     private final Icon statusNotReadyIcon;
     private final Map<String, Icon> chargingIconMap;
+
+    private final static Color warnColor = new Color(251, 109, 8, 255);
+    private Highlighter.HighlightPainter highlightPainter;
+    private Highlighter.HighlightPainter highlightPainter2;
+    private boolean isHighlighted = false;
 
     public DeviceCellRenderer() {
         chargingIconMap = new HashMap<>();
@@ -43,28 +53,6 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
 
         BufferedImage notReadyImage = UiUtils.replaceColor(image, Colors.COLOR_NOT_READY);
         statusNotReadyIcon = new ImageIcon(notReadyImage);
-    }
-
-    /**
-     * get or create and cache an icon made up of battery level and charging status
-     */
-    private Icon getChargingIcon(String level, boolean isCharging) {
-        if (level == null) return null;
-        String key = level + "-" + isCharging;
-        Icon icon = chargingIconMap.get(key);
-        if (icon == null) {
-            // create overlay icon
-            Icon levelIcon = UiUtils.getImageIcon(level, UiUtils.IMG_SIZE_ICON);
-            if (isCharging) {
-                Icon chargingIcon = UiUtils.getImageIcon("charging.png", UiUtils.IMG_SIZE_ICON);
-                icon = new ComboIcon(levelIcon, chargingIcon);
-            } else {
-                // use as-is
-                icon = levelIcon;
-            }
-            chargingIconMap.put(key, icon);
-        }
-        return icon;
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -118,12 +106,60 @@ public class DeviceCellRenderer extends JLabel implements TableCellRenderer {
         Color backgroundColor = isSelected ? table.getSelectionBackground() : table.getBackground();
         if (!device.isOnline) {
             textColor = isSelected && isTableFocused ? Color.WHITE : Color.GRAY;
-            //backgroundColor = isSelected ? Color.DARK_GRAY : Color.LIGHT_GRAY;
         }
 
+        int highlightStartPos = -1;
+        String searchText = model.getSearchText();
+        if (TextUtils.length(searchText) > 1 && text != null) {
+            highlightStartPos = TextUtils.indexOfIgnoreCase(text, searchText);
+        }
+
+        Highlighter highlighter = getHighlighter();
+        boolean doHighlight = highlightStartPos >= 0;
+        if (doHighlight || isHighlighted) {
+            // something changed..
+            highlighter.removeAllHighlights();
+
+            if (doHighlight) {
+                isHighlighted = true;
+                if (highlightPainter == null) {
+                    highlightPainter = new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW);
+                    highlightPainter2 = new DefaultHighlighter.DefaultHighlightPainter(new Color(251, 109, 8));
+                }
+                Highlighter.HighlightPainter highlight = isSelected ? highlightPainter2 : highlightPainter;
+                try {
+                    highlighter.addHighlight(highlightStartPos, highlightStartPos + searchText.length(), highlight);
+                } catch (BadLocationException e) {
+                    log.error("BadLocationException: {}", e.getMessage());
+                }
+            }
+        }
         setForeground(textColor);
         setBackground(backgroundColor);
 
         return this;
     }
+
+    /**
+     * get or create and cache an icon made up of battery level and charging status
+     */
+    private Icon getChargingIcon(String level, boolean isCharging) {
+        if (level == null) return null;
+        String key = level + "-" + isCharging;
+        Icon icon = chargingIconMap.get(key);
+        if (icon == null) {
+            // create overlay icon
+            Icon levelIcon = UiUtils.getImageIcon(level, UiUtils.IMG_SIZE_ICON);
+            if (isCharging) {
+                Icon chargingIcon = UiUtils.getImageIcon("charging.png", UiUtils.IMG_SIZE_ICON);
+                icon = new ComboIcon(levelIcon, chargingIcon);
+            } else {
+                // use as-is
+                icon = levelIcon;
+            }
+            chargingIconMap.put(key, icon);
+        }
+        return icon;
+    }
+
 }

@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
 public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceListener {
     private static final Logger log = LoggerFactory.getLogger(DeviceScreen.class);
 
-    private static final String HINT_FILTER_DEVICES = "Filter devices...";
+    private static final String HINT_FILTER_DEVICES = "Search";
     public static final String SHOW_DEVICE_LIST = "Show Device List";
     public static final String SHOW_BROWSE = "Show File Browser";
     public static final String SHOW_LOG_VIEWER = "Show Device Logs";
@@ -565,7 +565,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void refreshUi() {
         int selectedRowCount = table.getSelectedRowCount();
         int rowCount = table.getRowCount();
-        String filterText = filterTextField.getCleanText();
+        String filterText = (sorter != null) ? sorter.getFilterText() : null;
         if (TextUtils.notEmpty(filterText)) {
             int totalDevices = model.getRowCount();
             countLabel.setText("found: " + rowCount + " / " + totalDevices);
@@ -673,7 +673,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         StringBuilder sb = new StringBuilder();
         for (Device device : selectedDeviceList) {
-            if (sb.length() > 0) sb.append("\n");
+            if (!sb.isEmpty()) sb.append("\n");
             for (int i = 0; i < model.getColumnCount(); i++) {
                 if (i > 0) sb.append(", ");
                 String value = model.deviceValue(device, i);
@@ -1318,9 +1318,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void filterDevices(String text) {
-        if (sorter != null) sorter.setFilterText(text);
+        // TODO: offer option to switch between filter and search
+        // if (sorter != null) sorter.setFilterText(text);
         // required to refresh table & scrollview that contains it
-        table.invalidate();
+        // table.invalidate();
+        model.setSearchText(text);
         refreshUi();
     }
 
