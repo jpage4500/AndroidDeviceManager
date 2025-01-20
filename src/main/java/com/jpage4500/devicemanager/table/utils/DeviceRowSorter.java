@@ -94,6 +94,10 @@ public class DeviceRowSorter extends TableRowSorter<TableModel> {
         deviceRowFilter.setFilterText(text);
     }
 
+    public String getFilterText() {
+        return deviceRowFilter.filterText;
+    }
+
     @Override
     public RowFilter<? super TableModel, ? super Integer> getRowFilter() {
         return deviceRowFilter;

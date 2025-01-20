@@ -1,5 +1,12 @@
 package se.vidstige.jadb.managers;
 
+import com.jpage4500.devicemanager.data.SplitManifest;
+import com.jpage4500.devicemanager.utils.FileUtils;
+import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.Timer;
+import com.jpage4500.devicemanager.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import se.vidstige.jadb.JadbDevice;
 import se.vidstige.jadb.JadbException;
 import se.vidstige.jadb.RemoteFile;
@@ -7,14 +14,21 @@ import se.vidstige.jadb.Stream;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /**
  * Java interface to package manager. Launches package manager through jadb
  */
 public class PackageManager {
+    private static final Logger log = LoggerFactory.getLogger(PackageManager.class);
+
     private final JadbDevice device;
 
     public PackageManager(JadbDevice device) {
@@ -49,7 +63,12 @@ public class PackageManager {
     }
 
     private void install(File apkFile, List<String> extraArguments) throws IOException, JadbException {
-        RemoteFile remote = new RemoteFile("/data/local/tmp/" + apkFile.getName());
+        String apkName = apkFile.getName();
+        if (apkName.endsWith(".xapk")) {
+            installSplit(apkFile, extraArguments);
+            return;
+        }
+        RemoteFile remote = new RemoteFile("/data/local/tmp/" + apkName);
         device.push(apkFile, remote);
         List<String> arguments = new ArrayList<>();
         arguments.add("install");
@@ -58,7 +77,127 @@ public class PackageManager {
         InputStream s = device.executeShell("pm", arguments.toArray(new String[0]));
         String result = Stream.readAll(s, StandardCharsets.UTF_8);
         remove(remote);
-        verifyOperation("install", apkFile.getName(), result);
+        verifyOperation("install", apkName, result);
+    }
+
+    /**
+     * install split apk
+     */
+    private void installSplit(File splitApkFile, List<String> extraArguments) throws IOException, JadbException {
+        Timer timer = new Timer();
+        // 1) copy .xapk file to temp location
+        File tmpFile = new File(Utils.getTempFolder(), splitApkFile.getName());
+        log.trace("installSplit: copy file: {} -> {}", splitApkFile, tmpFile);
+        try {
+            Files.copy(splitApkFile.toPath(), tmpFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+            // 2) rename .xapk file to dm-install.zip
+            File zipFile = new File(tmpFile.getParent(), "dm-install.zip");
+            if (zipFile.exists()) zipFile.delete();
+            tmpFile.renameTo(zipFile);
+
+            File targetDir = new File(tmpFile.getParent(), "dm-install");
+
+            // 3) extract zip to folder
+            try (ZipFile zip = new ZipFile(zipFile)) {
+                Enumeration<? extends ZipEntry> entries = zip.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+                    File entryDestination = new File(targetDir, entry.getName());
+                    if (entry.isDirectory()) {
+                        log.trace("installSplit: create dir:{}", entryDestination);
+                        entryDestination.mkdirs();
+                    } else {
+                        File parentFile = entryDestination.getParentFile();
+                        if (!parentFile.exists()) {
+                            log.trace("installSplit: create parent dir:{}", parentFile);
+                            parentFile.mkdirs();
+                        }
+                        OutputStream out = new FileOutputStream(entryDestination);
+                        log.trace("installSplit: extract: {}", entryDestination.getName());
+                        zip.getInputStream(entry).transferTo(out);
+                    }
+                }
+            }
+
+            // 4) read manifest.json
+            File manifest = new File(targetDir, "manifest.json");
+            if (!manifest.exists()) {
+                log.error("installSplit: manifest doesn't exist: {}", manifest);
+                throw new JadbException("manifest doesn't exist");
+            }
+            log.trace("installSplit: reading manifest: {}", manifest);
+            String json = Files.readString(manifest.toPath());
+            SplitManifest splitManifest = GsonHelper.fromJson(json, SplitManifest.class);
+            log.trace("installSplit: got manifest:{}", GsonHelper.toJson(splitManifest));
+
+            // 5) install all .apk's
+            // see https://raccoon.onyxbits.de/blog/install-split-apk-adb/
+            if (splitManifest.splitApkList == null || splitManifest.packageName == null) {
+                log.error("installSplit: invalid manifest! {}", GsonHelper.toJson(splitManifest));
+                throw new JadbException("invalid manifest (package/apkList)");
+            }
+            long totalSize = splitManifest.totalSize;
+            if (totalSize == 0) {
+                List<SplitManifest.SplitApk> splitApkList = splitManifest.splitApkList;
+                for (SplitManifest.SplitApk splitName : splitApkList) {
+                    File apkFile = new File(targetDir, splitName.file);
+                    long splitLen = apkFile.length();
+                    totalSize += splitLen;
+                }
+            }
+            if (totalSize == 0) {
+                throw new JadbException("invalid manifest (totalSize)");
+            }
+            log.trace("installSplit: install-create: {}", totalSize);
+            // pm install-create -S TOTAL_SIZE_OF_ALL_APKS
+            InputStream s = device.executeShell("pm", "install-create", "-S", String.valueOf(totalSize));
+            String result = Stream.readAll(s, StandardCharsets.UTF_8);
+            verifyOperation("install-create", "", result);
+            // Success: created install session [807594146]
+            int stPos = result.indexOf('[');
+            if (stPos == -1) throw new JadbException("invalid session " + result);
+            int endPos = result.indexOf(']', stPos);
+            if (endPos == -1) throw new JadbException("invalid session " + result);
+            String session = result.substring(stPos + 1, endPos);
+            log.trace("installSplit: session: {}", session);
+
+            // TODO: filter out apk files for wrong architecture
+
+            List<SplitManifest.SplitApk> splitApkList = splitManifest.splitApkList;
+            for (int i = 0; i < splitApkList.size(); i++) {
+                SplitManifest.SplitApk splitName = splitApkList.get(i);
+                File apkFile = new File(targetDir, splitName.file);
+                long splitLen = apkFile.length();
+
+                // push file to device
+                log.trace("installSplit: installing:{}, len:{}", apkFile.getName(), splitLen);
+                RemoteFile remote = new RemoteFile("/data/local/tmp/" + splitName.file);
+                device.push(apkFile, remote);
+
+                // pm install-write -S APK_SIZE SESSION_ID INDEX PATH
+                s = device.executeShell("pm", "install-write", "-S", String.valueOf(splitLen), session, String.valueOf(i), remote.getPath());
+                result = Stream.readAll(s, StandardCharsets.UTF_8);
+                verifyOperation("install-write", remote.getName(), result);
+
+                log.trace("installSplit: DONE:{}, {}, len:{}", timer, apkFile.getName(), splitLen);
+                remove(remote);
+            }
+            // pm install-commit 4711
+            log.trace("installSplit: COMMIT:{}, {}", timer, session);
+            s = device.executeShell("pm", "install-commit", session);
+            result = Stream.readAll(s, StandardCharsets.UTF_8);
+            verifyOperation("install-commit", session, result);
+
+            // 6) install .obb files (optional)
+
+            // clean-up
+            zipFile.delete();
+            FileUtils.deleteFolder(targetDir);
+        } catch (Exception e) {
+            log.error("installSplit: ERROR:{}", e.getMessage());
+            throw new JadbException("ERROR: " + e.getMessage());
+        }
     }
 
     public void install(File apkFile) throws IOException, JadbException {
@@ -68,7 +207,7 @@ public class PackageManager {
     public void installWithOptions(File apkFile, List<? extends InstallOption> options) throws IOException, JadbException {
         List<String> optionsAsStr = new ArrayList<>(options.size());
 
-        for(InstallOption installOption : options) {
+        for (InstallOption installOption : options) {
             optionsAsStr.add(installOption.getStringRepresentation());
         }
         install(apkFile, optionsAsStr);
@@ -93,9 +232,9 @@ public class PackageManager {
     public static class InstallOption {
         private final StringBuilder stringBuilder = new StringBuilder();
 
-        InstallOption(String ... varargs) {
+        InstallOption(String... varargs) {
             String suffix = "";
-            for(String str: varargs) {
+            for (String str : varargs) {
                 stringBuilder.append(suffix).append(str);
                 suffix = " ";
             }
@@ -115,8 +254,7 @@ public class PackageManager {
             new InstallOption("-t");
 
     @SuppressWarnings("squid:S00100")
-    public static InstallOption WITH_INSTALLER_PACKAGE_NAME(String name)
-    {
+    public static InstallOption WITH_INSTALLER_PACKAGE_NAME(String name) {
         return new InstallOption("-t", name);
     }
 

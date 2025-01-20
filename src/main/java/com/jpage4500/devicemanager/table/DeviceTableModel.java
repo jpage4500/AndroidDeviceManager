@@ -16,6 +16,7 @@ public class DeviceTableModel extends AbstractTableModel {
     private final List<Device> deviceList;
     private final List<String> customColumnList;
     private Columns[] visibleColumns;
+    private String searchText;
 
     public enum Columns {
         NAME("Name"),
@@ -189,6 +190,16 @@ public class DeviceTableModel extends AbstractTableModel {
                 return null;
             }
         }
+    }
+
+    public void setSearchText(String text) {
+        if (TextUtils.equals(searchText, text)) return;
+        searchText = text;
+        fireTableDataChanged();
+    }
+
+    public String getSearchText() {
+        return searchText;
     }
 
 }
