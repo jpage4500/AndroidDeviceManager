@@ -15,7 +15,6 @@ import se.vidstige.jadb.Stream;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,7 +22,6 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipInputStream;
 
 /**
  * Java interface to package manager. Launches package manager through jadb
@@ -85,7 +83,7 @@ public class PackageManager {
     /**
      * install split apk
      */
-    private void installSplit(File splitApkFile, List<String> extraArguments) {
+    private void installSplit(File splitApkFile, List<String> extraArguments) throws IOException, JadbException {
         Timer timer = new Timer();
         // 1) copy .xapk file to temp location
         File tmpFile = new File(Utils.getTempFolder(), splitApkFile.getName());
@@ -126,7 +124,7 @@ public class PackageManager {
             File manifest = new File(targetDir, "manifest.json");
             if (!manifest.exists()) {
                 log.error("installSplit: manifest doesn't exist: {}", manifest);
-                return;
+                throw new JadbException("manifest doesn't exist");
             }
             log.trace("installSplit: reading manifest: {}", manifest);
             String json = Files.readString(manifest.toPath());
@@ -135,20 +133,32 @@ public class PackageManager {
 
             // 5) install all .apk's
             // see https://raccoon.onyxbits.de/blog/install-split-apk-adb/
-            if (splitManifest.splitApkList == null || splitManifest.packageName == null || splitManifest.totalSize == 0) {
+            if (splitManifest.splitApkList == null || splitManifest.packageName == null) {
                 log.error("installSplit: invalid manifest! {}", GsonHelper.toJson(splitManifest));
-                return;
+                throw new JadbException("invalid manifest (package/apkList)");
             }
-            log.trace("installSplit: install-create: {}", splitManifest.totalSize);
+            long totalSize = splitManifest.totalSize;
+            if (totalSize == 0) {
+                List<SplitManifest.SplitApk> splitApkList = splitManifest.splitApkList;
+                for (SplitManifest.SplitApk splitName : splitApkList) {
+                    File apkFile = new File(targetDir, splitName.file);
+                    long splitLen = apkFile.length();
+                    totalSize += splitLen;
+                }
+            }
+            if (totalSize == 0) {
+                throw new JadbException("invalid manifest (totalSize)");
+            }
+            log.trace("installSplit: install-create: {}", totalSize);
             // pm install-create -S TOTAL_SIZE_OF_ALL_APKS
-            InputStream s = device.executeShell("pm", "install-create", "-S", String.valueOf(splitManifest.totalSize));
+            InputStream s = device.executeShell("pm", "install-create", "-S", String.valueOf(totalSize));
             String result = Stream.readAll(s, StandardCharsets.UTF_8);
             verifyOperation("install-create", "", result);
             // Success: created install session [807594146]
             int stPos = result.indexOf('[');
-            if (stPos == -1) return;
+            if (stPos == -1) throw new JadbException("invalid session " + result);
             int endPos = result.indexOf(']', stPos);
-            if (endPos == -1) return;
+            if (endPos == -1) throw new JadbException("invalid session " + result);
             String session = result.substring(stPos + 1, endPos);
             log.trace("installSplit: session: {}", session);
 
@@ -184,9 +194,9 @@ public class PackageManager {
             // clean-up
             zipFile.delete();
             FileUtils.deleteFolder(targetDir);
-
         } catch (Exception e) {
             log.error("installSplit: ERROR:{}", e.getMessage());
+            throw new JadbException("ERROR: " + e.getMessage());
         }
     }
 
