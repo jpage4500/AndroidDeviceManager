@@ -22,6 +22,7 @@ public class Device {
     public final static String CUSTOM_PROP_X = "custom";
     public final static String CUST_PROP_1 = "custom1";
     public final static String CUST_PROP_2 = "custom2";
+    public final static String CUST_PROP_PHONE = "phone_number";
 
     public enum PowerStatus {
         POWER_NONE,

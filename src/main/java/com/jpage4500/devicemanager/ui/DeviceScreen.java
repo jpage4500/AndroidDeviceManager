@@ -313,13 +313,24 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         table.setDoubleClickListener((row, column, e) -> {
             if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
                 // edit custom 1 field
-                handleSetProperty(1);
+                handleSetProperty(Device.CUSTOM_PROP_X + 1, DeviceTableModel.Columns.CUSTOM1.toString());
+                return;
             } else if (column == DeviceTableModel.Columns.CUSTOM2.ordinal()) {
                 // edit custom 1 field
-                handleSetProperty(2);
-            } else {
-                handleMirrorCommand();
+                handleSetProperty(Device.CUSTOM_PROP_X + 2, DeviceTableModel.Columns.CUSTOM2.toString());
+                return;
+            } else if (column == DeviceTableModel.Columns.PHONE.ordinal()) {
+                Device device = getFirstSelectedDevice();
+                if (device != null) {
+                    if (TextUtils.isEmpty(device.phone)) {
+                        // edit phone number field
+                        handleSetProperty(Device.CUST_PROP_PHONE, "Device Phone Number");
+                        return;
+                    }
+                }
             }
+            // default double-click action
+            handleMirrorCommand();
         });
 
         // support drag and drop of files IN TO deviceView
@@ -405,6 +416,18 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JPopupMenu popupMenu = new JPopupMenu();
 
         if (device.isOnline) {
+            DeviceTableModel.Columns columnType = model.getColumnType(column);
+            if (columnType == DeviceTableModel.Columns.CUSTOM1) {
+                UiUtils.addPopupMenuItem(popupMenu, "Edit Custom Field 1...", actionEvent -> handleSetProperty(Device.CUSTOM_PROP_X + 1, DeviceTableModel.Columns.CUSTOM1.toString()));
+                popupMenu.addSeparator();
+            } else if (columnType == DeviceTableModel.Columns.CUSTOM2) {
+                UiUtils.addPopupMenuItem(popupMenu, "Edit Custom Field 2...", actionEvent -> handleSetProperty(Device.CUSTOM_PROP_X + 2, DeviceTableModel.Columns.CUSTOM2.toString()));
+                popupMenu.addSeparator();
+            } else if (columnType == DeviceTableModel.Columns.PHONE) {
+                UiUtils.addPopupMenuItem(popupMenu, "Edit Phone Number...", actionEvent -> handleSetProperty(Device.CUST_PROP_PHONE, "Device Phone Number"));
+                popupMenu.addSeparator();
+            }
+
             UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", actionEvent -> handleCopyClipboardFieldCommand());
             UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
@@ -414,8 +437,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             UiUtils.addPopupMenuItem(popupMenu, "Capture Screenshot", actionEvent -> handleScreenshotCommand());
             UiUtils.addPopupMenuItem(popupMenu, "Restart Device", actionEvent -> handleRestartCommand());
             UiUtils.addPopupMenuItem(popupMenu, "Open Terminal", actionEvent -> handleTermCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Edit Custom Field 1...", actionEvent -> handleSetProperty(1));
-            UiUtils.addPopupMenuItem(popupMenu, "Edit Custom Field 2...", actionEvent -> handleSetProperty(2));
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
@@ -787,30 +808,27 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
      * set device property
      * uses "persist.dm.custom[number]" for key and prompts user for value
      */
-    private void handleSetProperty(int number) {
+    private void handleSetProperty(String property, String description) {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
         String customValue = "";
         String message;
         if (selectedDeviceList.size() == 1) {
             Device device = selectedDeviceList.get(0);
-            customValue = device.getCustomProperty(Device.CUSTOM_PROP_X + number);
-            message = "Enter Custom Note";
+            customValue = device.getCustomProperty(property);
+            message = "Enter " + description;
         } else {
-            message = "Enter Custom Note for " + selectedDeviceList.size() + " devices";
+            message = "Enter " + description + " for " + selectedDeviceList.size() + " devices";
         }
 
-        String result = DialogHelper.showInputDialog(this, "Custom Note (" + number + ")", message, customValue);
+        String result = DialogHelper.showInputDialog(this, description, message, customValue);
         // allow empty input to go through (clear current value)
         if (result == null) return;
 
         for (Device device : selectedDeviceList) {
-            String prop = "custom" + number;
-            DeviceManager.getInstance().setProperty(device, prop, result, (isSuccess, error) -> {
+            DeviceManager.getInstance().setProperty(device, property, result, (isSuccess, error) -> {
 
             });
-            device.setCustomProperty(Device.CUSTOM_PROP_X + number, result);
-            model.updateDevice(device);
         }
     }
 

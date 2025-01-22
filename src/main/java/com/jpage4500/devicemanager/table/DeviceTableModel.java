@@ -170,7 +170,11 @@ public class DeviceTableModel extends AbstractTableModel {
                 case MODEL -> device.getProperty(Device.PROP_MODEL);
                 case OS -> device.getProperty(Device.PROP_OS);
                 case CARRIER -> device.getCarrier();
-                case PHONE -> device.phone;
+                case PHONE -> {
+                    String customPhone = device.getCustomProperty(Device.CUST_PROP_PHONE);
+                    if (TextUtils.notEmpty(customPhone)) yield customPhone;
+                    else yield device.phone;
+                }
                 case IMEI -> device.imei;
                 case FREE -> FileUtils.bytesToGigDisplayString(device.freeSpace);
                 case BATTERY -> {

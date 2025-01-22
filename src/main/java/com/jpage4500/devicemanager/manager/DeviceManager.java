@@ -690,7 +690,8 @@ public class DeviceManager {
         commandExecutorService.submit(() -> {
             if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
             // update property
-            device.customPropertyMap.put(key, value);
+            if (TextUtils.isEmpty(value)) device.customPropertyMap.remove(key);
+            else device.customPropertyMap.put(key, value);
             // turn into key=value string
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<String, String> entry : device.customPropertyMap.entrySet()) {
