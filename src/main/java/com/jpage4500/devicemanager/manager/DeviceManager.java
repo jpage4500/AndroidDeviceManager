@@ -5,8 +5,8 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
-import com.jpage4500.devicemanager.utils.*;
 import com.jpage4500.devicemanager.utils.Timer;
+import com.jpage4500.devicemanager.utils.*;
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
@@ -401,7 +401,8 @@ public class DeviceManager {
     private void fetchFreeDiskSpace(Device device) {
         ShellResult result = runShell(device, COMMAND_DISK_SIZE);
         if (result.isSuccess && !result.resultList.isEmpty()) {
-            for (String line : result.resultList) {
+            for (Iterator<String> iterator = new ReverseIterator<>(result.resultList); iterator.hasNext(); ) {
+                String line = iterator.next();
                 // /dev/fuse         115249236 14681484 100436680  13% /storage/emulated
                 //                                      ^^^^^^^^^
                 if (TextUtils.endsWith(line, "/storage/emulated")) {

@@ -15,6 +15,7 @@ source ./env-vars.sh
 function handleMacOSX() {
   if [[ -d /Applications/iTerm.app ]]; then
       echo "using iTerm"
+      open /Applications/iTerm.app
       osascript <<END
       tell application "iTerm2"
           activate
@@ -29,6 +30,7 @@ END
   else
       echo "using Terminal"
       osascript <<END
+      open -a Terminal
       tell application "Terminal"
           activate
           tell application "System Events" to keystroke "t" using command down
