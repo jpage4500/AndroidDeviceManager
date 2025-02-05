@@ -5,8 +5,8 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
-import com.jpage4500.devicemanager.utils.*;
 import com.jpage4500.devicemanager.utils.Timer;
+import com.jpage4500.devicemanager.utils.*;
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
@@ -401,16 +401,20 @@ public class DeviceManager {
     private void fetchFreeDiskSpace(Device device) {
         ShellResult result = runShell(device, COMMAND_DISK_SIZE);
         if (result.isSuccess && !result.resultList.isEmpty()) {
-            // only interested in last line
-            String last = result.resultList.get(result.resultList.size() - 1);
-            // /dev/fuse         115249236 14681484 100436680  13% /storage/emulated
-            //                                      ^^^^^^^^^
-            String size = TextUtils.split(last, 3);
-            try {
-                // size is in 1k blocks
-                device.freeSpace = Long.parseLong(size) * 1000L;
-            } catch (Exception e) {
-                log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
+            for (Iterator<String> iterator = new ReverseIterator<>(result.resultList); iterator.hasNext(); ) {
+                String line = iterator.next();
+                // /dev/fuse         115249236 14681484 100436680  13% /storage/emulated
+                //                                      ^^^^^^^^^
+                if (TextUtils.endsWith(line, "/storage/emulated")) {
+                    String size = TextUtils.split(line, 3);
+                    try {
+                        // size is in 1k blocks
+                        device.freeSpace = Long.parseLong(size) * 1000L;
+                        return;
+                    } catch (Exception e) {
+                        log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
+                    }
+                }
             }
         }
     }
