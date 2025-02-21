@@ -315,33 +315,30 @@ public class SaveLogsScreen extends BaseScreen {
 
         // filter
         filterButton = createToolbarButton(toolbar, "clear_filter.png", "Filter", "Set Filter", null);
-        filterButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) {
-                JPopupMenu popupMenu = new JPopupMenu();
+        UiUtils.addRightClickListener(filterButton, e -> {
+            JPopupMenu popupMenu = new JPopupMenu();
 
-                if (SaveLogsScreen.this.logFilter != null) {
-                    JMenuItem item = new JMenuItem("Clear Filter", UiUtils.getImageIcon("clear_filter.png", UiUtils.IMG_SIZE_SMALL));
-                    item.addActionListener(e2 -> handleFilterClicked(null));
-                    popupMenu.add(item);
-                }
-
-                List<LogFilter> systemList = ViewLogsScreen.getSystemFilters();
-                List<LogFilter> filterList = ViewLogsScreen.getUserFilters();
-                systemList.addAll(filterList);
-                for (LogFilter filter : systemList) {
-                    if (filter.filterList == null || filter.filterList.isEmpty()) continue;
-                    JMenuItem item = new JMenuItem(filter.name, UiUtils.getImageIcon("icon_filter.png", UiUtils.IMG_SIZE_SMALL));
-                    item.addActionListener(e2 -> handleFilterClicked(filter));
-                    popupMenu.add(item);
-                }
-
-                JMenuItem item = new JMenuItem("Add Filter", UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_SMALL));
-                item.addActionListener(e2 -> handleAddFilterClicked());
+            if (SaveLogsScreen.this.logFilter != null) {
+                JMenuItem item = new JMenuItem("Clear Filter", UiUtils.getImageIcon("clear_filter.png", UiUtils.IMG_SIZE_SMALL));
+                item.addActionListener(e2 -> handleFilterClicked(null));
                 popupMenu.add(item);
-
-                popupMenu.show(e.getComponent(), e.getX(), e.getY());
             }
+
+            List<LogFilter> systemList = ViewLogsScreen.getSystemFilters();
+            List<LogFilter> filterList = ViewLogsScreen.getUserFilters();
+            systemList.addAll(filterList);
+            for (LogFilter filter : systemList) {
+                if (filter.filterList == null || filter.filterList.isEmpty()) continue;
+                JMenuItem item = new JMenuItem(filter.name, UiUtils.getImageIcon("icon_filter.png", UiUtils.IMG_SIZE_SMALL));
+                item.addActionListener(e2 -> handleFilterClicked(filter));
+                popupMenu.add(item);
+            }
+
+            JMenuItem item = new JMenuItem("Add Filter", UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_SMALL));
+            item.addActionListener(e2 -> handleAddFilterClicked());
+            popupMenu.add(item);
+
+            popupMenu.show(e.getComponent(), e.getX(), e.getY());
         });
     }
 

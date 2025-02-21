@@ -50,7 +50,7 @@ public class SettingsDialog extends JPanel {
         });
 
         JButton logButton = UiUtils.addSettingButton(this, "Log Level", "EDIT", null);
-        UiUtils.addClickListener(logButton, e -> toggleLogLevels(logButton));
+        UiUtils.addLeftClickListener(logButton, e -> toggleLogLevels(logButton));
         updateLogLevel(logButton);
 
         UiUtils.addSettingButton(this, "View Logs", "VIEW", this::viewLogs);

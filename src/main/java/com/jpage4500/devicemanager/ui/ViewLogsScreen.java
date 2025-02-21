@@ -23,7 +23,9 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -682,30 +684,26 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         filterList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         filterList.setCellRenderer(new LogFilterRenderer());
         filterList.addListSelectionListener(e -> handleFilterSelected());
-        filterList.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                // single click
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    // select item
-                    Point point = e.getPoint();
-                    int i = filterList.locationToIndex(point);
-                    if (i < 0) return;
-                    filterList.setSelectedIndex(i);
+        UiUtils.addClickListener(filterList, e -> {
+            if (SwingUtilities.isRightMouseButton(e)) {
+                // select item
+                Point point = e.getPoint();
+                int i = filterList.locationToIndex(point);
+                if (i < 0) return;
+                filterList.setSelectedIndex(i);
 
-                    LogFilter selectedFilter = filterList.getSelectedValue();
-                    if (selectedFilter == null || selectedFilter.isSystemFilter) return;
+                LogFilter selectedFilter = filterList.getSelectedValue();
+                if (selectedFilter == null || selectedFilter.isSystemFilter) return;
 
-                    JPopupMenu popupMenu = new JPopupMenu();
-                    UiUtils.addPopupMenuItem(popupMenu, "Edit Filter", actionEvent -> handleEditFilterClicked(selectedFilter));
-                    UiUtils.addPopupMenuItem(popupMenu, "Duplicate Filter", actionEvent -> handleCopyFilterClicked(selectedFilter));
-                    UiUtils.addPopupMenuItem(popupMenu, "Delete Filter", actionEvent -> handleDeleteFilterClicked(selectedFilter));
-                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
-                } else if (e.getClickCount() >= 2) {
-                    LogFilter selectedFilter = filterList.getSelectedValue();
-                    if (selectedFilter == null || selectedFilter.isSystemFilter) return;
-                    handleEditFilterClicked(selectedFilter);
-                }
+                JPopupMenu popupMenu = new JPopupMenu();
+                UiUtils.addPopupMenuItem(popupMenu, "Edit Filter", actionEvent -> handleEditFilterClicked(selectedFilter));
+                UiUtils.addPopupMenuItem(popupMenu, "Duplicate Filter", actionEvent -> handleCopyFilterClicked(selectedFilter));
+                UiUtils.addPopupMenuItem(popupMenu, "Delete Filter", actionEvent -> handleDeleteFilterClicked(selectedFilter));
+                popupMenu.show(e.getComponent(), e.getX(), e.getY());
+            } else if (e.getClickCount() >= 2) {
+                LogFilter selectedFilter = filterList.getSelectedValue();
+                if (selectedFilter == null || selectedFilter.isSystemFilter) return;
+                handleEditFilterClicked(selectedFilter);
             }
         });
     }

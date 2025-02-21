@@ -87,40 +87,38 @@ public class DialogHelper {
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new AlternatingBackgroundColorRenderer());
         list.setVisibleRowCount(15);
-        list.addMouseListener(new MouseAdapter() {
-            public void mouseClicked(MouseEvent evt) {
-                if (SwingUtilities.isRightMouseButton(evt)) {
-                    list.requestFocus();
-                    int index = list.locationToIndex(evt.getPoint());
-                    list.setSelectedIndex(index);
+        UiUtils.addClickListener(list, evt -> {
+            if (SwingUtilities.isRightMouseButton(evt)) {
+                list.requestFocus();
+                int index = list.locationToIndex(evt.getPoint());
+                list.setSelectedIndex(index);
+                String[] valueArr = TextUtils.split(list.getSelectedValue(), KEY_VALUE_DELIM);
+                String key = valueArr[0];
+                String value = valueArr.length > 1 ? valueArr[1] : null;
+                JPopupMenu popupMenu = new JPopupMenu();
+                if (listener != null) listener.handleRightClick(key, value, popupMenu);
+                UiUtils.addPopupMenuItem(popupMenu, "Copy to Clipboard", actionEvent -> {
+                    log.trace("mouseClicked: copy: {}", value);
+                    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                    StringSelection stringSelection = new StringSelection(value);
+                    clipboard.setContents(stringSelection, null);
+                });
+                popupMenu.show(evt.getComponent(), evt.getX(), evt.getY());
+            } else if (evt.getClickCount() == 2) {
+                String selectedValue = list.getSelectedValue();
+                if (listener != null) {
                     String[] valueArr = TextUtils.split(list.getSelectedValue(), KEY_VALUE_DELIM);
                     String key = valueArr[0];
                     String value = valueArr.length > 1 ? valueArr[1] : null;
-                    JPopupMenu popupMenu = new JPopupMenu();
-                    if (listener != null) listener.handleRightClick(key, value, popupMenu);
-                    UiUtils.addPopupMenuItem(popupMenu, "Copy to Clipboard", actionEvent -> {
-                        log.trace("mouseClicked: copy: {}", value);
-                        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                        StringSelection stringSelection = new StringSelection(value);
-                        clipboard.setContents(stringSelection, null);
-                    });
-                    popupMenu.show(evt.getComponent(), evt.getX(), evt.getY());
-                } else if (evt.getClickCount() == 2) {
-                    String selectedValue = list.getSelectedValue();
-                    if (listener != null) {
-                        String[] valueArr = TextUtils.split(list.getSelectedValue(), KEY_VALUE_DELIM);
-                        String key = valueArr[0];
-                        String value = valueArr.length > 1 ? valueArr[1] : null;
-                        listener.handleDoubleClick(key, value);
-                    } else {
-                        JTextArea textArea = new JTextArea(selectedValue);
-                        textArea.setLineWrap(true);
-                        textArea.setEditable(false);
-                        JScrollPane scrollPane = new JScrollPane(textArea, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-                        int maxW = Utils.getScreenWidth() / 2;
-                        scrollPane.setPreferredSize(new Dimension(maxW, 300));
-                        JOptionPane.showMessageDialog(component, scrollPane, title, JOptionPane.PLAIN_MESSAGE);
-                    }
+                    listener.handleDoubleClick(key, value);
+                } else {
+                    JTextArea textArea = new JTextArea(selectedValue);
+                    textArea.setLineWrap(true);
+                    textArea.setEditable(false);
+                    JScrollPane scrollPane = new JScrollPane(textArea, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+                    int maxW = Utils.getScreenWidth() / 2;
+                    scrollPane.setPreferredSize(new Dimension(maxW, 300));
+                    JOptionPane.showMessageDialog(component, scrollPane, title, JOptionPane.PLAIN_MESSAGE);
                 }
             }
         });

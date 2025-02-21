@@ -12,7 +12,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.util.List;
 
@@ -52,21 +53,18 @@ public class CommandDialog extends JPanel {
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new AlternatingBackgroundColorRenderer());
         list.setVisibleRowCount(5);
-        list.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                Point point = e.getPoint();
-                int row = list.locationToIndex(point);
-                if (row < 0) return;
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    // select row
-                    list.setSelectedIndex(row);
-                    JPopupMenu popupMenu = new JPopupMenu();
+        UiUtils.addRightClickListener(list, e -> {
+            Point point = e.getPoint();
+            int row = list.locationToIndex(point);
+            if (row < 0) return;
+            if (SwingUtilities.isRightMouseButton(e)) {
+                // select row
+                list.setSelectedIndex(row);
+                JPopupMenu popupMenu = new JPopupMenu();
 
-                    UiUtils.addPopupMenuItem(popupMenu, "Delete", actionEvent -> deleteItem(list.getSelectedValue()));
+                UiUtils.addPopupMenuItem(popupMenu, "Delete", actionEvent -> deleteItem(list.getSelectedValue()));
 
-                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
-                }
+                popupMenu.show(e.getComponent(), e.getX(), e.getY());
             }
         });
 
@@ -168,7 +166,7 @@ public class CommandDialog extends JPanel {
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().runCustomCommand(device, command, (result) -> {
                 String displayStr = TextUtils.join(result.resultList, "\n");
-                resultWatcher.handleResult(device.serial, result.isSuccess,  displayStr);
+                resultWatcher.handleResult(device.serial, result.isSuccess, displayStr);
             });
         }
     }

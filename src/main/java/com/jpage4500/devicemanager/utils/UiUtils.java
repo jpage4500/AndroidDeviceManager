@@ -98,23 +98,28 @@ public class UiUtils {
         }
     }
 
-    public interface ClickListener {
-        void onClick(MouseEvent e);
+    /**
+     * add LEFT click listener (will not respond to right-click)
+     * - more responsive than a typical mouseClicked() listener
+     */
+    public static void addLeftClickListener(JComponent component, ClickListener listener) {
+        component.addMouseListener(new MyMouseAdapter(listener, true));
     }
 
     /**
-     * add click listener (left-click)
+     * add RIGHT click listener (will not respond to left-click)
+     * - more responsive than a typical mouseClicked() listener
+     */
+    public static void addRightClickListener(JComponent component, ClickListener listener) {
+        component.addMouseListener(new MyMouseAdapter(listener, false));
+    }
+
+    /**
+     * add click listener (right or left click)
+     * - more responsive than a typical mouseClicked() listener
      */
     public static void addClickListener(JComponent component, ClickListener listener) {
-        component.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent mouseEvent) {
-                super.mouseClicked(mouseEvent);
-                if (SwingUtilities.isLeftMouseButton(mouseEvent)) {
-                    listener.onClick(mouseEvent);
-                }
-            }
-        });
+        component.addMouseListener(new MyMouseAdapter(listener, null));
     }
 
     public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, ActionListener listener) {
@@ -147,7 +152,7 @@ public class UiUtils {
         panel.add(new JLabel(label));
         JButton button = new JButton(action);
         if (listener != null) {
-            UiUtils.addClickListener(button, e -> {
+            UiUtils.addLeftClickListener(button, e -> {
                 listener.onClicked();
             });
         }
@@ -175,15 +180,12 @@ public class UiUtils {
             if (listener != null) listener.onChecked(selected);
         });
 
-        textLabel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent mouseEvent) {
-                // TODO: fire checkbox action listener directly
-                boolean selected = !checkbox.isSelected();
-                checkbox.setSelected(selected);
-                PreferenceUtils.setPreference(pref, selected);
-                if (listener != null) listener.onChecked(selected);
-            }
+        UiUtils.addLeftClickListener(textLabel, e -> {
+            // TODO: fire checkbox action listener directly
+            boolean selected = !checkbox.isSelected();
+            checkbox.setSelected(selected);
+            PreferenceUtils.setPreference(pref, selected);
+            if (listener != null) listener.onChecked(selected);
         });
         return checkbox;
     }

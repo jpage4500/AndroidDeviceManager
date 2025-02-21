@@ -87,35 +87,32 @@ public class CustomTable extends JTable {
 
         setTableHeader(new CustomTableHeader(this));
 
-        addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                // single click
-                Point point = e.getPoint();
-                int row = rowAtPoint(point);
-                int column = columnAtPoint(point);
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    // right-click
-                    if (getSelectedRowCount() <= 1) {
-                        changeSelection(row, column, false, false);
-                    }
-                    selectedColumn = column;
-                    if (popupMenuListener != null) {
-                        // convert table row/col to model row/col
-                        row = convertRowIndexToModel(row);
-                        column = convertColumnIndexToModel(column);
-                        JPopupMenu popupMenu = popupMenuListener.getPopupMenu(row, column);
-                        if (popupMenu != null) {
-                            popupMenu.show(e.getComponent(), e.getX(), e.getY());
-                        }
-                    }
-                } else if (e.getClickCount() == 2) {
-                    // double-click
+        UiUtils.addClickListener(this, e -> {
+            // single click
+            Point point = e.getPoint();
+            int row = rowAtPoint(point);
+            int column = columnAtPoint(point);
+            if (SwingUtilities.isRightMouseButton(e)) {
+                // right-click
+                if (getSelectedRowCount() <= 1) {
+                    changeSelection(row, column, false, false);
+                }
+                selectedColumn = column;
+                if (popupMenuListener != null) {
                     // convert table row/col to model row/col
                     row = convertRowIndexToModel(row);
                     column = convertColumnIndexToModel(column);
-                    if (doubleClickListener != null) doubleClickListener.handleDoubleClick(row, column, e);
+                    JPopupMenu popupMenu = popupMenuListener.getPopupMenu(row, column);
+                    if (popupMenu != null) {
+                        popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                    }
                 }
+            } else if (e.getClickCount() == 2) {
+                // double-click
+                // convert table row/col to model row/col
+                row = convertRowIndexToModel(row);
+                column = convertColumnIndexToModel(column);
+                if (doubleClickListener != null) doubleClickListener.handleDoubleClick(row, column, e);
             }
         });
 
@@ -215,14 +212,9 @@ public class CustomTable extends JTable {
         scrollPane.getViewport().setOpaque(false);
 
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (SwingUtilities.isLeftMouseButton(e)) {
-                    // single click outside of table should de-select row
-                    clearSelection();
-                }
-            }
+        UiUtils.addLeftClickListener(scrollPane, e -> {
+            // single click outside of table should de-select row
+            clearSelection();
         });
     }
 
@@ -481,20 +473,15 @@ public class CustomTable extends JTable {
 
             setBackground(COLOR_HEADER);
 
-            addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    if (SwingUtilities.isRightMouseButton(e)) {
-                        if (popupMenuListener != null) {
-                            Point point = e.getPoint();
-                            int column = columnAtPoint(point);
-                            // convert table row/col to model row/col
-                            column = convertColumnIndexToModel(column);
-                            // NOTE: row fixed at -1 for header
-                            JPopupMenu popupMenu = popupMenuListener.getPopupMenu(-1, column);
-                            if (popupMenu != null) popupMenu.show(e.getComponent(), e.getX(), e.getY());
-                        }
-                    }
+            UiUtils.addRightClickListener(this, e -> {
+                if (popupMenuListener != null) {
+                    Point point = e.getPoint();
+                    int column = columnAtPoint(point);
+                    // convert table row/col to model row/col
+                    column = convertColumnIndexToModel(column);
+                    // NOTE: row fixed at -1 for header
+                    JPopupMenu popupMenu = popupMenuListener.getPopupMenu(-1, column);
+                    if (popupMenu != null) popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
             });
 
