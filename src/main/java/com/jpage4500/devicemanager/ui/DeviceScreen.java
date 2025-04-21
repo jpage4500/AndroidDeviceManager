@@ -198,12 +198,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         updateLabel = new HoverLabel(icon);
         updateLabel.setToolTipText("Check for updates");
         leftPanel.add(updateLabel);
-        UiUtils.addClickListener(updateLabel, this::handleUpdateClicked);
+        UiUtils.addLeftClickListener(updateLabel, this::handleUpdateClicked);
 
         // version
         versionLabel = new HoverLabel();
         leftPanel.add(versionLabel);
-        UiUtils.addClickListener(versionLabel, this::handleVersionClicked);
+        UiUtils.addLeftClickListener(versionLabel, this::handleVersionClicked);
         versionLabel.setText("v" + MainApplication.version);
 
         // memory
@@ -211,7 +211,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         memoryLabel = new HoverLabel(icon);
         memoryLabel.setBorder(0, 0);
         leftPanel.add(memoryLabel);
-        UiUtils.addClickListener(memoryLabel, this::showSystemEnvironmentDialog);
+        UiUtils.addLeftClickListener(memoryLabel, this::showSystemEnvironmentDialog);
 
         statusBar.add(leftPanel, BorderLayout.WEST);
 
@@ -935,12 +935,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         ImageIcon icon = UiUtils.getImageIcon("arrow_right.png", UiUtils.IMG_SIZE_SMALL);
         if (device.propMap != null) {
             HoverLabel devicePropLabel = new HoverLabel("Device Properties", icon);
-            UiUtils.addClickListener(devicePropLabel, mouseEvent -> showDeviceProperties(device));
+            UiUtils.addLeftClickListener(devicePropLabel, mouseEvent -> showDeviceProperties(device));
             panel.add(devicePropLabel, "wrap");
         }
 
         HoverLabel appsLabel = new HoverLabel("Installed Apps / Versions", icon);
-        UiUtils.addClickListener(appsLabel, mouseEvent -> showInstalledApps(device));
+        UiUtils.addLeftClickListener(appsLabel, mouseEvent -> showInstalledApps(device));
         panel.add(appsLabel, "wrap");
 
         DialogHelper.showCustomDialog(this, panel, "Device Info", null);
@@ -1191,22 +1191,17 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             filterTextField.setPreferredSize(new Dimension(150, 40));
             filterTextField.setMinimumSize(new Dimension(10, 40));
             filterTextField.setMaximumSize(new Dimension(200, 40));
-            filterTextField.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    if (SwingUtilities.isRightMouseButton(e)) {
-                        JPopupMenu popupMenu = new JPopupMenu();
-                        JMenuItem hideItem = new JMenuItem("Hide " + ToolbarButton.FILTER.label);
-                        hideItem.addActionListener(actionEvent -> {
-                            popupMenu.setVisible(false);
-                            SettingsDialog.addHiddenToolbarItem(ToolbarButton.FILTER.label);
-                            setupToolbar();
-                        });
-                        popupMenu.add(hideItem);
-                        UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this));
-                        popupMenu.show(e.getComponent(), e.getX(), e.getY());
-                    }
-                }
+            UiUtils.addRightClickListener(filterTextField, e -> {
+                JPopupMenu popupMenu = new JPopupMenu();
+                JMenuItem hideItem = new JMenuItem("Hide " + ToolbarButton.FILTER.label);
+                hideItem.addActionListener(actionEvent -> {
+                    popupMenu.setVisible(false);
+                    SettingsDialog.addHiddenToolbarItem(ToolbarButton.FILTER.label);
+                    setupToolbar();
+                });
+                popupMenu.add(hideItem);
+                UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this));
+                popupMenu.show(e.getComponent(), e.getX(), e.getY());
             });
             toolbar.add(filterTextField);
         }
@@ -1224,20 +1219,17 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         String tooltip = toolbarButton.tooltip;
 
         JButton button = createToolbarButton(toolbar, imageName, label, tooltip, 40, listener);
-        button.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (SwingUtilities.isRightMouseButton(e) && toolbarButton != ToolbarButton.SETTINGS) {
-                    JPopupMenu popupMenu = new JPopupMenu();
-                    UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
-                        SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
-                        setupToolbar();
-                    });
-                    UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this));
-                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
-                }
-            }
+        UiUtils.addRightClickListener(button, e -> {
+            if (toolbarButton == ToolbarButton.SETTINGS) return;
+            JPopupMenu popupMenu = new JPopupMenu();
+            UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
+                SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
+                setupToolbar();
+            });
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this));
+            popupMenu.show(e.getComponent(), e.getX(), e.getY());
         });
+
         return button;
     }
 
@@ -1265,19 +1257,16 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (scriptList == null || scriptList.isEmpty()) return;
         JButton scriptButton = createToolbarButton(toolbar, ToolbarButton.SCRIPTS, null);
         if (scriptButton == null) return;
-        scriptButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) {
-                JPopupMenu popupMenu = new JPopupMenu();
-                List<File> scriptList = getCustomScripts();
-                for (File script : scriptList) {
-                    String name = FileUtils.getNameNoExt(script).replaceAll("_", " ");
-                    JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon("icon_custom.png", UiUtils.IMG_SIZE_SMALL));
-                    item.addActionListener(e2 -> handleCustomScriptClicked(script, name));
-                    popupMenu.add(item);
-                }
-                popupMenu.show(e.getComponent(), e.getX(), e.getY());
+        UiUtils.addLeftClickListener(scriptButton, e -> {
+            JPopupMenu popupMenu = new JPopupMenu();
+            List<File> list = getCustomScripts();
+            for (File script : list) {
+                String name = FileUtils.getNameNoExt(script).replaceAll("_", " ");
+                JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon("icon_custom.png", UiUtils.IMG_SIZE_SMALL));
+                item.addActionListener(e2 -> handleCustomScriptClicked(script, name));
+                popupMenu.add(item);
             }
+            popupMenu.show(e.getComponent(), e.getX(), e.getY());
         });
     }
 

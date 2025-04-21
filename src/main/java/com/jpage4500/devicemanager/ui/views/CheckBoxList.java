@@ -1,13 +1,12 @@
 package com.jpage4500.devicemanager.ui.views;
 
 import com.jpage4500.devicemanager.utils.Colors;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 
 public class CheckBoxList extends JList {
@@ -15,16 +14,13 @@ public class CheckBoxList extends JList {
 
     public CheckBoxList() {
         setCellRenderer(new CellRenderer());
+        UiUtils.addLeftClickListener(this, e -> {
+            int index = locationToIndex(e.getPoint());
 
-        addMouseListener(new MouseAdapter() {
-            public void mousePressed(MouseEvent e) {
-                int index = locationToIndex(e.getPoint());
-
-                if (index != -1) {
-                    JCheckBox checkbox = (JCheckBox) getModel().getElementAt(index);
-                    checkbox.setSelected(!checkbox.isSelected());
-                    repaint();
-                }
+            if (index != -1) {
+                JCheckBox checkbox = (JCheckBox) getModel().getElementAt(index);
+                checkbox.setSelected(!checkbox.isSelected());
+                repaint();
             }
         });
 

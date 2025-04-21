@@ -164,15 +164,27 @@ public class HintTextField extends JTextField implements KeyListener {
             case KeyEvent.VK_ESCAPE:
                 cleanText = null;
                 break;
-            case '_':
-            case '-':
-                cleanText += keyChar;
-                break;
             default:
-                if (Character.isLetterOrDigit(keyChar)) {
-                    cleanText += keyChar;
+                switch (keyChar) {
+                    case '_':
+                    case '-':
+                    case '$':
+                    case '#':
+                    case '@':
+                    case '(':
+                    case ')':
+                    case '!':
+                        cleanText += keyChar;
+                        break;
+                    default:
+                        if (Character.isLetterOrDigit(keyChar)) {
+                            cleanText += keyChar;
+                        } else {
+                            // ignore
+                            return;
+                        }
+                        break;
                 }
-                break;
         }
         if (TextUtils.isEmpty(cleanText)) cleanText = hintText;
         setText(cleanText);

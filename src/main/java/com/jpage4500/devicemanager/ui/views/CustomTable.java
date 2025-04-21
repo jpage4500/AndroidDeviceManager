@@ -10,7 +10,6 @@ import java.awt.*;
 import java.awt.dnd.DropTarget;
 import java.awt.dnd.DropTargetDragEvent;
 import java.awt.dnd.DropTargetEvent;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -23,10 +22,6 @@ import java.util.prefs.Preferences;
  */
 public class CustomTable extends JTable {
     private static final Logger log = LoggerFactory.getLogger(CustomTable.class);
-
-    private static final Color COLOR_BACKGROUND = new Color(222, 222, 222);
-    private static final Color COLOR_HEADER = new Color(197, 197, 197);
-    private static final Color COLOR_ALTERNATE_ROW = new Color(246, 246, 246);
 
     private String prefKey;
     private TooltipListener tooltipListener;
@@ -79,7 +74,7 @@ public class CustomTable extends JTable {
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
         setOpaque(false);
-        setBackground(COLOR_BACKGROUND);
+        setBackground(Colors.COLOR_BACKGROUND);
 
         showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
 
@@ -87,35 +82,32 @@ public class CustomTable extends JTable {
 
         setTableHeader(new CustomTableHeader(this));
 
-        addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                // single click
-                Point point = e.getPoint();
-                int row = rowAtPoint(point);
-                int column = columnAtPoint(point);
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    // right-click
-                    if (getSelectedRowCount() <= 1) {
-                        changeSelection(row, column, false, false);
-                    }
-                    selectedColumn = column;
-                    if (popupMenuListener != null) {
-                        // convert table row/col to model row/col
-                        row = convertRowIndexToModel(row);
-                        column = convertColumnIndexToModel(column);
-                        JPopupMenu popupMenu = popupMenuListener.getPopupMenu(row, column);
-                        if (popupMenu != null) {
-                            popupMenu.show(e.getComponent(), e.getX(), e.getY());
-                        }
-                    }
-                } else if (e.getClickCount() == 2) {
-                    // double-click
+        UiUtils.addClickListener(this, e -> {
+            // single click
+            Point point = e.getPoint();
+            int row = rowAtPoint(point);
+            int column = columnAtPoint(point);
+            if (SwingUtilities.isRightMouseButton(e)) {
+                // right-click
+                if (getSelectedRowCount() <= 1) {
+                    changeSelection(row, column, false, false);
+                }
+                selectedColumn = column;
+                if (popupMenuListener != null) {
                     // convert table row/col to model row/col
                     row = convertRowIndexToModel(row);
                     column = convertColumnIndexToModel(column);
-                    if (doubleClickListener != null) doubleClickListener.handleDoubleClick(row, column, e);
+                    JPopupMenu popupMenu = popupMenuListener.getPopupMenu(row, column);
+                    if (popupMenu != null) {
+                        popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                    }
                 }
+            } else if (e.getClickCount() == 2) {
+                // double-click
+                // convert table row/col to model row/col
+                row = convertRowIndexToModel(row);
+                column = convertColumnIndexToModel(column);
+                if (doubleClickListener != null) doubleClickListener.handleDoubleClick(row, column, e);
             }
         });
 
@@ -215,14 +207,9 @@ public class CustomTable extends JTable {
         scrollPane.getViewport().setOpaque(false);
 
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (SwingUtilities.isLeftMouseButton(e)) {
-                    // single click outside of table should de-select row
-                    clearSelection();
-                }
-            }
+        UiUtils.addLeftClickListener(scrollPane, e -> {
+            // single click outside of table should de-select row
+            clearSelection();
         });
     }
 
@@ -271,7 +258,7 @@ public class CustomTable extends JTable {
     public Component prepareRenderer(TableCellRenderer renderer, int row, int column) {
         Component c = super.prepareRenderer(renderer, row, column);
         if (c != null && !c.getBackground().equals(getSelectionBackground())) {
-            Color color = (row % 2 == 0 ? Color.WHITE : COLOR_ALTERNATE_ROW);
+            Color color = (row % 2 == 0 ? Color.WHITE : Colors.COLOR_ALTERNATE_ROW);
             c.setBackground(color);
         }
         return c;
@@ -479,22 +466,17 @@ public class CustomTable extends JTable {
             arrowUpIcon = UiUtils.getImageIcon("arrow_down.png", UiUtils.IMG_SIZE_SMALL);
             arrowDownIcon = UiUtils.getImageIcon("arrow_up.png", UiUtils.IMG_SIZE_SMALL);
 
-            setBackground(COLOR_HEADER);
+            setBackground(Colors.COLOR_TABLE_HEADER);
 
-            addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    if (SwingUtilities.isRightMouseButton(e)) {
-                        if (popupMenuListener != null) {
-                            Point point = e.getPoint();
-                            int column = columnAtPoint(point);
-                            // convert table row/col to model row/col
-                            column = convertColumnIndexToModel(column);
-                            // NOTE: row fixed at -1 for header
-                            JPopupMenu popupMenu = popupMenuListener.getPopupMenu(-1, column);
-                            if (popupMenu != null) popupMenu.show(e.getComponent(), e.getX(), e.getY());
-                        }
-                    }
+            UiUtils.addRightClickListener(this, e -> {
+                if (popupMenuListener != null) {
+                    Point point = e.getPoint();
+                    int column = columnAtPoint(point);
+                    // convert table row/col to model row/col
+                    column = convertColumnIndexToModel(column);
+                    // NOTE: row fixed at -1 for header
+                    JPopupMenu popupMenu = popupMenuListener.getPopupMenu(-1, column);
+                    if (popupMenu != null) popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
             });
 

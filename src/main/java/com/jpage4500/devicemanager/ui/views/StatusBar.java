@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui.views;
 
+import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,20 +78,17 @@ public class StatusBar extends JPanel {
                 label.setHorizontalAlignment(SwingConstants.CENTER);
                 break;
         }
-        label.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                switch (desc) {
-                    case "left":
-                        if (leftListener != null) leftListener.onClicked();
-                        break;
-                    case "center":
-                        if (centerListener != null) centerListener.onClicked();
-                        break;
-                    case "right":
-                        if (rightListener != null) rightListener.onClicked();
-                        break;
-                }
+        UiUtils.addLeftClickListener(label, e -> {
+            switch (desc) {
+                case "left":
+                    if (leftListener != null) leftListener.onClicked();
+                    break;
+                case "center":
+                    if (centerListener != null) centerListener.onClicked();
+                    break;
+                case "right":
+                    if (rightListener != null) rightListener.onClicked();
+                    break;
             }
         });
         return label;

@@ -8,6 +8,11 @@ public class Colors {
     public static final Color COLOR_BUSY = new Color(251, 109, 8);
     public static final Color COLOR_NOT_READY = new Color(251, 247, 8);
 
+    public static final Color COLOR_BACKGROUND = new Color(222, 222, 222);
+    public static final Color COLOR_ALTERNATE_ROW = new Color(246, 246, 246);
+
+    public static final Color COLOR_TABLE_HEADER = new Color(197, 197, 197);
+
     public static final Color COLOR_LIGHT_GRAY = new Color(232, 232, 232);
     public static final Color COLOR_LIST_SELECTED_NO_FOCUS = new Color(0, 81, 255, 108);
 
@@ -17,5 +22,4 @@ public class Colors {
     // log recording state
     public static final Color COLOR_START_RECORDING = COLOR_ONLINE;
     public static final Color COLOR_STOP_RECORDING = COLOR_BUSY;
-
 }

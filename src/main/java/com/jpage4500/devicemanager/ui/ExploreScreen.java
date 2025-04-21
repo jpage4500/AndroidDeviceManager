@@ -117,7 +117,7 @@ public class ExploreScreen extends BaseScreen {
         // bookmark
         ImageIcon icon = UiUtils.getImageIcon("icon_bookmark.png", UiUtils.IMG_SIZE_SMALL);
         pathLabel = new HoverLabel(selectedPath, icon);
-        UiUtils.addClickListener(pathLabel, this::showFavoritePopup);
+        UiUtils.addLeftClickListener(pathLabel, this::showFavoritePopup);
         statusBar.add(pathLabel, BorderLayout.WEST);
 
         // empty space
@@ -145,16 +145,17 @@ public class ExploreScreen extends BaseScreen {
             UiUtils.setEmptyBorder(item);
             popupMenu.add(item);
         }
-        popupMenu.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent mouseEvent) {
-                if (SwingUtilities.isRightMouseButton(mouseEvent)) {
-                    log.debug("mouseClicked: LEFT");
-                } else {
-                    log.debug("mouseClicked: RIGHT-CLICK");
-                }
-            }
-        });
+        // TODO:
+//        popupMenu.addMouseListener(new MouseAdapter() {
+//            @Override
+//            public void mouseClicked(MouseEvent mouseEvent) {
+//                if (SwingUtilities.isRightMouseButton(mouseEvent)) {
+//                    log.debug("mouseClicked: LEFT");
+//                } else {
+//                    log.debug("mouseClicked: RIGHT-CLICK");
+//                }
+//            }
+//        });
         popupMenu.addSeparator();
         if (!pathList.contains(selectedPath)) {
             // add current item
