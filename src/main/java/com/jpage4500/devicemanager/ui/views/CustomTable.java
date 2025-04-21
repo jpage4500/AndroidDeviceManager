@@ -10,7 +10,6 @@ import java.awt.*;
 import java.awt.dnd.DropTarget;
 import java.awt.dnd.DropTargetDragEvent;
 import java.awt.dnd.DropTargetEvent;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -23,10 +22,6 @@ import java.util.prefs.Preferences;
  */
 public class CustomTable extends JTable {
     private static final Logger log = LoggerFactory.getLogger(CustomTable.class);
-
-    private static final Color COLOR_BACKGROUND = new Color(222, 222, 222);
-    private static final Color COLOR_HEADER = new Color(197, 197, 197);
-    private static final Color COLOR_ALTERNATE_ROW = new Color(246, 246, 246);
 
     private String prefKey;
     private TooltipListener tooltipListener;
@@ -79,7 +74,7 @@ public class CustomTable extends JTable {
     public CustomTable(String prefKey) {
         this.prefKey = prefKey;
         setOpaque(false);
-        setBackground(COLOR_BACKGROUND);
+        setBackground(Colors.COLOR_BACKGROUND);
 
         showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
 
@@ -263,7 +258,7 @@ public class CustomTable extends JTable {
     public Component prepareRenderer(TableCellRenderer renderer, int row, int column) {
         Component c = super.prepareRenderer(renderer, row, column);
         if (c != null && !c.getBackground().equals(getSelectionBackground())) {
-            Color color = (row % 2 == 0 ? Color.WHITE : COLOR_ALTERNATE_ROW);
+            Color color = (row % 2 == 0 ? Color.WHITE : Colors.COLOR_ALTERNATE_ROW);
             c.setBackground(color);
         }
         return c;
@@ -471,7 +466,7 @@ public class CustomTable extends JTable {
             arrowUpIcon = UiUtils.getImageIcon("arrow_down.png", UiUtils.IMG_SIZE_SMALL);
             arrowDownIcon = UiUtils.getImageIcon("arrow_up.png", UiUtils.IMG_SIZE_SMALL);
 
-            setBackground(COLOR_HEADER);
+            setBackground(Colors.COLOR_TABLE_HEADER);
 
             UiUtils.addRightClickListener(this, e -> {
                 if (popupMenuListener != null) {

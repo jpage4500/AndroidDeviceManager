@@ -266,12 +266,15 @@ public class DeviceManager {
                 fetchNickname(device);
 
                 // -- phone number --
+                // NOTE: there's no consistent way to get a phone number via adb
+                // - the best I've found is a script from: https://github.com/micro5k/microg-unofficial-installer/blob/main/utils/device-info.sh
                 String phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
-                if (TextUtils.notEmpty(phone)) device.phone = phone;
-                if (TextUtils.isEmpty(device.phone)) {
+                if (TextUtils.length(phone) > 7) {
+                    device.phone = phone;
+                } else {
                     // alternative way of getting phone number
                     phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
-                    if (TextUtils.notEmpty(phone)) device.phone = phone;
+                    if (TextUtils.length(phone) > 7) device.phone = phone;
                 }
 
                 // -- IMEI --
@@ -579,9 +582,9 @@ public class DeviceManager {
                 int port = Utils.getRandomNumber(2000, 65000);
                 // NOTE: adb must be in PATH (or ADB env variable set)
                 appResult = runApp(app, true, "-s", device.serial,
-                        "-p", String.valueOf(port),
-                        "--window-title", device.getDisplayName(),
-                        "--show-touches", "--stay-awake", "--no-audio");
+                    "-p", String.valueOf(port),
+                    "--window-title", device.getDisplayName(),
+                    "--show-touches", "--stay-awake", "--no-audio");
             }
 
             // TODO: figure out how to determine if scrcpy was run successfully..
@@ -647,8 +650,8 @@ public class DeviceManager {
         String[] arr = new String[]{};
         if (Utils.isMac()) {
             arr = new String[]{
-                    "/opt/homebrew/bin",
-                    "/usr/local/bin",
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
             };
         }
         for (String s : arr) {
