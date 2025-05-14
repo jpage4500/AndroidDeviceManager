@@ -136,6 +136,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         setVisible(true);
         table.requestFocus();
         autoScrollCheckBox.setSelected(true);
+
+        restoreSelectedFilters();
     }
 
     @Override
@@ -680,7 +682,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void setupFilterList() {
         populateFilters();
-        restoreSelectedFilters();
         filterList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         filterList.setCellRenderer(new LogFilterRenderer());
         filterList.addListSelectionListener(e -> handleFilterSelected());
@@ -859,6 +860,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void doFilter(String text) {
+        if (sorter == null) return;
         List<LogFilter> list = new ArrayList<>();
 
         // add currently selected filter(s)
