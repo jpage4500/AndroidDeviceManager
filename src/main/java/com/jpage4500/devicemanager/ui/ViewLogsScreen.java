@@ -26,8 +26,8 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -257,15 +257,19 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void findNext(boolean isForward) {
-        int rowCount = table.getRowCount();
-        if (rowCount == 0) return;
+        int totalRows = model.getRowCount();
+        int visibleRows = sorter.getViewRowCount();
+        if (visibleRows == 0) return;
         String searchFor = searchField.getCleanText();
         if (TextUtils.isEmpty(searchFor)) return;
 
         int startIndex = table.getSelectedRow();
+        if (startIndex >= 0) {
+            startIndex = table.convertRowIndexToView(startIndex);
+        }
         boolean isSelected = startIndex >= 0;
-        // if nothing selected, start at first or last visible row
-        if (!isSelected) startIndex = isForward ? 0 : rowCount - 1;
+        // if nothing selected, start at first or last row
+        if (!isSelected) startIndex = isForward ? 0 : visibleRows - 1;
 
         int searchIndex = startIndex;
         // start searching at the next row after selected
@@ -273,7 +277,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         LogFilter filter = LogFilter.parse("*:*" + searchFor + "*");
 
-        for (int i = 0; i < rowCount; i++) {
+        for (int i = 0; i < visibleRows; i++) {
             // convert viewable row into model row to get LogEntry
             int modelRow = sorter.convertRowIndexToModel(searchIndex);
             LogEntry logEntry = (LogEntry) model.getValueAt(modelRow, 0);
@@ -285,11 +289,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
             searchIndex += isForward ? 1 : -1;
             // if we reached the end/beginning, start over from top/bottom
-            if (isForward && searchIndex >= rowCount) {
+            if (isForward && searchIndex >= visibleRows) {
                 searchIndex = 0;
                 Toolkit.getDefaultToolkit().beep();
             } else if (!isForward && searchIndex < 0) {
-                searchIndex = rowCount - 1;
+                searchIndex = visibleRows - 1;
                 Toolkit.getDefaultToolkit().beep();
             }
         }
@@ -723,9 +727,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
         if (!selectedIndexList.isEmpty()) {
             int[] indexArr = selectedIndexList.stream()
-                    .filter(Objects::nonNull)
-                    .mapToInt(Integer::intValue)
-                    .toArray();
+                .filter(Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .toArray();
             log.trace("setupFilterList: re-select:{}", GsonHelper.toJson(indexArr));
             filterList.setSelectedIndices(indexArr);
         }
