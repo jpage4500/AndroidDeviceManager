@@ -238,6 +238,9 @@ public class CustomTable extends JTable {
         setAutoCreateRowSorter(allowSorting);
     }
 
+    /**
+     * NOTE: keeps scroll position to left edge of table
+     */
     @Override
     public void scrollRectToVisible(Rectangle aRect) {
         aRect.x = getVisibleRect().x;

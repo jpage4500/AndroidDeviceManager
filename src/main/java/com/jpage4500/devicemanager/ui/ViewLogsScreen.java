@@ -257,43 +257,49 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void findNext(boolean isForward) {
-        int totalRows = model.getRowCount();
-        int visibleRows = sorter.getViewRowCount();
+        int visibleRows = table.getRowCount();
         if (visibleRows == 0) return;
         String searchFor = searchField.getCleanText();
         if (TextUtils.isEmpty(searchFor)) return;
 
         int startIndex = table.getSelectedRow();
-        if (startIndex >= 0) {
-            startIndex = table.convertRowIndexToView(startIndex);
-        }
-        boolean isSelected = startIndex >= 0;
-        // if nothing selected, start at first or last row
-        if (!isSelected) startIndex = isForward ? 0 : visibleRows - 1;
 
-        int searchIndex = startIndex;
-        // start searching at the next row after selected
-        if (isSelected) searchIndex += isForward ? 1 : -1;
+        if (startIndex >= 0) {
+            // start searching from selected row
+            startIndex += isForward ? 1 : -1;
+            if (startIndex > visibleRows - 1) startIndex = 0;
+            else if (startIndex < 0) startIndex = visibleRows - 1;
+        } else {
+            // start from beginning or end of table
+            startIndex = isForward ? 0 : visibleRows - 1;
+        }
 
         LogFilter filter = LogFilter.parse("*:*" + searchFor + "*");
 
         for (int i = 0; i < visibleRows; i++) {
             // convert viewable row into model row to get LogEntry
-            int modelRow = sorter.convertRowIndexToModel(searchIndex);
+            int modelRow = sorter.convertRowIndexToModel(startIndex);
             LogEntry logEntry = (LogEntry) model.getValueAt(modelRow, 0);
             if (filter.isMatch(logEntry)) {
-                log.trace("findNext: MATCH! row:{}", modelRow);
-                table.changeSelection(modelRow, 0, false, false);
+                log.trace("findNext: MATCH! row:{}, index:{}, {}", modelRow, startIndex, logEntry.message);
+                table.changeSelection(startIndex, 0, false, false);
+
+                JScrollPane scrollPane = table.getScrollPane();
+                Rectangle cellRect = table.getCellRect(startIndex, 0, true);
+                Rectangle scrollPaneRect = scrollPane.getViewport().getViewRect();
+                if (!scrollPaneRect.contains(cellRect)) {
+                    table.scrollRectToVisible(new Rectangle(cellRect.x, cellRect.y, (int) scrollPaneRect.getWidth(), (int) scrollPaneRect.getHeight()));
+                }
                 break;
             }
 
-            searchIndex += isForward ? 1 : -1;
+            startIndex += isForward ? 1 : -1;
             // if we reached the end/beginning, start over from top/bottom
-            if (isForward && searchIndex >= visibleRows) {
-                searchIndex = 0;
+            if (isForward && startIndex >= visibleRows) {
+                startIndex = 0;
                 Toolkit.getDefaultToolkit().beep();
-            } else if (!isForward && searchIndex < 0) {
-                searchIndex = visibleRows - 1;
+            } else if (!isForward && startIndex < 0) {
+                startIndex = visibleRows - 1;
                 Toolkit.getDefaultToolkit().beep();
             }
         }
