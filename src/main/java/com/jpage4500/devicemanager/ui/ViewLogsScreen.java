@@ -19,7 +19,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.TableColumnModelEvent;
+import javax.swing.event.TableColumnModelListener;
+import javax.swing.table.TableColumn;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -146,6 +152,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         switch (state) {
             case CLOSED -> {
                 // stop logging when window is closed
+                log.trace("onWindowStateChanged: CLOSED");
                 stopLogging();
                 saveFrameSize();
                 table.saveTable();
@@ -281,7 +288,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             int modelRow = sorter.convertRowIndexToModel(startIndex);
             LogEntry logEntry = (LogEntry) model.getValueAt(modelRow, 0);
             if (filter.isMatch(logEntry)) {
-                log.trace("findNext: MATCH! row:{}, index:{}, {}", modelRow, startIndex, logEntry.message);
+                log.trace("findNext: MATCH! row:{}, index:{}", modelRow, startIndex);
                 table.changeSelection(startIndex, 0, false, false);
 
                 JScrollPane scrollPane = table.getScrollPane();
@@ -369,10 +376,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         table.setModel(model);
         table.setDefaultRenderer(LogEntry.class, new LogsCellRenderer());
 
-        int unitIncrement = table.getScrollPane().getHorizontalScrollBar().getUnitIncrement();
-        log.trace("setupTable: {}", unitIncrement);
-        table.getScrollPane().getHorizontalScrollBar().setUnitIncrement(unitIncrement * 4);
-
         // restore user-defined column sizes
         if (!table.restoreTable()) {
             // use some default column sizes
@@ -428,6 +431,21 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                     int tableCol = table.convertColumnIndexToView(column);
                     adjuster.adjustColumn(tableCol);
                 });
+
+                boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_AUTO_RESIZE, true);
+                String resizeDesc = autoResize ? "ON" : "OFF";
+                UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, actionEvent -> {
+                    boolean update = !autoResize;
+                    PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_AUTO_RESIZE, update);
+                    int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
+                    table.setAutoResizeMode(flag);
+                });
+                if (!autoResize) {
+                    UiUtils.addPopupMenuItem(popupMenu, "Size ALL to Fit", actionEvent -> {
+                        TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
+                        adjuster.adjustColumns();
+                    });
+                }
                 return popupMenu;
             }
 
@@ -464,24 +482,62 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         table.getScrollPane().addMouseWheelListener(event -> {
             int wheelRotation = event.getWheelRotation();
-            if (wheelRotation == -1) {
+            if (wheelRotation == -1 && autoScrollCheckBox.isSelected()) {
                 // scrolling UP - disable auto-scroll
-                if (autoScrollCheckBox.isSelected()) {
-                    // only if user scrolls past last few lines
-                    int lastVisibleRow = getLastVisibleRow();
-                    if (lastVisibleRow > 0) {
-                        autoScrollCheckBox.setSelected(false);
-                    }
+                // only if user scrolls past last few lines
+                int lastVisibleRow = getLastVisibleRow();
+                if (lastVisibleRow > 0) {
+                    autoScrollCheckBox.setSelected(false);
                 }
-            } else if (wheelRotation == 1) {
+            } else if (wheelRotation == 1 && !autoScrollCheckBox.isSelected()) {
                 // scrolling DOWN
-                if (!autoScrollCheckBox.isSelected()) {
-                    int lastVisibleRow = getLastVisibleRow();
-                    if (lastVisibleRow == -1) {
-                        autoScrollCheckBox.setSelected(true);
-                        scrollToFollow();
+                int lastVisibleRow = getLastVisibleRow();
+                if (lastVisibleRow == -1) {
+                    autoScrollCheckBox.setSelected(true);
+                    scrollToFollow();
+                }
+            }
+        });
+
+        table.getColumnModel().addColumnModelListener(new TableColumnModelListener() {
+            private javax.swing.Timer timer;
+            private TableColumn dateColumn;
+
+            @Override
+            public void columnAdded(TableColumnModelEvent tableColumnModelEvent) {
+            }
+
+            @Override
+            public void columnRemoved(TableColumnModelEvent tableColumnModelEvent) {
+            }
+
+            @Override
+            public void columnMoved(TableColumnModelEvent tableColumnModelEvent) {
+            }
+
+            @Override
+            public void columnMarginChanged(ChangeEvent changeEvent) {
+                TableColumn resizingColumn = table.getTableHeader().getResizingColumn();
+                if (resizingColumn != null) {
+                    int index = resizingColumn.getModelIndex();
+                    LogsTableModel.Columns columnType = model.getColumnType(index);
+                    if (columnType == LogsTableModel.Columns.DATE) {
+                        dateColumn = resizingColumn;
+                        if (timer == null) {
+                            timer = new Timer(500, actionEvent -> {
+                                int width = dateColumn.getWidth();
+                                //log.trace("setupTable: FIRE: {}", width);
+                                model.setDateColumnWidth(width);
+                            });
+                            timer.setRepeats(false);
+                        }
+                        timer.restart();
                     }
                 }
+            }
+
+            @Override
+            public void columnSelectionChanged(ListSelectionEvent listSelectionEvent) {
             }
         });
 
