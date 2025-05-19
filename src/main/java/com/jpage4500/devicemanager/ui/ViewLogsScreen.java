@@ -19,15 +19,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.TableColumnModelEvent;
+import javax.swing.event.TableColumnModelListener;
+import javax.swing.table.TableColumn;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -136,6 +142,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         setVisible(true);
         table.requestFocus();
         autoScrollCheckBox.setSelected(true);
+
+        restoreSelectedFilters();
     }
 
     @Override
@@ -144,6 +152,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         switch (state) {
             case CLOSED -> {
                 // stop logging when window is closed
+                log.trace("onWindowStateChanged: CLOSED");
                 stopLogging();
                 saveFrameSize();
                 table.saveTable();
@@ -255,39 +264,49 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void findNext(boolean isForward) {
-        int rowCount = table.getRowCount();
-        if (rowCount == 0) return;
+        int visibleRows = table.getRowCount();
+        if (visibleRows == 0) return;
         String searchFor = searchField.getCleanText();
         if (TextUtils.isEmpty(searchFor)) return;
 
         int startIndex = table.getSelectedRow();
-        boolean isSelected = startIndex >= 0;
-        // if nothing selected, start at first or last visible row
-        if (!isSelected) startIndex = isForward ? 0 : rowCount - 1;
 
-        int searchIndex = startIndex;
-        // start searching at the next row after selected
-        if (isSelected) searchIndex += isForward ? 1 : -1;
+        if (startIndex >= 0) {
+            // start searching from selected row
+            startIndex += isForward ? 1 : -1;
+            if (startIndex > visibleRows - 1) startIndex = 0;
+            else if (startIndex < 0) startIndex = visibleRows - 1;
+        } else {
+            // start from beginning or end of table
+            startIndex = isForward ? 0 : visibleRows - 1;
+        }
 
         LogFilter filter = LogFilter.parse("*:*" + searchFor + "*");
 
-        for (int i = 0; i < rowCount; i++) {
+        for (int i = 0; i < visibleRows; i++) {
             // convert viewable row into model row to get LogEntry
-            int modelRow = sorter.convertRowIndexToModel(searchIndex);
+            int modelRow = sorter.convertRowIndexToModel(startIndex);
             LogEntry logEntry = (LogEntry) model.getValueAt(modelRow, 0);
             if (filter.isMatch(logEntry)) {
-                log.trace("findNext: MATCH! row:{}", modelRow);
-                table.changeSelection(modelRow, 0, false, false);
+                log.trace("findNext: MATCH! row:{}, index:{}", modelRow, startIndex);
+                table.changeSelection(startIndex, 0, false, false);
+
+                JScrollPane scrollPane = table.getScrollPane();
+                Rectangle cellRect = table.getCellRect(startIndex, 0, true);
+                Rectangle scrollPaneRect = scrollPane.getViewport().getViewRect();
+                if (!scrollPaneRect.contains(cellRect)) {
+                    table.scrollRectToVisible(new Rectangle(cellRect.x, cellRect.y, (int) scrollPaneRect.getWidth(), (int) scrollPaneRect.getHeight()));
+                }
                 break;
             }
 
-            searchIndex += isForward ? 1 : -1;
+            startIndex += isForward ? 1 : -1;
             // if we reached the end/beginning, start over from top/bottom
-            if (isForward && searchIndex >= rowCount) {
-                searchIndex = 0;
+            if (isForward && startIndex >= visibleRows) {
+                startIndex = 0;
                 Toolkit.getDefaultToolkit().beep();
-            } else if (!isForward && searchIndex < 0) {
-                searchIndex = rowCount - 1;
+            } else if (!isForward && startIndex < 0) {
+                startIndex = visibleRows - 1;
                 Toolkit.getDefaultToolkit().beep();
             }
         }
@@ -357,10 +376,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         table.setModel(model);
         table.setDefaultRenderer(LogEntry.class, new LogsCellRenderer());
 
-        int unitIncrement = table.getScrollPane().getHorizontalScrollBar().getUnitIncrement();
-        log.trace("setupTable: {}", unitIncrement);
-        table.getScrollPane().getHorizontalScrollBar().setUnitIncrement(unitIncrement * 4);
-
         // restore user-defined column sizes
         if (!table.restoreTable()) {
             // use some default column sizes
@@ -416,6 +431,21 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                     int tableCol = table.convertColumnIndexToView(column);
                     adjuster.adjustColumn(tableCol);
                 });
+
+                boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_AUTO_RESIZE, true);
+                String resizeDesc = autoResize ? "ON" : "OFF";
+                UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, actionEvent -> {
+                    boolean update = !autoResize;
+                    PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_AUTO_RESIZE, update);
+                    int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
+                    table.setAutoResizeMode(flag);
+                });
+                if (!autoResize) {
+                    UiUtils.addPopupMenuItem(popupMenu, "Size ALL to Fit", actionEvent -> {
+                        TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
+                        adjuster.adjustColumns();
+                    });
+                }
                 return popupMenu;
             }
 
@@ -452,24 +482,62 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         table.getScrollPane().addMouseWheelListener(event -> {
             int wheelRotation = event.getWheelRotation();
-            if (wheelRotation == -1) {
+            if (wheelRotation == -1 && autoScrollCheckBox.isSelected()) {
                 // scrolling UP - disable auto-scroll
-                if (autoScrollCheckBox.isSelected()) {
-                    // only if user scrolls past last few lines
-                    int lastVisibleRow = getLastVisibleRow();
-                    if (lastVisibleRow > 0) {
-                        autoScrollCheckBox.setSelected(false);
-                    }
+                // only if user scrolls past last few lines
+                int lastVisibleRow = getLastVisibleRow();
+                if (lastVisibleRow > 0) {
+                    autoScrollCheckBox.setSelected(false);
                 }
-            } else if (wheelRotation == 1) {
+            } else if (wheelRotation == 1 && !autoScrollCheckBox.isSelected()) {
                 // scrolling DOWN
-                if (!autoScrollCheckBox.isSelected()) {
-                    int lastVisibleRow = getLastVisibleRow();
-                    if (lastVisibleRow == -1) {
-                        autoScrollCheckBox.setSelected(true);
-                        scrollToFollow();
+                int lastVisibleRow = getLastVisibleRow();
+                if (lastVisibleRow == -1) {
+                    autoScrollCheckBox.setSelected(true);
+                    scrollToFollow();
+                }
+            }
+        });
+
+        table.getColumnModel().addColumnModelListener(new TableColumnModelListener() {
+            private javax.swing.Timer timer;
+            private TableColumn dateColumn;
+
+            @Override
+            public void columnAdded(TableColumnModelEvent tableColumnModelEvent) {
+            }
+
+            @Override
+            public void columnRemoved(TableColumnModelEvent tableColumnModelEvent) {
+            }
+
+            @Override
+            public void columnMoved(TableColumnModelEvent tableColumnModelEvent) {
+            }
+
+            @Override
+            public void columnMarginChanged(ChangeEvent changeEvent) {
+                TableColumn resizingColumn = table.getTableHeader().getResizingColumn();
+                if (resizingColumn != null) {
+                    int index = resizingColumn.getModelIndex();
+                    LogsTableModel.Columns columnType = model.getColumnType(index);
+                    if (columnType == LogsTableModel.Columns.DATE) {
+                        dateColumn = resizingColumn;
+                        if (timer == null) {
+                            timer = new Timer(500, actionEvent -> {
+                                int width = dateColumn.getWidth();
+                                //log.trace("setupTable: FIRE: {}", width);
+                                model.setDateColumnWidth(width);
+                            });
+                            timer.setRepeats(false);
+                        }
+                        timer.restart();
                     }
                 }
+            }
+
+            @Override
+            public void columnSelectionChanged(ListSelectionEvent listSelectionEvent) {
             }
         });
 
@@ -680,7 +748,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void setupFilterList() {
         populateFilters();
-        restoreSelectedFilters();
         filterList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         filterList.setCellRenderer(new LogFilterRenderer());
         filterList.addListSelectionListener(e -> handleFilterSelected());
@@ -722,9 +789,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
         if (!selectedIndexList.isEmpty()) {
             int[] indexArr = selectedIndexList.stream()
-                    .filter(Objects::nonNull)
-                    .mapToInt(Integer::intValue)
-                    .toArray();
+                .filter(Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .toArray();
             log.trace("setupFilterList: re-select:{}", GsonHelper.toJson(indexArr));
             filterList.setSelectedIndices(indexArr);
         }
@@ -859,6 +926,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void doFilter(String text) {
+        if (sorter == null) return;
         List<LogFilter> list = new ArrayList<>();
 
         // add currently selected filter(s)

@@ -35,4 +35,4 @@ fi
 echo "running scrcpy with DEVICE:${ADB_DEVICE}, PORT:${PORT}, NAME:${DEVICE_NAME}"
 
 # shellcheck disable=SC2086
-${SCRCPY} -s "${ADB_DEVICE}" ${PORT} --window-title "${DEVICE_NAME}" --show-touches --stay-awake --no-audio
+${SCRCPY} -s "${ADB_DEVICE}" ${PORT} --window-title "${DEVICE_NAME}" --show-touches --stay-awake

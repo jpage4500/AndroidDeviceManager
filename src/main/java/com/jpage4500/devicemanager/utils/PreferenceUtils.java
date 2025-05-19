@@ -41,6 +41,7 @@ public class PreferenceUtils {
         PREF_WRAP_MESSAGE,
         PREF_EXIT_TO_TRAY,
         PREF_DEVICE_AUTO_RESIZE,
+        PREF_LOGS_AUTO_RESIZE,
     }
 
     /**

@@ -311,6 +311,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         table.setRowSorter(sorter);
 
         table.setDoubleClickListener((row, column, e) -> {
+            log.trace("table.setDoubleClickListener: row: {}, column: {}", row, column);
             if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
                 // edit custom 1 field
                 handleSetProperty(Device.CUSTOM_PROP_X + 1, DeviceTableModel.Columns.CUSTOM1.toString());
@@ -321,12 +322,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 return;
             } else if (column == DeviceTableModel.Columns.PHONE.ordinal()) {
                 Device device = getFirstSelectedDevice();
-                if (device != null) {
-                    if (TextUtils.isEmpty(device.phone)) {
-                        // edit phone number field
-                        handleSetProperty(Device.CUST_PROP_PHONE, "Device Phone Number");
-                        return;
-                    }
+                if (device != null && TextUtils.isEmpty(device.phone)) {
+                    // edit phone number field
+                    handleSetProperty(Device.CUST_PROP_PHONE, "Device Phone Number");
+                    return;
                 }
             }
             // default double-click action
@@ -547,7 +546,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         SwingUtilities.invokeLater(() -> {
             String[] choices = {"Retry", "Cancel"};
             if (!DialogHelper.showOptionDialog(DeviceScreen.this, "ADB Server",
-                    "Unable to connect to ADB server. Please check that it's running and re-try", choices)) return;
+                "Unable to connect to ADB server. Please check that it's running and re-try", choices)) return;
 
             connectAdbServer();
         });

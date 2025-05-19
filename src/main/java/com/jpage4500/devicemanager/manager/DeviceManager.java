@@ -584,7 +584,7 @@ public class DeviceManager {
                 appResult = runApp(app, true, "-s", device.serial,
                     "-p", String.valueOf(port),
                     "--window-title", device.getDisplayName(),
-                    "--show-touches", "--stay-awake", "--no-audio");
+                    "--show-touches", "--stay-awake");
             }
 
             // TODO: figure out how to determine if scrcpy was run successfully..
@@ -1090,7 +1090,13 @@ public class DeviceManager {
         // 7617 com.android.traceur
         // 7677 [csf_sync_update]
         Map<String, String> pidMap = new HashMap<>();
-        for (String line : result.resultList) {
+        List<String> resultList = result.resultList;
+        for (int i = 0; i < resultList.size(); i++) {
+            String line = resultList.get(i);
+            if (i == 0 && TextUtils.startsWith(line, "bad pid")) {
+                // older devices may not support the ps args.. try another route
+                return getProcessMapAlternative(device);
+            }
             String[] lineArr = line.trim().split(" ");
             if (lineArr.length < 2) continue;
             String pid = lineArr[0];
@@ -1100,6 +1106,47 @@ public class DeviceManager {
                 app = app.substring(0, atPos);
             }
             pidMap.put(pid, app);
+        }
+        return pidMap;
+    }
+
+    private Map<String, String> getProcessMapAlternative(Device device) {
+        ShellResult result = runShell(device, "ps");
+        // USER      PID   PPID  VSIZE  RSS   WCHAN              PC  NAME
+        // root      1     0     21964  2880  SyS_epoll_ 00004d9054 S /init
+        // root      2     0     0      0       kthreadd 0000000000 S kthreadd
+        // root      3     2     0      0     smpboot_th 0000000000 S ksoftirqd/0
+        // bluetooth 30891 236   1061340 16884 SyS_epoll_ 00f5597304 S com.android.bluetooth
+        // u0_a74    30946 235   1468852 33996 SyS_epoll_ 7fa5ce1870 S com.ttxapps.wifiadb
+        // u0_a55    31235 235   1464020 32072 SyS_epoll_ 7fa5ce1870 S com.cyanogenmod.lockclock
+        Map<String, String> pidMap = new HashMap<>();
+        List<String> resultList = result.resultList;
+        int indexPid = -1;
+        int indexApp = -1;
+        for (String line : resultList) {
+            List<String> pidList = TextUtils.splitSafe(line);
+            if (pidList.size() < 2) continue;
+
+            if (indexApp == -1 || indexPid == -1) {
+                for (int i = 0; i < pidList.size(); i++) {
+                    String label = pidList.get(i);
+                    if (TextUtils.equals(label, "PID")) {
+                        indexPid = i;
+                    } else if (TextUtils.equals(label, "NAME")) {
+                        indexApp = i;
+                        // special case
+                        if (pidList.size() == 8) indexApp++;
+                    }
+                }
+            } else if (indexPid < pidList.size() && indexApp < pidList.size()) {
+                String pid = pidList.get(indexPid);
+                String app = pidList.get(indexApp);
+                int atPos = app.indexOf('@');
+                if (atPos > 0) {
+                    app = app.substring(0, atPos);
+                }
+                pidMap.put(pid, app);
+            }
         }
         return pidMap;
     }

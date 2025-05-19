@@ -22,6 +22,7 @@ public class LogsTableModel extends AbstractTableModel {
     private String searchText;
 
     private Columns[] visibleColumns;
+    private int dateColumnWidth = 0;
 
     /**
      * get text value for a given LogEntry and column
@@ -31,7 +32,20 @@ public class LogsTableModel extends AbstractTableModel {
         if (logEntry == null) return null;
         Columns col = visibleColumns[column]; //LogsTableModel.Columns.values()[column];
         return switch (col) {
-            case DATE -> logEntry.date;
+            case DATE -> {
+                // 05-13 15:20:12
+                if (logEntry.date != null) {
+                    // TODO: 150 will vary based on font size
+                    if (dateColumnWidth < 150) {
+                        // truncate
+                        int space = logEntry.date.indexOf(' ');
+                        if (space > 0) {
+                            yield logEntry.date.substring(space + 1);
+                        }
+                    }
+                }
+                yield logEntry.date;
+            }
             case APP -> {
                 // set app using app <-> pid list
                 logEntry.app = getAppForPid(logEntry.pid);
@@ -46,6 +60,11 @@ public class LogsTableModel extends AbstractTableModel {
             case TAG -> logEntry.tag;
             case MSG -> logEntry.message;
         };
+    }
+
+    public void setDateColumnWidth(int width) {
+        dateColumnWidth = width;
+        fireTableDataChanged();
     }
 
     public enum Columns {

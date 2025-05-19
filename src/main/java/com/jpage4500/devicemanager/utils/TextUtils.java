@@ -418,6 +418,7 @@ public class TextUtils {
         int tabCount = 0;
         boolean isInQuote = false;
         char prevChar = 0;
+        boolean isTabbed = false;
 
         for (int i = 0; i < text.length(); i++) {
             char ch = text.charAt(i);
@@ -428,19 +429,24 @@ public class TextUtils {
 
             if (isInQuote || (tabCount <= 0 && ch != '{' && ch != '[')) {
                 sb.append(ch);
+                isTabbed = false;
             } else if (ch == '{') {
-                sb.append("\n");
-                addTabs(sb, tabCount);
+                if (!isTabbed) {
+                    sb.append("\n");
+                    addTabs(sb, tabCount);
+                }
                 sb.append(ch);
                 sb.append("\n");
                 tabCount++;
                 addTabs(sb, tabCount);
+                isTabbed = true;
             } else if (ch == '}') {
                 tabCount--;
                 trimEnd(sb);
                 sb.append("\n");
                 addTabs(sb, tabCount);
                 sb.append(ch);
+                isTabbed = false;
             } else if (ch == '[') {
                 sb.append("\n");
                 addTabs(sb, tabCount);
@@ -448,25 +454,30 @@ public class TextUtils {
                 sb.append("\n");
                 tabCount++;
                 addTabs(sb, tabCount);
+                isTabbed = true;
             } else if (ch == ']') {
                 tabCount--;
                 trimEnd(sb);
                 sb.append("\n");
                 addTabs(sb, tabCount);
                 sb.append(ch);
+                isTabbed = false;
             } else if (ch == ',') {
                 sb.append(ch);
                 trimEnd(sb);
                 sb.append("\n");
                 addTabs(sb, tabCount);
+                isTabbed = true;
             } else if (ch == ':' && prevChar == '"') {
                 sb.append(" : ");
+                isTabbed = false;
             } else if ((ch == ' ' || ch == '\t')) {
                 // discard extra spaces
             } else if ((ch == '\n' || ch == '\r')) {
                 // discard extra CR and LF
             } else {
                 sb.append(ch);
+                isTabbed = false;
             }
 
             prevChar = ch;
