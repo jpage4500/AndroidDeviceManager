@@ -584,7 +584,7 @@ public class DeviceManager {
                 appResult = runApp(app, true, "-s", device.serial,
                     "-p", String.valueOf(port),
                     "--window-title", device.getDisplayName(),
-                    "--show-touches", "--stay-awake", "--no-audio");
+                    "--show-touches", "--stay-awake");
             }
 
             // TODO: figure out how to determine if scrcpy was run successfully..
