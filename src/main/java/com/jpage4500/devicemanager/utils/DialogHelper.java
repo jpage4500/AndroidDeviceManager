@@ -12,6 +12,7 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.List;
 import java.util.Map;
 
 public class DialogHelper {
@@ -43,7 +44,7 @@ public class DialogHelper {
      */
     public static boolean showOptionDialog(Component component, String title, String text, String[] buttons) {
         int rc = JOptionPane.showOptionDialog(component, text, title, JOptionPane.DEFAULT_OPTION,
-                JOptionPane.QUESTION_MESSAGE, null, buttons, null);
+            JOptionPane.QUESTION_MESSAGE, null, buttons, null);
         return (rc == JOptionPane.YES_OPTION);
     }
 
@@ -58,13 +59,13 @@ public class DialogHelper {
 
     public static boolean showCustomDialog(Component frame, Component component, String title, String[] buttonArr) {
         int rc = JOptionPane.showOptionDialog(frame, component, title, JOptionPane.DEFAULT_OPTION,
-                JOptionPane.PLAIN_MESSAGE, null, buttonArr, null);
+            JOptionPane.PLAIN_MESSAGE, null, buttonArr, null);
         return (rc == JOptionPane.YES_OPTION);
     }
 
     public static String showInputDialog(Component component, String title, String text, String defaultValue) {
         String result = (String) JOptionPane.showInputDialog(component, text, title,
-                JOptionPane.QUESTION_MESSAGE, null, null, defaultValue);
+            JOptionPane.QUESTION_MESSAGE, null, null, defaultValue);
         return result;
     }
 
@@ -84,23 +85,32 @@ public class DialogHelper {
 
         filterList(listModel, keyValueMap, null);
         JList<String> list = new JList<>(listModel);
-        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        list.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         list.setCellRenderer(new AlternatingBackgroundColorRenderer());
         list.setVisibleRowCount(15);
         UiUtils.addClickListener(list, evt -> {
             if (SwingUtilities.isRightMouseButton(evt)) {
                 list.requestFocus();
-                int index = list.locationToIndex(evt.getPoint());
-                list.setSelectedIndex(index);
-                String[] valueArr = TextUtils.split(list.getSelectedValue(), KEY_VALUE_DELIM);
-                String key = valueArr[0];
-                String value = valueArr.length > 1 ? valueArr[1] : null;
+                if (list.isSelectionEmpty()) {
+                    int index = list.locationToIndex(evt.getPoint());
+                    list.setSelectedIndex(index);
+                }
                 JPopupMenu popupMenu = new JPopupMenu();
-                if (listener != null) listener.handleRightClick(key, value, popupMenu);
+
+                List<String> valueList = list.getSelectedValuesList();
+                // TODO: let listener support multiple selected items
+                if (valueList.size() == 1 && listener != null) {
+                    String selectedValue = valueList.get(0);
+                    String[] valueArr = TextUtils.split(selectedValue, KEY_VALUE_DELIM);
+                    String key = valueArr[0];
+                    String value = valueArr.length > 1 ? valueArr[1] : null;
+                    listener.handleRightClick(key, value, popupMenu);
+                }
+
                 UiUtils.addPopupMenuItem(popupMenu, "Copy to Clipboard", actionEvent -> {
-                    log.trace("mouseClicked: copy: {}", value);
+                    String allText = TextUtils.join(valueList, "\n");
                     Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                    StringSelection stringSelection = new StringSelection(value);
+                    StringSelection stringSelection = new StringSelection(allText);
                     clipboard.setContents(stringSelection, null);
                 });
                 popupMenu.show(evt.getComponent(), evt.getX(), evt.getY());
@@ -139,7 +149,7 @@ public class DialogHelper {
             String key = entry.getKey();
             String value = entry.getValue();
             if (TextUtils.isEmpty(filter) || TextUtils.containsAny(key, true, filter) ||
-                    TextUtils.containsAny(value, true, filter)) {
+                TextUtils.containsAny(value, true, filter)) {
                 if (value != null) {
                     listModel.addElement(key + KEY_VALUE_DELIM + value);
                 } else {

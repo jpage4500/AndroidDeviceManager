@@ -260,32 +260,50 @@ public class DeviceManager {
             device.setBusy(true);
             listener.handleDeviceUpdated(device);
 
+            // check if device is fully booted
+            fetchDeviceBooted(device);
+            if (!device.isBooted) {
+                boolean isBusy = device.setBusy(false);
+                if (!isBusy) listener.handleDeviceUpdated(device);
+
+                // if device isn't fully booted yet, schedule another refresh
+                scheduledExecutorService.schedule(() -> {
+                    log.trace("fetchDeviceDetails: try again for {}", device.getDisplayName());
+                    fetchDeviceDetails(device, true, listener);
+                }, 5, TimeUnit.SECONDS);
+                return;
+            }
+
             // NOTE: if device just restarted, the initial fullRefresh will fail so try again next time
             if (fullRefresh || device.nickname == null) {
-                // -- device nickname --
-                fetchNickname(device);
-
-                // -- phone number --
-                // NOTE: there's no consistent way to get a phone number via adb
-                // - the best I've found is a script from: https://github.com/micro5k/microg-unofficial-installer/blob/main/utils/device-info.sh
-                String phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
-                if (TextUtils.length(phone) > 7) {
-                    device.phone = phone;
-                } else {
-                    // alternative way of getting phone number
-                    phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
-                    if (TextUtils.length(phone) > 7) device.phone = phone;
-                }
-
-                // -- IMEI --
-                String imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
-                if (TextUtils.notEmpty(imei)) device.imei = imei;
-
                 // -- device properties (model, OS) --
                 try {
                     device.propMap = new PropertyManager(device.jadbDevice).getprop();
                 } catch (Exception e) {
                     log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
+                }
+
+                // -- device nickname --
+                fetchNickname(device);
+
+                try {
+                    // -- phone number --
+                    // NOTE: there's no consistent way to get a phone number via adb
+                    // - the best I've found is a script from: https://github.com/micro5k/microg-unofficial-installer/blob/main/utils/device-info.sh
+                    String phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
+                    if (TextUtils.length(phone) > 7) {
+                        device.phone = phone;
+                    } else {
+                        // alternative way of getting phone number
+                        phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
+                        if (TextUtils.length(phone) > 7) device.phone = phone;
+                    }
+
+                    // -- IMEI --
+                    String imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
+                    if (TextUtils.notEmpty(imei)) device.imei = imei;
+                } catch (Exception e) {
+                    // not a phone (tablet, TV, etc)
                 }
 
                 // -- custom properties --
@@ -301,8 +319,6 @@ public class DeviceManager {
             // -- battery level, charging status, etc --
             fetchBatteryInfo(device);
 
-            fetchDeviceBooted(device);
-
             device.lastUpdateMs = System.currentTimeMillis();
 
             if (fullRefresh) {
@@ -314,14 +330,6 @@ public class DeviceManager {
             }
             boolean isBusy = device.setBusy(false);
             if (!isBusy) listener.handleDeviceUpdated(device);
-
-            // if device isn't fully booted yet, schedule another refresh
-            if (!device.isBooted) {
-                scheduledExecutorService.schedule(() -> {
-                    log.trace("fetchDeviceDetails: try again for {}", device.getDisplayName());
-                    fetchDeviceDetails(device, true, listener);
-                }, 10, TimeUnit.SECONDS);
-            }
         });
     }
 
@@ -374,6 +382,7 @@ public class DeviceManager {
 
     private void fetchCustomColumns(Device device) {
         List<String> entryList = SettingsDialog.getCustomColumns();
+        int beforeSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
         for (String entry : entryList) {
             if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
             String[] entryArr = entry.split(":");
@@ -386,7 +395,7 @@ public class DeviceManager {
                 value = getAppVersion(device, val);
             } else if (TextUtils.equalsIgnoreCase(type, "PROP")) {
                 ShellResult result = runShell(device, "getprop " + val);
-                log.trace("fetchCustomColumns: {} -> {}", val, result);
+                //log.trace("fetchCustomColumns: {} -> {}", val, result);
                 if (result.isSuccess) {
                     value = result.getResult(0);
                 }
@@ -398,6 +407,10 @@ public class DeviceManager {
                 if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
                 device.customAppVersionList.put(label, value);
             }
+        }
+        int afterSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
+        if (beforeSize != afterSize) {
+            log.trace("fetchCustomColumns: {}", GsonHelper.toJson(device.customAppVersionList));
         }
     }
 
@@ -461,7 +474,7 @@ public class DeviceManager {
     /**
      * run a 'shell service call ..." command and parse the results into a String
      */
-    private String runShellServiceCall(Device device, String command) {
+    private String runShellServiceCall(Device device, String command) throws Exception {
         ShellResult result = runShell(device, command);
         if (!result.isSuccess) return null;
         // look for errors like:
@@ -469,8 +482,7 @@ public class DeviceManager {
         String resultDesc = TextUtils.join(result.resultList, ",");
         if (TextUtils.containsAny(resultDesc, true, "does not exist")) {
             log.trace("runShellServiceCall: {}: ERROR: {}", command, resultDesc);
-            result.isSuccess = false;
-            return null;
+            throw new Exception(resultDesc);
         }
 
         // Result: Parcel(
