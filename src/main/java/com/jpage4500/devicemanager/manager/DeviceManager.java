@@ -59,6 +59,9 @@ public class DeviceManager {
     public static final String ERR_NOT_A_DIRECTORY = "Not a directory";
     public static final String SHELL_BOOT_COMPLETED = "getprop sys.boot_completed";
 
+    // how frequently to update logs
+    public static final int LOG_INTERVAL_MS = 100;
+
     private static volatile DeviceManager instance;
 
     private final List<Device> deviceList;
@@ -354,7 +357,7 @@ public class DeviceManager {
                     try {
                         int level = Integer.parseInt(value);
                         // some Android TV devices list battery level as 0
-                        if (level > 0 && level <= 100) {
+                        if (level > 0 && level <= LOG_INTERVAL_MS) {
                             device.batteryLevel = level;
                         }
                     } catch (NumberFormatException e) {
@@ -1002,8 +1005,14 @@ public class DeviceManager {
     }
 
     public interface DeviceLogListener {
+        /**
+         * new log entries were added
+         */
         void handleLogEntries(List<LogEntry> logEntryList);
 
+        /**
+         * update process map (map of all running apps/processes and their process ID)
+         */
         void handleProcessMap(Map<String, String> processMap);
     }
 
@@ -1016,10 +1025,10 @@ public class DeviceManager {
         return loggingState;
     }
 
-    public void startLogging(Device device, Long startTime, DeviceLogListener listener) {
+    public void startLogging(Device device, DeviceLogListener listener) {
         stopLogging(device);
         commandExecutorService.submit(() -> {
-            log.debug("startLogging: {}, startTime:{}", device.serial, startTime);
+            log.debug("startLogging: {}", device.serial);
             AtomicBoolean loggingState = getLoggingState(device.serial, true);
             loggingState.set(true);
             InputStream inputStream = null;
@@ -1030,21 +1039,18 @@ public class DeviceManager {
 
                 long lastUpdateMs = System.currentTimeMillis();
                 List<LogEntry> logList = new ArrayList<>();
-                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                int year = Calendar.getInstance().get(Calendar.YEAR);
                 String line;
                 while ((line = input.readLine()) != null) {
-                    LogEntry logEntry = new LogEntry(line, dateFormat, year);
-                    if (logEntry.date == null) continue;
-                    else if (startTime != null && (logEntry.timestamp == null || startTime > logEntry.timestamp)) {
-                        //log.trace("startLogging: too old: {} ({}) vs {}", logEntry.timestamp, logEntry.date, startTime);
-                        continue;
-                    }
+                    LogEntry logEntry = new LogEntry(line);
+//                    if (logEntry.date == null) {
+//                        log.trace("startLogging: invalid entry: {}", line);
+//                        continue;
+//                    }
 
                     logList.add(logEntry);
 
                     // only update every X ms
-                    if (System.currentTimeMillis() - lastUpdateMs >= 100 && !logList.isEmpty()) {
+                    if (System.currentTimeMillis() - lastUpdateMs >= LOG_INTERVAL_MS && !logList.isEmpty()) {
                         // update
                         listener.handleLogEntries(logList);
                         logList.clear();

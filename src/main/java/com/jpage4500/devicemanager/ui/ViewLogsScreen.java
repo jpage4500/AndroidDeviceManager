@@ -34,7 +34,6 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * create and manage device view
@@ -625,14 +624,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void startLogging() {
         if (device.isOnline && !DeviceManager.getInstance().isLogging(device)) {
-            Long startTime = model.getLastLogTime();
-            if (startTime == null) {
-                // by default only display logs from the last few hours
-                // - can speed up initial launch
-                startTime = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(2);
-            }
             deviceScreen.setDeviceBusy(device, true);
-            DeviceManager.getInstance().startLogging(device, startTime, this);
+            DeviceManager.getInstance().startLogging(device, this);
         }
     }
 

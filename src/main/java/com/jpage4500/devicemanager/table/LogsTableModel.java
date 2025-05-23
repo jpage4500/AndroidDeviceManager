@@ -13,7 +13,7 @@ import java.util.Map;
 
 public class LogsTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(LogsTableModel.class);
-    private static final int MAX_LINES = 90000;
+    private static final int MAX_LINES = 200000;
     private static final int REMOVE_EXTRA = 5000;
 
     private final ArrayList<LogEntry> logEntryList;
@@ -128,10 +128,10 @@ public class LogsTableModel extends AbstractTableModel {
     /**
      * @return the latest log entry time
      */
-    public Long getLastLogTime() {
+    public String getLastLogTime() {
         if (logEntryList.isEmpty()) return null;
         LogEntry last = logEntryList.get(logEntryList.size() - 1);
-        return last.timestamp;
+        return last.date;
     }
 
     private void checkSizeAndUpdate(int numAdded) {
