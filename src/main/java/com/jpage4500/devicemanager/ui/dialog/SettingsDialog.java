@@ -5,6 +5,7 @@ import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
+import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
@@ -22,11 +23,11 @@ import java.util.prefs.Preferences;
 public class SettingsDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(SettingsDialog.class);
 
-    private DeviceScreen deviceScreen;
+    private final DeviceScreen deviceScreen;
 
     public static void showSettings(DeviceScreen deviceScreen) {
         SettingsDialog settingsScreen = new SettingsDialog(deviceScreen);
-        DialogHelper.showCustomDialog(deviceScreen, settingsScreen, "Settings", null);
+        DialogHelper.showCustomDialog(null, settingsScreen, "Settings", new String[]{});
     }
 
     private SettingsDialog(DeviceScreen deviceScreen) {
@@ -37,27 +38,50 @@ public class SettingsDialog extends JPanel {
     }
 
     private void initalizeUi() {
-        UiUtils.addSettingButton(this, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
-        UiUtils.addSettingButton(this, "Custom Columns", "EDIT", this::showAppsSettings);
-        UiUtils.addSettingButton(this, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen));
-        UiUtils.addSettingButton(this, "Download Location", "EDIT", this::showDownloadLocation);
+        JPanel devicePanel = UiUtils.createPanel("Device Settings");
+        UiUtils.addSettingButton(devicePanel, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
+        UiUtils.addSettingButton(devicePanel, "Custom Columns", "EDIT", this::showAppsSettings);
+        UiUtils.addSettingButton(devicePanel, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen));
+        add(devicePanel, "growx, wrap");
 
-        UiUtils.addSettingCheckbox(this, "Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
-        UiUtils.addSettingCheckbox(this, "Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> deviceScreen.scheduleUpdateChecks());
-        UiUtils.addSettingCheckbox(this, "Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
+        JPanel logPanel = UiUtils.createPanel("Log Settings");
+        UiUtils.addSettingButton(logPanel, "Buffer (lines)", "EDIT", () -> showLogBuffer());
+        add(logPanel, "growx, wrap");
+
+        JPanel explorePanel = UiUtils.createPanel("File Explorer Settings");
+        UiUtils.addSettingButton(explorePanel, "Download Location", "EDIT", this::showDownloadLocation);
+        add(explorePanel, "growx, wrap");
+
+        JPanel generalPanel = UiUtils.createPanel("General Settings");
+        UiUtils.addSettingCheckbox(generalPanel, "Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
+        UiUtils.addSettingCheckbox(generalPanel, "Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> deviceScreen.scheduleUpdateChecks());
+        UiUtils.addSettingCheckbox(generalPanel, "Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
             // force table background to be repainted
             deviceScreen.model.fireTableDataChanged();
         });
 
-        JButton logButton = UiUtils.addSettingButton(this, "Log Level", "EDIT", null);
+        JButton logButton = UiUtils.addSettingButton(generalPanel, "Log Level", "EDIT", null);
         UiUtils.addLeftClickListener(logButton, e -> toggleLogLevels(logButton));
         updateLogLevel(logButton);
 
-        UiUtils.addSettingButton(this, "View Logs", "VIEW", this::viewLogs);
-        UiUtils.addSettingButton(this, "Reset Preferences", "RESET", this::resetPreferences);
+        UiUtils.addSettingButton(generalPanel, "View Logs", "VIEW", this::viewLogs);
+        UiUtils.addSettingButton(generalPanel, "Reset Preferences", "RESET", this::resetPreferences);
+        add(generalPanel, "growx, wrap");
 
         doLayout();
         invalidate();
+    }
+
+    private void showLogBuffer() {
+        int maxLines = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_MAX_LINES, LogsTableModel.DEFAULT_BUFFER);
+        String msg = String.format("Enter # of lines (%d - %d)", LogsTableModel.MIN_BUFFER, LogsTableModel.MAX_BUFFER);
+        String result = DialogHelper.showInputDialog(this, "Log Buffer", msg, String.valueOf(maxLines));
+        if (TextUtils.isEmpty(result)) return;
+
+        int newValue = TextUtils.getNumber(result, LogsTableModel.DEFAULT_BUFFER);
+        if (newValue > LogsTableModel.MAX_BUFFER) newValue = LogsTableModel.MAX_BUFFER;
+        else if (newValue < LogsTableModel.MIN_BUFFER) newValue = LogsTableModel.MIN_BUFFER;
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOGS_MAX_LINES, newValue);
     }
 
     private void updateLogLevel(JButton logButton) {
@@ -219,21 +243,21 @@ public class SettingsDialog extends JPanel {
 
     private void showAppsSettings() {
         String msg = """
-                <html>
-                <b>Format: "LABEL:TYPE:VALUE"</b>
-                <ul>
-                <li>LABEL is the column header<br/></li>
-                <li>TYPE describes the VALUE. one of: [VER|PROP]<br/></li>
-                <li>VALUE is a package name (version) or property (getprop)</li>
-                <li>Each line is a column</li>
-                </ul>
-                Examples:
-                <ul>
-                <li>TG:VER:org.telegram.messenger.web</li>
-                <li>Groups:PROP:my.cust.prop</li>
-                </ul>
-                </html>
-                """;
+            <html>
+            <b>Format: "LABEL:TYPE:VALUE"</b>
+            <ul>
+            <li>LABEL is the column header<br/></li>
+            <li>TYPE describes the VALUE. one of: [VER|PROP]<br/></li>
+            <li>VALUE is a package name (version) or property (getprop)</li>
+            <li>Each line is a column</li>
+            </ul>
+            Examples:
+            <ul>
+            <li>TG:VER:org.telegram.messenger.web</li>
+            <li>Groups:PROP:my.cust.prop</li>
+            </ul>
+            </html>
+            """;
         List<String> appList = getCustomColumns();
         List<String> resultList = showMultilineEditDialog("Custom Columns", msg, appList);
         if (resultList == null) return;

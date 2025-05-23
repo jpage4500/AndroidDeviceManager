@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.table;
 
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,8 +14,10 @@ import java.util.Map;
 
 public class LogsTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(LogsTableModel.class);
-    private static final int MAX_LINES = 200000;
-    private static final int REMOVE_EXTRA = 5000;
+    public static final int DEFAULT_BUFFER = 200000;
+    public static final int MAX_BUFFER = 9999999;
+    public static final int MIN_BUFFER = 10000;
+    public static final int REMOVE_EXTRA = 5000;
 
     private final ArrayList<LogEntry> logEntryList;
     // map of PID <-> app name
@@ -135,9 +138,10 @@ public class LogsTableModel extends AbstractTableModel {
     }
 
     private void checkSizeAndUpdate(int numAdded) {
-        if (logEntryList.size() > MAX_LINES) {
+        int maxLines = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_MAX_LINES, DEFAULT_BUFFER);
+        if (logEntryList.size() > maxLines) {
             // remove rows over the max and also a little more to prevent needing to do this on every new log
-            int numRemove = (logEntryList.size() - MAX_LINES) + REMOVE_EXTRA;
+            int numRemove = (logEntryList.size() - maxLines) + REMOVE_EXTRA;
             //log.trace("checkSizeAndUpdate: removing:{}, size:{}", numRemove, logEntryList.size());
             logEntryList.subList(0, numRemove).clear();
             fireTableRowsDeleted(0, numRemove - 1);

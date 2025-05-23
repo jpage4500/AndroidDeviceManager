@@ -1,11 +1,13 @@
 package com.jpage4500.devicemanager.utils;
 
 import net.coobird.thumbnailator.Thumbnails;
+import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -144,19 +146,28 @@ public class UiUtils {
         return menuItem;
     }
 
+    public static JPanel createPanel(String label) {
+        JPanel panel = new JPanel(new MigLayout("fillx"));
+        Font font = panel.getFont().deriveFont(Font.BOLD, 14f);
+        TitledBorder titledBorder = new TitledBorder(null, label, TitledBorder.LEADING, TitledBorder.DEFAULT_POSITION, font, null);
+        panel.setBorder(titledBorder);
+        return panel;
+    }
+
     public interface ButtonListener {
         void onClicked();
     }
 
     public static JButton addSettingButton(Container panel, String label, String action, ButtonListener listener) {
-        panel.add(new JLabel(label));
+        JLabel jLabel = new JLabel(label);
+        panel.add(jLabel, "growx");
         JButton button = new JButton(action);
         if (listener != null) {
             UiUtils.addLeftClickListener(button, e -> {
                 listener.onClicked();
             });
         }
-        panel.add(button, "wrap");
+        panel.add(button, "align right, wrap");
         return button;
     }
 

@@ -236,7 +236,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         createCmdMenuItem(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleViewLogsCommand(null));
 
         // [CMD + ,] = settings
-        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> handleSettingsClicked());
+        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(this));
 
         // [CMD + T] = hide toolbar
         createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
@@ -1206,7 +1206,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
 
         createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
-        createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> handleSettingsClicked());
+        createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(this));
 
     }
 
@@ -1288,10 +1288,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 setDeviceBusy(device, false);
             }
         }, script.getAbsolutePath(), serialArr);
-    }
-
-    private void handleSettingsClicked() {
-        SettingsDialog.showSettings(this);
     }
 
     private void refreshDevices() {

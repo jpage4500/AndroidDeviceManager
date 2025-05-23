@@ -381,6 +381,14 @@ public class TextUtils {
         return defValue;
     }
 
+    public static int getNumber(String text, int defValue) {
+        try {
+            return Integer.parseInt(text);
+        } catch (Exception ignored) {
+        }
+        return defValue;
+    }
+
     public static boolean isNumber(String text) {
         try {
             Integer.parseInt(text);

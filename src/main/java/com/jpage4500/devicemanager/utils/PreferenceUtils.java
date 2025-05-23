@@ -53,6 +53,7 @@ public class PreferenceUtils {
         PREF_FONT_SIZE_OFFSET,
         PREF_LOGS_FONT_SIZE,
         PREF_LOGS_FONT_STYLE,
+        PREF_LOGS_MAX_LINES,
     }
 
     public static String getPreference(Pref pref) {
