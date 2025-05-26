@@ -79,21 +79,21 @@ public class HintTextField extends JTextField implements KeyListener {
     public void addTextListener(TextListener listener) {
         if (listener == null) return;
         getDocument().addDocumentListener(
-                new DocumentListener() {
-                    @Override
-                    public void insertUpdate(DocumentEvent documentEvent) {
-                        listener.textChanged(getCleanText());
-                    }
+            new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent documentEvent) {
+                    listener.textChanged(getCleanText());
+                }
 
-                    @Override
-                    public void removeUpdate(DocumentEvent documentEvent) {
-                        listener.textChanged(getCleanText());
-                    }
+                @Override
+                public void removeUpdate(DocumentEvent documentEvent) {
+                    listener.textChanged(getCleanText());
+                }
 
-                    @Override
-                    public void changedUpdate(DocumentEvent documentEvent) {
-                    }
-                });
+                @Override
+                public void changedUpdate(DocumentEvent documentEvent) {
+                }
+            });
     }
 
     /**
@@ -165,26 +165,34 @@ public class HintTextField extends JTextField implements KeyListener {
                 cleanText = null;
                 break;
             default:
-                switch (keyChar) {
-                    case '_':
-                    case '-':
-                    case '$':
-                    case '#':
-                    case '@':
-                    case '(':
-                    case ')':
-                    case '!':
-                        cleanText += keyChar;
-                        break;
-                    default:
-                        if (Character.isLetterOrDigit(keyChar)) {
-                            cleanText += keyChar;
-                        } else {
-                            // ignore
-                            return;
-                        }
-                        break;
-                }
+                cleanText += keyChar;
+//                switch (keyChar) {
+//                    case '_':
+//                    case '-':
+//                    case '$':
+//                    case '#':
+//                    case '@':
+//                    case '(':
+//                    case ')':
+//                    case '!':
+//                    case '/':
+//                    case '[':
+//                    case ']':
+//                    case '.':
+//                    case '%':
+//                    case '&':
+//                    case '*':
+//                        cleanText += keyChar;
+//                        break;
+//                    default:
+//                        if (Character.isLetterOrDigit(keyChar)) {
+//                            cleanText += keyChar;
+//                        } else {
+//                            // ignore
+//                            return;
+//                        }
+//                        break;
+//                }
         }
         if (TextUtils.isEmpty(cleanText)) cleanText = hintText;
         setText(cleanText);

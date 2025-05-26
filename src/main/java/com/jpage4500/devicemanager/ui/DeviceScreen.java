@@ -391,7 +391,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
             popupMenu.addSeparator();
 
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this, this));
 
             boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
             String resizeDesc = autoResize ? "ON" : "OFF";
@@ -1199,7 +1199,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                     setupToolbar();
                 });
                 popupMenu.add(hideItem);
-                UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this));
+                UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
                 popupMenu.show(e.getComponent(), e.getX(), e.getY());
             });
             toolbar.add(filterTextField);
@@ -1225,7 +1225,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
                 setupToolbar();
             });
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
             popupMenu.show(e.getComponent(), e.getX(), e.getY());
         });
 

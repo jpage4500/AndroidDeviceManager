@@ -1040,13 +1040,9 @@ public class DeviceManager {
                 long lastUpdateMs = System.currentTimeMillis();
                 List<LogEntry> logList = new ArrayList<>();
                 String line;
+                long id = 0;
                 while ((line = input.readLine()) != null) {
-                    LogEntry logEntry = new LogEntry(line);
-//                    if (logEntry.date == null) {
-//                        log.trace("startLogging: invalid entry: {}", line);
-//                        continue;
-//                    }
-
+                    LogEntry logEntry = new LogEntry(line, id++);
                     logList.add(logEntry);
 
                     // only update every X ms

@@ -502,49 +502,32 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             }
         });
 
-        table.getColumnModel().addColumnModelListener(new TableColumnModelListener() {
-            private javax.swing.Timer timer;
-            private TableColumn dateColumn;
-
-            @Override
-            public void columnAdded(TableColumnModelEvent tableColumnModelEvent) {
-            }
-
-            @Override
-            public void columnRemoved(TableColumnModelEvent tableColumnModelEvent) {
-            }
-
-            @Override
-            public void columnMoved(TableColumnModelEvent tableColumnModelEvent) {
-            }
-
-            @Override
-            public void columnMarginChanged(ChangeEvent changeEvent) {
-                TableColumn resizingColumn = table.getTableHeader().getResizingColumn();
-                if (resizingColumn != null) {
-                    int index = resizingColumn.getModelIndex();
-                    LogsTableModel.Columns columnType = model.getColumnType(index);
-                    if (columnType == LogsTableModel.Columns.DATE) {
-                        dateColumn = resizingColumn;
-                        if (timer == null) {
-                            timer = new Timer(500, actionEvent -> {
-                                int width = dateColumn.getWidth();
-                                //log.trace("setupTable: FIRE: {}", width);
-                                model.setDateColumnWidth(width);
-                            });
-                            timer.setRepeats(false);
-                        }
-                        timer.restart();
-                    }
-                }
-            }
-
-            @Override
-            public void columnSelectionChanged(ListSelectionEvent listSelectionEvent) {
-            }
-        });
+//
+//        final List<Integer> selectedList = new ArrayList<>();
+//        table.getSelectionModel().addListSelectionListener(e -> {
+//            int[] selectedRows = table.getSelectedRows();
+//            selectedList.clear();
+//            for (int index : selectedRows) {
+//                selectedList.add(index);
+//            }
+//            log.trace("setupTable: selected: {}", selectedList.size());
+//        });
+//
+//        table.getModel().addTableModelListener(e -> {
+//            if (selectedList.isEmpty()) return;
+//            List<Integer> copyList = new ArrayList<>(selectedList);
+//            SwingUtilities.invokeLater(() -> {
+//                //ListSelectionModel model = table.getSelectionModel();
+//                log.trace("setupTable: select:{}", GsonHelper.toJson(copyList));
+//                table.clearSelection();
+//                for (Integer index : copyList) {
+//                    table.changeSelection(index, 0, false, false);
+//                }
+//            });
+//        });
 
         searchField.setupSearch(table);
+        searchField.setupSearch(filterList);
     }
 
     private void handleCopyMessageClicked() {
@@ -965,7 +948,21 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // save log entries as they'll get cleared after this method returns
         List<LogEntry> logList = new ArrayList<>(logEntryList);
         SwingUtilities.invokeLater(() -> {
+            // capture selected rows
+//            int[] selectedRows = table.getSelectedRows();
+//            log.trace("handleLogEntries: selected rows: {}", GsonHelper.toJson(selectedRows));
+
             model.addLogEntry(logList);
+
+            // restore selected rows
+//            table.clearSelection();
+//            int rowCount = table.getRowCount();
+//            for (int row : selectedRows) {
+//                if (row < rowCount) {
+//                    table.addRowSelectionInterval(row, row);
+//                }
+//            }
+
             scrollToFollow();
             refreshUi();
         });

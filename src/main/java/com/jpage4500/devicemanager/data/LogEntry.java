@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 
 public class LogEntry {
     private static final Logger log = LoggerFactory.getLogger(LogEntry.class);
+    public long id;         // unique id
 
     public String date;     // formatted date
     public String tid;
@@ -23,7 +24,8 @@ public class LogEntry {
      * 05-13 15:20:12.334  1195  1195 W adbd    : timeout expired while flushing socket, closing
      * 05-13 15:20:12.876  3192  4081 D ModemODPMPoller: Current Modem ODPM (mw): 69, threshold: 800
      */
-    public LogEntry(String line) {
+    public LogEntry(String line, long id) {
+        this.id = id;
         String[] lineArr = line.split("\\s+", 6);
         if (lineArr.length < 6) {
             // --------- beginning of system

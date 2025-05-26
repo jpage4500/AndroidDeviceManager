@@ -25,7 +25,6 @@ public class LogsTableModel extends AbstractTableModel {
     private String searchText;
 
     private Columns[] visibleColumns;
-    private int dateColumnWidth = 0;
 
     /**
      * get text value for a given LogEntry and column
@@ -37,16 +36,6 @@ public class LogsTableModel extends AbstractTableModel {
         return switch (col) {
             case DATE -> {
                 // 05-13 15:20:12
-                if (logEntry.date != null) {
-                    // TODO: 150 will vary based on font size
-                    if (dateColumnWidth < 150) {
-                        // truncate
-                        int space = logEntry.date.indexOf(' ');
-                        if (space > 0) {
-                            yield logEntry.date.substring(space + 1);
-                        }
-                    }
-                }
                 yield logEntry.date;
             }
             case APP -> {
@@ -63,11 +52,6 @@ public class LogsTableModel extends AbstractTableModel {
             case TAG -> logEntry.tag;
             case MSG -> logEntry.message;
         };
-    }
-
-    public void setDateColumnWidth(int width) {
-        dateColumnWidth = width;
-        fireTableDataChanged();
     }
 
     public enum Columns {
@@ -110,8 +94,10 @@ public class LogsTableModel extends AbstractTableModel {
     }
 
     public void addLogEntry(List<LogEntry> logEntryList) {
+        int prevRows = this.logEntryList.size();
         this.logEntryList.addAll(logEntryList);
-        checkSizeAndUpdate(logEntryList.size());
+        fireTableRowsInserted(prevRows, this.logEntryList.size() - 1);
+        checkSizeAndUpdate();
     }
 
     public void setProcessMap(Map<String, String> processMap) {
@@ -137,7 +123,7 @@ public class LogsTableModel extends AbstractTableModel {
         return last.date;
     }
 
-    private void checkSizeAndUpdate(int numAdded) {
+    private void checkSizeAndUpdate() {
         int maxLines = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_MAX_LINES, DEFAULT_BUFFER);
         if (logEntryList.size() > maxLines) {
             // remove rows over the max and also a little more to prevent needing to do this on every new log
@@ -145,10 +131,6 @@ public class LogsTableModel extends AbstractTableModel {
             //log.trace("checkSizeAndUpdate: removing:{}, size:{}", numRemove, logEntryList.size());
             logEntryList.subList(0, numRemove).clear();
             fireTableRowsDeleted(0, numRemove - 1);
-        } else {
-            int startPos = logEntryList.size() - numAdded;
-            int endPos = logEntryList.size() - 1;
-            fireTableRowsInserted(startPos, endPos);
         }
     }
 

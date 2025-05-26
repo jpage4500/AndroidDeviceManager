@@ -163,6 +163,9 @@ public class UiUtils {
         panel.add(jLabel, "growx");
         JButton button = new JButton(action);
         if (listener != null) {
+            UiUtils.addLeftClickListener(jLabel, e -> {
+                listener.onClicked();
+            });
             UiUtils.addLeftClickListener(button, e -> {
                 listener.onClicked();
             });

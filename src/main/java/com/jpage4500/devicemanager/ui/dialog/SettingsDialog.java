@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import java.awt.*;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,9 +40,9 @@ public class SettingsDialog extends JPanel {
 
     private void initalizeUi() {
         JPanel devicePanel = UiUtils.createPanel("Device Settings");
-        UiUtils.addSettingButton(devicePanel, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen));
+        UiUtils.addSettingButton(devicePanel, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen, this));
         UiUtils.addSettingButton(devicePanel, "Custom Columns", "EDIT", this::showAppsSettings);
-        UiUtils.addSettingButton(devicePanel, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen));
+        UiUtils.addSettingButton(devicePanel, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen, this));
         add(devicePanel, "growx, wrap");
 
         JPanel logPanel = UiUtils.createPanel("Log Settings");
@@ -125,7 +126,7 @@ public class SettingsDialog extends JPanel {
     }
 
     private void resetPreferences() {
-        if (!DialogHelper.showConfirmDialog(deviceScreen, "Reset Preferences", "Reset All Preferences?")) return;
+        if (!DialogHelper.showConfirmDialog(this, "Reset Preferences", "Reset All Preferences?")) return;
 
         log.debug("resetPreferences: ");
         PreferenceUtils.resetAll();
@@ -155,7 +156,7 @@ public class SettingsDialog extends JPanel {
         return GsonHelper.stringToList(hiddenColsStr, String.class);
     }
 
-    public static void showManageDeviceColumnsDialog(DeviceScreen deviceScreen) {
+    public static void showManageDeviceColumnsDialog(DeviceScreen deviceScreen, Component component) {
         JPanel panel = new JPanel(new MigLayout("fillx"));
         panel.add(new JLabel("Select columns to SHOW"), "span");
 
@@ -166,7 +167,7 @@ public class SettingsDialog extends JPanel {
 
         HoverLabel resetLabel = new HoverLabel("Reset to defaults", UiUtils.getImageIcon("icon_trash.png", UiUtils.IMG_SIZE_SMALL));
         resetLabel.addActionListener(actionEvent -> {
-            if (!DialogHelper.showConfirmDialog(deviceScreen, "Reset Table?", "Reset Table to defaults?")) return;
+            if (!DialogHelper.showConfirmDialog(component, "Reset Table?", "Reset Table to defaults?")) return;
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, null);
 
             Preferences prefs = Preferences.userRoot();
@@ -181,7 +182,7 @@ public class SettingsDialog extends JPanel {
         });
         panel.add(resetLabel, "newline 20px, al right, span, wrap");
 
-        if (!DialogHelper.showCustomDialog(deviceScreen, panel, "Manage Columns", null)) return;
+        if (!DialogHelper.showCustomDialog(component, panel, "Manage Columns", null)) return;
 
         // save columns that are NOT selected
         List<String> selectedItems = checkBoxList.getUnSelectedItems();
@@ -212,7 +213,7 @@ public class SettingsDialog extends JPanel {
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenToolbarList));
     }
 
-    public static void showManageToolbar(DeviceScreen deviceScreen) {
+    public static void showManageToolbar(DeviceScreen deviceScreen, Component component) {
         List<String> hiddenColList = getHiddenToolbarList();
         CheckBoxList checkBoxList = new CheckBoxList();
         DeviceScreen.ToolbarButton[] arr = DeviceScreen.ToolbarButton.values();
@@ -232,7 +233,7 @@ public class SettingsDialog extends JPanel {
         JScrollPane scroll = new JScrollPane(checkBoxList);
         panel.add(scroll, "grow, span, wrap");
 
-        if (!DialogHelper.showCustomDialog(deviceScreen, panel, "Toolbar Buttons", null)) return;
+        if (!DialogHelper.showCustomDialog(component, panel, "Toolbar Buttons", null)) return;
 
         // save columns that are NOT selected
         List<String> selectedItems = checkBoxList.getUnSelectedItems();
@@ -289,7 +290,7 @@ public class SettingsDialog extends JPanel {
         JScrollPane scroll = new JScrollPane(inputField);
         panel.add(scroll, "grow, span, wrap");
 
-        if (!DialogHelper.showCustomDialog(deviceScreen, panel, title, null)) return null;
+        if (!DialogHelper.showCustomDialog(this, panel, title, null)) return null;
 
         String results = inputField.getText();
         log.debug("showEditField: results: {}", results);
