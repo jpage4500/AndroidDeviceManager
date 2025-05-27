@@ -166,6 +166,12 @@ public class HintTextField extends JTextField implements KeyListener {
                 cleanText = null;
                 break;
             case KeyEvent.VK_TAB:
+            case KeyEvent.VK_LEFT:
+            case KeyEvent.VK_RIGHT:
+            case KeyEvent.VK_UP:
+            case KeyEvent.VK_DOWN:
+            case KeyEvent.VK_PAGE_UP:
+            case KeyEvent.VK_PAGE_DOWN:
                 // ignore these keys
                 break;
             default:

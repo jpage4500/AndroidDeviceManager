@@ -145,6 +145,10 @@ public class Device {
         return busyCounter.get() > 0;
     }
 
+    public int getBusyCount() {
+        return busyCounter.get();
+    }
+
     /**
      * set device to BUSY state
      *

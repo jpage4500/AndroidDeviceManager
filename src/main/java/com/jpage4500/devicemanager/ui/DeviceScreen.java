@@ -31,8 +31,8 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -1015,24 +1015,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void addDeviceDetail(JPanel panel, String label, String value) {
         if (!TextUtils.isEmpty(value)) {
             panel.add(new JLabel(label + ": " + value), "wrap");
-        }
-    }
-
-    private void handleCaptureLogs() {
-        List<Device> selectedDeviceList = getSelectedDevices(true);
-        if (selectedDeviceList.isEmpty()) return;
-        if (selectedDeviceList.size() > 1) {
-            // prompt to open multiple devices at once
-            if (!DialogHelper.showConfirmDialog(this, "Capture Logs", "Capture " + selectedDeviceList.size() + " device logs?")) return;
-        }
-
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
-        for (Device device : selectedDeviceList) {
-            setDeviceBusy(device, true);
-            DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
-                setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
-            });
         }
     }
 
