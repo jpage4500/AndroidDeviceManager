@@ -38,7 +38,7 @@ public class DeviceManager {
     public static final String COMMAND_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
     public static final String COMMAND_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
     public static final String COMMAND_REBOOT = "reboot";
-    public static final String COMMAND_DISK_SIZE = "df";
+    public static final String COMMAND_DISK_SIZE = "df /data";
     public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS"; // | grep u0_
     public static final String COMMAND_DUMPSYS_BATTERY = "dumpsys battery";
 
@@ -420,20 +420,20 @@ public class DeviceManager {
     private void fetchFreeDiskSpace(Device device) {
         ShellResult result = runShell(device, COMMAND_DISK_SIZE);
         if (result.isSuccess && !result.resultList.isEmpty()) {
-            for (Iterator<String> iterator = new ReverseIterator<>(result.resultList); iterator.hasNext(); ) {
-                String line = iterator.next();
-                // /dev/fuse         115249236 14681484 100436680  13% /storage/emulated
-                //                                      ^^^^^^^^^
-                if (TextUtils.endsWith(line, "/storage/emulated")) {
-                    String size = TextUtils.split(line, 3);
-                    try {
-                        // size is in 1k blocks
-                        device.freeSpace = Long.parseLong(size) * 1000L;
-                        return;
-                    } catch (Exception e) {
-                        log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
-                    }
-                }
+            // get last line
+            String line = result.resultList.get(result.resultList.size() - 1);
+            // Filesystem            1K-blocks    Used Available Use% Mounted on
+            // /dev/block/mmcblk0p15  27545632 4090224  23455408  15% /data
+            String size = TextUtils.split(line, 3);
+            try {
+                // size is in 1k blocks
+                device.freeSpace = Long.parseLong(size) * 1000L;
+                return;
+            } catch (Exception e) {
+                log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
+            }
+            if (device.freeSpace == null || device.freeSpace == 0) {
+                log.trace("fetchFreeDiskSpace: NOT_FOUND: {}", GsonHelper.toJson(result.resultList));
             }
         }
     }
