@@ -488,27 +488,29 @@ public class DeviceManager {
             throw new Exception(resultDesc);
         }
 
+        // -- good result --
         // Result: Parcel(
         // 0x00000000: 00000000 0000000b 00350031 00300034 '........1.2.2.2.'
         // 0x00000010: 00310039 00390034 00310032 00000034 '3.3.3.4.4.4.4...')
-        StringBuilder sb = null;
-        if (result.resultList.size() > 1) {
-            for (int i = 1; i < result.resultList.size(); i++) {
-                String line = result.resultList.get(i);
-                int stPos = line.indexOf('\'');
-                if (stPos >= 0) {
-                    int endPos = line.indexOf('\'', stPos + 1);
-                    if (endPos >= 0) {
-                        line = line.substring(stPos + 1, endPos);
-                        line = line.replaceAll("[^-?0-9]+", "");
-                        if (sb == null) sb = new StringBuilder();
-                        sb.append(line);
-                    }
+        // -- bad result --
+        // Result: Parcel(00000000 ffffffff   '........')
+        StringBuilder sb = new StringBuilder();
+        for (String line : result.resultList) {
+            // look for first single quote (')
+            int stPos = line.indexOf('\'');
+            if (stPos >= 0) {
+                // look for last single quote (')
+                int endPos = line.indexOf('\'', stPos + 1);
+                if (endPos >= 0) {
+                    line = line.substring(stPos + 1, endPos);
+                    // remove any non-numeric characters
+                    line = line.replaceAll("[^-?0-9]+", "");
+                    sb.append(line);
                 }
             }
         }
         //log.trace("runShellServiceCall: RESULTS: {}", result);
-        return sb != null ? sb.toString() : null;
+        return sb.isEmpty() ? null : sb.toString();
     }
 
     /**
