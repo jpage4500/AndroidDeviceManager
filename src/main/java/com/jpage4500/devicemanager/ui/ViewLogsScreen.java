@@ -11,6 +11,7 @@ import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
@@ -19,13 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.TableColumnModelEvent;
-import javax.swing.event.TableColumnModelListener;
-import javax.swing.table.TableColumn;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -34,7 +29,6 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * create and manage device view
@@ -193,6 +187,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         // [CMD + 2] = show explorer
         createCmdMenuItem(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand(device));
+
+        // [CMD + ,] = settings
+        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(deviceScreen));
 
         // [CMD + T] = hide toolbar
         createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
@@ -499,49 +496,32 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             }
         });
 
-        table.getColumnModel().addColumnModelListener(new TableColumnModelListener() {
-            private javax.swing.Timer timer;
-            private TableColumn dateColumn;
-
-            @Override
-            public void columnAdded(TableColumnModelEvent tableColumnModelEvent) {
-            }
-
-            @Override
-            public void columnRemoved(TableColumnModelEvent tableColumnModelEvent) {
-            }
-
-            @Override
-            public void columnMoved(TableColumnModelEvent tableColumnModelEvent) {
-            }
-
-            @Override
-            public void columnMarginChanged(ChangeEvent changeEvent) {
-                TableColumn resizingColumn = table.getTableHeader().getResizingColumn();
-                if (resizingColumn != null) {
-                    int index = resizingColumn.getModelIndex();
-                    LogsTableModel.Columns columnType = model.getColumnType(index);
-                    if (columnType == LogsTableModel.Columns.DATE) {
-                        dateColumn = resizingColumn;
-                        if (timer == null) {
-                            timer = new Timer(500, actionEvent -> {
-                                int width = dateColumn.getWidth();
-                                //log.trace("setupTable: FIRE: {}", width);
-                                model.setDateColumnWidth(width);
-                            });
-                            timer.setRepeats(false);
-                        }
-                        timer.restart();
-                    }
-                }
-            }
-
-            @Override
-            public void columnSelectionChanged(ListSelectionEvent listSelectionEvent) {
-            }
-        });
+//
+//        final List<Integer> selectedList = new ArrayList<>();
+//        table.getSelectionModel().addListSelectionListener(e -> {
+//            int[] selectedRows = table.getSelectedRows();
+//            selectedList.clear();
+//            for (int index : selectedRows) {
+//                selectedList.add(index);
+//            }
+//            log.trace("setupTable: selected: {}", selectedList.size());
+//        });
+//
+//        table.getModel().addTableModelListener(e -> {
+//            if (selectedList.isEmpty()) return;
+//            List<Integer> copyList = new ArrayList<>(selectedList);
+//            SwingUtilities.invokeLater(() -> {
+//                //ListSelectionModel model = table.getSelectionModel();
+//                log.trace("setupTable: select:{}", GsonHelper.toJson(copyList));
+//                table.clearSelection();
+//                for (Integer index : copyList) {
+//                    table.changeSelection(index, 0, false, false);
+//                }
+//            });
+//        });
 
         searchField.setupSearch(table);
+        searchField.setupSearch(filterList);
     }
 
     private void handleCopyMessageClicked() {
@@ -625,14 +605,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void startLogging() {
         if (device.isOnline && !DeviceManager.getInstance().isLogging(device)) {
-            Long startTime = model.getLastLogTime();
-            if (startTime == null) {
-                // by default only display logs from the last few hours
-                // - can speed up initial launch
-                startTime = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(2);
-            }
             deviceScreen.setDeviceBusy(device, true);
-            DeviceManager.getInstance().startLogging(device, startTime, this);
+            DeviceManager.getInstance().startLogging(device, this);
         }
     }
 
@@ -968,7 +942,21 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // save log entries as they'll get cleared after this method returns
         List<LogEntry> logList = new ArrayList<>(logEntryList);
         SwingUtilities.invokeLater(() -> {
+            // capture selected rows
+//            int[] selectedRows = table.getSelectedRows();
+//            log.trace("handleLogEntries: selected rows: {}", GsonHelper.toJson(selectedRows));
+
             model.addLogEntry(logList);
+
+            // restore selected rows
+//            table.clearSelection();
+//            int rowCount = table.getRowCount();
+//            for (int row : selectedRows) {
+//                if (row < rowCount) {
+//                    table.addRowSelectionInterval(row, row);
+//                }
+//            }
+
             scrollToFollow();
             refreshUi();
         });

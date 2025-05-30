@@ -17,7 +17,7 @@ function handleMacOSX() {
           create tab with default profile
               tell current session
                   write text "cd $DIR"
-                  write text "shell.sh $ADB_DEVICE"
+                  write text "./shell.sh $ADB_DEVICE"
               end tell
           end tell
       end tell
@@ -32,7 +32,7 @@ END
               delay 0.01
           end repeat
           do script "cd $DIR" in window 1
-          do script "shell.sh $ADB_DEVICE" in window 1
+          do script "./shell.sh $ADB_DEVICE" in window 1
       end tell
 END
   fi

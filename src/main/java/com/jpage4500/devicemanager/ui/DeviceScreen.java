@@ -31,8 +31,8 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -236,7 +236,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         createCmdMenuItem(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleViewLogsCommand(null));
 
         // [CMD + ,] = settings
-        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> handleSettingsClicked());
+        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(this));
 
         // [CMD + T] = hide toolbar
         createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
@@ -391,7 +391,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
             popupMenu.addSeparator();
 
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this, this));
 
             boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
             String resizeDesc = autoResize ? "ON" : "OFF";
@@ -1018,24 +1018,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
-    private void handleCaptureLogs() {
-        List<Device> selectedDeviceList = getSelectedDevices(true);
-        if (selectedDeviceList.isEmpty()) return;
-        if (selectedDeviceList.size() > 1) {
-            // prompt to open multiple devices at once
-            if (!DialogHelper.showConfirmDialog(this, "Capture Logs", "Capture " + selectedDeviceList.size() + " device logs?")) return;
-        }
-
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
-        for (Device device : selectedDeviceList) {
-            setDeviceBusy(device, true);
-            DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
-                setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
-            });
-        }
-    }
-
     private void handleMirrorCommand() {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
@@ -1199,14 +1181,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                     setupToolbar();
                 });
                 popupMenu.add(hideItem);
-                UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this));
+                UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
                 popupMenu.show(e.getComponent(), e.getX(), e.getY());
             });
             toolbar.add(filterTextField);
         }
 
         createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
-        createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> handleSettingsClicked());
+        createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(this));
 
     }
 
@@ -1225,7 +1207,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
                 setupToolbar();
             });
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
             popupMenu.show(e.getComponent(), e.getX(), e.getY());
         });
 
@@ -1288,10 +1270,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 setDeviceBusy(device, false);
             }
         }, script.getAbsolutePath(), serialArr);
-    }
-
-    private void handleSettingsClicked() {
-        SettingsDialog.showSettings(this);
     }
 
     private void refreshDevices() {

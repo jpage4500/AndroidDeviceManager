@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.table;
 
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,8 +14,10 @@ import java.util.Map;
 
 public class LogsTableModel extends AbstractTableModel {
     private static final Logger log = LoggerFactory.getLogger(LogsTableModel.class);
-    private static final int MAX_LINES = 90000;
-    private static final int REMOVE_EXTRA = 5000;
+    public static final int DEFAULT_BUFFER = 200000;
+    public static final int MAX_BUFFER = 9999999;
+    public static final int MIN_BUFFER = 10000;
+    public static final int REMOVE_EXTRA = 5000;
 
     private final ArrayList<LogEntry> logEntryList;
     // map of PID <-> app name
@@ -22,7 +25,6 @@ public class LogsTableModel extends AbstractTableModel {
     private String searchText;
 
     private Columns[] visibleColumns;
-    private int dateColumnWidth = 0;
 
     /**
      * get text value for a given LogEntry and column
@@ -34,16 +36,6 @@ public class LogsTableModel extends AbstractTableModel {
         return switch (col) {
             case DATE -> {
                 // 05-13 15:20:12
-                if (logEntry.date != null) {
-                    // TODO: 150 will vary based on font size
-                    if (dateColumnWidth < 150) {
-                        // truncate
-                        int space = logEntry.date.indexOf(' ');
-                        if (space > 0) {
-                            yield logEntry.date.substring(space + 1);
-                        }
-                    }
-                }
                 yield logEntry.date;
             }
             case APP -> {
@@ -60,11 +52,6 @@ public class LogsTableModel extends AbstractTableModel {
             case TAG -> logEntry.tag;
             case MSG -> logEntry.message;
         };
-    }
-
-    public void setDateColumnWidth(int width) {
-        dateColumnWidth = width;
-        fireTableDataChanged();
     }
 
     public enum Columns {
@@ -107,8 +94,10 @@ public class LogsTableModel extends AbstractTableModel {
     }
 
     public void addLogEntry(List<LogEntry> logEntryList) {
+        int prevRows = this.logEntryList.size();
         this.logEntryList.addAll(logEntryList);
-        checkSizeAndUpdate(logEntryList.size());
+        fireTableRowsInserted(prevRows, this.logEntryList.size() - 1);
+        checkSizeAndUpdate();
     }
 
     public void setProcessMap(Map<String, String> processMap) {
@@ -128,23 +117,20 @@ public class LogsTableModel extends AbstractTableModel {
     /**
      * @return the latest log entry time
      */
-    public Long getLastLogTime() {
+    public String getLastLogTime() {
         if (logEntryList.isEmpty()) return null;
         LogEntry last = logEntryList.get(logEntryList.size() - 1);
-        return last.timestamp;
+        return last.date;
     }
 
-    private void checkSizeAndUpdate(int numAdded) {
-        if (logEntryList.size() > MAX_LINES) {
+    private void checkSizeAndUpdate() {
+        int maxLines = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_MAX_LINES, DEFAULT_BUFFER);
+        if (logEntryList.size() > maxLines) {
             // remove rows over the max and also a little more to prevent needing to do this on every new log
-            int numRemove = (logEntryList.size() - MAX_LINES) + REMOVE_EXTRA;
+            int numRemove = (logEntryList.size() - maxLines) + REMOVE_EXTRA;
             //log.trace("checkSizeAndUpdate: removing:{}, size:{}", numRemove, logEntryList.size());
             logEntryList.subList(0, numRemove).clear();
             fireTableRowsDeleted(0, numRemove - 1);
-        } else {
-            int startPos = logEntryList.size() - numAdded;
-            int endPos = logEntryList.size() - 1;
-            fireTableRowsInserted(startPos, endPos);
         }
     }
 

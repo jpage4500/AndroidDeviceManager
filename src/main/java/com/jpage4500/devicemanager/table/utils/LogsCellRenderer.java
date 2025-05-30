@@ -1,7 +1,9 @@
 package com.jpage4500.devicemanager.table.utils;
 
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.LogsTableModel;
+import com.jpage4500.devicemanager.ui.views.CustomTextField;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
@@ -16,7 +18,7 @@ import javax.swing.text.DefaultHighlighter;
 import javax.swing.text.Highlighter;
 import java.awt.*;
 
-public class LogsCellRenderer extends JTextField implements TableCellRenderer {
+public class LogsCellRenderer extends CustomTextField implements TableCellRenderer {
     private static final Logger log = LoggerFactory.getLogger(LogsCellRenderer.class);
 
     private final static Color verboseColor = new Color(0, 38, 255, 255);
@@ -47,6 +49,16 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
         // convert table column to model column
         row = table.convertRowIndexToModel(row);
         column = table.convertColumnIndexToModel(column);
+        LogsTableModel.Columns columnType = model.getColumnType(column);
+        boolean rightAlign = false;
+        switch (columnType) {
+            case DATE:
+            case APP:
+                rightAlign = true;
+                break;
+        }
+        setTruncatedRight(rightAlign);
+
         String text = model.getTextValue(row, column);
         setText(text);
 
@@ -114,5 +126,10 @@ public class LogsCellRenderer extends JTextField implements TableCellRenderer {
         log.trace("notifyFontChanged: {}, {}, {}, offset:{}", fontName, fontStyle, fontSize, fontOffset);
         Font font = new Font(fontName, fontStyle, size);
         setFont(font);
+    }
+
+    private void adjustCaretPosition() {
+        // Move the caret to the end so the right part is visible
+        setCaretPosition(getDocument().getLength());
     }
 }

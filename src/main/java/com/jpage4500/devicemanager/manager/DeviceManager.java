@@ -38,7 +38,7 @@ public class DeviceManager {
     public static final String COMMAND_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
     public static final String COMMAND_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
     public static final String COMMAND_REBOOT = "reboot";
-    public static final String COMMAND_DISK_SIZE = "df";
+    public static final String COMMAND_DISK_SIZE = "df /data";
     public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS"; // | grep u0_
     public static final String COMMAND_DUMPSYS_BATTERY = "dumpsys battery";
 
@@ -58,6 +58,9 @@ public class DeviceManager {
     public static final String ERR_PERMISSION_DENIED = "permission denied";
     public static final String ERR_NOT_A_DIRECTORY = "Not a directory";
     public static final String SHELL_BOOT_COMPLETED = "getprop sys.boot_completed";
+
+    // how frequently to update logs
+    public static final int LOG_INTERVAL_MS = 100;
 
     private static volatile DeviceManager instance;
 
@@ -260,32 +263,50 @@ public class DeviceManager {
             device.setBusy(true);
             listener.handleDeviceUpdated(device);
 
+            // check if device is fully booted
+            fetchDeviceBooted(device);
+            if (!device.isBooted) {
+                boolean isBusy = device.setBusy(false);
+                if (!isBusy) listener.handleDeviceUpdated(device);
+
+                // if device isn't fully booted yet, schedule another refresh
+                scheduledExecutorService.schedule(() -> {
+                    log.trace("fetchDeviceDetails: try again for {}", device.getDisplayName());
+                    fetchDeviceDetails(device, true, listener);
+                }, 5, TimeUnit.SECONDS);
+                return;
+            }
+
             // NOTE: if device just restarted, the initial fullRefresh will fail so try again next time
             if (fullRefresh || device.nickname == null) {
-                // -- device nickname --
-                fetchNickname(device);
-
-                // -- phone number --
-                // NOTE: there's no consistent way to get a phone number via adb
-                // - the best I've found is a script from: https://github.com/micro5k/microg-unofficial-installer/blob/main/utils/device-info.sh
-                String phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
-                if (TextUtils.length(phone) > 7) {
-                    device.phone = phone;
-                } else {
-                    // alternative way of getting phone number
-                    phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
-                    if (TextUtils.length(phone) > 7) device.phone = phone;
-                }
-
-                // -- IMEI --
-                String imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
-                if (TextUtils.notEmpty(imei)) device.imei = imei;
-
                 // -- device properties (model, OS) --
                 try {
                     device.propMap = new PropertyManager(device.jadbDevice).getprop();
                 } catch (Exception e) {
                     log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
+                }
+
+                // -- device nickname --
+                fetchNickname(device);
+
+                try {
+                    // -- phone number --
+                    // NOTE: there's no consistent way to get a phone number via adb
+                    // - the best I've found is a script from: https://github.com/micro5k/microg-unofficial-installer/blob/main/utils/device-info.sh
+                    String phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE1);
+                    if (TextUtils.length(phone) > 7) {
+                        device.phone = phone;
+                    } else {
+                        // alternative way of getting phone number
+                        phone = runShellServiceCall(device, COMMAND_SERVICE_PHONE2);
+                        if (TextUtils.length(phone) > 7) device.phone = phone;
+                    }
+
+                    // -- IMEI --
+                    String imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
+                    if (TextUtils.notEmpty(imei)) device.imei = imei;
+                } catch (Exception e) {
+                    // not a phone (tablet, TV, etc)
                 }
 
                 // -- custom properties --
@@ -301,8 +322,6 @@ public class DeviceManager {
             // -- battery level, charging status, etc --
             fetchBatteryInfo(device);
 
-            fetchDeviceBooted(device);
-
             device.lastUpdateMs = System.currentTimeMillis();
 
             if (fullRefresh) {
@@ -314,14 +333,6 @@ public class DeviceManager {
             }
             boolean isBusy = device.setBusy(false);
             if (!isBusy) listener.handleDeviceUpdated(device);
-
-            // if device isn't fully booted yet, schedule another refresh
-            if (!device.isBooted) {
-                scheduledExecutorService.schedule(() -> {
-                    log.trace("fetchDeviceDetails: try again for {}", device.getDisplayName());
-                    fetchDeviceDetails(device, true, listener);
-                }, 10, TimeUnit.SECONDS);
-            }
         });
     }
 
@@ -346,7 +357,7 @@ public class DeviceManager {
                     try {
                         int level = Integer.parseInt(value);
                         // some Android TV devices list battery level as 0
-                        if (level > 0 && level <= 100) {
+                        if (level > 0 && level <= LOG_INTERVAL_MS) {
                             device.batteryLevel = level;
                         }
                     } catch (NumberFormatException e) {
@@ -374,6 +385,7 @@ public class DeviceManager {
 
     private void fetchCustomColumns(Device device) {
         List<String> entryList = SettingsDialog.getCustomColumns();
+        int beforeSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
         for (String entry : entryList) {
             if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
             String[] entryArr = entry.split(":");
@@ -386,7 +398,7 @@ public class DeviceManager {
                 value = getAppVersion(device, val);
             } else if (TextUtils.equalsIgnoreCase(type, "PROP")) {
                 ShellResult result = runShell(device, "getprop " + val);
-                log.trace("fetchCustomColumns: {} -> {}", val, result);
+                //log.trace("fetchCustomColumns: {} -> {}", val, result);
                 if (result.isSuccess) {
                     value = result.getResult(0);
                 }
@@ -399,25 +411,29 @@ public class DeviceManager {
                 device.customAppVersionList.put(label, value);
             }
         }
+        int afterSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
+        if (beforeSize != afterSize) {
+            log.trace("fetchCustomColumns: {}", GsonHelper.toJson(device.customAppVersionList));
+        }
     }
 
     private void fetchFreeDiskSpace(Device device) {
         ShellResult result = runShell(device, COMMAND_DISK_SIZE);
         if (result.isSuccess && !result.resultList.isEmpty()) {
-            for (Iterator<String> iterator = new ReverseIterator<>(result.resultList); iterator.hasNext(); ) {
-                String line = iterator.next();
-                // /dev/fuse         115249236 14681484 100436680  13% /storage/emulated
-                //                                      ^^^^^^^^^
-                if (TextUtils.endsWith(line, "/storage/emulated")) {
-                    String size = TextUtils.split(line, 3);
-                    try {
-                        // size is in 1k blocks
-                        device.freeSpace = Long.parseLong(size) * 1000L;
-                        return;
-                    } catch (Exception e) {
-                        log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
-                    }
-                }
+            // get last line
+            String line = result.resultList.get(result.resultList.size() - 1);
+            // Filesystem            1K-blocks    Used Available Use% Mounted on
+            // /dev/block/mmcblk0p15  27545632 4090224  23455408  15% /data
+            String size = TextUtils.split(line, 3);
+            try {
+                // size is in 1k blocks
+                device.freeSpace = Long.parseLong(size) * 1000L;
+                return;
+            } catch (Exception e) {
+                log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
+            }
+            if (device.freeSpace == null || device.freeSpace == 0) {
+                log.trace("fetchFreeDiskSpace: NOT_FOUND: {}", GsonHelper.toJson(result.resultList));
             }
         }
     }
@@ -461,7 +477,7 @@ public class DeviceManager {
     /**
      * run a 'shell service call ..." command and parse the results into a String
      */
-    private String runShellServiceCall(Device device, String command) {
+    private String runShellServiceCall(Device device, String command) throws Exception {
         ShellResult result = runShell(device, command);
         if (!result.isSuccess) return null;
         // look for errors like:
@@ -469,31 +485,32 @@ public class DeviceManager {
         String resultDesc = TextUtils.join(result.resultList, ",");
         if (TextUtils.containsAny(resultDesc, true, "does not exist")) {
             log.trace("runShellServiceCall: {}: ERROR: {}", command, resultDesc);
-            result.isSuccess = false;
-            return null;
+            throw new Exception(resultDesc);
         }
 
+        // -- good result --
         // Result: Parcel(
         // 0x00000000: 00000000 0000000b 00350031 00300034 '........1.2.2.2.'
         // 0x00000010: 00310039 00390034 00310032 00000034 '3.3.3.4.4.4.4...')
-        StringBuilder sb = null;
-        if (result.resultList.size() > 1) {
-            for (int i = 1; i < result.resultList.size(); i++) {
-                String line = result.resultList.get(i);
-                int stPos = line.indexOf('\'');
-                if (stPos >= 0) {
-                    int endPos = line.indexOf('\'', stPos + 1);
-                    if (endPos >= 0) {
-                        line = line.substring(stPos + 1, endPos);
-                        line = line.replaceAll("[^-?0-9]+", "");
-                        if (sb == null) sb = new StringBuilder();
-                        sb.append(line);
-                    }
+        // -- bad result --
+        // Result: Parcel(00000000 ffffffff   '........')
+        StringBuilder sb = new StringBuilder();
+        for (String line : result.resultList) {
+            // look for first single quote (')
+            int stPos = line.indexOf('\'');
+            if (stPos >= 0) {
+                // look for last single quote (')
+                int endPos = line.indexOf('\'', stPos + 1);
+                if (endPos >= 0) {
+                    line = line.substring(stPos + 1, endPos);
+                    // remove any non-numeric characters
+                    line = line.replaceAll("[^-?0-9]+", "");
+                    sb.append(line);
                 }
             }
         }
         //log.trace("runShellServiceCall: RESULTS: {}", result);
-        return sb != null ? sb.toString() : null;
+        return sb.isEmpty() ? null : sb.toString();
     }
 
     /**
@@ -990,8 +1007,14 @@ public class DeviceManager {
     }
 
     public interface DeviceLogListener {
+        /**
+         * new log entries were added
+         */
         void handleLogEntries(List<LogEntry> logEntryList);
 
+        /**
+         * update process map (map of all running apps/processes and their process ID)
+         */
         void handleProcessMap(Map<String, String> processMap);
     }
 
@@ -1004,10 +1027,10 @@ public class DeviceManager {
         return loggingState;
     }
 
-    public void startLogging(Device device, Long startTime, DeviceLogListener listener) {
+    public void startLogging(Device device, DeviceLogListener listener) {
         stopLogging(device);
         commandExecutorService.submit(() -> {
-            log.debug("startLogging: {}, startTime:{}", device.serial, startTime);
+            log.debug("startLogging: {}", device.serial);
             AtomicBoolean loggingState = getLoggingState(device.serial, true);
             loggingState.set(true);
             InputStream inputStream = null;
@@ -1018,21 +1041,14 @@ public class DeviceManager {
 
                 long lastUpdateMs = System.currentTimeMillis();
                 List<LogEntry> logList = new ArrayList<>();
-                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                int year = Calendar.getInstance().get(Calendar.YEAR);
                 String line;
+                long id = 0;
                 while ((line = input.readLine()) != null) {
-                    LogEntry logEntry = new LogEntry(line, dateFormat, year);
-                    if (logEntry.date == null) continue;
-                    else if (startTime != null && (logEntry.timestamp == null || startTime > logEntry.timestamp)) {
-                        //log.trace("startLogging: too old: {} ({}) vs {}", logEntry.timestamp, logEntry.date, startTime);
-                        continue;
-                    }
-
+                    LogEntry logEntry = new LogEntry(line, id++);
                     logList.add(logEntry);
 
                     // only update every X ms
-                    if (System.currentTimeMillis() - lastUpdateMs >= 100 && !logList.isEmpty()) {
+                    if (System.currentTimeMillis() - lastUpdateMs >= LOG_INTERVAL_MS && !logList.isEmpty()) {
                         // update
                         listener.handleLogEntries(logList);
                         logList.clear();

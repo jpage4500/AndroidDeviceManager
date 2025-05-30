@@ -17,8 +17,6 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -115,7 +113,7 @@ public class SaveLogsScreen extends BaseScreen {
             entry.saveFile = new File(lastLogsFolder, entry.device.serial + ".txt");
 
             deviceScreen.setDeviceBusy(entry.device, true);
-            DeviceManager.getInstance().startLogging(entry.device, null, new DeviceManager.DeviceLogListener() {
+            DeviceManager.getInstance().startLogging(entry.device, new DeviceManager.DeviceLogListener() {
                 @Override
                 public void handleLogEntries(List<LogEntry> logEntryList) {
                     if (!isRecording) return;

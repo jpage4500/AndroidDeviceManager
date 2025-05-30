@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.ui.views.ComboIcon;
 import com.jpage4500.devicemanager.ui.views.IconTextField;
+import com.jpage4500.devicemanager.ui.views.NumberCircleIcon;
 import com.jpage4500.devicemanager.utils.Colors;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
@@ -16,43 +17,28 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultHighlighter;
 import javax.swing.text.Highlighter;
 import java.awt.*;
-import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Map;
 
 public class DeviceCellRenderer extends IconTextField implements TableCellRenderer {
     private static final Logger log = LoggerFactory.getLogger(DeviceCellRenderer.class);
 
-    private final Icon statusOfflineIcon;
-    private final Icon statusOnlineIcon;
-    private final Icon statusBusyIcon;
-    private final Icon statusNotReadyIcon;
+    // icon for device status (busy, online, offline, not ready)
+    private final NumberCircleIcon deviceIcon;
+
+    // battery state icons
     private final Map<String, Icon> chargingIconMap;
 
-    private final static Color warnColor = new Color(251, 109, 8, 255);
     private Highlighter.HighlightPainter highlightPainter;
     private Highlighter.HighlightPainter highlightPainter2;
     private boolean isHighlighted = false;
 
     public DeviceCellRenderer() {
+        deviceIcon = new NumberCircleIcon(0, UiUtils.IMG_SIZE_ICON, Colors.COLOR_ONLINE, Color.BLACK);
         chargingIconMap = new HashMap<>();
 
         setOpaque(true);
         UiUtils.setEmptyBorder(this, 5, 5);
-
-        BufferedImage image = UiUtils.getImage("device_status.png", UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON);
-
-        BufferedImage offlineImage = UiUtils.replaceColor(image, Color.GRAY);
-        statusOfflineIcon = new ImageIcon(offlineImage);
-
-        BufferedImage onlineImage = UiUtils.replaceColor(image, Colors.COLOR_ONLINE);
-        statusOnlineIcon = new ImageIcon(onlineImage);
-
-        BufferedImage busyImage = UiUtils.replaceColor(image, Colors.COLOR_BUSY);
-        statusBusyIcon = new ImageIcon(busyImage);
-
-        BufferedImage notReadyImage = UiUtils.replaceColor(image, Colors.COLOR_NOT_READY);
-        statusNotReadyIcon = new ImageIcon(notReadyImage);
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -84,13 +70,22 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     align = SwingConstants.RIGHT;
                     break;
                 case NAME:
-                    if (device.isBusy()) {
-                        icon = statusBusyIcon;
+                    icon = deviceIcon;
+                    int busyCount = device.getBusyCount();
+                    deviceIcon.setNumber(0);
+                    if (busyCount > 0) {
+                        deviceIcon.setCircleColor(Colors.COLOR_BUSY);
+                        if (busyCount > 1) {
+                            deviceIcon.setNumber(busyCount);
+                        }
                     } else if (device.isOnline) {
-                        if (!device.isBooted) icon = statusNotReadyIcon;
-                        else icon = statusOnlineIcon;
+                        if (!device.isBooted) {
+                            deviceIcon.setCircleColor(Colors.COLOR_NOT_READY);
+                        } else {
+                            deviceIcon.setCircleColor(Colors.COLOR_ONLINE);
+                        }
                     } else {
-                        icon = statusOfflineIcon;
+                        deviceIcon.setCircleColor(Color.GRAY);
                     }
             }
         }
