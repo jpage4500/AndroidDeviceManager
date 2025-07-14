@@ -247,15 +247,22 @@ public class SettingsDialog extends JPanel {
             <html>
             <b>Format: "LABEL:TYPE:VALUE"</b>
             <ul>
-            <li>LABEL is the column header<br/></li>
-            <li>TYPE describes the VALUE. one of: [VER|PROP]<br/></li>
-            <li>VALUE is a package name (version) or property (getprop)</li>
+            <li>LABEL is the column header</li>
+            <li>TYPE describes the VALUE. one of: [VER|PROP|QUERY]</li>
+            <li>VALUE depends on the TYPE:
+                <ul>
+                <li>VER: package name (org.telegram.messenger.web)</li>
+                <li>PROP: property (my.cust.prop)</li>
+                <li>QUERY: content:// URI which returns a single row/value</li>
+                </ul>
+            </li>
             <li>Each line is a column</li>
             </ul>
             Examples:
             <ul>
-            <li>TG:VER:org.telegram.messenger.web</li>
-            <li>Groups:PROP:my.cust.prop</li>
+            <li>Telegram Version:VER:org.telegram.messenger.web</li>
+            <li>My Property:PROP:my.cust.prop</li>
+            <li>Content Value:QUERY:content://com.test.provider/queryForValue</li>
             </ul>
             </html>
             """;

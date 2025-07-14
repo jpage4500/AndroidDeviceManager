@@ -62,6 +62,11 @@ public class DeviceManager {
     // how frequently to update logs
     public static final int LOG_INTERVAL_MS = 100;
 
+    public static final String CUSTOM_KEY_VERSION = "VER";
+    public static final String CUSTOM_KEY_PROP = "PROP";
+    public static final String CUSTOM_KEY_QUERY = "QUERY";
+    public static final String QUERY_ROW_0 = "Row: 0 ";
+
     private static volatile DeviceManager instance;
 
     private final List<Device> deviceList;
@@ -388,19 +393,43 @@ public class DeviceManager {
         int beforeSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
         for (String entry : entryList) {
             if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
-            String[] entryArr = entry.split(":");
+            String[] entryArr = entry.split(":", 3);
             String label = entryArr.length >= 1 ? entryArr[0].trim() : entry;
-            String type = entryArr.length >= 2 ? entryArr[1].trim() : "VER";
+            String type = entryArr.length >= 2 ? entryArr[1].trim() : CUSTOM_KEY_VERSION;
             String val = entryArr.length >= 3 ? entryArr[2].trim() : null;
 
+            //log.trace("fetchCustomColumns: label:{}, type:{}, val:{}", label, type, val);
+
             String value = null;
-            if (TextUtils.equalsIgnoreCase(type, "VER")) {
+            if (TextUtils.equalsIgnoreCase(type, CUSTOM_KEY_VERSION)) {
                 value = getAppVersion(device, val);
-            } else if (TextUtils.equalsIgnoreCase(type, "PROP")) {
+            } else if (TextUtils.equalsIgnoreCase(type, CUSTOM_KEY_PROP)) {
                 ShellResult result = runShell(device, "getprop " + val);
                 //log.trace("fetchCustomColumns: {} -> {}", val, result);
                 if (result.isSuccess) {
                     value = result.getResult(0);
+                }
+            } else if (TextUtils.equalsIgnoreCase(type, CUSTOM_KEY_QUERY)) {
+                //  adb shell content query --uri content://com.test.provider/queryForValue
+                //  Row: 0 key=value, key=value, key=value
+                ShellResult result = runShell(device, "content query --uri " + val);
+                if (result.isSuccess) {
+                    String line1 = result.getResult(0);
+                    // key=value, key=value, key=value
+                    int pos = TextUtils.indexOf(line1, QUERY_ROW_0);
+                    if (pos >= 0) {
+                        // remove "Row: 0 "
+                        line1 = line1.substring(pos + QUERY_ROW_0.length());
+                        String[] pairs = line1.split(",");
+                        for (String pair : pairs) {
+                            pair = pair.trim();
+                            String[] keyValue = pair.split("=", 2);
+                            if (keyValue.length == 2) {
+                                //String key = keyValue[0].trim();
+                                value = keyValue[1].trim();
+                            }
+                        }
+                    }
                 }
             } else {
                 log.trace("fetchCustomColumns: unknown type:{}", type);
