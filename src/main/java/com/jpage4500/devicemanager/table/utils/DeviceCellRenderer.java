@@ -92,6 +92,13 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
 
         if (text == null) text = model.deviceValue(device, column);
 
+        // modify true/false to icons
+        if (TextUtils.equalsIgnoreCase(text, "true")) {
+            text = "✅";
+        } else if (TextUtils.equalsIgnoreCase(text, "false")) {
+            text = "❌";
+        }
+
         setHorizontalAlignment(align);
         setIcon(icon);
         setText(text);
