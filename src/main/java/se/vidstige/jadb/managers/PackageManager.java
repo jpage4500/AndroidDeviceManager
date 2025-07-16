@@ -1,10 +1,7 @@
 package se.vidstige.jadb.managers;
 
 import com.jpage4500.devicemanager.data.SplitManifest;
-import com.jpage4500.devicemanager.utils.FileUtils;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.Timer;
-import com.jpage4500.devicemanager.utils.Utils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import se.vidstige.jadb.JadbDevice;
@@ -64,7 +61,7 @@ public class PackageManager {
 
     private void install(File apkFile, List<String> extraArguments) throws IOException, JadbException {
         String apkName = apkFile.getName();
-        if (apkName.endsWith(".xapk")) {
+        if (apkName.endsWith(".xapk") || apkName.endsWith(".apkm")) {
             installSplit(apkFile, extraArguments);
             return;
         }
@@ -85,8 +82,9 @@ public class PackageManager {
      */
     private void installSplit(File splitApkFile, List<String> extraArguments) throws IOException, JadbException {
         Timer timer = new Timer();
-        // 1) copy .xapk file to temp location
-        File tmpFile = new File(Utils.getTempFolder(), splitApkFile.getName());
+        // 1) copy .xapk/.apkm file to temp location
+        String origName = splitApkFile.getName();
+        File tmpFile = new File(Utils.getTempFolder(), origName);
         log.trace("installSplit: copy file: {} -> {}", splitApkFile, tmpFile);
         try {
             Files.copy(splitApkFile.toPath(), tmpFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
@@ -119,37 +117,64 @@ public class PackageManager {
                     }
                 }
             }
+            List<File> installFiles = new ArrayList<>();
 
-            // 4) read manifest.json
-            File manifest = new File(targetDir, "manifest.json");
-            if (!manifest.exists()) {
-                log.error("installSplit: manifest doesn't exist: {}", manifest);
-                throw new JadbException("manifest doesn't exist");
-            }
-            log.trace("installSplit: reading manifest: {}", manifest);
-            String json = Files.readString(manifest.toPath());
-            SplitManifest splitManifest = GsonHelper.fromJson(json, SplitManifest.class);
-            log.trace("installSplit: got manifest:{}", GsonHelper.toJson(splitManifest));
-
-            // 5) install all .apk's
-            // see https://raccoon.onyxbits.de/blog/install-split-apk-adb/
-            if (splitManifest.splitApkList == null || splitManifest.packageName == null) {
-                log.error("installSplit: invalid manifest! {}", GsonHelper.toJson(splitManifest));
-                throw new JadbException("invalid manifest (package/apkList)");
-            }
-            long totalSize = splitManifest.totalSize;
-            if (totalSize == 0) {
-                List<SplitManifest.SplitApk> splitApkList = splitManifest.splitApkList;
-                for (SplitManifest.SplitApk splitName : splitApkList) {
-                    File apkFile = new File(targetDir, splitName.file);
-                    long splitLen = apkFile.length();
-                    totalSize += splitLen;
+            // find base apk file
+            if (origName.endsWith(".apkm")) {
+                File baseFile = new File(targetDir, "base.apk");
+                if (!baseFile.exists()) {
+                    log.error("installSplit: base.apk doesn't exist");
+                    throw new JadbException("base.apk doesn't exist");
+                }
+                installFiles.add(baseFile);
+            } else {
+                File manifestFile = new File(targetDir, "manifest.json");
+                if (!manifestFile.exists()) {
+                    log.error("installSplit: manifest.json doesn't exist");
+                    throw new JadbException("manifest.json doesn't exist");
+                }
+                log.trace("installSplit: reading manifest: {}", manifestFile);
+                String json = Files.readString(manifestFile.toPath());
+                SplitManifest splitManifest = GsonHelper.fromJson(json, SplitManifest.class);
+                log.trace("installSplit: got manifest:{}", GsonHelper.toJson(splitManifest));
+                if (splitManifest == null || splitManifest.splitApkList == null) {
+                    log.error("installSplit: splitApkList not found");
+                    throw new JadbException("splitApkList not found");
+                }
+                for (SplitManifest.SplitApk splitApk : splitManifest.splitApkList) {
+                    if (TextUtils.equalsIgnoreCase(splitApk.id, "base")) {
+                        File baseFile = new File(targetDir, splitApk.file);
+                        installFiles.add(baseFile);
+                        break;
+                    }
                 }
             }
-            if (totalSize == 0) {
-                throw new JadbException("invalid manifest (totalSize)");
+
+            if (installFiles.isEmpty()) {
+                log.error("installSplit: base not found");
+                throw new JadbException("base not found");
             }
-            log.trace("installSplit: install-create: {}", totalSize);
+
+            // TODO: pass in architecture (arm64, x86, etc) to filter out apks for wrong architecture
+            // TODO: pass in dpi (120, 160, 240, etc) to filter out apks for wrong dpi
+            // TODO: pass in language to filter out apks for wrong language
+
+            File[] files = targetDir.listFiles();
+            if (files == null) {
+                log.error("installSplit: targetDir is empty or doesn't exist: {}", targetDir);
+                throw new JadbException("targetDir is empty or doesn't exist");
+            }
+            File langApk = findBestFile(files, ".en");
+            if (langApk != null) installFiles.add(langApk);
+            File osApk = findBestFile(files, "arm64_v8a", "armeabi_v7a");
+            if (osApk != null) installFiles.add(osApk);
+            File dpiApk = findBestFile(files, "xxhdpi", "xhdpi");
+            if (dpiApk != null) installFiles.add(dpiApk);
+
+            long totalSize = 0;
+            for (File installFile : installFiles) totalSize += installFile.length();
+            log.trace("installSplit: install-create: {}, files:{}", totalSize, installFiles.size());
+
             // pm install-create -S TOTAL_SIZE_OF_ALL_APKS
             InputStream s = device.executeShell("pm", "install-create", "-S", String.valueOf(totalSize));
             String result = Stream.readAll(s, StandardCharsets.UTF_8);
@@ -162,17 +187,12 @@ public class PackageManager {
             String session = result.substring(stPos + 1, endPos);
             log.trace("installSplit: session: {}", session);
 
-            // TODO: filter out apk files for wrong architecture
-
-            List<SplitManifest.SplitApk> splitApkList = splitManifest.splitApkList;
-            for (int i = 0; i < splitApkList.size(); i++) {
-                SplitManifest.SplitApk splitName = splitApkList.get(i);
-                File apkFile = new File(targetDir, splitName.file);
+            for (int i = 0; i < installFiles.size(); i++) {
+                File apkFile = installFiles.get(i);
                 long splitLen = apkFile.length();
-
                 // push file to device
                 log.trace("installSplit: installing:{}, len:{}", apkFile.getName(), splitLen);
-                RemoteFile remote = new RemoteFile("/data/local/tmp/" + splitName.file);
+                RemoteFile remote = new RemoteFile("/data/local/tmp/" + apkFile.getName());
                 device.push(apkFile, remote);
 
                 // pm install-write -S APK_SIZE SESSION_ID INDEX PATH
@@ -183,6 +203,7 @@ public class PackageManager {
                 log.trace("installSplit: DONE:{}, {}, len:{}", timer, apkFile.getName(), splitLen);
                 remove(remote);
             }
+
             // pm install-commit 4711
             log.trace("installSplit: COMMIT:{}, {}", timer, session);
             s = device.executeShell("pm", "install-commit", session);
@@ -200,8 +221,19 @@ public class PackageManager {
         }
     }
 
+    private File findBestFile(File[] files, String... searchForArr) {
+        for (String searchFor : searchForArr) {
+            for (File file : files) {
+                String name = file.getName();
+                if (!name.endsWith(".apk")) continue;
+                else if (name.contains(searchFor)) return file;
+            }
+        }
+        return null;
+    }
+
     public void install(File apkFile) throws IOException, JadbException {
-        install(apkFile, new ArrayList<String>(0));
+        install(apkFile, new ArrayList<>(0));
     }
 
     public void installWithOptions(File apkFile, List<? extends InstallOption> options) throws IOException, JadbException {
@@ -248,10 +280,10 @@ public class PackageManager {
     public static final InstallOption WITH_FORWARD_LOCK = new InstallOption("-l");
 
     public static final InstallOption REINSTALL_KEEPING_DATA =
-            new InstallOption("-r");
+        new InstallOption("-r");
 
     public static final InstallOption ALLOW_TEST_APK =
-            new InstallOption("-t");
+        new InstallOption("-t");
 
     @SuppressWarnings("squid:S00100")
     public static InstallOption WITH_INSTALLER_PACKAGE_NAME(String name) {
@@ -269,7 +301,7 @@ public class PackageManager {
     }
 
     public static final InstallOption ALLOW_VERSION_DOWNGRADE =
-            new InstallOption("-d");
+        new InstallOption("-d");
 
     /**
      * This option is supported only from Android 6.X+
