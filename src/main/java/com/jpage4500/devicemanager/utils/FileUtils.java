@@ -162,7 +162,7 @@ public class FileUtils {
             }
         } else {
             stats.numFiles++;
-            if (TextUtils.endsWithAny(name, true, ".apk", "xapk")) {
+            if (TextUtils.endsWithAny(name, true, ".apk", "xapk", ".apkm")) {
                 stats.numApk++;
             }
         }
