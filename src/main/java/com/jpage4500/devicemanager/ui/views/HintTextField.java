@@ -138,32 +138,22 @@ public class HintTextField extends JTextField implements KeyListener {
 
     @Override
     public void keyPressed(KeyEvent e) {
-        int modifiers = e.getModifiersEx();
-        switch (modifiers) {
-            case KeyEvent.META_DOWN_MASK:
-            case KeyEvent.CTRL_DOWN_MASK:
-            case KeyEvent.ALT_DOWN_MASK:
-                return;
-        }
-        if ((modifiers & SHIFT_COMMAND_MASK) == SHIFT_COMMAND_MASK) {
-            return;
-        }
         char keyChar = e.getKeyChar();
         int keyCode = e.getKeyCode();
-        if (keyCode == KeyEvent.VK_SHIFT) return;
-        String cleanText = getCleanText();
         switch (keyCode) {
-            case KeyEvent.VK_SPACE:
-                cleanText += " ";
-                break;
-            case KeyEvent.VK_BACK_SPACE:
+            case KeyEvent.VK_BACK_SPACE: {
+                // delete last character
+                String cleanText = getCleanText();
                 if (!cleanText.isEmpty()) {
                     cleanText = cleanText.substring(0, cleanText.length() - 1);
+                    if (cleanText.isEmpty()) setText(hintText);
+                    else setText(cleanText);
                 }
                 break;
+            }
             case KeyEvent.VK_ESCAPE:
                 // clear text
-                cleanText = null;
+                setText(hintText);
                 break;
             case KeyEvent.VK_TAB:
             case KeyEvent.VK_LEFT:
@@ -175,10 +165,42 @@ public class HintTextField extends JTextField implements KeyListener {
                 // ignore these keys
                 break;
             default:
-                cleanText += keyChar;
+                // only interested in printable characters
+                boolean include;
+                switch (keyChar) {
+                    case '.':
+                    case ' ':
+                    case ',':
+                    case '-':
+                    case '_':
+                    case '!':
+                    case '%':
+                    case '&':
+                    case '*':
+                    case '$':
+                    case '#':
+                    case '@':
+                    case '(':
+                    case ')':
+                    case '[':
+                    case ']':
+                    case '+':
+                    case '"':
+                    case '?':
+                    case '\'':
+                        // allow these characters
+                        include = true;
+                        break;
+                    default:
+                        include = Character.isLetterOrDigit(keyChar);
+                        break;
+                }
+                if (include) {
+                    String cleanText = getCleanText();
+                    cleanText += keyChar;
+                    setText(cleanText);
+                }
         }
-        if (TextUtils.isEmpty(cleanText)) cleanText = hintText;
-        setText(cleanText);
     }
 
     @Override
