@@ -54,6 +54,7 @@ public class PreferenceUtils {
         PREF_LOGS_FONT_SIZE,
         PREF_LOGS_FONT_STYLE,
         PREF_LOGS_MAX_LINES,
+        PREF_REFRESH_TIME_MINS,
     }
 
     public static String getPreference(Pref pref) {

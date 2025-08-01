@@ -5,8 +5,8 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
-import com.jpage4500.devicemanager.utils.Timer;
 import com.jpage4500.devicemanager.utils.*;
+import com.jpage4500.devicemanager.utils.Timer;
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
@@ -61,6 +61,8 @@ public class DeviceManager {
 
     // how frequently to update logs
     public static final int LOG_INTERVAL_MS = 100;
+    // how frequently to refresh device list
+    public static final int DEVICE_REFRESH_MINS = 60;
 
     public static final String CUSTOM_KEY_VERSION = "VER";
     public static final String CUSTOM_KEY_PROP = "PROP";
@@ -69,11 +71,14 @@ public class DeviceManager {
 
     private static volatile DeviceManager instance;
 
+    private DeviceListener deviceListener;
     private final List<Device> deviceList;
     private final String tempFolder;
     private final List<Process> processList;
 
+    // thread pool for running commands
     private final ExecutorService commandExecutorService;
+    // thread pool for fetching device details
     private final ScheduledExecutorService scheduledExecutorService;
     private ScheduledFuture<?> deviceRefreshRuture;
 
@@ -97,10 +102,14 @@ public class DeviceManager {
         processList = new ArrayList<>();
 
         commandExecutorService = Executors.newFixedThreadPool(10);
-        scheduledExecutorService = Executors.newScheduledThreadPool(3);
+        scheduledExecutorService = Executors.newScheduledThreadPool(1);
 
         tempFolder = Utils.getTempFolder();
         copyResourcesToFiles();
+    }
+
+    public void setDeviceListener(DeviceListener listener) {
+        this.deviceListener = listener;
     }
 
     public interface DeviceListener {
@@ -116,7 +125,7 @@ public class DeviceManager {
         void handleException(Exception e);
     }
 
-    public void connectAdbServer(boolean allowRetry, DeviceManager.DeviceListener listener) {
+    public void connectAdbServer(boolean allowRetry) {
         connection = new JadbConnection();
         commandExecutorService.submit(() -> {
             try {
@@ -125,7 +134,7 @@ public class DeviceManager {
                 connection.createDeviceWatcher(new DeviceDetectionListener() {
                     @Override
                     public void onDetect(List<JadbDevice> devices) {
-                        handleDeviceUpdate(devices, listener);
+                        handleDeviceUpdate(devices);
                     }
 
                     @Override
@@ -133,18 +142,18 @@ public class DeviceManager {
                         log.error("connectAdbServer: onException: {}", e.getMessage());
                         // change all devices to offline
                         for (Device device : deviceList) device.isOnline = false;
-                        listener.handleException(e);
+                        if (deviceListener != null) deviceListener.handleException(e);
                     }
                 }).run();
             } catch (Exception e) {
                 log.error("connectAdbServer: Exception: {}", e.getMessage());
                 // likley because adb server isn't running.. try to start it now
                 startServer((isSuccess, error) -> {
-                    if (isSuccess && allowRetry) connectAdbServer(false, listener);
+                    if (isSuccess && allowRetry) connectAdbServer(false);
                     else {
                         // change all devices to offline
                         for (Device device : deviceList) device.isOnline = false;
-                        listener.handleException(e);
+                        if (deviceListener != null) deviceListener.handleException(e);
                     }
                 });
             }
@@ -155,7 +164,7 @@ public class DeviceManager {
      * called when a device is added/updated/removed
      * NOTE: run on background thread
      */
-    private void handleDeviceUpdate(List<JadbDevice> devices, DeviceListener listener) {
+    private void handleDeviceUpdate(List<JadbDevice> devices) {
         //log.debug("onDetect: GOT:{}, {}", devices.size(), GsonHelper.toJson(devices));
         List<Device> addedDeviceList = new ArrayList<>();
 
@@ -195,13 +204,13 @@ public class DeviceManager {
                 // -- DEVICE REMOVED --
                 device.isOnline = false;
                 device.lastUpdateMs = System.currentTimeMillis();
-                listener.handleDeviceRemoved(device);
+                if (deviceListener != null) deviceListener.handleDeviceRemoved(device);
             }
         }
 
         if (!addedDeviceList.isEmpty()) {
             // notify listener that device list changed
-            listener.handleDevicesUpdated(deviceList);
+            if (deviceListener != null) deviceListener.handleDevicesUpdated(deviceList);
 
             for (Device addedDevice : addedDeviceList) {
                 // fetch more details for these devices
@@ -212,12 +221,12 @@ public class DeviceManager {
                         addedDevice.isOnline = true;
                         addedDevice.status = null;
                         addedDevice.lastUpdateMs = System.currentTimeMillis();
-                        listener.handleDeviceUpdated(addedDevice);
-                        fetchDeviceDetails(addedDevice, true, listener);
+                        notifyDeviceUpdated(addedDevice);
+                        fetchDeviceDetails(addedDevice, true);
                     } else {
                         log.debug("handleDeviceUpdate: NOT_READY: {} -> {}", addedDevice.serial, state);
                         addedDevice.status = state.name();
-                        listener.handleDeviceUpdated(addedDevice);
+                        notifyDeviceUpdated(addedDevice);
                     }
                 } catch (Exception e) {
                     String errMsg = e.getMessage();
@@ -231,26 +240,35 @@ public class DeviceManager {
                     addedDevice.status = errMsg;
                     // TODO: check error message before setting device to offline?
                     addedDevice.isOnline = false;
-                    listener.handleDeviceUpdated(addedDevice);
+                    notifyDeviceUpdated(addedDevice);
                 }
             }
 
-            // run periodic task to update device state
             if (deviceRefreshRuture == null) {
-                deviceRefreshRuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
-                    //log.trace("handleDeviceUpdate: REFRESH");
-                    for (Device device : deviceList) {
-                        fetchDeviceDetails(device, false, listener);
-                    }
-                }, 5, 5, TimeUnit.MINUTES);
+                updateRefreshTime();
             }
         }
     }
 
-    public void refreshDevices(DeviceListener listener) {
+    public void updateRefreshTime() {
+        if (deviceRefreshRuture != null) {
+            deviceRefreshRuture.cancel(true);
+        }
+        int refreshTimeMins = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_REFRESH_TIME_MINS, DeviceManager.DEVICE_REFRESH_MINS);
+        // run periodic task to update device state
+        log.debug("updateRefreshTime: schedule refresh every {} mins", refreshTimeMins);
+        deviceRefreshRuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+            log.trace("handleDeviceUpdate: REFRESH");
+            for (Device device : deviceList) {
+                fetchDeviceDetails(device, false);
+            }
+        }, refreshTimeMins, refreshTimeMins, TimeUnit.MINUTES);
+    }
+
+    public void refreshDevices() {
         synchronized (deviceList) {
             for (Device device : deviceList) {
-                fetchDeviceDetails(device, true, listener);
+                fetchDeviceDetails(device, true);
             }
         }
     }
@@ -260,24 +278,24 @@ public class DeviceManager {
      *
      * @param fullRefresh - true to fetch everythign; false to only fetch values that would change often (battery, disk)
      */
-    private void fetchDeviceDetails(Device device, boolean fullRefresh, DeviceListener listener) {
+    private void fetchDeviceDetails(Device device, boolean fullRefresh) {
         if (!device.isOnline) return;
-        commandExecutorService.submit(() -> {
+        scheduledExecutorService.submit(() -> {
             Timer timer = new Timer();
             // show device as 'busy'
             device.setBusy(true);
-            listener.handleDeviceUpdated(device);
+            notifyDeviceUpdated(device);
 
             // check if device is fully booted
             fetchDeviceBooted(device);
             if (!device.isBooted) {
                 boolean isBusy = device.setBusy(false);
-                if (!isBusy) listener.handleDeviceUpdated(device);
+                if (!isBusy) notifyDeviceUpdated(device);
 
                 // if device isn't fully booted yet, schedule another refresh
                 scheduledExecutorService.schedule(() -> {
                     log.trace("fetchDeviceDetails: try again for {}", device.getDisplayName());
-                    fetchDeviceDetails(device, true, listener);
+                    fetchDeviceDetails(device, true);
                 }, 5, TimeUnit.SECONDS);
                 return;
             }
@@ -309,7 +327,10 @@ public class DeviceManager {
 
                     // -- IMEI --
                     String imei = runShellServiceCall(device, COMMAND_SERVICE_IMEI);
-                    if (TextUtils.notEmpty(imei)) device.imei = imei;
+                    if (TextUtils.notEmpty(imei)) {
+                        device.imei = imei;
+                        notifyDeviceUpdated(device);
+                    }
                 } catch (Exception e) {
                     // not a phone (tablet, TV, etc)
                 }
@@ -337,8 +358,14 @@ public class DeviceManager {
                 if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: REFRESH:{}: {}", timer, GsonHelper.toJson(device));
             }
             boolean isBusy = device.setBusy(false);
-            if (!isBusy) listener.handleDeviceUpdated(device);
+            if (!isBusy) notifyDeviceUpdated(device);
         });
+    }
+
+    private void notifyDeviceUpdated(Device device) {
+        if (deviceListener != null) {
+            deviceListener.handleDeviceUpdated(device);
+        }
     }
 
     /**
@@ -386,6 +413,7 @@ public class DeviceManager {
                     break;
             }
         }
+        notifyDeviceUpdated(device);
     }
 
     private void fetchCustomColumns(Device device) {
@@ -438,6 +466,7 @@ public class DeviceManager {
             if (value != null) {
                 if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
                 device.customAppVersionList.put(label, value);
+                notifyDeviceUpdated(device);
             }
         }
         int afterSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
@@ -457,6 +486,7 @@ public class DeviceManager {
             try {
                 // size is in 1k blocks
                 device.freeSpace = Long.parseLong(size) * 1000L;
+                notifyDeviceUpdated(device);
                 return;
             } catch (Exception e) {
                 log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
@@ -500,6 +530,7 @@ public class DeviceManager {
                 return;
             }
             device.nickname = nickname;
+            notifyDeviceUpdated(device);
         }
     }
 

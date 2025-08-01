@@ -499,7 +499,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void connectAdbServer() {
-        DeviceManager.getInstance().connectAdbServer(true, this);
+        DeviceManager.getInstance().setDeviceListener(this);
+        DeviceManager.getInstance().connectAdbServer(true);
     }
 
     @Override
@@ -1273,7 +1274,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void refreshDevices() {
-        DeviceManager.getInstance().refreshDevices(this);
+        DeviceManager.getInstance().refreshDevices();
     }
 
     private void handleRunCustomCommand() {

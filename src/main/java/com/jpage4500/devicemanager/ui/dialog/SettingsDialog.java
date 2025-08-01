@@ -40,6 +40,7 @@ public class SettingsDialog extends JPanel {
 
     private void initalizeUi() {
         JPanel devicePanel = UiUtils.createPanel("Device Settings");
+        UiUtils.addSettingButton(devicePanel, "Refresh Time", "EDIT", () -> showRefreshTime());
         UiUtils.addSettingButton(devicePanel, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen, this));
         UiUtils.addSettingButton(devicePanel, "Custom Columns", "EDIT", this::showAppsSettings);
         UiUtils.addSettingButton(devicePanel, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen, this));
@@ -154,6 +155,18 @@ public class SettingsDialog extends JPanel {
     public static List<String> getHiddenColumnList() {
         String hiddenColsStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS);
         return GsonHelper.stringToList(hiddenColsStr, String.class);
+    }
+
+    public void showRefreshTime() {
+        int refreshTimeMins = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_REFRESH_TIME_MINS, DeviceManager.DEVICE_REFRESH_MINS);
+        String result = DialogHelper.showInputDialog(this, "Refresh Time", "Enter Refresh Time (in mins, between 5 and 600)", String.valueOf(refreshTimeMins));
+        if (TextUtils.isEmpty(result)) return;
+
+        int newValue = TextUtils.getNumber(result, DeviceManager.DEVICE_REFRESH_MINS);
+        if (newValue > 600) newValue = 600;
+        else if (newValue < 5) newValue = 5;
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_REFRESH_TIME_MINS, newValue);
+        DeviceManager.getInstance().updateRefreshTime();
     }
 
     public static void showManageDeviceColumnsDialog(DeviceScreen deviceScreen, Component component) {
