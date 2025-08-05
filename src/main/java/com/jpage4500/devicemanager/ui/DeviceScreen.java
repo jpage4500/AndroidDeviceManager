@@ -799,6 +799,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
                     setDeviceBusy(device, false);
                     resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? filename : error);
+                    if (isSuccess) {
+                        // update device details after installing an app
+                        DeviceManager.getInstance().fetchDeviceDetails(device, true);
+                    }
                 });
             }
         }

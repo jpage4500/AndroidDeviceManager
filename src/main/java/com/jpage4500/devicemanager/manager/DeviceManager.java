@@ -278,7 +278,7 @@ public class DeviceManager {
      *
      * @param fullRefresh - true to fetch everythign; false to only fetch values that would change often (battery, disk)
      */
-    private void fetchDeviceDetails(Device device, boolean fullRefresh) {
+    public void fetchDeviceDetails(Device device, boolean fullRefresh) {
         if (!device.isOnline) return;
         scheduledExecutorService.submit(() -> {
             Timer timer = new Timer();
