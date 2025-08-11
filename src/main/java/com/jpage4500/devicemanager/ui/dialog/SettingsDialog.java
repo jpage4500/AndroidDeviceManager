@@ -285,6 +285,7 @@ public class SettingsDialog extends JPanel {
 
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_CUSTOM_APPS, GsonHelper.toJson(resultList));
         deviceScreen.setCustomColumns();
+        DeviceManager.getInstance().refreshDevices();
     }
 
     /**

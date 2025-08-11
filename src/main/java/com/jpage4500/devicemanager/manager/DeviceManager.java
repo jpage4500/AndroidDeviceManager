@@ -76,13 +76,14 @@ public class DeviceManager {
     private final String tempFolder;
     private final List<Process> processList;
 
-    // thread pool for running commands
+    // thread pool for running commands (screen mirror, terminal, etc)
     private final ExecutorService commandExecutorService;
     // thread pool for fetching device details
     private final ScheduledExecutorService scheduledExecutorService;
     private ScheduledFuture<?> deviceRefreshRuture;
 
     private final Map<String, AtomicBoolean> loggingStateMap = new HashMap<>();
+    private final List<String> queuedDetailList = new ArrayList<>();
 
     private JadbConnection connection;
 
@@ -102,7 +103,7 @@ public class DeviceManager {
         processList = new ArrayList<>();
 
         commandExecutorService = Executors.newFixedThreadPool(10);
-        scheduledExecutorService = Executors.newScheduledThreadPool(1);
+        scheduledExecutorService = Executors.newScheduledThreadPool(10);
 
         tempFolder = Utils.getTempFolder();
         copyResourcesToFiles();
@@ -276,10 +277,11 @@ public class DeviceManager {
     /**
      * fetch device details (phone #, name, model, disk space, battery level, etc)
      *
-     * @param fullRefresh - true to fetch everythign; false to only fetch values that would change often (battery, disk)
+     * @param fullRefresh - true to fetch everything; false to only fetch values that would change often (battery, disk)
      */
     public void fetchDeviceDetails(Device device, boolean fullRefresh) {
         if (!device.isOnline) return;
+        else if (!addDeviceToQueue(device)) return;
         scheduledExecutorService.submit(() -> {
             Timer timer = new Timer();
             // show device as 'busy'
@@ -297,6 +299,8 @@ public class DeviceManager {
                     log.trace("fetchDeviceDetails: try again for {}", device.getDisplayName());
                     fetchDeviceDetails(device, true);
                 }, 5, TimeUnit.SECONDS);
+
+                removeDeviceFromQueue(device);
                 return;
             }
 
@@ -359,7 +363,31 @@ public class DeviceManager {
             }
             boolean isBusy = device.setBusy(false);
             if (!isBusy) notifyDeviceUpdated(device);
+            removeDeviceFromQueue(device);
         });
+    }
+
+    /**
+     * prevent multiple fetches for same device
+     *
+     * @return true if added to queue and false if already queued
+     */
+    private boolean addDeviceToQueue(Device device) {
+        synchronized (queuedDetailList) {
+            // don't queue if already queued
+            if (queuedDetailList.contains(device.serial)) {
+                log.debug("addDeviceToQueue: ALREADY_QUEUED: {}", device.getDisplayName());
+                return false;
+            }
+            queuedDetailList.add(device.serial);
+        }
+        return true;
+    }
+
+    private void removeDeviceFromQueue(Device device) {
+        synchronized (queuedDetailList) {
+            queuedDetailList.remove(device.serial);
+        }
     }
 
     private void notifyDeviceUpdated(Device device) {
@@ -418,61 +446,102 @@ public class DeviceManager {
 
     private void fetchCustomColumns(Device device) {
         List<String> entryList = SettingsDialog.getCustomColumns();
-        int beforeSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
-        for (String entry : entryList) {
-            if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
-            String[] entryArr = entry.split(":", 3);
-            String label = entryArr.length >= 1 ? entryArr[0].trim() : entry;
-            String type = entryArr.length >= 2 ? entryArr[1].trim() : CUSTOM_KEY_VERSION;
-            String val = entryArr.length >= 3 ? entryArr[2].trim() : null;
+        if (entryList.isEmpty()) return;
 
-            //log.trace("fetchCustomColumns: label:{}, type:{}, val:{}", label, type, val);
+        // schedule these commands to be run after all other device details are fetched
+        scheduledExecutorService.submit(() -> {
+            Timer timer = new Timer();
+            device.setBusy(true);
+            notifyDeviceUpdated(device);
+            int beforeSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
 
-            String value = null;
-            if (TextUtils.equalsIgnoreCase(type, CUSTOM_KEY_VERSION)) {
-                value = getAppVersion(device, val);
-            } else if (TextUtils.equalsIgnoreCase(type, CUSTOM_KEY_PROP)) {
-                ShellResult result = runShell(device, "getprop " + val);
-                //log.trace("fetchCustomColumns: {} -> {}", val, result);
-                if (result.isSuccess) {
-                    value = result.getResult(0);
-                }
-            } else if (TextUtils.equalsIgnoreCase(type, CUSTOM_KEY_QUERY)) {
-                //  adb shell content query --uri content://com.test.provider/queryForValue
-                //  Row: 0 key=value, key=value, key=value
-                ShellResult result = runShell(device, "content query --uri " + val);
-                if (result.isSuccess) {
-                    String line1 = result.getResult(0);
-                    // key=value, key=value, key=value
-                    int pos = TextUtils.indexOf(line1, QUERY_ROW_0);
+            // cache results from same/similar query URL
+            Map<String, String> queryCache = new HashMap<>();
+
+            for (String entry : entryList) {
+                if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
+                String[] entryArr = entry.split(":", 3);
+                String label = entryArr.length >= 1 ? entryArr[0].trim() : entry;
+                String type = entryArr.length >= 2 ? entryArr[1].trim() : CUSTOM_KEY_VERSION;
+                String val = entryArr.length >= 3 ? entryArr[2].trim() : null;
+
+                log.trace("fetchCustomColumns: label:{}, type:{}, val:{}", label, type, val);
+
+                String value = null;
+                if (TextUtils.equalsIgnoreCase(type, CUSTOM_KEY_VERSION)) {
+                    value = getAppVersion(device, val);
+                } else if (TextUtils.equalsIgnoreCase(type, CUSTOM_KEY_PROP)) {
+                    ShellResult result = runShell(device, "getprop " + val);
+                    //log.trace("fetchCustomColumns: {} -> {}", val, result);
+                    if (result.isSuccess) {
+                        value = result.getResult(0);
+                    }
+                } else if (TextUtils.equalsIgnoreCase(type, CUSTOM_KEY_QUERY)) {
+                    String baseUrl = val;
+                    String searchFor = null;
+                    // allow for more complex queries like: "content://com.test.app/query#key"
+                    int pos = TextUtils.indexOf(val, "#");
                     if (pos >= 0) {
-                        // remove "Row: 0 "
-                        line1 = line1.substring(pos + QUERY_ROW_0.length());
-                        String[] pairs = line1.split(",");
-                        for (String pair : pairs) {
-                            pair = pair.trim();
-                            String[] keyValue = pair.split("=", 2);
-                            if (keyValue.length == 2) {
-                                //String key = keyValue[0].trim();
-                                value = keyValue[1].trim();
+                        baseUrl = val.substring(0, pos).trim();
+                        searchFor = val.substring(pos + 1).trim();
+                    }
+                    String line = null;
+                    if (!queryCache.containsKey(baseUrl)) {
+                        //  adb shell content query --uri content://com.test.provider/queryForValue
+                        //  Row: 0 key=value, key=value, key=value
+                        ShellResult result = runShell(device, "content query --uri " + baseUrl);
+                        if (result.isSuccess) {
+                            line = result.getResult(0);
+                            // key=value, key=value, key=value
+                            pos = TextUtils.indexOf(line, QUERY_ROW_0);
+                            if (pos >= 0) {
+                                // remove "Row: 0 "
+                                line = line.substring(pos + QUERY_ROW_0.length());
+                                queryCache.put(baseUrl, line);
+                            }
+                        }
+                    } else {
+                        line = queryCache.get(baseUrl);
+                    }
+                    if (line == null) {
+                        log.error("fetchCustomColumns: NOT_FOUND: {}, {}", baseUrl, device.getDisplayName());
+                        continue;
+                    }
+
+                    //log.trace("fetchCustomColumns: {}", line);
+                    String[] pairs = line.split(",");
+                    for (String pair : pairs) {
+                        pair = pair.trim();
+                        String[] keyValue = pair.split("=", 2);
+                        if (keyValue.length == 2) {
+                            String key = keyValue[0].trim();
+                            String valueForKey = keyValue[1].trim();
+                            if (searchFor != null && TextUtils.equalsIgnoreCase(key, searchFor)) {
+                                value = valueForKey;
+                                break;
+                            } else if (searchFor == null) {
+                                value = valueForKey;
+                                break;
                             }
                         }
                     }
+                } else {
+                    log.trace("fetchCustomColumns: unknown type:{}", type);
                 }
-            } else {
-                log.trace("fetchCustomColumns: unknown type:{}", type);
-            }
 
-            if (value != null) {
-                if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
-                device.customAppVersionList.put(label, value);
-                notifyDeviceUpdated(device);
+                if (value != null) {
+                    if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
+                    device.customAppVersionList.put(label, value);
+                    notifyDeviceUpdated(device);
+                }
             }
-        }
-        int afterSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
-        if (beforeSize != afterSize) {
-            log.trace("fetchCustomColumns: {}", GsonHelper.toJson(device.customAppVersionList));
-        }
+            int afterSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
+            if (beforeSize != afterSize) {
+                log.trace("fetchCustomColumns: {}, {}", timer, GsonHelper.toJson(device.customAppVersionList));
+            }
+            device.setBusy(false);
+            notifyDeviceUpdated(device);
+        });
     }
 
     private void fetchFreeDiskSpace(Device device) {
