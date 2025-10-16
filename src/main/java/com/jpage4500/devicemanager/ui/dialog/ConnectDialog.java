@@ -4,10 +4,13 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
+import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
+import io.resourcepool.ssdp.client.SsdpClient;
+import io.resourcepool.ssdp.model.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +21,7 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.net.InetAddress;
 import java.util.List;
 
 import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
@@ -28,6 +32,10 @@ public class ConnectDialog extends JPanel {
     private JButton okButton;
     private HintTextField serverField;
     private HintTextField portField;
+    private JList<String> deviceList;
+    private DefaultListModel<String> deviceListModel;
+    private HoverLabel scanButton;
+    private SsdpClient ssdpClient;
 
     // used to persist the most recent X wireless devices
     private static class WirelessDevice {
@@ -42,8 +50,11 @@ public class ConnectDialog extends JPanel {
         JButton cancelButton = DialogHelper.createDialogButton("Cancel");
 
         int rc = JOptionPane.showOptionDialog(frame, dialog, "Connect to device", JOptionPane.DEFAULT_OPTION,
-                JOptionPane.PLAIN_MESSAGE, null, new Object[]{dialog.okButton, cancelButton}, dialog.okButton);
-        boolean isOk = (rc == JOptionPane.YES_OPTION);
+            JOptionPane.PLAIN_MESSAGE, null, new Object[]{dialog.okButton, cancelButton}, dialog.okButton);
+        boolean isOk = (rc != JOptionPane.CLOSED_OPTION && rc != JOptionPane.CANCEL_OPTION);
+
+        dialog.stopDevicesScan();
+
         if (!isOk) return;
 
         String ip = dialog.serverField.getCleanText();
@@ -77,7 +88,7 @@ public class ConnectDialog extends JPanel {
 
         List<Device> connectedDeviceList = DeviceManager.getInstance().getDevices();
 
-        DefaultListModel<String> listModel = new DefaultListModel<>();
+        deviceListModel = new DefaultListModel<>();
         for (WirelessDevice device : recentDeviceList) {
             // only show devices that aren't currently connected
             boolean isConnected = false;
@@ -93,23 +104,24 @@ public class ConnectDialog extends JPanel {
             if (TextUtils.notEmpty(device.nickname)) label += device.nickname;
             else label += device.model;
             label += " - " + device.serial;
-            listModel.addElement(label);
+            deviceListModel.addElement(label);
         }
-        JList<String> list = new JList<>(listModel);
-        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        list.setCellRenderer(new AlternatingBackgroundColorRenderer());
-        int displayRows = listModel.size();
+
+        deviceList = new JList<>(deviceListModel);
+        deviceList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        deviceList.setCellRenderer(new AlternatingBackgroundColorRenderer());
+        int displayRows = deviceListModel.size();
         if (displayRows > 6) displayRows = 6;
         else if (displayRows < 3) displayRows = 3;
-        list.setVisibleRowCount(displayRows);
-        list.addFocusListener(new FocusAdapter() {
+        deviceList.setVisibleRowCount(displayRows);
+        deviceList.addFocusListener(new FocusAdapter() {
             public void focusLost(FocusEvent e) {
                 JList list = (JList) e.getComponent();
                 list.clearSelection();
             }
         });
 
-        JScrollPane scroll = new JScrollPane(list);
+        JScrollPane scroll = new JScrollPane(deviceList);
         add(scroll, "growx, span 2, wrap");
 
         add(new JSeparator(), "growx, spanx, wrap");
@@ -145,25 +157,25 @@ public class ConnectDialog extends JPanel {
         serverField.setHorizontalAlignment(SwingConstants.RIGHT);
         portField.setHorizontalAlignment(SwingConstants.RIGHT);
 
-        list.addListSelectionListener(e -> {
-            int selectedIndex = list.getSelectedIndex();
+        deviceList.addListSelectionListener(e -> {
+            int selectedIndex = deviceList.getSelectedIndex();
             if (selectedIndex == -1) return;
             WirelessDevice selectedDevice = recentDeviceList.get(selectedIndex);
             int pos = selectedDevice.serial.indexOf(':');
             serverField.setText(selectedDevice.serial.substring(0, pos));
             portField.setText(selectedDevice.serial.substring(pos + 1));
         });
-        list.addKeyListener(new KeyAdapter() {
+        deviceList.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                int selectedIndex = list.getSelectedIndex();
+                int selectedIndex = deviceList.getSelectedIndex();
                 if (selectedIndex == -1) return;
                 switch (e.getExtendedKeyCode()) {
                     case KeyEvent.VK_DELETE:
                     case KeyEvent.VK_BACK_SPACE:
                         WirelessDevice selectedDevice = recentDeviceList.get(selectedIndex);
                         log.debug("keyPressed: remove index:{}, device:{}", selectedIndex, GsonHelper.toJson(selectedDevice));
-                        listModel.remove(selectedIndex);
+                        deviceListModel.remove(selectedIndex);
                         removeWirelessDevice(selectedDevice);
                         break;
                 }
@@ -175,6 +187,62 @@ public class ConnectDialog extends JPanel {
 
         add(new JLabel("Port"), "");
         add(portField, "al right, width 100:150, wrap");
+
+        scanButton = new HoverLabel("Scan for devices");
+        scanButton.setForeground(Color.BLUE);
+        scanButton.addActionListener(e -> startDevicesScan());
+        add(scanButton, "gaptop 5, span 2");
+    }
+
+    private void startDevicesScan() {
+        if (ssdpClient != null) {
+            stopDevicesScan();
+            return;
+        }
+        ssdpClient = SsdpClient.create();
+        DiscoveryRequest all = SsdpRequest.discoverAll();
+        ssdpClient.discoverServices(all, new DiscoveryListener() {
+            @Override
+            public void onServiceDiscovered(SsdpService service) {
+                log.trace("onServiceDiscovered: found: {}", service);
+                InetAddress remoteIp = service.getRemoteIp();
+                String serviceType = service.getServiceType();
+                if (remoteIp != null && TextUtils.containsAny(serviceType, true, "android", "shield")) {
+                    String hostName = remoteIp.getHostName();
+                    boolean isFound = false;
+                    for (int i = 0; i < deviceListModel.getSize(); i++) {
+                        String label = deviceListModel.getElementAt(i);
+                        if (TextUtils.contains(label, hostName)) {
+                            isFound = true;
+                            break;
+                        }
+                    }
+                    if (!isFound) {
+                        String entry = "SSDP - " + hostName + ":5555";
+                        deviceListModel.addElement(entry);
+                    }
+                }
+            }
+
+            @Override
+            public void onServiceAnnouncement(SsdpServiceAnnouncement announcement) {
+                log.trace("onServiceAnnouncement: {}", announcement);
+            }
+
+            @Override
+            public void onFailed(Exception e) {
+                log.trace("onFailed: {}", e.getMessage());
+            }
+        });
+        scanButton.setText("Stop Scanning");
+    }
+
+    private void stopDevicesScan() {
+        if (ssdpClient != null) {
+            ssdpClient.stopDiscovery();
+            ssdpClient = null;
+            scanButton.setText("Scan for devices");
+        }
     }
 
     private void enableOkButton() {
@@ -223,4 +291,3 @@ public class ConnectDialog extends JPanel {
         PreferenceUtils.setPreference(Pref.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
     }
 }
-
