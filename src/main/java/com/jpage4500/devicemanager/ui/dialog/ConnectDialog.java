@@ -35,7 +35,10 @@ public class ConnectDialog extends JPanel {
     private JList<String> deviceList;
     private DefaultListModel<String> deviceListModel;
     private HoverLabel scanButton;
+
     private SsdpClient ssdpClient;
+    private Timer scanTimer;
+    private int scanDots = 0;
 
     // used to persist the most recent X wireless devices
     private static class WirelessDevice {
@@ -235,6 +238,14 @@ public class ConnectDialog extends JPanel {
             }
         });
         scanButton.setText("Stop Scanning");
+        scanDots = 0;
+        scanTimer = new Timer(500, e -> {
+            scanDots = (scanDots + 1) % 5;
+            StringBuilder label = new StringBuilder("Stop Scanning");
+            for (int i = 0; i < scanDots; i++) label.append(".");
+            scanButton.setText(label.toString());
+        });
+        scanTimer.start();
     }
 
     private void stopDevicesScan() {
@@ -242,6 +253,10 @@ public class ConnectDialog extends JPanel {
             ssdpClient.stopDiscovery();
             ssdpClient = null;
             scanButton.setText("Scan for devices");
+        }
+        if (scanTimer != null) {
+            scanTimer.stop();
+            scanTimer = null;
         }
     }
 
