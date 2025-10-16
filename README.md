@@ -1,7 +1,7 @@
-# AndroidDeviceManager
+# Android Device Manager
 
 ## Description ##
-Java desktop app to manage multiple Android devices via adb
+Android Device Manager is a desktop app which can manage one or more Android devices
 
 ## Features ##
 - View all connected (and wireless) devices
