@@ -58,6 +58,13 @@
             <artifactId>httpclient</artifactId>
             <version>4.5.14</version>
         </dependency>
+        <!-- SSDP client - search for devices on network -->
+        <!-- https://mvnrepository.com/artifact/io.resourcepool/ssdp-client -->
+        <dependency>
+            <groupId>io.resourcepool</groupId>
+            <artifactId>ssdp-client</artifactId>
+            <version>2.5.1</version>
+        </dependency>
     </dependencies>
 
     <build>
