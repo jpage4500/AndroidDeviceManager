@@ -14,24 +14,24 @@ import java.awt.image.BufferedImage;
  */
 public class DeviceTilePanel extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(DeviceTilePanel.class);
-    
+
     private static final int DEFAULT_TILE_WIDTH = 200;
     private static final int DEFAULT_TILE_HEIGHT = 150;
     private static final int THUMBNAIL_HEIGHT = 100;
     private static final int BATTERY_ICON_SIZE = 20;
-    
+
     private Device device;
     private JLabel thumbnailLabel;
     private JLabel nameLabel;
     private JLabel batteryLabel;
     private boolean isSelected;
-    
+
     public DeviceTilePanel(Device device) {
         this.device = device;
         initializeComponents();
         updateDeviceInfo();
     }
-    
+
     private void initializeComponents() {
         setLayout(new BorderLayout());
         setPreferredSize(new Dimension(DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT));
@@ -40,7 +40,7 @@ public class DeviceTilePanel extends JPanel {
             BorderFactory.createEmptyBorder(5, 5, 5, 5)
         ));
         setBackground(Color.WHITE);
-        
+
         // Thumbnail area
         thumbnailLabel = new JLabel();
         thumbnailLabel.setPreferredSize(new Dimension(DEFAULT_TILE_WIDTH - 10, THUMBNAIL_HEIGHT));
@@ -49,28 +49,28 @@ public class DeviceTilePanel extends JPanel {
         thumbnailLabel.setOpaque(true);
         thumbnailLabel.setBackground(Color.LIGHT_GRAY);
         add(thumbnailLabel, BorderLayout.CENTER);
-        
+
         // Bottom panel with name and battery
         JPanel bottomPanel = new JPanel(new BorderLayout());
         bottomPanel.setOpaque(false);
-        
+
         // Device name
         nameLabel = new JLabel();
         nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD));
         nameLabel.setHorizontalAlignment(SwingConstants.CENTER);
         bottomPanel.add(nameLabel, BorderLayout.CENTER);
-        
+
         // Battery indicator (bottom-left overlay)
         batteryLabel = new JLabel();
         batteryLabel.setPreferredSize(new Dimension(BATTERY_ICON_SIZE, BATTERY_ICON_SIZE));
         bottomPanel.add(batteryLabel, BorderLayout.WEST);
-        
+
         add(bottomPanel, BorderLayout.SOUTH);
-        
+
         // Add busy indicator overlay
         setupBusyIndicator();
     }
-    
+
     private void setupBusyIndicator() {
         // Add a busy indicator that can be shown/hidden
         JLabel busyLabel = new JLabel();
@@ -83,35 +83,35 @@ public class DeviceTilePanel extends JPanel {
         busyLabel.setName("busyIndicator");
         add(busyLabel, BorderLayout.CENTER);
     }
-    
+
     public void updateDeviceInfo() {
         if (device == null) return;
-        
+
         SwingUtilities.invokeLater(() -> {
             // Update thumbnail
             updateThumbnail();
-            
+
             // Update device name
             String displayName = device.getDisplayName();
             if (displayName.length() > 25) {
                 displayName = displayName.substring(0, 22) + "...";
             }
             nameLabel.setText(displayName);
-            
+
             // Update battery indicator
             updateBatteryIndicator();
-            
+
             // Update busy state
             updateBusyState();
-            
+
             // Update selection state
             updateSelectionState();
         });
     }
-    
+
     private void updateThumbnail() {
         BufferedImage thumbnail = null;
-        
+
         // Try to use preview image if available
         if (device.previewImage != null) {
             thumbnail = device.previewImage;
@@ -119,7 +119,7 @@ public class DeviceTilePanel extends JPanel {
             // Use device icon as placeholder
             thumbnail = UiUtils.getImage("android.png", DEFAULT_TILE_WIDTH - 20, THUMBNAIL_HEIGHT - 20);
         }
-        
+
         if (thumbnail != null) {
             thumbnailLabel.setIcon(new ImageIcon(thumbnail));
         } else {
@@ -127,7 +127,7 @@ public class DeviceTilePanel extends JPanel {
             thumbnailLabel.setText("No Image");
         }
     }
-    
+
     private void updateBatteryIndicator() {
         if (device.batteryLevel != null) {
             String level = null;
@@ -135,9 +135,9 @@ public class DeviceTilePanel extends JPanel {
             else if (device.batteryLevel > 50) level = "battery_level3.png";
             else if (device.batteryLevel > 25) level = "battery_level2.png";
             else level = "battery_level1.png";
-            
+
             boolean isCharging = (device.powerStatus != Device.PowerStatus.POWER_NONE);
-            
+
             // Reuse the charging icon logic from DeviceCellRenderer
             Icon batteryIcon = getChargingIcon(level, isCharging);
             batteryLabel.setIcon(batteryIcon);
@@ -146,10 +146,10 @@ public class DeviceTilePanel extends JPanel {
             batteryLabel.setVisible(false);
         }
     }
-    
+
     private Icon getChargingIcon(String level, boolean isCharging) {
         if (level == null) return null;
-        
+
         Icon levelIcon = UiUtils.getImageIcon(level, BATTERY_ICON_SIZE);
         if (isCharging) {
             Icon chargingIcon = UiUtils.getImageIcon("charging.png", BATTERY_ICON_SIZE);
@@ -158,7 +158,7 @@ public class DeviceTilePanel extends JPanel {
             return levelIcon;
         }
     }
-    
+
     private void updateBusyState() {
         Component busyIndicator = null;
         for (Component comp : getComponents()) {
@@ -167,12 +167,12 @@ public class DeviceTilePanel extends JPanel {
                 break;
             }
         }
-        
+
         if (busyIndicator != null) {
             busyIndicator.setVisible(device.isBusy());
         }
     }
-    
+
     private void updateSelectionState() {
         if (isSelected) {
             setBorder(BorderFactory.createCompoundBorder(
@@ -188,27 +188,27 @@ public class DeviceTilePanel extends JPanel {
             setBackground(Color.WHITE);
         }
     }
-    
+
     public void setSelected(boolean selected) {
         this.isSelected = selected;
         updateSelectionState();
     }
-    
+
     public boolean isSelected() {
         return isSelected;
     }
-    
+
     public Device getDevice() {
         return device;
     }
-    
+
     public void setTileSize(int width, int height) {
         setPreferredSize(new Dimension(width, height));
         thumbnailLabel.setPreferredSize(new Dimension(width - 10, THUMBNAIL_HEIGHT));
         revalidate();
         repaint();
     }
-    
+
     public void requestPreviewUpdate() {
         if (device != null && device.isOnline && !device.isBusy()) {
             // Check if preview is stale (older than 5 seconds)
@@ -219,19 +219,19 @@ public class DeviceTilePanel extends JPanel {
             }
         }
     }
-    
+
     /**
      * Simple icon combiner for battery + charging overlay
      */
     private static class ComboIcon implements Icon {
         private final Icon baseIcon;
         private final Icon overlayIcon;
-        
+
         public ComboIcon(Icon baseIcon, Icon overlayIcon) {
             this.baseIcon = baseIcon;
             this.overlayIcon = overlayIcon;
         }
-        
+
         @Override
         public void paintIcon(Component c, Graphics g, int x, int y) {
             if (baseIcon != null) {
@@ -244,12 +244,12 @@ public class DeviceTilePanel extends JPanel {
                 overlayIcon.paintIcon(c, g, overlayX, overlayY);
             }
         }
-        
+
         @Override
         public int getIconWidth() {
             return baseIcon != null ? baseIcon.getIconWidth() : 0;
         }
-        
+
         @Override
         public int getIconHeight() {
             return baseIcon != null ? baseIcon.getIconHeight() : 0;

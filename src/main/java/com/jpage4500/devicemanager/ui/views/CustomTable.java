@@ -31,10 +31,7 @@ public class CustomTable extends JTable {
 
     private int selectedColumn = -1;
 
-    private boolean showBackground;
-    private String emptyText;
-    private Image emptyImage;
-    private Font emptyTextFont;
+    private EmptyView emptyView;
 
     public interface DoubleClickListener {
         /**
@@ -76,7 +73,8 @@ public class CustomTable extends JTable {
         setOpaque(false);
         setBackground(Colors.COLOR_BACKGROUND);
 
-        showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
+        emptyView = new EmptyView();
+        emptyView.setShowBackground(PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true));
 
         createScrollPane();
 
@@ -152,8 +150,7 @@ public class CustomTable extends JTable {
     }
 
     public void setEmptyText(String emptyText) {
-        this.emptyText = emptyText;
-        emptyImage = UiUtils.getImage("empty_image.png", 500);
+        emptyView.setEmptyText(emptyText);
     }
 
     @Override
@@ -167,40 +164,8 @@ public class CustomTable extends JTable {
             @Override
             public void paint(Graphics graphics) {
                 super.paint(graphics);
-                if (emptyImage != null && showBackground) {
-                    int headerH = getTableHeader().getHeight();
-                    int width = getWidth();
-                    int imgW = emptyImage.getWidth(null);
-                    int imgH = emptyImage.getHeight(null);
-                    double aspectRatio = width / (double) imgW;
-                    double drawImageH = imgH * aspectRatio;
-                    // make image semi-transparent
-                    Graphics2D g2d = (Graphics2D) graphics.create();
-                    g2d.setComposite(AlphaComposite.SrcOver.derive(0.2f));
-                    g2d.drawImage(emptyImage, 0, headerH, width, (int) drawImageH, null);
-                    g2d.dispose();
-                }
-                if (getRowCount() == 0 && emptyText != null) {
-                    // draw empty text in center
-                    if (emptyTextFont == null) {
-                        emptyTextFont = graphics.getFont().deriveFont(Font.BOLD, 22);
-                    }
-                    graphics.setFont(emptyTextFont);
-                    FontMetrics fontMetrics = graphics.getFontMetrics(emptyTextFont);
-                    int textH = emptyTextFont.getSize() * (fontMetrics.getAscent() + fontMetrics.getDescent()) / fontMetrics.getAscent();
-                    int textW = fontMetrics.stringWidth(emptyText);
-                    int width = getWidth();
-                    int height = getHeight();
-                    int headerH = getTableHeader().getHeight();
-                    int x = width / 2 - (textW / 2);
-                    int y = (height / 2);
-                    // prevent drawing on top of header
-                    if (y < (headerH * 2)) y = headerH * 2;
-                    // don't draw if no available space
-                    if (x >= 0 && y >= 0 && (height - headerH > textH)) {
-                        graphics.drawString(emptyText, x, y);
-                    }
-                }
+                emptyView.setEmptyText(getRowCount() == 0 ? "No Devices" : null);
+                emptyView.paint(graphics, getWidth(), getHeight(), getTableHeader().getHeight());
             }
         };
         scrollPane.setOpaque(false);
@@ -252,7 +217,8 @@ public class CustomTable extends JTable {
         super.setModel(dataModel);
 
         dataModel.addTableModelListener(tableModelEvent -> {
-            showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
+            // table data changed, update empty view
+            emptyView.setShowBackground(PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true));
             scrollPane.repaint();
         });
     }

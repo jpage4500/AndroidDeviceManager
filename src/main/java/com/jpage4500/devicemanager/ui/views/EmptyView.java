@@ -1,64 +1,77 @@
 package com.jpage4500.devicemanager.ui.views;
 
+import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
-import java.io.IOException;
-
-import javax.imageio.ImageIO;
-import javax.swing.*;
 
 /**
  *
  */
-public class EmptyView extends JComponent {
+public class EmptyView {
     private static final Logger log = LoggerFactory.getLogger(EmptyView.class);
 
-    private Image emptyImage;
+    private boolean showBackground;
     private String emptyText;
+    private Image emptyImage;
+    private Font emptyTextFont;
 
-    public EmptyView(String emptyText) {
-        this.emptyText = emptyText;
+    public EmptyView() {
     }
 
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-
-        if (emptyImage == null) {
-            try {
-                emptyImage = ImageIO.read(getClass().getResource("/images/logo.png"));
-            } catch (IOException e) {
-                log.error("paintComponent: {}", e.getMessage());
-            }
-        }
-
-        int w = getWidth();
-        int h = getHeight();
-        int imageW = emptyImage.getWidth(null);
-        int imageH = emptyImage.getHeight(null);
-        int x = w / 2 - (imageW / 2);
-        int y = h / 2 - (imageH / 2);
-        if (imageW <= w && imageH+30 <= h ) {
-            y += 30;
-            g.drawImage(emptyImage, x, y, null);
-            y += imageH;
-        } else {
-            y = h/2;
-        }
-
-        int textW = g.getFontMetrics().stringWidth(emptyText);
-        x = w / 2 - (textW / 2);
-        g.drawString(emptyText, x, y);
+    public void setShowBackground(boolean showBackground) {
+        this.showBackground = showBackground;
     }
 
     public void setEmptyText(String emptyText) {
         this.emptyText = emptyText;
     }
 
-    public void setEmpty(boolean empty) {
-        setVisible(empty);
+    public void setEmptyImage(Image emptyImage) {
+        this.emptyImage = emptyImage;
+    }
+
+    public void setEmptyTextFont(Font emptyTextFont) {
+        this.emptyTextFont = emptyTextFont;
+    }
+
+    public void paint(Graphics graphics, int width, int height, int yOffset) {
+        if (showBackground) {
+            if (emptyImage == null) {
+                emptyImage = UiUtils.getImage("empty_image.png", 500);
+            }
+            if (emptyImage != null) {
+                int imgW = emptyImage.getWidth(null);
+                int imgH = emptyImage.getHeight(null);
+                double aspectRatio = width / (double) imgW;
+                double drawImageH = imgH * aspectRatio;
+                // make image semi-transparent
+                Graphics2D g2d = (Graphics2D) graphics.create();
+                g2d.setComposite(AlphaComposite.SrcOver.derive(0.2f));
+                g2d.drawImage(emptyImage, 0, yOffset, width, (int) drawImageH, null);
+                g2d.dispose();
+            }
+        }
+
+        if (emptyText != null) {
+            // draw empty text in center
+            if (emptyTextFont == null) {
+                emptyTextFont = graphics.getFont().deriveFont(Font.BOLD, 22);
+            }
+            graphics.setFont(emptyTextFont);
+            FontMetrics fontMetrics = graphics.getFontMetrics(emptyTextFont);
+            int textH = emptyTextFont.getSize() * (fontMetrics.getAscent() + fontMetrics.getDescent()) / fontMetrics.getAscent();
+            int textW = fontMetrics.stringWidth(emptyText);
+            int x = width / 2 - (textW / 2);
+            int y = (height / 2);
+            // prevent drawing on top of header
+            if (y < (yOffset * 2)) y = yOffset * 2;
+            // don't draw if no available space
+            if (x >= 0 && y >= 0 && (height - yOffset > textH)) {
+                graphics.drawString(emptyText, x, y);
+            }
+        }
     }
 
 }
