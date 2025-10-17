@@ -14,6 +14,7 @@ import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
+import com.jpage4500.devicemanager.ui.views.DeviceGridPanel;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.ui.views.TrayMenuItem;
@@ -61,11 +62,18 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private HintTextField filterTextField;
     private JPopupMenu trayPopupMenu;
 
+    // Grid view components
+    private JButton gridViewButton;
+    private DeviceGridPanel gridPanel;
+    private CardLayout viewLayout;
+    private JPanel viewContainer;
+
     // status bar items
     private HoverLabel updateLabel;         // update
     private HoverLabel versionLabel;        // version
     private HoverLabel memoryLabel;
     private JLabel countLabel;             // total devices
+    private JSlider tileSizeSlider;       // grid view tile size
 
     private boolean hasSelectedDevice;
     // update checking
@@ -88,6 +96,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         connectAdbServer();
 
         scheduleUpdateChecks();
+
+        // Schedule periodic preview updates if enabled
+        schedulePreviewUpdates();
     }
 
     public void scheduleUpdateChecks() {
@@ -115,10 +126,21 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         setupToolbar();
         panel.add(toolbar, BorderLayout.NORTH);
 
-        // -- table --
+        // -- view container with CardLayout --
+        viewLayout = new CardLayout();
+        viewContainer = new JPanel(viewLayout);
+
+        // -- table view --
         table = new CustomTable(PREF_KEY_DEVICES);
         setupTable();
-        panel.add(table.getScrollPane(), BorderLayout.CENTER);
+        viewContainer.add(table.getScrollPane(), "table");
+
+        // -- grid view --
+        gridPanel = new DeviceGridPanel();
+        setupGridPanel();
+        viewContainer.add(gridPanel, "grid");
+
+        panel.add(viewContainer, BorderLayout.CENTER);
 
         // -- statusbar --
         setupStatusBar(panel);
@@ -130,7 +152,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         setVisible(true);
 
         refreshUi();
-        table.requestFocus();
+
+        // Set initial view mode
+        switchViewMode(PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_GRID_VIEW, false));
 
         if (Desktop.isDesktopSupported()) {
             Desktop desktop = Desktop.getDesktop();
@@ -215,10 +239,29 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         statusBar.add(leftPanel, BorderLayout.WEST);
 
+        // right panel with count and tile size slider
+        JPanel rightPanel = new JPanel(new BorderLayout());
+        UiUtils.setEmptyBorder(rightPanel, 0, 0);
+
+        // tile size slider (only visible in grid mode)
+        tileSizeSlider = new JSlider(120, 400, PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_GRID_TILE_SIZE, 200));
+        tileSizeSlider.setPreferredSize(new Dimension(100, 20));
+        tileSizeSlider.setVisible(false);
+        tileSizeSlider.addChangeListener(e -> {
+            if (!tileSizeSlider.getValueIsAdjusting()) {
+                int size = tileSizeSlider.getValue();
+                PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_GRID_TILE_SIZE, size);
+                gridPanel.setTileSize(size);
+            }
+        });
+        rightPanel.add(tileSizeSlider, BorderLayout.WEST);
+
         // count
         countLabel = new JLabel();
         UiUtils.setEmptyBorder(countLabel);
-        statusBar.add(countLabel, BorderLayout.EAST);
+        rightPanel.add(countLabel, BorderLayout.EAST);
+
+        statusBar.add(rightPanel, BorderLayout.EAST);
 
         panel.add(statusBar, BorderLayout.SOUTH);
     }
@@ -268,6 +311,73 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         menubar.add(windowMenu);
         menubar.add(deviceMenu);
         setJMenuBar(menubar);
+    }
+
+    private void setupGridPanel() {
+        // Add property change listeners for grid panel events
+        gridPanel.addPropertyChangeListener("browseDevice", evt -> {
+            Device device = (Device) evt.getNewValue();
+            if (device != null) {
+                handleBrowseCommand(device);
+            }
+        });
+
+        gridPanel.addPropertyChangeListener("showContextMenu", evt -> {
+            DeviceGridPanel.ContextMenuEvent event = (DeviceGridPanel.ContextMenuEvent) evt.getNewValue();
+            if (event != null) {
+                showDeviceContextMenu(event.tilePanel.getDevice(), event.x, event.y);
+            }
+        });
+
+        gridPanel.addPropertyChangeListener("requestPreview", evt -> {
+            Device device = (Device) evt.getNewValue();
+            if (device != null && PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_GRID_SHOW_PREVIEWS, false)) {
+                DeviceManager.getInstance().captureScreenshotPreview(device, (isSuccess, error) -> {
+                    if (isSuccess) {
+                        gridPanel.updateDevice(device);
+                    }
+                });
+            }
+        });
+    }
+
+    private void switchViewMode(boolean isGridView) {
+        //gridViewButton.setSelected(isGridView);
+        if (isGridView) {
+            viewLayout.show(viewContainer, "grid");
+            tileSizeSlider.setVisible(true);
+            // Sync device list to grid
+            List<Device> devices = DeviceManager.getInstance().getDevices();
+            gridPanel.setDevices(devices);
+            gridViewButton.setIcon(UiUtils.getImageIcon("icon_list.png", UiUtils.IMG_SIZE_TOOLBAR));
+            gridViewButton.setText("List View");
+        } else {
+            gridViewButton.setIcon(UiUtils.getImageIcon("icon_grid.png", UiUtils.IMG_SIZE_TOOLBAR));
+            gridViewButton.setText("Grid View");
+            viewLayout.show(viewContainer, "table");
+            tileSizeSlider.setVisible(false);
+            table.requestFocus();
+        }
+    }
+
+    public void schedulePreviewUpdates() {
+        if (updateExecutorService != null) {
+            // Schedule preview updates every 5 seconds if enabled
+            updateExecutorService.scheduleAtFixedRate(() -> {
+                if (PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_GRID_SHOW_PREVIEWS, false)) {
+                    List<Device> devices = DeviceManager.getInstance().getDevices();
+                    for (Device device : devices) {
+                        if (device.isOnline && !device.isBusy()) {
+                            DeviceManager.getInstance().captureScreenshotPreview(device, (isSuccess, error) -> {
+                                if (isSuccess) {
+                                    SwingUtilities.invokeLater(() -> gridPanel.updateDevice(device));
+                                }
+                            });
+                        }
+                    }
+                }
+            }, 5, 5, TimeUnit.SECONDS);
+        }
     }
 
     private void hideToolbar() {
@@ -509,6 +619,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             if (deviceList != null) {
                 model.setDeviceList(deviceList);
 
+                // Update grid view
+                gridPanel.setDevices(deviceList);
+
                 // auto-select first device
                 if (!hasSelectedDevice && !deviceList.isEmpty() && table.getSelectedRow() == -1) {
                     table.changeSelection(0, 0, false, false);
@@ -528,6 +641,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public void handleDeviceUpdated(Device device) {
         SwingUtilities.invokeLater(() -> {
             model.updateDevice(device);
+            gridPanel.updateDevice(device);
             updateDeviceState(device);
             sorter.sort();
         });
@@ -718,6 +832,30 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
             });
         }
+    }
+
+    private void showDeviceContextMenu(Device device, int x, int y) {
+        // Reuse the existing table context menu logic
+        JPopupMenu popupMenu = new JPopupMenu();
+
+        if (device.isOnline) {
+            UiUtils.addPopupMenuItem(popupMenu, "Device Details", actionEvent -> handleDeviceDetails(device));
+            UiUtils.addPopupMenuItem(popupMenu, "Mirror Device", actionEvent -> handleMirrorCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Record Device", actionEvent -> handleRecordCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Capture Screenshot", actionEvent -> handleScreenshotCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Restart Device", actionEvent -> handleRestartCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Open Terminal", actionEvent -> handleTermCommand());
+
+            if (device.isWireless()) {
+                popupMenu.addSeparator();
+                UiUtils.addPopupMenuItem(popupMenu, "Disconnect", actionEvent -> handleDisconnect(device));
+            }
+        }
+
+        popupMenu.addSeparator();
+        UiUtils.addPopupMenuItem(popupMenu, "Remove Device", actionEvent -> handleRemoveDevice(device));
+
+        popupMenu.show(gridPanel, x, y);
     }
 
     /**
@@ -1109,6 +1247,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         SCRIPTS("icon_custom.png", "Scripts", "Run custom scripts"),
         FILTER(null, "Filter", "Filter devices..."),
         REFRESH("icon_refresh.png", "Refresh", "Refresh Devices"),
+        GRID_VIEW("icon_grid.png", "Grid View", "Grid View"),
         SETTINGS("icon_settings.png", "Settings", "Settings"),
         ;
 
@@ -1151,6 +1290,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JButton inputBtn = createToolbarButton(toolbar, ToolbarButton.INPUT, actionEvent -> handleInputCommand());
 
         if (browseBtn != null || viewLogsBtn != null || inputBtn != null || saveLogsBtn != null) toolbar.addSeparator();
+
+        gridViewButton = createToolbarButton(toolbar, ToolbarButton.GRID_VIEW, actionEvent -> toggleGridView());
 
         JButton mirrorBtn = createToolbarButton(toolbar, ToolbarButton.MIRROR, actionEvent -> handleMirrorCommand());
 
@@ -1217,6 +1358,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         });
 
         return button;
+    }
+
+    private void toggleGridView() {
+        boolean currentMode = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_GRID_VIEW, false);
+        boolean newMode = !currentMode;
+
+        PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_GRID_VIEW, newMode);
+        switchViewMode(newMode);
     }
 
     private boolean isToobarHidden(ToolbarButton toolbarButton) {

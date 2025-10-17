@@ -42,10 +42,12 @@ public class PreferenceUtils {
         PREF_EXIT_TO_TRAY,
         PREF_DEVICE_AUTO_RESIZE,
         PREF_LOGS_AUTO_RESIZE,
+        PREF_DEVICE_GRID_VIEW,
+        PREF_GRID_SHOW_PREVIEWS,
     }
 
     /**
-     * Boolean value preferences
+     * Integer value preferences
      */
     public enum PrefInt {
         PREF_LOG_LEVEL,
@@ -55,6 +57,8 @@ public class PreferenceUtils {
         PREF_LOGS_FONT_STYLE,
         PREF_LOGS_MAX_LINES,
         PREF_REFRESH_TIME_MINS,
+        PREF_GRID_TILE_SIZE,
+        PREF_GRID_PREVIEW_INTERVAL,
     }
 
     public static String getPreference(Pref pref) {

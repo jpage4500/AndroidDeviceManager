@@ -44,6 +44,7 @@ public class SettingsDialog extends JPanel {
         UiUtils.addSettingButton(devicePanel, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen, this));
         UiUtils.addSettingButton(devicePanel, "Custom Columns", "EDIT", this::showAppsSettings);
         UiUtils.addSettingButton(devicePanel, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen, this));
+        UiUtils.addSettingButton(devicePanel, "Grid View Settings", "EDIT", this::showGridViewSettings);
         add(devicePanel, "growx, wrap");
 
         JPanel logPanel = UiUtils.createPanel("Log Settings");
@@ -364,6 +365,42 @@ public class SettingsDialog extends JPanel {
 //        if (result != null) {
 //            preferences.put(ExploreView.PREF_DOWNLOAD_FOLDER, result);
 //        }
+    }
+
+    private void showGridViewSettings() {
+        JPanel panel = new JPanel(new MigLayout());
+        
+        // Show live previews checkbox
+        JCheckBox showPreviewsCheckbox = new JCheckBox("Show live screencap previews");
+        showPreviewsCheckbox.setSelected(PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_GRID_SHOW_PREVIEWS, false));
+        panel.add(showPreviewsCheckbox, "wrap");
+        
+        // Preview refresh interval
+        JLabel intervalLabel = new JLabel("Preview refresh interval (seconds):");
+        panel.add(intervalLabel);
+        
+        JSpinner intervalSpinner = new JSpinner(new SpinnerNumberModel(
+            PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_GRID_PREVIEW_INTERVAL, 5), 
+            1, 60, 1));
+        panel.add(intervalSpinner, "wrap");
+        
+        // Default tile size
+        JLabel tileSizeLabel = new JLabel("Default tile size:");
+        panel.add(tileSizeLabel);
+        
+        JSpinner tileSizeSpinner = new JSpinner(new SpinnerNumberModel(
+            PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_GRID_TILE_SIZE, 200), 
+            120, 400, 10));
+        panel.add(tileSizeSpinner, "wrap");
+        
+        int result = JOptionPane.showConfirmDialog(this, panel, "Grid View Settings", 
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        
+        if (result == JOptionPane.OK_OPTION) {
+            PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_GRID_SHOW_PREVIEWS, showPreviewsCheckbox.isSelected());
+            PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_GRID_PREVIEW_INTERVAL, (Integer) intervalSpinner.getValue());
+            PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_GRID_TILE_SIZE, (Integer) tileSizeSpinner.getValue());
+        }
     }
 
 }

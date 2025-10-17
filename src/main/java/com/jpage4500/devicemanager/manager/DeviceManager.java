@@ -12,6 +12,8 @@ import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
 import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -834,6 +836,37 @@ public class DeviceManager {
                 listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("captureScreenshot: {}", e.getMessage());
+                listener.onTaskComplete(false, e.getMessage());
+            }
+        });
+    }
+
+    public void captureScreenshotPreview(Device device, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            try {
+                Timer timer = new Timer();
+                BufferedImage image = device.jadbDevice.screencap();
+                
+                // Scale down to thumbnail size (200px wide)
+                int targetWidth = 200;
+                int targetHeight = (int) (image.getHeight() * (double) targetWidth / image.getWidth());
+                
+                BufferedImage thumbnail = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB);
+                Graphics2D g2d = thumbnail.createGraphics();
+                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2d.drawImage(image, 0, 0, targetWidth, targetHeight, null);
+                g2d.dispose();
+                
+                // Update device with preview image
+                device.previewImage = thumbnail;
+                device.previewTimestamp = System.currentTimeMillis();
+                
+                log.debug("captureScreenshotPreview: DONE:{}, {}x{} -> {}x{}", timer, 
+                    image.getWidth(), image.getHeight(), targetWidth, targetHeight);
+                
+                listener.onTaskComplete(true, null);
+            } catch (Exception e) {
+                log.error("captureScreenshotPreview: {}", e.getMessage());
                 listener.onTaskComplete(false, e.getMessage());
             }
         });

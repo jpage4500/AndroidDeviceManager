@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.utils.ExcludeFromSerialization;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import se.vidstige.jadb.JadbDevice;
 
+import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -70,6 +71,14 @@ public class Device {
 
     @ExcludeFromSerialization
     public JadbDevice jadbDevice;
+
+    // grid view preview image
+    @ExcludeFromSerialization
+    public BufferedImage previewImage;
+    
+    // timestamp when preview was last captured
+    @ExcludeFromSerialization
+    public Long previewTimestamp;
 
     /**
      * @return best available device name
