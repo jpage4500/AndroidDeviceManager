@@ -54,7 +54,7 @@ public class ConnectDialog extends JPanel {
 
         int rc = JOptionPane.showOptionDialog(frame, dialog, "Connect to device", JOptionPane.DEFAULT_OPTION,
             JOptionPane.PLAIN_MESSAGE, null, new Object[]{dialog.okButton, cancelButton}, dialog.okButton);
-        boolean isOk = (rc != JOptionPane.CLOSED_OPTION && rc != JOptionPane.CANCEL_OPTION);
+        boolean isOk = (rc == JOptionPane.OK_OPTION);
 
         dialog.stopDevicesScan();
 
