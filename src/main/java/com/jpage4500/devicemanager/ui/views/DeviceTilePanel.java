@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.ui.views;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
+import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,10 +23,11 @@ public class DeviceTilePanel extends JPanel {
     private static final int BATTERY_ICON_SIZE = 20;
 
     private Device device;
-    private JLabel thumbnailLabel;
     private JLabel nameLabel;
     private JLabel batteryLabel;
     private boolean isSelected;
+
+    private BufferedImage backgroundImage;
 
     public DeviceTilePanel(Device device) {
         this.device = device;
@@ -36,39 +38,36 @@ public class DeviceTilePanel extends JPanel {
     private void initializeComponents() {
         setLayout(new BorderLayout());
         setPreferredSize(new Dimension(DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT));
+
         setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(Color.LIGHT_GRAY, 1),
-            BorderFactory.createEmptyBorder(5, 5, 5, 5)
+            BorderFactory.createEmptyBorder(0, 0, 0, 0)
         ));
         setBackground(Color.WHITE);
 
-        // Thumbnail area
-        thumbnailLabel = new JLabel();
-        thumbnailLabel.setPreferredSize(new Dimension(DEFAULT_TILE_WIDTH - 10, THUMBNAIL_HEIGHT));
-        thumbnailLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        thumbnailLabel.setVerticalAlignment(SwingConstants.CENTER);
-        thumbnailLabel.setOpaque(true);
-        thumbnailLabel.setBackground(Color.RED);
-        add(thumbnailLabel, BorderLayout.CENTER);
+        // Battery icon (top-left)
+        batteryLabel = new JLabel();
+        batteryLabel.setOpaque(false);
+        JPanel topLeftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        topLeftPanel.setOpaque(false);
+        topLeftPanel.add(batteryLabel);
+        add(topLeftPanel, BorderLayout.NORTH);
 
-        // Bottom panel with name and battery
-        JPanel bottomPanel = new JPanel(new BorderLayout());
-        bottomPanel.setOpaque(false);
-
-        // Device name
+        // Device name (bottom center, size to fit text, semi-transparent background)
         nameLabel = new JLabel();
         nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD));
+        nameLabel.setForeground(Color.WHITE);
+        nameLabel.setOpaque(true);
+        nameLabel.setBackground(new Color(0, 0, 0, 128));
         nameLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        bottomPanel.add(nameLabel, BorderLayout.CENTER);
-
-        // Battery indicator (bottom-left overlay)
-        batteryLabel = new JLabel();
-        batteryLabel.setPreferredSize(new Dimension(BATTERY_ICON_SIZE, BATTERY_ICON_SIZE));
-        bottomPanel.add(batteryLabel, BorderLayout.WEST);
-
+        nameLabel.setVerticalAlignment(SwingConstants.BOTTOM);
+        nameLabel.setText(""); // Initial empty text
+        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        bottomPanel.setOpaque(false);
+        bottomPanel.add(nameLabel);
         add(bottomPanel, BorderLayout.SOUTH);
 
-        // Add busy indicator overlay
+        // Add busy indicator overlay (centered)
         setupBusyIndicator();
     }
 
@@ -85,32 +84,38 @@ public class DeviceTilePanel extends JPanel {
         add(busyLabel, BorderLayout.CENTER);
     }
 
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        if (backgroundImage != null) {
+            int panelWidth = getWidth();
+            int panelHeight = getHeight();
+            float imgRatio = (float) backgroundImage.getWidth() / backgroundImage.getHeight();
+            float panelRatio = (float) panelWidth / panelHeight;
+            int drawWidth, drawHeight;
+            if (imgRatio > panelRatio) {
+                drawHeight = panelHeight;
+                drawWidth = (int) (panelHeight * imgRatio);
+            } else {
+                drawWidth = panelWidth;
+                drawHeight = (int) (panelWidth / imgRatio);
+            }
+            int x = (panelWidth - drawWidth) / 2;
+            int y = (panelHeight - drawHeight) / 2;
+            g.drawImage(backgroundImage, x, y, drawWidth, drawHeight, null);
+        }
+    }
+
     public void updateDeviceInfo() {
         if (device == null) return;
-
         SwingUtilities.invokeLater(() -> {
-            // Update thumbnail (this will refresh if preview image changed)
             updateThumbnail();
-
-            // Update device name
-            String displayName = TextUtils.firstValid(device.nickname, device.getProperty(Device.PROP_MODEL));
-            displayName += "\n" + device.serial;
-//            if (displayName.length() > 25) {
-//                displayName = displayName.substring(0, 22) + "...";
-//            }
+            // Center each line of nameLabel text using HTML and <div align='center'>
+            String displayName = "<html><div style='text-align:center;'>" + TextUtils.firstValid(device.nickname, device.getProperty(Device.PROP_MODEL)) + "<br>" + device.serial + "</div></html>";
             nameLabel.setText(displayName);
-
-            // Update battery indicator
             updateBatteryIndicator();
-
-            // Update busy state
             updateBusyState();
-
-            // Update selection state
             updateSelectionState();
-
-            // Force repaint to ensure thumbnail updates are visible
-            thumbnailLabel.repaint();
         });
     }
 
@@ -128,47 +133,11 @@ public class DeviceTilePanel extends JPanel {
         }
 
         if (thumbnail != null) {
-            // Scale the image to fit the thumbnail area properly
-            int targetWidth = thumbnailLabel.getWidth() > 0 ? thumbnailLabel.getWidth() : DEFAULT_TILE_WIDTH - 10;
-            int targetHeight = thumbnailLabel.getHeight() > 0 ? thumbnailLabel.getHeight() : THUMBNAIL_HEIGHT;
-
-            // Only scale if the image is different size than target
-            if (thumbnail.getWidth() != targetWidth || thumbnail.getHeight() != targetHeight) {
-                BufferedImage scaledImage = new BufferedImage(targetWidth, targetHeight, thumbnail.getType());
-                Graphics2D g2d = scaledImage.createGraphics();
-                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-
-                // Fill background first
-                g2d.setColor(Color.WHITE);
-                g2d.fillRect(0, 0, targetWidth, targetHeight);
-
-                // Draw the scaled image
-                g2d.drawImage(thumbnail, 0, 0, targetWidth, targetHeight, null);
-                g2d.dispose();
-                thumbnail = scaledImage;
-            }
-
-            // Create ImageIcon and set it
-            ImageIcon icon = new ImageIcon(thumbnail);
-            thumbnailLabel.setIcon(icon);
-            thumbnailLabel.setText(null); // Clear any text
-
-            // Debug: Save the final thumbnail to see what's being displayed
-//            try {
-//                String debugName = "tile_" + device.serial.replace(":", "_") + "_" + System.currentTimeMillis() + ".png";
-//                File debugFile = new File(System.getProperty("user.home") + "/Downloads", debugName);
-//                javax.imageio.ImageIO.write(thumbnail, "png", debugFile);
-//                log.debug("updateThumbnail: Saved tile debug image to {}", debugFile.getAbsolutePath());
-//            } catch (Exception debugE) {
-//                log.debug("updateThumbnail: Could not save debug image: {}", debugE.getMessage());
-//            }
-
-            // Force the label to repaint
-            thumbnailLabel.repaint();
+            backgroundImage = thumbnail;
+            repaint();
         } else {
-            thumbnailLabel.setIcon(null);
-            thumbnailLabel.setText("No Image");
+            backgroundImage = null;
+            repaint();
         }
     }
 
@@ -227,7 +196,7 @@ public class DeviceTilePanel extends JPanel {
         } else {
             setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Color.LIGHT_GRAY, 1),
-                BorderFactory.createEmptyBorder(5, 5, 5, 5)
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)
             ));
             setBackground(Color.WHITE);
         }
@@ -248,7 +217,6 @@ public class DeviceTilePanel extends JPanel {
 
     public void setTileSize(int width, int height) {
         setPreferredSize(new Dimension(width, height));
-        thumbnailLabel.setPreferredSize(new Dimension(width - 10, THUMBNAIL_HEIGHT));
         revalidate();
         repaint();
     }
@@ -268,7 +236,6 @@ public class DeviceTilePanel extends JPanel {
         // Force refresh the thumbnail when preview image is updated
         SwingUtilities.invokeLater(() -> {
             updateThumbnail();
-            thumbnailLabel.repaint();
             repaint();
         });
     }

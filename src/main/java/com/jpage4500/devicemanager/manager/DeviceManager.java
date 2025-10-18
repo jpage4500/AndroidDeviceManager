@@ -7,6 +7,7 @@ import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.*;
 import com.jpage4500.devicemanager.utils.Timer;
+import net.coobird.thumbnailator.Thumbnails;
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
@@ -842,47 +843,32 @@ public class DeviceManager {
         });
     }
 
+    /**
+     * capture screenshot of device and save back to device.previewImage if successful
+     */
     public void captureScreenshotPreview(Device device, TaskListener listener) {
         commandExecutorService.submit(() -> {
+            // TODO: only capture screen if ON
+            // example: "adb shell dumpsys power | grep mWakefulness"
             try {
                 Timer timer = new Timer();
                 BufferedImage image = device.jadbDevice.screencap();
+                if (UiUtils.isImageAllBlack(image)) {
+                    log.trace("captureScreenshotPreview: screen is OFF {}", device.getDisplayName());
+                    listener.onTaskComplete(false, "Screen is OFF");
+                    return;
+                }
 
                 // Scale down to thumbnail size (200px wide)
                 int targetWidth = 200;
                 int targetHeight = (int) (image.getHeight() * (double) targetWidth / image.getWidth());
 
-                // Create thumbnail with same type as source image
-                BufferedImage thumbnail = new BufferedImage(targetWidth, targetHeight, image.getType());
-                Graphics2D g2d = thumbnail.createGraphics();
-                
-                // Set rendering hints for better quality
-                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
-                // Fill background with white first (in case of transparency issues)
-                g2d.setColor(Color.WHITE);
-                g2d.fillRect(0, 0, targetWidth, targetHeight);
-                
-                // Draw the scaled image
-                g2d.drawImage(image, 0, 0, targetWidth, targetHeight, null);
-                g2d.dispose();
-
-                // Update device with preview image
-                device.previewImage = thumbnail;
+                // library offers MUCH better image scaling than ImageIO
+                Thumbnails.Builder<BufferedImage> imageBuilder = Thumbnails.of(image);
+                imageBuilder = imageBuilder.size(targetWidth, targetHeight);
+                device.previewImage = imageBuilder.asBufferedImage();
                 device.previewTimestamp = System.currentTimeMillis();
-                
-                // Debug: Save preview image to disk for verification
-//                try {
-//                    String debugName = "preview_" + device.serial.replace(":", "_") + "_" + System.currentTimeMillis() + ".png";
-//                    File debugFile = new File(Utils.getDownloadFolder(), debugName);
-//                    ImageIO.write(thumbnail, "png", debugFile);
-//                    log.debug("captureScreenshotPreview: Saved debug image to {}", debugFile.getAbsolutePath());
-//                } catch (Exception debugE) {
-//                    log.debug("captureScreenshotPreview: Could not save debug image: {}", debugE.getMessage());
-//                }
-                
+
                 log.debug("captureScreenshotPreview: DONE:{}, {}x{} -> {}x{}, device: {}", timer,
                     image.getWidth(), image.getHeight(), targetWidth, targetHeight, device.serial);
 

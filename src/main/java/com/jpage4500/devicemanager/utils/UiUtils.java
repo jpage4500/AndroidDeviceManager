@@ -201,4 +201,19 @@ public class UiUtils {
         });
         return checkbox;
     }
+
+    public static boolean isImageAllBlack(BufferedImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int rgb = image.getRGB(x, y) & 0xFFFFFF;
+                if (rgb != 0) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
 }

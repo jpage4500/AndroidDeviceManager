@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.ui.views;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.utils.Colors;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +55,24 @@ public class DeviceGridPanel extends JPanel {
         gridPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         gridPanel.setOpaque(false);
         gridPanel.setBackground(Colors.COLOR_BACKGROUND);
+
+        // Add mouse listener to gridPanel to handle deselection when clicking outside tiles
+        gridPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                Component clicked = gridPanel.getComponentAt(e.getPoint());
+                boolean isTile = false;
+                for (DeviceTilePanel tile : tilePanels) {
+                    if (tile == clicked || SwingUtilities.isDescendingFrom(clicked, tile)) {
+                        isTile = true;
+                        break;
+                    }
+                }
+                if (!isTile) {
+                    clearSelection();
+                }
+            }
+        });
 
         // Create scroll pane
         scrollPane = new JScrollPane(gridPanel) {
@@ -117,17 +136,13 @@ public class DeviceGridPanel extends JPanel {
     }
 
     private void setupTileListeners(DeviceTilePanel tilePanel) {
-        tilePanel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
+        UiUtils.addClickListener(tilePanel, e -> {
+            boolean isRightClick = SwingUtilities.isRightMouseButton(e);
+            log.trace("onClick: right:{}", isRightClick);
+            if (isRightClick) {
+                handleRightClick(tilePanel, e);
+            } else {
                 handleTileClick(tilePanel, e);
-            }
-
-            @Override
-            public void mousePressed(MouseEvent e) {
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    handleRightClick(tilePanel, e);
-                }
             }
         });
     }
@@ -146,6 +161,7 @@ public class DeviceGridPanel extends JPanel {
 
     private void handleSelection(DeviceTilePanel tilePanel, MouseEvent e) {
         boolean isCtrlDown = e.isControlDown() || e.isMetaDown(); // CMD on Mac
+        log.trace("handleSelection: {}, {}", isCtrlDown, tilePanel.getDevice().getDisplayName());
 
         if (!isCtrlDown) {
             // Clear all selections
