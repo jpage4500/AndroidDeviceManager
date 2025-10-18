@@ -60,7 +60,6 @@ public class DeviceGridPanel extends JPanel {
             @Override
             public void paint(Graphics graphics) {
                 super.paint(graphics);
-                emptyView.setEmptyText("No Devices");
                 emptyView.paint(graphics, getWidth(), getHeight(), 0);
             }
         };
@@ -202,6 +201,10 @@ public class DeviceGridPanel extends JPanel {
             for (DeviceTilePanel tilePanel : tilePanels) {
                 if (tilePanel.getDevice() == device) {
                     tilePanel.updateDeviceInfo();
+                    // Force refresh preview if this device has a preview image
+                    if (device.previewImage != null) {
+                        tilePanel.refreshPreview();
+                    }
                     break;
                 }
             }

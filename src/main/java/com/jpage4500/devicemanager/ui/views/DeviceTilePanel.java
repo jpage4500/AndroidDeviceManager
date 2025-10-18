@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui.views;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +48,7 @@ public class DeviceTilePanel extends JPanel {
         thumbnailLabel.setHorizontalAlignment(SwingConstants.CENTER);
         thumbnailLabel.setVerticalAlignment(SwingConstants.CENTER);
         thumbnailLabel.setOpaque(true);
-        thumbnailLabel.setBackground(Color.LIGHT_GRAY);
+        thumbnailLabel.setBackground(Color.RED);
         add(thumbnailLabel, BorderLayout.CENTER);
 
         // Bottom panel with name and battery
@@ -88,14 +89,15 @@ public class DeviceTilePanel extends JPanel {
         if (device == null) return;
 
         SwingUtilities.invokeLater(() -> {
-            // Update thumbnail
+            // Update thumbnail (this will refresh if preview image changed)
             updateThumbnail();
 
             // Update device name
-            String displayName = device.getDisplayName();
-            if (displayName.length() > 25) {
-                displayName = displayName.substring(0, 22) + "...";
-            }
+            String displayName = TextUtils.firstValid(device.nickname, device.getProperty(Device.PROP_MODEL));
+            displayName += "\n" + device.serial;
+//            if (displayName.length() > 25) {
+//                displayName = displayName.substring(0, 22) + "...";
+//            }
             nameLabel.setText(displayName);
 
             // Update battery indicator
@@ -106,6 +108,9 @@ public class DeviceTilePanel extends JPanel {
 
             // Update selection state
             updateSelectionState();
+
+            // Force repaint to ensure thumbnail updates are visible
+            thumbnailLabel.repaint();
         });
     }
 
@@ -115,13 +120,52 @@ public class DeviceTilePanel extends JPanel {
         // Try to use preview image if available
         if (device.previewImage != null) {
             thumbnail = device.previewImage;
+            log.debug("updateThumbnail: Using preview image {}x{}", thumbnail.getWidth(), thumbnail.getHeight());
         } else {
             // Use device icon as placeholder
             thumbnail = UiUtils.getImage("android.png", DEFAULT_TILE_WIDTH - 20, THUMBNAIL_HEIGHT - 20);
+            log.debug("updateThumbnail: Using placeholder icon");
         }
 
         if (thumbnail != null) {
-            thumbnailLabel.setIcon(new ImageIcon(thumbnail));
+            // Scale the image to fit the thumbnail area properly
+            int targetWidth = thumbnailLabel.getWidth() > 0 ? thumbnailLabel.getWidth() : DEFAULT_TILE_WIDTH - 10;
+            int targetHeight = thumbnailLabel.getHeight() > 0 ? thumbnailLabel.getHeight() : THUMBNAIL_HEIGHT;
+
+            // Only scale if the image is different size than target
+            if (thumbnail.getWidth() != targetWidth || thumbnail.getHeight() != targetHeight) {
+                BufferedImage scaledImage = new BufferedImage(targetWidth, targetHeight, thumbnail.getType());
+                Graphics2D g2d = scaledImage.createGraphics();
+                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
+                // Fill background first
+                g2d.setColor(Color.WHITE);
+                g2d.fillRect(0, 0, targetWidth, targetHeight);
+
+                // Draw the scaled image
+                g2d.drawImage(thumbnail, 0, 0, targetWidth, targetHeight, null);
+                g2d.dispose();
+                thumbnail = scaledImage;
+            }
+
+            // Create ImageIcon and set it
+            ImageIcon icon = new ImageIcon(thumbnail);
+            thumbnailLabel.setIcon(icon);
+            thumbnailLabel.setText(null); // Clear any text
+
+            // Debug: Save the final thumbnail to see what's being displayed
+//            try {
+//                String debugName = "tile_" + device.serial.replace(":", "_") + "_" + System.currentTimeMillis() + ".png";
+//                File debugFile = new File(System.getProperty("user.home") + "/Downloads", debugName);
+//                javax.imageio.ImageIO.write(thumbnail, "png", debugFile);
+//                log.debug("updateThumbnail: Saved tile debug image to {}", debugFile.getAbsolutePath());
+//            } catch (Exception debugE) {
+//                log.debug("updateThumbnail: Could not save debug image: {}", debugE.getMessage());
+//            }
+
+            // Force the label to repaint
+            thumbnailLabel.repaint();
         } else {
             thumbnailLabel.setIcon(null);
             thumbnailLabel.setText("No Image");
@@ -218,6 +262,15 @@ public class DeviceTilePanel extends JPanel {
                 firePropertyChange("requestPreview", null, device);
             }
         }
+    }
+
+    public void refreshPreview() {
+        // Force refresh the thumbnail when preview image is updated
+        SwingUtilities.invokeLater(() -> {
+            updateThumbnail();
+            thumbnailLabel.repaint();
+            repaint();
+        });
     }
 
     /**
