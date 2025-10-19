@@ -13,9 +13,6 @@ import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
 import javax.imageio.ImageIO;
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -185,6 +182,16 @@ public class DeviceManager {
                     log.trace("handleDeviceUpdate: DEVICE_ADDED: {}", serial);
                     synchronized (deviceList) {
                         deviceList.add(device);
+                    }
+                    // TODO: create multiple devices to test with
+                    for (int i=0; i < 10; i++) {
+                        Device temp = new Device();
+                        temp.serial = serial;
+                        temp.jadbDevice = jadbDevice;
+                        log.trace("handleDeviceUpdate: TEST: {}: {}", i, serial);
+                        synchronized (deviceList) {
+                            deviceList.add(temp);
+                        }
                     }
                 }
                 device.serial = serial;

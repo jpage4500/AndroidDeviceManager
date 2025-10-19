@@ -11,6 +11,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,9 +54,51 @@ public class DeviceGridPanel extends JPanel {
         setLayout(new BorderLayout());
 
         // Create grid panel with flow layout
-        gridPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        gridPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 10, 10));
         gridPanel.setOpaque(false);
         gridPanel.setBackground(Colors.COLOR_BACKGROUND);
+
+        // Force relayout on resize
+        gridPanel.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                gridPanel.revalidate();
+                gridPanel.repaint();
+            }
+        });
+
+        // Force gridPanel to use viewport width for preferred size
+        // This ensures WrapLayout wraps items when window is resized smaller
+        //scrollPane = new JScrollPane(gridPanel);
+        scrollPane = new JScrollPane(gridPanel) {
+            @Override
+            public void paint(Graphics graphics) {
+                super.paint(graphics);
+                emptyView.setEmptyText(devices.isEmpty() ? "No Devices" : null);
+                emptyView.paint(graphics, getWidth(), getHeight(), 0);
+            }
+        };
+
+        scrollPane.getViewport().addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                int viewportWidth = scrollPane.getViewport().getWidth();
+                int preferredHeight = gridPanel.getPreferredSize().height;
+                gridPanel.setPreferredSize(new Dimension(viewportWidth, preferredHeight));
+                gridPanel.revalidate();
+                gridPanel.repaint();
+            }
+        });
+        // Also listen to gridPanel itself (covers cases where its size changes directly)
+        gridPanel.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                SwingUtilities.invokeLater(() -> {
+                    gridPanel.revalidate();
+                    gridPanel.repaint();
+                });
+            }
+        });
 
         // Add mouse listener to gridPanel to handle deselection when clicking outside tiles
         gridPanel.addMouseListener(new MouseAdapter() {
@@ -75,23 +119,28 @@ public class DeviceGridPanel extends JPanel {
         });
 
         // Create scroll pane
-        scrollPane = new JScrollPane(gridPanel) {
-            @Override
-            public void paint(Graphics graphics) {
-                super.paint(graphics);
-                emptyView.paint(graphics, getWidth(), getHeight(), 0);
-            }
-        };
         scrollPane.setOpaque(false);
         scrollPane.getViewport().setOpaque(false);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scrollPane.setBorder(null);
 
         add(scrollPane, BorderLayout.CENTER);
 
         // Initialize tile panels list
         tilePanels = new ArrayList<>();
+
+        // --- Added: relayout on viewport resize ---
+        scrollPane.getViewport().addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                // Revalidate/repaint to force WrapLayout to recompute tile positions
+                SwingUtilities.invokeLater(() -> {
+                    gridPanel.revalidate();
+                    gridPanel.repaint();
+                });
+            }
+        });
     }
 
     public void setDevices(List<Device> devices) {
