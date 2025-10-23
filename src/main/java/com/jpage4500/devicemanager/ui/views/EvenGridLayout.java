@@ -96,6 +96,21 @@ public class EvenGridLayout implements LayoutManager {
         }
     }
 
+    // Helper to move selection in grid
+    // dx: -1=left, 1=right; dy: -1=up, 1=down
+    // Returns the new selected index, or -1 if none
+    public int moveSelection(int currentIdx, int dx, int dy, int totalTiles, int panelWidth) {
+        if (totalTiles == 0) return -1;
+        int maxCols = Math.max(1, (panelWidth + hgap) / (tileWidth));
+        int row = currentIdx / maxCols;
+        int col = currentIdx % maxCols;
+        int newRow = Math.max(0, Math.min(row + dy, (totalTiles - 1) / maxCols));
+        int newCol = Math.max(0, Math.min(col + dx, maxCols - 1));
+        int newIdx = newRow * maxCols + newCol;
+        if (newIdx >= totalTiles) newIdx = totalTiles - 1;
+        return newIdx;
+    }
+
     // Utility to update preferred size for JScrollPane scrolling
     public static void updatePreferredSize(Container gridPanel) {
         LayoutManager layout = gridPanel.getLayout();

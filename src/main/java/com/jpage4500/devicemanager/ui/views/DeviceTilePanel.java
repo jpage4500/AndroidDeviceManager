@@ -3,11 +3,11 @@ package com.jpage4500.devicemanager.ui.views;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
-import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.border.Border;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
@@ -30,6 +30,9 @@ public class DeviceTilePanel extends JPanel {
 
     private BufferedImage backgroundImage;
 
+    private Border defaultBorder;
+    private Border selectedBorder;
+
     public DeviceTilePanel(Device device) {
         this.device = device;
         initializeComponents();
@@ -39,12 +42,17 @@ public class DeviceTilePanel extends JPanel {
     private void initializeComponents() {
         setLayout(new BorderLayout());
         setPreferredSize(new Dimension(DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT));
+        setOpaque(false); // Keep background transparent when selected
 
-        setBorder(BorderFactory.createCompoundBorder(
+        selectedBorder = BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(Color.BLUE, 2),
+            BorderFactory.createEmptyBorder(4, 4, 4, 4));
+
+        defaultBorder = BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(Color.LIGHT_GRAY, 1),
-            BorderFactory.createEmptyBorder(0, 0, 0, 0)
-        ));
-        setBackground(Color.WHITE);
+            BorderFactory.createEmptyBorder(4, 4, 4, 4));
+
+        setBorder(defaultBorder);
 
         // Battery icon (top-left)
         batteryLabel = new JLabel();
@@ -104,15 +112,19 @@ public class DeviceTilePanel extends JPanel {
         if (backgroundImage != null) {
             int panelWidth = getWidth();
             int panelHeight = getHeight();
-            float imgRatio = (float) backgroundImage.getWidth() / backgroundImage.getHeight();
-            float panelRatio = (float) panelWidth / panelHeight;
+            int imgWidth = backgroundImage.getWidth();
+            int imgHeight = backgroundImage.getHeight();
+            double imgRatio = (double) imgWidth / imgHeight;
+            double panelRatio = (double) panelWidth / panelHeight;
             int drawWidth, drawHeight;
             if (imgRatio > panelRatio) {
-                drawHeight = panelHeight;
-                drawWidth = (int) (panelHeight * imgRatio);
-            } else {
+                // Image is wider than panel: fit width, adjust height
                 drawWidth = panelWidth;
                 drawHeight = (int) (panelWidth / imgRatio);
+            } else {
+                // Image is taller than panel: fit height, adjust width
+                drawHeight = panelHeight;
+                drawWidth = (int) (panelHeight * imgRatio);
             }
             int x = (panelWidth - drawWidth) / 2;
             int y = (panelHeight - drawHeight) / 2;
@@ -133,21 +145,22 @@ public class DeviceTilePanel extends JPanel {
             serialLabel.setText(device.serial);
             updateBatteryIndicator();
             updateBusyState();
-            updateSelectionState();
+            //setSelected();
         });
     }
 
     private void updateThumbnail() {
-        BufferedImage thumbnail = null;
+        BufferedImage thumbnail;
 
         // Try to use preview image if available
         if (device.previewImage != null) {
             thumbnail = device.previewImage;
-            log.debug("updateThumbnail: Using preview image {}x{}", thumbnail.getWidth(), thumbnail.getHeight());
         } else {
             // Use device icon as placeholder
-            thumbnail = UiUtils.getImage("android.png", DEFAULT_TILE_WIDTH - 20, THUMBNAIL_HEIGHT - 20);
-            log.debug("updateThumbnail: Using placeholder icon");
+            if (backgroundImage == null) {
+                backgroundImage = UiUtils.getImage("android.png", DEFAULT_TILE_WIDTH - 20, THUMBNAIL_HEIGHT - 20);
+            }
+            thumbnail = backgroundImage;
         }
 
         if (thumbnail != null) {
@@ -204,25 +217,9 @@ public class DeviceTilePanel extends JPanel {
         }
     }
 
-    private void updateSelectionState() {
-        if (isSelected) {
-            setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Color.BLUE, 2),
-                BorderFactory.createEmptyBorder(4, 4, 4, 4)
-            ));
-            setBackground(new Color(240, 248, 255)); // Light blue
-        } else {
-            setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Color.LIGHT_GRAY, 1),
-                BorderFactory.createEmptyBorder(0, 0, 0, 0)
-            ));
-            setBackground(Color.WHITE);
-        }
-    }
-
     public void setSelected(boolean selected) {
         this.isSelected = selected;
-        updateSelectionState();
+        setBorder(isSelected ? selectedBorder : defaultBorder);
     }
 
     public boolean isSelected() {
