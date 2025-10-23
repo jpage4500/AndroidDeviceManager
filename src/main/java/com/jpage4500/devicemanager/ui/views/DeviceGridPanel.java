@@ -79,9 +79,8 @@ public class DeviceGridPanel extends JPanel {
         scrollPane.getViewport().addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
-                int viewportWidth = scrollPane.getViewport().getWidth();
-                int preferredHeight = gridPanel.getPreferredSize().height;
-                gridPanel.setPreferredSize(new Dimension(viewportWidth, preferredHeight));
+                // Instead of forcing gridPanel to match viewport width, set preferred size using EvenGridLayout utility
+                EvenGridLayout.updatePreferredSize(gridPanel);
                 gridPanel.revalidate();
                 gridPanel.repaint();
             }
@@ -131,11 +130,10 @@ public class DeviceGridPanel extends JPanel {
         scrollPane.getViewport().addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
-                // Revalidate/repaint to force WrapLayout to recompute tile positions
-                SwingUtilities.invokeLater(() -> {
-                    gridPanel.revalidate();
-                    gridPanel.repaint();
-                });
+                // Instead of forcing gridPanel to match viewport width, set preferred size using EvenGridLayout utility
+                EvenGridLayout.updatePreferredSize(gridPanel);
+                gridPanel.revalidate();
+                gridPanel.repaint();
             }
         });
 
@@ -259,7 +257,8 @@ public class DeviceGridPanel extends JPanel {
                 tilePanels.add(tilePanel);
                 gridPanel.add(tilePanel);
             }
-
+            // Set preferred size for gridPanel after adding tiles
+            EvenGridLayout.updatePreferredSize(gridPanel);
             gridPanel.revalidate();
             gridPanel.repaint();
         });

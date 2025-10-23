@@ -46,6 +46,9 @@ public class EmptyView {
                 int imgH = emptyImage.getHeight(null);
                 double aspectRatio = width / (double) imgW;
                 double drawImageH = imgH * aspectRatio;
+                if (drawImageH < height) {
+                    drawImageH = height;
+                }
                 // make image semi-transparent
                 Graphics2D g2d = (Graphics2D) graphics.create();
                 g2d.setComposite(AlphaComposite.SrcOver.derive(0.2f));
