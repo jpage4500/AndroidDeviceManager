@@ -24,6 +24,7 @@ public class DeviceTilePanel extends JPanel {
 
     private Device device;
     private JLabel nameLabel;
+    private JLabel serialLabel;
     private JLabel batteryLabel;
     private boolean isSelected;
 
@@ -61,10 +62,23 @@ public class DeviceTilePanel extends JPanel {
         nameLabel.setBackground(new Color(0, 0, 0, 128));
         nameLabel.setHorizontalAlignment(SwingConstants.CENTER);
         nameLabel.setVerticalAlignment(SwingConstants.BOTTOM);
-        nameLabel.setText(""); // Initial empty text
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+
+        serialLabel = new JLabel();
+        serialLabel.setFont(serialLabel.getFont().deriveFont(Font.PLAIN));
+        serialLabel.setForeground(Color.WHITE);
+        serialLabel.setOpaque(true);
+        serialLabel.setBackground(new Color(0, 0, 0, 128));
+        serialLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        serialLabel.setVerticalAlignment(SwingConstants.BOTTOM);
+
+        JPanel bottomPanel = new JPanel();
+        bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
         bottomPanel.setOpaque(false);
+        // Center the labels horizontally
+        nameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        serialLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         bottomPanel.add(nameLabel);
+        bottomPanel.add(serialLabel);
         add(bottomPanel, BorderLayout.SOUTH);
 
         // Add busy indicator overlay (centered)
@@ -110,9 +124,13 @@ public class DeviceTilePanel extends JPanel {
         if (device == null) return;
         SwingUtilities.invokeLater(() -> {
             updateThumbnail();
-            // Center each line of nameLabel text using HTML and <div align='center'>
-            String displayName = "<html><div style='text-align:center;'>" + TextUtils.firstValid(device.nickname, device.getProperty(Device.PROP_MODEL)) + "<br>" + device.serial + "</div></html>";
-            nameLabel.setText(displayName);
+            // Set name and serial in separate labels
+            String displayName = TextUtils.firstValid(device.nickname, device.getProperty(Device.PROP_MODEL));
+            boolean hasDisplayName = TextUtils.notEmpty(displayName);
+            nameLabel.setVisible(hasDisplayName);
+            if (hasDisplayName) nameLabel.setText(displayName);
+            serialLabel.setVisible(device.serial != null);
+            serialLabel.setText(device.serial);
             updateBatteryIndicator();
             updateBusyState();
             updateSelectionState();

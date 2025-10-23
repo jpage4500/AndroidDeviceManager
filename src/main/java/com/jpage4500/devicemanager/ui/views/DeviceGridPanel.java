@@ -9,10 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
+import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -53,8 +50,9 @@ public class DeviceGridPanel extends JPanel {
     private void initializeComponents() {
         setLayout(new BorderLayout());
 
-        // Create grid panel with flow layout
-        gridPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 10, 10));
+        // Create grid panel with even grid layout
+        int minTileWidth = DEFAULT_TILE_SIZE; // You can adjust this or use preferences
+        gridPanel = new JPanel(new EvenGridLayout(10, 10, minTileWidth));
         gridPanel.setOpaque(false);
         gridPanel.setBackground(Colors.COLOR_BACKGROUND);
 
@@ -69,7 +67,6 @@ public class DeviceGridPanel extends JPanel {
 
         // Force gridPanel to use viewport width for preferred size
         // This ensures WrapLayout wraps items when window is resized smaller
-        //scrollPane = new JScrollPane(gridPanel);
         scrollPane = new JScrollPane(gridPanel) {
             @Override
             public void paint(Graphics graphics) {
@@ -141,6 +138,90 @@ public class DeviceGridPanel extends JPanel {
                 });
             }
         });
+
+        // Make gridPanel focusable for key events
+        gridPanel.setFocusable(true);
+        gridPanel.requestFocusInWindow();
+        // Use key bindings for robust keyboard navigation
+        InputMap inputMap = gridPanel.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+        ActionMap actionMap = gridPanel.getActionMap();
+        JScrollBar vBar = scrollPane.getVerticalScrollBar();
+        int tileHeight = DEFAULT_TILE_SIZE * 3 / 4 + 10; // tile height + vgap
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), "scrollUp");
+        actionMap.put("scrollUp", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                vBar.setValue(vBar.getValue() - tileHeight);
+            }
+        });
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), "scrollDown");
+        actionMap.put("scrollDown", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                vBar.setValue(vBar.getValue() + tileHeight);
+            }
+        });
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "jumpTop");
+        actionMap.put("jumpTop", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                vBar.setValue(vBar.getMinimum());
+            }
+        });
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "jumpBottom");
+        actionMap.put("jumpBottom", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                vBar.setValue(vBar.getMaximum());
+            }
+        });
+
+        // Add selection movement for arrow keys
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0), "selectLeft");
+        actionMap.put("selectLeft", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                moveSelection(-1, 0);
+            }
+        });
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0), "selectRight");
+        actionMap.put("selectRight", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                moveSelection(1, 0);
+            }
+        });
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), "selectUp");
+        actionMap.put("selectUp", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                moveSelection(0, -1);
+            }
+        });
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), "selectDown");
+        actionMap.put("selectDown", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                moveSelection(0, 1);
+            }
+        });
+
+        // Helper to move selection in grid
+        // dx: -1=left, 1=right; dy: -1=up, 1=down
+        // If no selection, select first item
+        // Scroll to make selected item visible
+        // This method should be added to DeviceGridPanel:
+        // private void moveSelection(int dx, int dy) {
+        //     if (tilePanels.isEmpty()) return;
+        //     int selectedIdx = lastSelectedTile != null ? tilePanels.indexOf(lastSelectedTile) : -1;
+        //     int cols = Math.max(1, gridPanel.getWidth() / (DEFAULT_TILE_SIZE + 10));
+        //     if (selectedIdx == -1) {
+        //         setSelectedDevice(tilePanels.get(0).getDevice());
+        //         gridPanel.scrollRectToVisible(tilePanels.get(0).getBounds());
+        //         return;
+        //     }
+        //     int row = selectedIdx / cols;
+        //     int col = selectedIdx % cols;
+        //     int newRow = Math.max(0, Math.min((row + dy), (tilePanels.size() - 1) / cols));
+        //     int newCol = Math.max(0, Math.min((col + dx), cols - 1));
+        //     int newIdx = newRow * cols + newCol;
+        //     if (newIdx >= tilePanels.size()) newIdx = tilePanels.size() - 1;
+        //     setSelectedDevice(tilePanels.get(newIdx).getDevice());
+        //     gridPanel.scrollRectToVisible(tilePanels.get(newIdx).getBounds());
+        // }
     }
 
     public void setDevices(List<Device> devices) {
@@ -280,9 +361,13 @@ public class DeviceGridPanel extends JPanel {
         final int finalSize = Math.max(MIN_TILE_SIZE, Math.min(MAX_TILE_SIZE, size));
 
         SwingUtilities.invokeLater(() -> {
-            for (DeviceTilePanel tilePanel : tilePanels) {
-                tilePanel.setTileSize(finalSize, (int) (finalSize * 0.75));
+            LayoutManager layout = gridPanel.getLayout();
+            if (layout instanceof EvenGridLayout) {
+                ((EvenGridLayout) layout).setTileWidth(finalSize);
             }
+//            for (DeviceTilePanel tilePanel : tilePanels) {
+//                tilePanel.setTileSize(finalSize, (int) (finalSize * 0.75));
+//            }
             gridPanel.revalidate();
             gridPanel.repaint();
         });
@@ -330,5 +415,28 @@ public class DeviceGridPanel extends JPanel {
             this.x = x;
             this.y = y;
         }
+    }
+
+    // Helper to move selection in grid
+    // dx: -1=left, 1=right; dy: -1=up, 1=down
+    // If no selection, select first item
+    // Scroll to make selected item visible
+    private void moveSelection(int dx, int dy) {
+        if (tilePanels.isEmpty()) return;
+        int selectedIdx = lastSelectedTile != null ? tilePanels.indexOf(lastSelectedTile) : -1;
+        int cols = Math.max(1, gridPanel.getWidth() / (DEFAULT_TILE_SIZE + 10));
+        if (selectedIdx == -1) {
+            setSelectedDevice(tilePanels.get(0).getDevice());
+            gridPanel.scrollRectToVisible(tilePanels.get(0).getBounds());
+            return;
+        }
+        int row = selectedIdx / cols;
+        int col = selectedIdx % cols;
+        int newRow = Math.max(0, Math.min((row + dy), (tilePanels.size() - 1) / cols));
+        int newCol = Math.max(0, Math.min((col + dx), cols - 1));
+        int newIdx = newRow * cols + newCol;
+        if (newIdx >= tilePanels.size()) newIdx = tilePanels.size() - 1;
+        setSelectedDevice(tilePanels.get(newIdx).getDevice());
+        gridPanel.scrollRectToVisible(tilePanels.get(newIdx).getBounds());
     }
 }
