@@ -15,6 +15,8 @@ if [[ ${SCRCPY} == "" ]]; then
         export SCRCPY=/opt/homebrew/bin/scrcpy
     elif [ -f /usr/local/bin/scrcpy ]; then
         export SCRCPY=/usr/local/bin/scrcpy
+    elif [ -f /home/linuxbrew/.linuxbrew/bin/scrcpy ]; then
+        export SCRCPY=/home/linuxbrew/.linuxbrew/bin/scrcpy
     else
         echo "scrcpy not found!" 1>&2;
     fi
