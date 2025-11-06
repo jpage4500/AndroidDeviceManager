@@ -472,7 +472,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             trayIcon.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    log.trace("mouseClicked: {}", trayPopupMenu != null);
                     if (trayPopupMenu != null) {
                         trayPopupMenu.setVisible(false);
                         trayPopupMenu = null;
@@ -483,9 +482,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             });
             try {
                 SystemTray tray = SystemTray.getSystemTray();
-                for (TrayIcon icon : tray.getTrayIcons()) {
-                    tray.remove(icon);
-                }
                 tray.add(trayIcon);
             } catch (Exception e) {
                 log.error("initializeUI: Exception: {}", e.getMessage());
