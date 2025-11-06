@@ -54,7 +54,7 @@ public class MessageTooltipPanel extends JWindow {
         }
 
         textArea.setText(text);
-        
+
         // Calculate required height based on text and width
         int preferredHeight = calculateHeight(text, width);
         int actualHeight = Math.min(preferredHeight, MAX_HEIGHT);

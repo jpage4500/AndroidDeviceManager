@@ -49,6 +49,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public StatusBar statusBar;
     public JToolBar toolbar;
     private JCheckBox autoScrollCheckBox;
+    private JCheckBox showTooltipCheckBox;
     private HintTextField searchField;
 
     // filter logs
@@ -178,6 +179,25 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void setupStatusBar() {
+        // Create a panel to hold both checkboxes
+        JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        checkboxPanel.setOpaque(false);
+        
+        // Show Tooltip checkbox
+        showTooltipCheckBox = new JCheckBox("Show Tooltip");
+        showTooltipCheckBox.setBorder(new EmptyBorder(0, 10, 0, 10));
+        showTooltipCheckBox.setSelected(true); // Checked by default
+        showTooltipCheckBox.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!showTooltipCheckBox.isSelected()) {
+                    hideTooltip();
+                }
+            }
+        });
+        checkboxPanel.add(showTooltipCheckBox);
+        
+        // Auto Scroll checkbox
         autoScrollCheckBox = new JCheckBox("Auto Scroll");
         autoScrollCheckBox.setBorder(new EmptyBorder(0, 10, 0, 10));
         autoScrollCheckBox.setHorizontalAlignment(SwingConstants.TRAILING);
@@ -187,7 +207,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 scrollToFollow();
             }
         });
-        statusBar.setRightComponent(autoScrollCheckBox);
+        checkboxPanel.add(autoScrollCheckBox);
+        
+        statusBar.setRightComponent(checkboxPanel);
     }
 
     private void setupMenuBar() {
@@ -571,6 +593,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void handleMouseMovedForTooltip(java.awt.event.MouseEvent e) {
+        // Check if tooltip is enabled
+        if (!showTooltipCheckBox.isSelected()) {
+            return;
+        }
+        
         Point p = e.getPoint();
         int row = table.rowAtPoint(p);
         int col = table.columnAtPoint(p);
