@@ -794,10 +794,11 @@ public class DeviceManager {
         }
         // try some other common locations
         String[] arr = new String[]{};
-        if (Utils.isMac()) {
+        if (!Utils.isWindows()) {
             arr = new String[]{
                 "/opt/homebrew/bin",
                 "/usr/local/bin",
+                "/home/linuxbrew/.linuxbrew/bin/scrcpy"
             };
         }
         for (String s : arr) {

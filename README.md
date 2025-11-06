@@ -90,12 +90,29 @@ download and install from [here](https://github.com/Genymobile/scrcpy/blob/maste
 <details>
   <summary>Linux Setup</summary>
 
-### Install adb
+### Install curl, git, adb
 ```
-sudo apt-get install adb
+sudo apt-get install curl git adb
 ```
+
+### Install Homebrew
+
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+### Add homebrew to PATH
+```
+echo >> ~/.bashrc
+echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+```
+
 ### Install scrcpy
-see this [link](https://github.com/Genymobile/scrcpy/blob/master/doc/linux.md#latest-version)
+
+```
+brew install scrcpy
+```
 
 </details>
 
