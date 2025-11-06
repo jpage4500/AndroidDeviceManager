@@ -63,6 +63,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private MessageTooltipPanel tooltip;
     private int tooltipRow = -1;
     private int tooltipCol = -1;
+    private int lastScrollPosition = -1;
 
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
@@ -184,9 +185,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         checkboxPanel.setOpaque(false);
         
         // Show Tooltip checkbox
-        showTooltipCheckBox = new JCheckBox("Show Tooltip");
+        showTooltipCheckBox = new JCheckBox("Tooltip");
+        showTooltipCheckBox.setToolTipText("Show tooltip when hovering over long messages");
         showTooltipCheckBox.setBorder(new EmptyBorder(0, 10, 0, 10));
-        showTooltipCheckBox.setSelected(true); // Checked by default
+        showTooltipCheckBox.setSelected(true);
         showTooltipCheckBox.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -199,6 +201,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         
         // Auto Scroll checkbox
         autoScrollCheckBox = new JCheckBox("Auto Scroll");
+        autoScrollCheckBox.setToolTipText("Check to automatically scroll to latest messages");
         autoScrollCheckBox.setBorder(new EmptyBorder(0, 10, 0, 10));
         autoScrollCheckBox.setHorizontalAlignment(SwingConstants.TRAILING);
         autoScrollCheckBox.addActionListener(new AbstractAction() {
@@ -585,11 +588,18 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             }
         });
 
-        // Hide tooltip when scrolling
+        // Hide tooltip when viewport position actually changes (not just on adjustment events)
         JScrollBar verticalScrollBar = table.getScrollPane().getVerticalScrollBar();
-        verticalScrollBar.addAdjustmentListener(e -> hideTooltip());
-        JScrollBar horizontalScrollBar = table.getScrollPane().getHorizontalScrollBar();
-        horizontalScrollBar.addAdjustmentListener(e -> hideTooltip());
+        verticalScrollBar.addAdjustmentListener(e -> {
+            // Only hide if the value actually changed (not just during drag)
+            if (!e.getValueIsAdjusting()) {
+                int currentPosition = e.getValue();
+                if (currentPosition != lastScrollPosition) {
+                    lastScrollPosition = currentPosition;
+                    hideTooltip();
+                }
+            }
+        });
     }
 
     private void handleMouseMovedForTooltip(java.awt.event.MouseEvent e) {
