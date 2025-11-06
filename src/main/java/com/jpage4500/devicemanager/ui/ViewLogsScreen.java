@@ -14,6 +14,7 @@ import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
+import com.jpage4500.devicemanager.ui.views.MessageTooltipPanel;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
@@ -56,6 +57,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private LogsRowSorter sorter;
     private MessageViewScreen viewScreen;
+
+    // Custom tooltip for message column
+    private MessageTooltipPanel tooltip;
+    private int tooltipRow = -1;
+    private int tooltipCol = -1;
 
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
@@ -150,12 +156,23 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 stopLogging();
                 saveFrameSize();
                 table.saveTable();
+                if (tooltip != null) {
+                    tooltip.dispose();
+                    tooltip = null;
+                }
             }
             case ACTIVATED -> {
                 // start logging if user didn't stop
                 if (!isLoggedPaused) {
                     startLogging();
                 }
+            }
+            case DEACTIVATED -> {
+                // Hide tooltip when window loses focus
+                hideTooltip();
+            }
+            default -> {
+                // Handle other states (OPENED, CLOSING, etc.)
             }
         }
     }
@@ -458,6 +475,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                         // filter by value
                         String text = model.getTextValue(row, column);
                         UiUtils.addPopupMenuItem(popupMenu, "Add Filter", actionEvent -> handleQuickAddFilter(columnType, text));
+                        break;
+                    default:
+                        // Other columns don't support filtering
+                        break;
                 }
             }
 
@@ -522,6 +543,83 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         searchField.setupSearch(table);
         searchField.setupSearch(filterList);
+
+        // Setup custom tooltip for MSG column
+        tooltip = new MessageTooltipPanel(this);
+
+        // Add mouse motion listener to track hover
+        table.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(java.awt.event.MouseEvent e) {
+                handleMouseMovedForTooltip(e);
+            }
+        });
+
+        // Hide tooltip when mouse exits table
+        table.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                hideTooltip();
+            }
+        });
+
+        // Hide tooltip when scrolling
+        JScrollBar verticalScrollBar = table.getScrollPane().getVerticalScrollBar();
+        verticalScrollBar.addAdjustmentListener(e -> hideTooltip());
+        JScrollBar horizontalScrollBar = table.getScrollPane().getHorizontalScrollBar();
+        horizontalScrollBar.addAdjustmentListener(e -> hideTooltip());
+    }
+
+    private void handleMouseMovedForTooltip(java.awt.event.MouseEvent e) {
+        Point p = e.getPoint();
+        int row = table.rowAtPoint(p);
+        int col = table.columnAtPoint(p);
+
+        if (row < 0 || col < 0) {
+            hideTooltip();
+            return;
+        }
+
+        // Check if same cell as before
+        if (row == tooltipRow && col == tooltipCol) return;
+
+        // Hide previous tooltip
+        hideTooltip();
+
+        // Convert to model coordinates
+        int modelCol = table.convertColumnIndexToModel(col);
+
+        // Only show tooltip for message column
+        LogsTableModel.Columns columnType = LogsTableModel.Columns.values()[modelCol];
+        if (columnType != LogsTableModel.Columns.MSG) {
+            return;
+        }
+
+        // Check if content is truncated
+        String text = table.getTextIfTruncated(row, col);
+        if (TextUtils.isEmpty(text)) return;
+        tooltipRow = row;
+        tooltipCol = col;
+
+        // Get table bounds for positioning
+        JScrollPane scrollPane = table.getScrollPane();
+        Rectangle viewportBounds = scrollPane.getViewport().getViewRect();
+        Point viewportLocation = scrollPane.getViewport().getLocationOnScreen();
+
+        // Position tooltip at bottom of visible viewport
+        int x = viewportLocation.x;
+        int y = viewportLocation.y + viewportBounds.height;
+        int width = viewportBounds.width;
+
+        tooltip.showTooltip(text, x, y, width);
+    }
+
+    private void hideTooltip() {
+        if (tooltip != null) {
+            tooltip.hideTooltip();
+        }
+        tooltipRow = -1;
+        tooltipCol = -1;
     }
 
     private void handleCopyMessageClicked() {
