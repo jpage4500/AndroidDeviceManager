@@ -60,6 +60,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public JToolBar toolbar;
     private HintTextField filterTextField;
     private JPopupMenu trayPopupMenu;
+    private TrayIcon trayIcon;
+    private int trayIconDevices;
 
     // status bar items
     private HoverLabel updateLabel;         // update
@@ -180,6 +182,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(WindowState.CLOSED);
 
         DeviceManager.getInstance().handleExit();
+
+        if (SystemTray.isSupported() && trayIcon != null) {
+            SystemTray.getSystemTray().remove(trayIcon);
+        }
 
         dispose();
         System.exit(0);
@@ -454,27 +460,71 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void setupSystemTray() {
         if (!SystemTray.isSupported()) return;
 
-        BufferedImage image = UiUtils.getImage("system_tray.png", 100, 100);
-        TrayIcon trayIcon = new TrayIcon(image, "Android Device Manager");
-        trayIcon.setImageAutoSize(true);
-        trayIcon.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                log.trace("mouseClicked: {}", trayPopupMenu != null);
-                if (trayPopupMenu != null) {
-                    trayPopupMenu.setVisible(false);
-                    trayPopupMenu = null;
-                } else {
-                    showSystemTray(e);
+        List<Device> devices = DeviceManager.getInstance().getDevices();
+        if (devices.size() == trayIconDevices && trayIcon != null) return;
+
+        trayIconDevices = devices.size();
+        BufferedImage trayIconImage = getTrayIconWithCount(trayIconDevices);
+
+        if (trayIcon == null) {
+            trayIcon = new TrayIcon(trayIconImage, "Android Device Manager");
+            trayIcon.setImageAutoSize(false);
+            trayIcon.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    log.trace("mouseClicked: {}", trayPopupMenu != null);
+                    if (trayPopupMenu != null) {
+                        trayPopupMenu.setVisible(false);
+                        trayPopupMenu = null;
+                    } else {
+                        showSystemTray(e);
+                    }
                 }
+            });
+            try {
+                SystemTray tray = SystemTray.getSystemTray();
+                for (TrayIcon icon : tray.getTrayIcons()) {
+                    tray.remove(icon);
+                }
+                tray.add(trayIcon);
+            } catch (Exception e) {
+                log.error("initializeUI: Exception: {}", e.getMessage());
             }
-        });
-        try {
-            SystemTray tray = SystemTray.getSystemTray();
-            tray.add(trayIcon);
-        } catch (Exception e) {
-            log.error("initializeUI: Exception: {}", e.getMessage());
+        } else {
+            trayIcon.setImage(trayIconImage);
         }
+    }
+
+    private BufferedImage getTrayIconWithCount(int count) {
+        BufferedImage baseImage = UiUtils.getImage("system_tray.png", 100, 100, Color.WHITE);
+        int w = baseImage.getWidth();
+        int h = baseImage.getHeight();
+        String text = String.valueOf(count);
+        Font font = new Font("Arial", Font.BOLD, 60);
+
+        // Measure text width
+        BufferedImage tempImg = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = tempImg.createGraphics();
+        g2.setFont(font);
+        FontMetrics fm = g2.getFontMetrics();
+        int textWidth = fm.stringWidth(text);
+        int textHeight = fm.getHeight();
+        g2.dispose();
+
+        int combinedWidth = w + (count > 0 ? textWidth + 6 : 0);
+        BufferedImage combined = new BufferedImage(combinedWidth, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = combined.createGraphics();
+        g.drawImage(baseImage, 0, 0, null);
+        if (count > 0) {
+            g.setFont(font);
+            g.setColor(Color.WHITE);
+            int x = w + 6;
+            int y = h / 2 + textHeight / 3;
+            g.drawString(text, x, y);
+        }
+        log.trace("getTrayIconWithCount: w:{}, combW:{}", w, combinedWidth);
+        g.dispose();
+        return combined;
     }
 
     private void showSystemTray(MouseEvent e) {
@@ -601,6 +651,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         long freeMemory = Runtime.getRuntime().freeMemory();
         long usedMemory = totalMemory - freeMemory;
         memoryLabel.setText(FileUtils.bytesToDisplayString(usedMemory));
+
+        setupSystemTray();
 
         // badge number
         if (Taskbar.isTaskbarSupported()) {
