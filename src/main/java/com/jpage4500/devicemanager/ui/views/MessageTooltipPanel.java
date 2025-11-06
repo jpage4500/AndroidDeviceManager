@@ -14,7 +14,7 @@ public class MessageTooltipPanel extends JWindow {
     private static final Color TOOLTIP_BACKGROUND = new Color(255, 255, 200); // Light yellow
     private static final Color TOOLTIP_BORDER = new Color(180, 180, 150); // Darker border
     private static final int PADDING = 8;
-    private static final int MAX_HEIGHT = 200; // Maximum tooltip height
+    public static final int MAX_HEIGHT = 200; // Maximum tooltip height
 
     private final JTextArea textArea;
 
@@ -44,10 +44,9 @@ public class MessageTooltipPanel extends JWindow {
      *
      * @param text  the message to display
      * @param x     x position (screen coordinates)
-     * @param y     y position for bottom of tooltip (screen coordinates) - will be adjusted upward based on tooltip height
      * @param width desired width of tooltip
      */
-    public void showTooltip(String text, int x, int y, int width) {
+    public void showTooltip(String text, int x, int topY, int bottomY, int mouseY, int width) {
         if (text == null || text.isEmpty()) {
             hideTooltip();
             return;
@@ -59,12 +58,18 @@ public class MessageTooltipPanel extends JWindow {
         int preferredHeight = calculateHeight(text, width);
         int actualHeight = Math.min(preferredHeight, MAX_HEIGHT);
 
-        // Adjust y position so bottom of tooltip aligns with provided y coordinate
-        int adjustedY = y - actualHeight;
+        boolean showAtTop = mouseY >= (bottomY - actualHeight);
+        int y;
+        if (showAtTop) {
+            y = topY;
+        } else {
+            // Adjust y position so bottom of tooltip aligns with provided y coordinate
+            y = bottomY - actualHeight;
+        }
 
         // Set size and position
         setSize(width, actualHeight);
-        setLocation(x, adjustedY);
+        setLocation(x, y);
         setVisible(true);
     }
 

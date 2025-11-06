@@ -633,12 +633,15 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         Rectangle viewportBounds = scrollPane.getViewport().getViewRect();
         Point viewportLocation = scrollPane.getViewport().getLocationOnScreen();
 
-        // Position tooltip at bottom of visible viewport
+        // Get mouse position on screen
+        Point mouseOnScreen = e.getLocationOnScreen();
+        
         int x = viewportLocation.x;
-        int y = viewportLocation.y + viewportBounds.height;
         int width = viewportBounds.width;
+        int bottomY = viewportLocation.y + viewportBounds.height;
+        int topY = viewportLocation.y;
 
-        tooltip.showTooltip(text, x, y, width);
+        tooltip.showTooltip(text, x, topY, bottomY, mouseOnScreen.y, width);
     }
 
     private void hideTooltip() {
