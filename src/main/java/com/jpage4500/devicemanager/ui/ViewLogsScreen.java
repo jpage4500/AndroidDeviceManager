@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.table.TableColumn;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -627,7 +628,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         int modelCol = table.convertColumnIndexToModel(col);
 
         // Only show tooltip for message column
-        LogsTableModel.Columns columnType = LogsTableModel.Columns.values()[modelCol];
+        LogsTableModel.Columns columnType = model.getColumnType(modelCol);
         if (columnType != LogsTableModel.Columns.MSG) {
             return;
         }
@@ -818,27 +819,46 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         isQuickViewEnabled = !isQuickViewEnabled;
         updateQuickViewButton();
 
-        List<String> hiddenColList = new ArrayList<>();
         if (isQuickViewEnabled) {
+            // Save current table state before enabling quick view
+            table.saveTable();
+            
+            // Hide columns: DATE, APP, TID, PID
+            List<String> hiddenColList = new ArrayList<>();
             hiddenColList.add(LogsTableModel.Columns.DATE.name());
             hiddenColList.add(LogsTableModel.Columns.APP.name());
             hiddenColList.add(LogsTableModel.Columns.TID.name());
             hiddenColList.add(LogsTableModel.Columns.PID.name());
+            model.setHiddenColumns(hiddenColList);
+            
+            // Size LEVEL and TAG columns to fit their content BEFORE enabling auto-resize
+            TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
+            
+            // Find column indices by name (after columns have been hidden)
+            TableColumn levelColumn = table.getColumnByName(LogsTableModel.Columns.LEVEL.name());
+            TableColumn tagColumn = table.getColumnByName(LogsTableModel.Columns.TAG.name());
+            
+            if (levelColumn != null) {
+                int levelCol = table.convertColumnIndexToView(levelColumn.getModelIndex());
+                if (levelCol >= 0) adjuster.adjustColumn(levelCol);
+            }
+            if (tagColumn != null) {
+                int tagCol = table.convertColumnIndexToView(tagColumn.getModelIndex());
+                if (tagCol >= 0) adjuster.adjustColumn(tagCol);
+            }
+            
+            // Enable auto-resize for last column (MSG) to fill remaining space
+            table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
+        } else {
+            // Restore previous auto-resize mode FIRST
+            table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+            
+            // Restore: show all columns
+            model.setHiddenColumns(new ArrayList<>());
+            
+            // Restore saved column widths and order
+            table.restoreTable();
         }
-        model.setHiddenColumns(hiddenColList);
-
-        // use some default column sizes
-        table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
-        table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
-        table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
-        table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
-        table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
-        table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
-        table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
-
-        table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
-        table.setMaxColWidth(LogsTableModel.Columns.PID.toString(), 100);
-        table.setMaxColWidth(LogsTableModel.Columns.TID.toString(), 100);
     }
 
     private void updateQuickViewButton() {

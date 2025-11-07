@@ -945,6 +945,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void handleRemoveDevice(Device device) {
         log.debug("handleRemoveDevice: {}", device.serial);
         model.removeDevice(device);
+        refreshUi();
     }
 
     private void handleReconnectDevice(Device device) {
