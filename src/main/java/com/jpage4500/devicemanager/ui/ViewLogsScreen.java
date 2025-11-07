@@ -41,8 +41,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private static final String HINT_FILTER = "Filter...";
     private static final String HINT_SEARCH = "Search...";
 
-    private final Device device;
     private final DeviceScreen deviceScreen;
+    private Device device;
 
     public CustomTable table;
     public LogsTableModel model;
@@ -74,15 +74,15 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public ViewLogsScreen(DeviceScreen deviceScreen, Device device) {
         super("logs-" + device.serial, 1100, 800);
         this.deviceScreen = deviceScreen;
-        this.device = device;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initalizeUi();
-        updateDeviceState();
+        updateDevice(device);
     }
 
-    public void updateDeviceState() {
-        //log.trace("updateDeviceState: ONLINE:{}", device.isOnline);
+    public void updateDevice(Device device) {
+        this.device = device;
+        log.trace("updateDeviceState: ONLINE:{}", device.isOnline);
         if (device.isOnline) {
             setTitle("Logs: [" + device.getDisplayName() + "]");
             startLogging();
@@ -745,7 +745,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private void startLogging() {
         if (device.isOnline && !DeviceManager.getInstance().isLogging(device)) {
             deviceScreen.setDeviceBusy(device, true);
-            DeviceManager.getInstance().startLogging(device, this);
+            // get last log entry and start from there
+            String lastLogTime = model.getLastLogTime();
+            DeviceManager.getInstance().startLogging(device, lastLogTime,this);
         }
     }
 

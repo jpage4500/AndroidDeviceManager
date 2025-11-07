@@ -84,7 +84,7 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
         int columnHeaderWidth = getColumnHeaderWidth(column);
         int columnDataWidth = getColumnDataWidth(column);
         int preferredWidth = Math.max(columnHeaderWidth, columnDataWidth);
-
+        log.trace("adjustColumn: col:{}, header:{}, data:{}, preferred:{}", column, columnHeaderWidth, columnDataWidth, preferredWidth);
         updateTableColumn(column, preferredWidth);
     }
 
@@ -143,7 +143,10 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
     private void updateTableColumn(int column, int width) {
         final TableColumn tableColumn = table.getColumnModel().getColumn(column);
         //log.trace("updateTableColumn: col:{}, wid:{}", column, width);
-        if (!tableColumn.getResizable()) return;
+        if (!tableColumn.getResizable()) {
+            log.trace("updateTableColumn: not resizable");
+            return;
+        }
 
         width += spacing;
 

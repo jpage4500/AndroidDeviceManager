@@ -518,7 +518,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             int y = h / 2 + textHeight / 3;
             g.drawString(text, x, y);
         }
-        log.trace("getTrayIconWithCount: w:{}, combW:{}", w, combinedWidth);
         g.dispose();
         return combined;
     }
@@ -563,6 +562,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
                 refreshUi();
 
+                log.trace("handleDevicesUpdated: deviceList: {}", deviceList.size());
                 for (Device device : deviceList) {
                     updateDeviceState(device);
                 }
@@ -621,7 +621,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (exploreScreen != null) exploreScreen.updateDeviceState();
 
         ViewLogsScreen logsScreen = logsViewMap.get(device.serial);
-        if (logsScreen != null) logsScreen.updateDeviceState();
+        if (logsScreen != null) logsScreen.updateDevice(device);
 
         InputScreen inputScreen = inputViewMap.get(device.serial);
         if (inputScreen != null) inputScreen.updateDeviceState();
@@ -1243,7 +1243,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
         createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(this));
-
     }
 
     protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {

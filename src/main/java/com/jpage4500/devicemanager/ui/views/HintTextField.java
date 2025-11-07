@@ -138,6 +138,7 @@ public class HintTextField extends JTextField implements KeyListener {
 
     @Override
     public void keyPressed(KeyEvent e) {
+        if (e.isMetaDown()) return;
         char keyChar = e.getKeyChar();
         int keyCode = e.getKeyCode();
         switch (keyCode) {
