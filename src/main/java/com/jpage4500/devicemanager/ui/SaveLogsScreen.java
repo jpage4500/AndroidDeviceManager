@@ -397,7 +397,7 @@ public class SaveLogsScreen extends BaseScreen {
         dispose();
     }
 
-    public void updateDeviceState() {
+    public void updateDevice() {
         model.fireTableDataChanged();
     }
 }
