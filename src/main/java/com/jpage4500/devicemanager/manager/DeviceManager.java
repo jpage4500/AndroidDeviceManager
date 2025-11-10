@@ -7,11 +7,13 @@ import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.*;
 import com.jpage4500.devicemanager.utils.Timer;
+
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
 import javax.imageio.ImageIO;
+
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -114,15 +116,13 @@ public class DeviceManager {
     }
 
     public interface DeviceListener {
-        // device list was refreshed
+        // device(s) were updated
         void handleDevicesUpdated(List<Device> deviceList);
-
-        // single device was updated
-        void handleDeviceUpdated(Device device);
 
         // single device was removed
         void handleDeviceRemoved(Device device);
 
+        // connection error
         void handleException(Exception e);
     }
 
@@ -148,7 +148,7 @@ public class DeviceManager {
                 }).run();
             } catch (Exception e) {
                 log.error("connectAdbServer: Exception: {}", e.getMessage());
-                // likley because adb server isn't running.. try to start it now
+                // likely because adb server isn't running.. try to start it now
                 startServer((isSuccess, error) -> {
                     if (isSuccess && allowRetry) connectAdbServer(false);
                     else {
@@ -200,7 +200,8 @@ public class DeviceManager {
                 }
             }
             if (!isFound) {
-                if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_OFFLINE: {}", device.getDisplayName());
+                if (log.isTraceEnabled())
+                    log.trace("handleDeviceUpdate: DEVICE_OFFLINE: {}", device.getDisplayName());
                 iterator.remove();
                 // -- DEVICE REMOVED --
                 device.isOnline = false;
@@ -355,11 +356,13 @@ public class DeviceManager {
             device.lastUpdateMs = System.currentTimeMillis();
 
             if (fullRefresh) {
-                if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: FULL_REFRESH:{}: {}", timer, GsonHelper.toJson(device));
+                if (log.isTraceEnabled())
+                    log.trace("fetchDeviceDetails: FULL_REFRESH:{}: {}", timer, GsonHelper.toJson(device));
                 // keep track of wireless devices
                 ConnectDialog.addWirelessDevice(device);
             } else {
-                if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: REFRESH:{}: {}", timer, GsonHelper.toJson(device));
+                if (log.isTraceEnabled())
+                    log.trace("fetchDeviceDetails: REFRESH:{}: {}", timer, GsonHelper.toJson(device));
             }
             boolean isBusy = device.setBusy(false);
             if (!isBusy) notifyDeviceUpdated(device);
@@ -392,7 +395,7 @@ public class DeviceManager {
 
     private void notifyDeviceUpdated(Device device) {
         if (deviceListener != null) {
-            deviceListener.handleDeviceUpdated(device);
+            deviceListener.handleDevicesUpdated(Collections.singletonList(device));
         }
     }
 
@@ -425,19 +428,23 @@ public class DeviceManager {
                     }
                 case "AC powered":
                     //  AC powered: true
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_AC;
+                    if (Boolean.parseBoolean(value))
+                        device.powerStatus = Device.PowerStatus.POWER_AC;
                     break;
                 case "USB powered":
                     //  USB powered: false
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_USB;
+                    if (Boolean.parseBoolean(value))
+                        device.powerStatus = Device.PowerStatus.POWER_USB;
                     break;
                 case "Wireless powered":
                     //  Wireless powered: false
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_WIRELESS;
+                    if (Boolean.parseBoolean(value))
+                        device.powerStatus = Device.PowerStatus.POWER_WIRELESS;
                     break;
                 case "Dock powered":
                     //  Dock powered: false
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_DOCK;
+                    if (Boolean.parseBoolean(value))
+                        device.powerStatus = Device.PowerStatus.POWER_DOCK;
                     break;
             }
         }
@@ -459,7 +466,8 @@ public class DeviceManager {
             Map<String, String> queryCache = new HashMap<>();
 
             for (String entry : entryList) {
-                if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
+                if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//"))
+                    continue;
                 String[] entryArr = entry.split(":", 3);
                 String label = entryArr.length >= 1 ? entryArr[0].trim() : entry;
                 String type = entryArr.length >= 2 ? entryArr[1].trim() : CUSTOM_KEY_VERSION;
@@ -530,7 +538,8 @@ public class DeviceManager {
                 }
 
                 if (value != null) {
-                    if (device.customAppVersionList == null) device.customAppVersionList = new HashMap<>();
+                    if (device.customAppVersionList == null)
+                        device.customAppVersionList = new HashMap<>();
                     device.customAppVersionList.put(label, value);
                     notifyDeviceUpdated(device);
                 }
@@ -728,9 +737,9 @@ public class DeviceManager {
                 int port = Utils.getRandomNumber(2000, 65000);
                 // NOTE: adb must be in PATH (or ADB env variable set)
                 appResult = runApp(app, true, "-s", device.serial,
-                    "-p", String.valueOf(port),
-                    "--window-title", device.getDisplayName(),
-                    "--show-touches", "--stay-awake");
+                        "-p", String.valueOf(port),
+                        "--window-title", device.getDisplayName(),
+                        "--show-touches", "--stay-awake");
             }
 
             // TODO: figure out how to determine if scrcpy was run successfully..
@@ -796,9 +805,9 @@ public class DeviceManager {
         String[] arr = new String[]{};
         if (!Utils.isWindows()) {
             arr = new String[]{
-                "/opt/homebrew/bin",
-                "/usr/local/bin",
-                "/home/linuxbrew/.linuxbrew/bin/scrcpy"
+                    "/opt/homebrew/bin",
+                    "/usr/local/bin",
+                    "/home/linuxbrew/.linuxbrew/bin/scrcpy"
             };
         }
         for (String s : arr) {

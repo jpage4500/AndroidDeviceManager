@@ -1,20 +1,40 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.*;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.File;
+import java.util.List;
 import java.util.prefs.Preferences;
+
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.JToolBar;
+import javax.swing.KeyStroke;
+import javax.swing.SwingConstants;
 
 /**
  * create and manage device view
  */
-public class BaseScreen extends JFrame {
+public class BaseScreen extends JFrame implements DeviceManager.DeviceListener {
     private static final Logger log = LoggerFactory.getLogger(BaseScreen.class);
 
     private String prefKey;
@@ -171,6 +191,21 @@ public class BaseScreen extends JFrame {
         }
         setLocation(r.x, r.y);
         setSize(r.width, r.height);
+    }
+
+    public void handleFilesOpened(List<File> openFileList) {
+    }
+
+    @Override
+    public void handleDevicesUpdated(List<Device> deviceList) {
+    }
+
+    @Override
+    public void handleDeviceRemoved(Device device) {
+    }
+
+    @Override
+    public void handleException(Exception e) {
     }
 
 }

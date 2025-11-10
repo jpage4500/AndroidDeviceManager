@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * create and manage device view
  */
-public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceListener {
+public class DeviceScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(DeviceScreen.class);
 
     private static final String HINT_FILTER_DEVICES = "Search";
@@ -89,8 +89,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         super("main", 900, 300);
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         initalizeUi();
-
-        connectAdbServer();
 
         scheduleUpdateChecks();
     }
@@ -551,63 +549,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         trayPopupMenu.setVisible(true);
     }
 
-    private void connectAdbServer() {
-        DeviceManager.getInstance().setDeviceListener(this);
-        DeviceManager.getInstance().connectAdbServer(true);
-    }
-
-    @Override
-    public void handleDevicesUpdated(List<Device> deviceList) {
-        SwingUtilities.invokeLater(() -> {
-            if (deviceList != null) {
-                model.setDeviceList(deviceList);
-
-                // auto-select first device
-                if (!hasSelectedDevice && !deviceList.isEmpty() && table.getSelectedRow() == -1) {
-                    table.changeSelection(0, 0, false, false);
-                    hasSelectedDevice = true;
-                }
-
-                refreshUi();
-
-                log.trace("handleDevicesUpdated: deviceList: {}", deviceList.size());
-                for (Device device : deviceList) {
-                    updateDeviceState(device);
-                }
-            }
-        });
-    }
-
-    @Override
-    public void handleDeviceUpdated(Device device) {
-        SwingUtilities.invokeLater(() -> {
-            model.updateDevice(device);
-            updateDeviceState(device);
-            sorter.sort();
-        });
-    }
-
-    @Override
-    public void handleDeviceRemoved(Device device) {
-        SwingUtilities.invokeLater(() -> {
-            model.removeDevice(device);
-            updateDeviceState(device);
-            sorter.sort();
-        });
-    }
-
-    @Override
-    public void handleException(Exception e) {
-        SwingUtilities.invokeLater(() -> {
-            String[] choices = {"Retry", "Cancel"};
-            if (!DialogHelper.showOptionDialog(DeviceScreen.this, "ADB Server",
-                    "Unable to connect to ADB server. Please check that it's running and re-try", choices))
-                return;
-
-            connectAdbServer();
-        });
-    }
-
     private void bringWindowToFront() {
         if (isActive()) return;
         // requires multiple steps otherwise this won't work..
@@ -782,6 +723,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
      * called when user double-clicks on .apk file or selects open with device manager
      * - similar to handleFilesDropped() but waits a bit until a device is connected
      */
+    @Override
     public void handleFilesOpened(List<File> fileList) {
         log.debug("handleFilesOpened: {}", fileList.size());
         if (table.getRowCount() > 0) {
@@ -1593,6 +1535,54 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             // open failed
             DialogHelper.showDialog(this, "Error", "Failed to open logs: " + logsFile.getAbsolutePath());
         }
+    }
+
+    @Override
+    public void handleDevicesUpdated(List<Device> deviceList) {
+        if (deviceList != null) {
+            model.setDeviceList(deviceList);
+
+            // auto-select first device
+            if (!hasSelectedDevice && !deviceList.isEmpty() && table.getSelectedRow() == -1) {
+                table.changeSelection(0, 0, false, false);
+                hasSelectedDevice = true;
+            }
+
+            refreshUi();
+            //sorter.sort();
+
+
+            log.trace("handleDevicesUpdated: deviceList: {}", deviceList.size());
+            for (Device device : deviceList) {
+                updateDeviceState(device);
+            }
+        }
+    }
+
+    @Override
+    public void handleDeviceUpdated(Device device) {
+        SwingUtilities.invokeLater(() -> {
+            for (BaseScreen screen : screenList) {
+                screen.handleDeviceUpdated(device);
+            }
+
+            model.updateDevice(device);
+            updateDeviceState(device);
+            sorter.sort();
+        });
+    }
+
+    @Override
+    public void handleDeviceRemoved(Device device) {
+        SwingUtilities.invokeLater(() -> {
+            for (BaseScreen screen : screenList) {
+                screen.handleDeviceRemoved(device);
+            }
+
+            model.removeDevice(device);
+            updateDeviceState(device);
+            sorter.sort();
+        });
     }
 
 }

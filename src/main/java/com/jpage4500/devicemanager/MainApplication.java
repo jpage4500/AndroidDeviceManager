@@ -1,17 +1,23 @@
 package com.jpage4500.devicemanager;
 
 import com.formdev.flatlaf.FlatLightLaf;
+import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
+import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.ui.BaseScreen;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
+import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import com.jpage4500.devicemanager.utils.Utils;
+
 import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -20,18 +26,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
-public class MainApplication {
+public class MainApplication implements DeviceManager.DeviceListener {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
-    private DeviceScreen deviceScreen;
-    private List<File> openFileList;
+    private final List<BaseScreen> screenList = new ArrayList<>();
+    private final List<File> openFileList = new ArrayList<>();
 
     public static String version;
 
-    public MainApplication() {
+    public MainApplication(String[] args) {
         setupLogging();
         handleLaunchParams();
-        SwingUtilities.invokeLater(this::initializeUI);
+        SwingUtilities.invokeLater(() -> initializeUI(args));
         log.debug("APP START: {}, java:{}, os:{}", version, Runtime.version(), System.getProperty("os.name"));
     }
 
@@ -50,7 +56,7 @@ public class MainApplication {
         } catch (IOException ex) {
             System.out.println("Failed to load app.properties");
         }
-        new MainApplication();
+        new MainApplication(args);
     }
 
     /**
@@ -76,7 +82,7 @@ public class MainApplication {
         }
     }
 
-    private void initializeUI() {
+    private void initializeUI(String[] args) {
         FlatLightLaf.setup();
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
@@ -94,8 +100,13 @@ public class MainApplication {
             }
         }
 
-        deviceScreen = new DeviceScreen();
+        // TODO: handle command line arguments
+        // - no args - open main window (DeviceScreen)
+        // - logs - open ViewLogsScreen
+        screenList.add(new DeviceScreen());
         sendFilesToDevice();
+
+        connectAdbServer();
     }
 
     private void handleLaunchParams() {
@@ -103,7 +114,6 @@ public class MainApplication {
         if (desktop.isSupported(Desktop.Action.APP_OPEN_FILE)) {
             desktop.setOpenFileHandler(e -> {
                 List<File> files = e.getFiles();
-                if (openFileList == null) openFileList = new ArrayList<>();
                 openFileList.addAll(files);
                 log.debug("handleLaunchParams: {}", openFileList);
                 sendFilesToDevice();
@@ -111,11 +121,48 @@ public class MainApplication {
         }
     }
 
-    private void sendFilesToDevice() {
-        if (deviceScreen != null && openFileList != null && !openFileList.isEmpty()) {
-            deviceScreen.handleFilesOpened(openFileList);
-            openFileList = null;
+    public void sendFilesToDevice() {
+        if (!screenList.isEmpty() && !openFileList.isEmpty()) {
+            BaseScreen baseScreen = screenList.get(0);
+            baseScreen.handleFilesOpened(openFileList);
+            openFileList.clear();
         }
     }
+
+    private void connectAdbServer() {
+        DeviceManager.getInstance().setDeviceListener(this);
+        DeviceManager.getInstance().connectAdbServer(true);
+    }
+
+    @Override
+    public void handleDevicesUpdated(List<Device> deviceList) {
+        SwingUtilities.invokeLater(() -> {
+            for (BaseScreen screen : screenList) {
+                screen.handleDevicesUpdated(deviceList);
+            }
+        });
+    }
+
+    @Override
+    public void handleDeviceRemoved(Device device) {
+        SwingUtilities.invokeLater(() -> {
+            for (BaseScreen screen : screenList) {
+                screen.handleDeviceRemoved(device);
+            }
+        });
+    }
+
+    @Override
+    public void handleException(Exception e) {
+        SwingUtilities.invokeLater(() -> {
+            String[] choices = {"Retry", "Cancel"};
+            if (!DialogHelper.showOptionDialog(null, "ADB Server",
+                    "Unable to connect to ADB server. Please check that it's running and re-try", choices))
+                return;
+
+            connectAdbServer();
+        });
+    }
+
 
 }
