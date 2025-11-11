@@ -3,7 +3,6 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
-import com.jpage4500.devicemanager.data.GithubRelease;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
@@ -36,9 +35,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * create and manage device view
@@ -52,10 +48,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public static final String SHOW_LOG_VIEWER = "Show Device Logs";
     public static final String PREF_KEY_DEVICES = "devices";
 
-    // update check for github releases
-    public static final String UPDATE_SOURCE_GITHUB = "https://api.github.com/repos/jpage4500/AndroidDeviceManager/releases";
-    public static final String URL_GITHUB = "https://github.com/jpage4500/AndroidDeviceManager/releases";
     public static final String PACKAGE_PREFIX = "package:";
+
+    private final MainApplication mainApplication;
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -73,11 +68,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private JLabel countLabel;             // total devices
 
     private boolean hasSelectedDevice;
-    // update checking
-    private String updateVersion;
-    private String updateDesc;
-
-    private ScheduledExecutorService updateExecutorService;
 
     // open windows (per device)
     private final Map<String, ExploreScreen> exploreViewMap = new HashMap<>();
@@ -85,30 +75,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
     private SaveLogsScreen saveLogsScreen;
 
-    public DeviceScreen() {
+    public DeviceScreen(MainApplication mainApplication) {
         super("main", 900, 300);
+        this.mainApplication = mainApplication;
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         initalizeUi();
-
-        connectAdbServer();
-
-        scheduleUpdateChecks();
-    }
-
-    public void scheduleUpdateChecks() {
-        // cancel any current scheduled update checks
-        if (updateExecutorService != null) {
-            updateExecutorService.shutdownNow();
-            updateExecutorService = null;
-        }
-
-        // check for updates (default: true)
-        boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
-        if (checkUpdates) {
-            updateExecutorService = Executors.newSingleThreadScheduledExecutor();
-            // check after 5 seconds, then again every 12 hours
-            updateExecutorService.scheduleAtFixedRate(() -> checkForUpdates(null), 5, TimeUnit.HOURS.toSeconds(12), TimeUnit.SECONDS);
-        }
     }
 
     protected void initalizeUi() {
@@ -210,13 +181,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         updateLabel = new HoverLabel(icon);
         updateLabel.setToolTipText("Check for updates");
         leftPanel.add(updateLabel);
-        UiUtils.addLeftClickListener(updateLabel, this::handleUpdateClicked);
+        UiUtils.addLeftClickListener(updateLabel, e -> handleUpdateClicked());
 
         // version
         versionLabel = new HoverLabel();
         leftPanel.add(versionLabel);
         UiUtils.addLeftClickListener(versionLabel, this::handleVersionClicked);
-        versionLabel.setText("v" + MainApplication.version);
+        versionLabel.setText("v" + mainApplication.version);
 
         // memory
         icon = UiUtils.getImageIcon("memory.png", UiUtils.IMG_SIZE_SMALL);
@@ -248,7 +219,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         createCmdMenuItem(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleViewLogsCommand(null));
 
         // [CMD + ,] = settings
-        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(this));
+        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(mainApplication, this));
 
         // [CMD + T] = hide toolbar
         createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
@@ -601,7 +572,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         SwingUtilities.invokeLater(() -> {
             String[] choices = {"Retry", "Cancel"};
             if (!DialogHelper.showOptionDialog(DeviceScreen.this, "ADB Server",
-                    "Unable to connect to ADB server. Please check that it's running and re-try", choices))
+                "Unable to connect to ADB server. Please check that it's running and re-try", choices))
                 return;
 
             connectAdbServer();
@@ -1257,7 +1228,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
 
         createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
-        createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(this));
+        createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(mainApplication, this));
     }
 
     protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {
@@ -1440,7 +1411,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         ViewLogsScreen logsScreen = logsViewMap.get(selectedDevice.serial);
         if (logsScreen == null) {
             if (!selectedDevice.isOnline) return;
-            logsScreen = new ViewLogsScreen(this, selectedDevice);
+            logsScreen = new ViewLogsScreen(mainApplication, this, selectedDevice);
             logsViewMap.put(selectedDevice.serial, logsScreen);
         }
         logsScreen.show();
@@ -1455,49 +1426,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
         saveLogsScreen.setDeviceList(selectedDeviceList);
         saveLogsScreen.show();
-    }
-
-    private interface UpdateListener {
-        void onUpdateCheckComplete(String version, String desc);
-    }
-
-    private void checkForUpdates(UpdateListener updateListener) {
-        // must be run off main/UI thread
-        if (SwingUtilities.isEventDispatchThread()) {
-            Utils.runBackground(() -> checkForUpdates(updateListener));
-            return;
-        }
-        String version = null;
-        String desc = null;
-        String response = NetworkUtils.getRequest(UPDATE_SOURCE_GITHUB);
-        List<GithubRelease> releases = GsonHelper.stringToList(response, GithubRelease.class);
-        if (!releases.isEmpty()) {
-            GithubRelease latestRelease = releases.get(0);
-            Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);
-            if (compareResult == Utils.CompareResult.VERSION_NEWER) {
-                version = latestRelease.tagName;
-                desc = latestRelease.body;
-            }
-        }
-
-        // update UI on main thread
-        String finalVersion = version;
-        String finalDesc = desc;
-        if (version != null) {
-            log.debug("checkForUpdates: LATEST:{}, CURRENT:{}", version, MainApplication.version);
-            SwingUtilities.invokeLater(() -> {
-                updateVersion = finalVersion;
-                updateDesc = finalDesc;
-                updateLabel.setToolTipText("Update Available " + updateVersion + ", desc: " + finalDesc);
-                BufferedImage image = UiUtils.getImage("icon_update.png", UiUtils.IMG_SIZE_SMALL, UiUtils.IMG_SIZE_SMALL, Colors.COLOR_ERROR);
-                if (image != null) updateLabel.setIcon(new ImageIcon(image));
-                updateLabel.setVisible(true);
-                if (updateListener != null)
-                    updateListener.onUpdateCheckComplete(finalVersion, finalDesc);
-            });
-        } else if (updateListener != null) {
-            SwingUtilities.invokeLater(() -> updateListener.onUpdateCheckComplete(null, null));
-        }
     }
 
     /**
@@ -1522,68 +1450,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         DialogHelper.showListDialog(this, "System Environment", sortedEnvMap, null);
     }
 
-    private void handleUpdateClicked(MouseEvent e) {
-        if (updateVersion == null) {
-            // prompt to check for new version
-            if (!DialogHelper.showConfirmDialog(this, "Update Check", "Check for update?")) return;
-
-            checkForUpdates((version, desc) -> {
-                if (updateVersion != null) {
-                    handleUpdateClicked(null);
-                } else {
-                    DialogHelper.showDialog(this, null, "No Updates");
-                }
-            });
-            return;
-        }
-        // Jdeploy will auto-update app on start
-        String jdeployPath = System.getProperty("jdeploy.launcher.path");
-        boolean isJdeploy = jdeployPath != null;
-        int index = TextUtils.indexOf(jdeployPath, "/Contents/MacOS/Client4JLauncher");
-        if (index > 0) {
-            // remove the launcher part and just open "Android Device Manager.app"
-            // "/Users/USERNAME/Applications/Android Device Manager.app/Contents/MacOS/Client4JLauncher";
-            jdeployPath = jdeployPath.substring(0, index);
-        }
-
-        JPanel panel = new JPanel(new MigLayout());
-        panel.add(new JLabel(String.format("Update %s Available", updateVersion)), "wrap");
-        JTextArea textArea = new JTextArea(updateDesc);
-        textArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        panel.add(scrollPane, "newline 20px, wrap");
-        String yesOption;
-        if (isJdeploy) {
-            panel.add(new JLabel("Restart App?"), "newline 20px, wrap");
-            yesOption = "Restart";
-        } else {
-            panel.add(new JLabel("View release in browser?"), "newline 20px, wrap");
-            yesOption = "View";
-        }
-        String[] choices = {yesOption, "Cancel"};
-        if (!DialogHelper.showCustomDialog(this, panel, "Update Available", choices)) return;
-
-        if (isJdeploy) {
-            // exit and restart app
-            //  ~/Applications/Android Device Manager.app/Contents/MacOS/Client4JLauncher
-            final ArrayList<String> command = new ArrayList<>();
-            command.add("open");
-            command.add(jdeployPath);
-
-            final ProcessBuilder builder = new ProcessBuilder(command);
-            try {
-                builder.start();
-                System.exit(0);
-            } catch (IOException ex) {
-                log.error("handleVersionClicked: IOException: {}", ex.getMessage());
-            }
-        } else {
-            // NOTE: check if app was launched from console or other (IntelliJ, .app)
-            // log.debug("handleVersionClicked: CONSOLE:{}", System.console());
-            Utils.openBrowser(URL_GITHUB);
-        }
-    }
-
     private void handleVersionClicked(MouseEvent e) {
         // show logs
         AppLoggerFactory logger = (AppLoggerFactory) LoggerFactory.getILoggerFactory();
@@ -1595,4 +1461,16 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
+    private void handleUpdateClicked() {
+        // prompt to check for new version
+        if (!DialogHelper.showConfirmDialog(this, "Update Check", "Check for update?")) return;
+
+        mainApplication.checkForUpdates(latestRelease -> {
+            if (latestRelease != null) {
+                mainApplication.updateApp(this, latestRelease);
+            } else {
+                DialogHelper.showDialog(this, null, "No Updates");
+            }
+        });
+    }
 }

@@ -1,14 +1,20 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.GithubRelease;
 import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.File;
+import java.util.List;
 import java.util.prefs.Preferences;
 
 /**
@@ -171,6 +177,26 @@ public class BaseScreen extends JFrame {
         }
         setLocation(r.x, r.y);
         setSize(r.width, r.height);
+    }
+
+    public void handleDevicesUpdated(List<Device> deviceList) {
+
+    }
+
+    public void handleDeviceUpdated(Device device) {
+
+    }
+
+    public void handleDeviceRemoved(Device device) {
+
+    }
+
+    public void handleFilesOpened(List<File> openFileList) {
+
+    }
+
+    public void handleUpdateAvailable(GithubRelease latestRelease) {
+
     }
 
 }

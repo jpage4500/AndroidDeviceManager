@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
@@ -25,14 +26,16 @@ public class SettingsDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(SettingsDialog.class);
 
     private final DeviceScreen deviceScreen;
+    private final MainApplication mainApplication;
 
-    public static void showSettings(DeviceScreen deviceScreen) {
-        SettingsDialog settingsScreen = new SettingsDialog(deviceScreen);
-        DialogHelper.showCustomDialog(null, settingsScreen, "Settings", new String[]{});
+    public static void showSettings(MainApplication mainApplication, DeviceScreen deviceScreen) {
+        SettingsDialog settingsScreen = new SettingsDialog(mainApplication, deviceScreen);
+        DialogHelper.showCustomDialog(deviceScreen, settingsScreen, "Settings", new String[]{});
     }
 
-    private SettingsDialog(DeviceScreen deviceScreen) {
+    private SettingsDialog(MainApplication mainApplication, DeviceScreen deviceScreen) {
         this.deviceScreen = deviceScreen;
+        this.mainApplication = mainApplication;
 
         setLayout(new MigLayout("", "[][]"));
         initalizeUi();
@@ -56,7 +59,7 @@ public class SettingsDialog extends JPanel {
 
         JPanel generalPanel = UiUtils.createPanel("General Settings");
         UiUtils.addSettingCheckbox(generalPanel, "Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
-        UiUtils.addSettingCheckbox(generalPanel, "Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> deviceScreen.scheduleUpdateChecks());
+        UiUtils.addSettingCheckbox(generalPanel, "Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> mainApplication.scheduleUpdateChecks());
         UiUtils.addSettingCheckbox(generalPanel, "Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
             // force table background to be repainted
             deviceScreen.model.fireTableDataChanged();
