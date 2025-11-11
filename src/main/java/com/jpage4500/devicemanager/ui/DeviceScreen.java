@@ -85,8 +85,8 @@ public class DeviceScreen extends BaseScreen {
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
     private SaveLogsScreen saveLogsScreen;
 
-    public DeviceScreen() {
-        super("main", 900, 300);
+    public DeviceScreen(MainApplication mainApplication) {
+        super(mainApplication, "main", 900, 300);
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         initalizeUi();
 
@@ -1550,7 +1550,6 @@ public class DeviceScreen extends BaseScreen {
 
             refreshUi();
             //sorter.sort();
-
 
             log.trace("handleDevicesUpdated: deviceList: {}", deviceList.size());
             for (Device device : deviceList) {

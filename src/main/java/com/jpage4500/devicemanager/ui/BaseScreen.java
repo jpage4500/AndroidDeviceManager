@@ -1,35 +1,23 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.Rectangle;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.*;
+import java.awt.event.*;
 import java.io.File;
 import java.util.List;
 import java.util.prefs.Preferences;
 
-import javax.swing.AbstractAction;
-import javax.swing.Action;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JToolBar;
-import javax.swing.KeyStroke;
-import javax.swing.SwingConstants;
+import javax.swing.*;
 
 /**
  * create and manage device view
@@ -37,9 +25,15 @@ import javax.swing.SwingConstants;
 public class BaseScreen extends JFrame implements DeviceManager.DeviceListener {
     private static final Logger log = LoggerFactory.getLogger(BaseScreen.class);
 
+    public static final String SHOW_DEVICE_LIST = "Show Device List";
+    public static final String SHOW_BROWSE = "Show File Browser";
+    public static final String SHOW_LOG_VIEWER = "Show Device Logs";
+
+    protected MainApplication mainApplication;
     private String prefKey;
 
-    public BaseScreen(String prefKey, int defaultWidth, int defaultHeight) {
+    public BaseScreen(MainApplication mainApplication, String prefKey, int defaultWidth, int defaultHeight) {
+        this.mainApplication = mainApplication;
         this.prefKey = prefKey;
         restoreFrameSize(defaultWidth, defaultHeight);
 
@@ -129,6 +123,87 @@ public class BaseScreen extends JFrame implements DeviceManager.DeviceListener {
         button.addActionListener(listener);
         toolbar.add(button);
         return button;
+    }
+
+    private void setupMenuBar() {
+        JMenu windowMenu = new JMenu("Window");
+
+        // [CMD + W] = close window
+        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> exitApp(false));
+
+        // [CMD + 2] = show explorer
+        createCmdMenuItem(windowMenu, SHOW_BROWSE, KeyEvent.VK_2, e -> handleBrowseCommand(null));
+
+        // [CMD + 3] = show logs
+        createCmdMenuItem(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleViewLogsCommand(null));
+
+        // [CMD + ,] = settings
+        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(this));
+
+        // [CMD + T] = hide toolbar
+        createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
+
+        // always on top
+        JCheckBoxMenuItem onTopItem = new JCheckBoxMenuItem();
+        boolean isAlwaysOnTop = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_ALWAYS_ON_TOP, false);
+        setAlwaysOnTop(isAlwaysOnTop);
+        onTopItem.setState(isAlwaysOnTop);
+        onTopItem.setAction(new AbstractAction("Always on top") {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                boolean alwaysOnTop = !isAlwaysOnTop();
+                setAlwaysOnTop(alwaysOnTop);
+                PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_ALWAYS_ON_TOP, alwaysOnTop);
+            }
+        });
+        windowMenu.add(onTopItem);
+
+        JMenu deviceMenu = new JMenu("Devices");
+
+        // [CMD + F] = focus search box
+        createCmdMenuItem(deviceMenu, "Filter", KeyEvent.VK_F, e -> filterTextField.requestFocus());
+
+        // [CMD + N] = connect device
+        createCmdMenuItem(deviceMenu, "Connect Device", KeyEvent.VK_N, e -> handleConnectDevice());
+
+        JMenuBar menubar = new JMenuBar();
+        menubar.add(windowMenu);
+        menubar.add(deviceMenu);
+        setJMenuBar(menubar);
+    }
+
+    /**
+     * exit app or just hide screen if user has 'exit to tray' setting enabled
+     *
+     * @param forceQuit true to exit regardless of setting
+     */
+    private void exitApp(boolean forceQuit) {
+        setVisible(false);
+        if (!forceQuit && PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY)) {
+            return;
+        }
+
+        saveFrameSize();
+        table.saveTable();
+
+        // save positions/sizes of any other open windows
+        // NOTE: only saving FIRST open window position
+        if (!exploreViewMap.isEmpty())
+            (exploreViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
+        if (!logsViewMap.isEmpty())
+            (logsViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
+        if (!inputViewMap.isEmpty())
+            (inputViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
+        if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(WindowState.CLOSED);
+
+        DeviceManager.getInstance().handleExit();
+
+        if (SystemTray.isSupported() && trayIcon != null) {
+            SystemTray.getSystemTray().remove(trayIcon);
+        }
+
+        dispose();
+        System.exit(0);
     }
 
     public interface CustomActionListener {

@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.manager.DeviceManager;
@@ -40,8 +41,6 @@ public class ExploreScreen extends BaseScreen {
     private static final String HINT_FILTER_DEVICES = "Filter files...";
     public static final int MAX_PATH_SAVE = 10;
 
-    private final DeviceScreen deviceScreen;
-
     public CustomTable table;
     public ExploreTableModel model;
     public TableRowSorter<TableModel> rowSorter;
@@ -65,9 +64,8 @@ public class ExploreScreen extends BaseScreen {
     private JLabel errorLabel;
     private JLabel countLabel;          // total files / # selected
 
-    public ExploreScreen(DeviceScreen deviceScreen, Device device) {
-        super("browse-" + device.serial, 500, 500);
-        this.deviceScreen = deviceScreen;
+    public ExploreScreen(MainApplication mainApplication, Device device) {
+        super(mainApplication, "browse-" + device.serial, 500, 500);
         this.device = device;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         initializeUi();
@@ -536,13 +534,13 @@ public class ExploreScreen extends BaseScreen {
 
         boolean isSingleFile = selectedFileList.size() == 1;
         String msg = isSingleFile ?
-                selectedFileList.get(0).name :
-                selectedFileList.size() + " files(s)";
+            selectedFileList.get(0).name :
+            selectedFileList.size() + " files(s)";
 
         // prompt to install/copy
         int rc = JOptionPane.showConfirmDialog(this,
-                "Download " + msg + "?",
-                "Download?", JOptionPane.YES_NO_OPTION);
+            "Download " + msg + "?",
+            "Download?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         String downloadFolder = Utils.getDownloadFolder();
@@ -576,8 +574,8 @@ public class ExploreScreen extends BaseScreen {
         }
 
         int rc = JOptionPane.showConfirmDialog(this,
-                "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
-                "Delete Files?", JOptionPane.YES_NO_OPTION);
+            "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
+            "Delete Files?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (DeviceFile file : selectedFileList) {

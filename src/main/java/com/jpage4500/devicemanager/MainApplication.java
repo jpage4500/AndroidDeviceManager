@@ -100,10 +100,12 @@ public class MainApplication implements DeviceManager.DeviceListener {
             }
         }
 
+        // open main screen
+
         // TODO: handle command line arguments
         // - no args - open main window (DeviceScreen)
         // - logs - open ViewLogsScreen
-        screenList.add(new DeviceScreen());
+        screenList.add(new DeviceScreen(this));
         sendFilesToDevice();
 
         connectAdbServer();
@@ -157,12 +159,11 @@ public class MainApplication implements DeviceManager.DeviceListener {
         SwingUtilities.invokeLater(() -> {
             String[] choices = {"Retry", "Cancel"};
             if (!DialogHelper.showOptionDialog(null, "ADB Server",
-                    "Unable to connect to ADB server. Please check that it's running and re-try", choices))
+                "Unable to connect to ADB server. Please check that it's running and re-try", choices))
                 return;
 
             connectAdbServer();
         });
     }
-
 
 }

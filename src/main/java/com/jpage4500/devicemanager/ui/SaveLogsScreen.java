@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.data.LogFilter;
@@ -11,6 +12,7 @@ import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.*;
+import com.sun.tools.javac.Main;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,8 +33,6 @@ import java.util.Map;
 public class SaveLogsScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(SaveLogsScreen.class);
 
-    private final DeviceScreen deviceScreen;
-
     private boolean isRecording;
     private final Icon iconStartRecording;
     private final Icon iconStopRecording;
@@ -52,11 +52,10 @@ public class SaveLogsScreen extends BaseScreen {
     private JButton deleteButton;
     private JButton filterButton;
 
-    public SaveLogsScreen(DeviceScreen deviceScreen) {
-        super("savelogs", 450, 230);
+    public SaveLogsScreen(MainApplication mainApplication) {
+        super(mainApplication, "savelogs", 450, 230);
         //setAlwaysOnTop(true);
         setTitle("Save Device Logs");
-        this.deviceScreen = deviceScreen;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         BufferedImage startImg = UiUtils.getImage("icon_play.png", UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);

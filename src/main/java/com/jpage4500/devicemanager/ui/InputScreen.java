@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
@@ -26,15 +27,13 @@ import java.util.List;
 public class InputScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(InputScreen.class);
 
-    private final DeviceScreen deviceScreen;
     private Device device;
 
     private JTextField textField;
     private DefaultListModel<String> listModel;
 
-    public InputScreen(DeviceScreen deviceScreen, Device device) {
-        super("input-" + device.serial, 300, 300);
-        this.deviceScreen = deviceScreen;
+    public InputScreen(MainApplication mainApplication, Device device) {
+        super(mainApplication, "input-" + device.serial, 300, 300);
         this.device = device;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
