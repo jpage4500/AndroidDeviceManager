@@ -42,7 +42,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private static final String HINT_FILTER = "Filter...";
     private static final String HINT_SEARCH = "Search...";
 
-    private final MainApplication mainApplication;
     private final DeviceScreen deviceScreen;
     private Device device;
 
@@ -74,9 +73,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public boolean isQuickViewEnabled; // true when user clicks on 'quick view'
 
     public ViewLogsScreen(MainApplication mainApplication, DeviceScreen deviceScreen, Device device) {
-        super("logs-" + device.serial, 1100, 800);
+        super(mainApplication, "logs-" + device.serial, 1100, 800);
         this.deviceScreen = deviceScreen;
-        this.mainApplication = mainApplication;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initalizeUi();
@@ -714,7 +712,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void viewMessage(LogEntry... logEntry) {
-        if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
+        if (viewScreen == null) viewScreen = new MessageViewScreen(mainApplication, deviceScreen);
         viewScreen.setLogEntry(logEntry);
         viewScreen.setVisible(true);
     }
@@ -723,7 +721,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         List<LogEntry> logEntryList = getSelectedLogEntries();
         if (logEntryList.isEmpty()) return;
 
-        if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
+        if (viewScreen == null) viewScreen = new MessageViewScreen(mainApplication, deviceScreen);
         viewScreen.setLogEntry(logEntryList.toArray(new LogEntry[0]));
 
         viewScreen.editMessage();

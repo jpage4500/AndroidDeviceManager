@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
@@ -40,8 +41,8 @@ public class MessageViewScreen extends BaseScreen {
     private JButton autoFormatButton;
     private JButton editButton;
 
-    public MessageViewScreen(DeviceScreen deviceScreen) {
-        super("message", 500, 500);
+    public MessageViewScreen(MainApplication mainApplication, DeviceScreen deviceScreen) {
+        super(mainApplication, "message", 500, 500);
         this.deviceScreen = deviceScreen;
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         initalizeUi();

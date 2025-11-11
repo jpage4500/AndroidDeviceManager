@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
@@ -32,8 +33,8 @@ public class InputScreen extends BaseScreen {
     private JTextField textField;
     private DefaultListModel<String> listModel;
 
-    public InputScreen(DeviceScreen deviceScreen, Device device) {
-        super("input-" + device.serial, 300, 300);
+    public InputScreen(MainApplication mainApplication, DeviceScreen deviceScreen, Device device) {
+        super(mainApplication, "input-" + device.serial, 300, 300);
         this.deviceScreen = deviceScreen;
         this.device = device;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);

@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.GithubRelease;
 import com.jpage4500.devicemanager.utils.GsonHelper;
@@ -23,10 +24,13 @@ import java.util.prefs.Preferences;
 public class BaseScreen extends JFrame {
     private static final Logger log = LoggerFactory.getLogger(BaseScreen.class);
 
+    protected final MainApplication mainApplication;
     private String prefKey;
 
-    public BaseScreen(String prefKey, int defaultWidth, int defaultHeight) {
+    public BaseScreen(MainApplication mainApplication, String prefKey, int defaultWidth, int defaultHeight) {
         this.prefKey = prefKey;
+        this.mainApplication = mainApplication;
+
         restoreFrameSize(defaultWidth, defaultHeight);
 
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);

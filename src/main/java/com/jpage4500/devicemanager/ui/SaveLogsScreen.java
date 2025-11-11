@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.data.LogFilter;
@@ -52,8 +53,8 @@ public class SaveLogsScreen extends BaseScreen {
     private JButton deleteButton;
     private JButton filterButton;
 
-    public SaveLogsScreen(DeviceScreen deviceScreen) {
-        super("savelogs", 450, 230);
+    public SaveLogsScreen(MainApplication mainApplication, DeviceScreen deviceScreen) {
+        super(mainApplication, "savelogs", 450, 230);
         //setAlwaysOnTop(true);
         setTitle("Save Device Logs");
         this.deviceScreen = deviceScreen;

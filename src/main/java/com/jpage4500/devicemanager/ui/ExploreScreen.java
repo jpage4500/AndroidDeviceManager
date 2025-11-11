@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.manager.DeviceManager;
@@ -65,8 +66,8 @@ public class ExploreScreen extends BaseScreen {
     private JLabel errorLabel;
     private JLabel countLabel;          // total files / # selected
 
-    public ExploreScreen(DeviceScreen deviceScreen, Device device) {
-        super("browse-" + device.serial, 500, 500);
+    public ExploreScreen(MainApplication mainApplication, DeviceScreen deviceScreen, Device device) {
+        super(mainApplication, "browse-" + device.serial, 500, 500);
         this.deviceScreen = deviceScreen;
         this.device = device;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);

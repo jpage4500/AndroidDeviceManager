@@ -50,8 +50,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     public static final String PACKAGE_PREFIX = "package:";
 
-    private final MainApplication mainApplication;
-
     public CustomTable table;
     public DeviceTableModel model;
     private DeviceRowSorter sorter;
@@ -76,8 +74,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private SaveLogsScreen saveLogsScreen;
 
     public DeviceScreen(MainApplication mainApplication) {
-        super("main", 900, 300);
-        this.mainApplication = mainApplication;
+        super(mainApplication, "main", 900, 300);
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         initalizeUi();
     }
@@ -872,7 +869,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         InputScreen inputScreen = inputViewMap.get(selectedDevice.serial);
         if (inputScreen == null) {
             if (!selectedDevice.isOnline) return;
-            inputScreen = new InputScreen(this, selectedDevice);
+            inputScreen = new InputScreen(mainApplication, this, selectedDevice);
             inputViewMap.put(selectedDevice.serial, inputScreen);
         }
         inputScreen.show();
@@ -1380,7 +1377,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         ExploreScreen exploreScreen = exploreViewMap.get(selectedDevice.serial);
         if (exploreScreen == null) {
             if (!selectedDevice.isOnline) return;
-            exploreScreen = new ExploreScreen(this, selectedDevice);
+            exploreScreen = new ExploreScreen(mainApplication, this, selectedDevice);
             exploreViewMap.put(selectedDevice.serial, exploreScreen);
         }
         exploreScreen.show();
@@ -1422,7 +1419,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (selectedDeviceList.isEmpty()) return;
 
         if (saveLogsScreen == null) {
-            saveLogsScreen = new SaveLogsScreen(this);
+            saveLogsScreen = new SaveLogsScreen(mainApplication, this);
         }
         saveLogsScreen.setDeviceList(selectedDeviceList);
         saveLogsScreen.show();
