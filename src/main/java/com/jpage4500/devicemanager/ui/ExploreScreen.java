@@ -11,19 +11,20 @@ import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
+
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.ArrayList;
@@ -48,7 +49,7 @@ public class ExploreScreen extends BaseScreen {
 
     public JToolBar toolbar;
 
-    private final Device device;
+    private Device device;
     private boolean wasOffline = true;
 
     private String selectedPath = "/sdcard";
@@ -69,11 +70,12 @@ public class ExploreScreen extends BaseScreen {
         this.deviceScreen = deviceScreen;
         this.device = device;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        initalizeUi();
-        updateDeviceState();
+        initializeUi();
+        updateDevice(device);
     }
 
-    public void updateDeviceState() {
+    public void updateDevice(Device device) {
+        this.device = device;
         if (device.isOnline) {
             setTitle("Browse [" + device.getDisplayName() + "]");
             if (wasOffline) {
@@ -86,7 +88,7 @@ public class ExploreScreen extends BaseScreen {
         }
     }
 
-    protected void initalizeUi() {
+    protected void initializeUi() {
         JPanel mainPanel = new JPanel(new BorderLayout());
 
         // -- toolbar --
@@ -322,7 +324,8 @@ public class ExploreScreen extends BaseScreen {
             return;
         }
         List<DeviceFile> selectedFiles = getSelectedFiles(true, false);
-        if (log.isTraceEnabled()) log.trace("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
+        if (log.isTraceEnabled())
+            log.trace("handleFileClicked: SELECTED FILES: " + GsonHelper.toJson(selectedFiles));
         if (selectedFiles.isEmpty()) return;
         DeviceFile selectedFile = selectedFiles.get(0);
         if (selectedFile.isDirectory) {
@@ -552,7 +555,8 @@ public class ExploreScreen extends BaseScreen {
             DeviceManager.getInstance().downloadFile(device, selectedPath, file, downloadFile, (isSuccess, error) -> {
                 if (isSuccess && isSingleFile) {
                     if (downloadFile.exists()) {
-                        if (!DialogHelper.showConfirmDialog(this, "Open File?", "Open " + downloadFile.getName() + "?")) return;
+                        if (!DialogHelper.showConfirmDialog(this, "Open File?", "Open " + downloadFile.getName() + "?"))
+                            return;
                         Utils.openFile(downloadFile);
                     }
                 }

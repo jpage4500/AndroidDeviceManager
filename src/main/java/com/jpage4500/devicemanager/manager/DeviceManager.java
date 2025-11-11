@@ -1157,10 +1157,16 @@ public class DeviceManager {
         return loggingState;
     }
 
-    public void startLogging(Device device, DeviceLogListener listener) {
+    /**
+     * start capturing device logs
+     *
+     * @param lastLogTime - last log entry (if logging had started previousl) - 10-16 11:34:17.824
+     */
+    public void startLogging(Device device, String lastLogTime, DeviceLogListener listener) {
         stopLogging(device);
         commandExecutorService.submit(() -> {
-            log.debug("startLogging: {}", device.serial);
+            String logStartTime = lastLogTime;
+            log.debug("startLogging: {}, from:{}", device.serial, lastLogTime);
             AtomicBoolean loggingState = getLoggingState(device.serial, true);
             loggingState.set(true);
             InputStream inputStream = null;
@@ -1173,8 +1179,19 @@ public class DeviceManager {
                 List<LogEntry> logList = new ArrayList<>();
                 String line;
                 long id = 0;
+                int numSkipped = 0;
                 while ((line = input.readLine()) != null) {
                     LogEntry logEntry = new LogEntry(line, id++);
+                    if (logStartTime != null && logEntry.date != null) {
+                        // start capturing logs after logStartTime
+                        if (logStartTime.compareTo(logEntry.date) > 0) {
+                            numSkipped++;
+                            continue;
+                        }
+                        log.trace("startLogging: READY: skipped:{}, from:{}", numSkipped, logStartTime);
+                        // stop looking once we hit a new log entry
+                        logStartTime = null;
+                    }
                     logList.add(logEntry);
 
                     // only update every X ms
@@ -1192,7 +1209,7 @@ public class DeviceManager {
                     }
                 }
             } catch (Exception e) {
-                log.error("startLogging: {}", e.getMessage());
+                log.error("startLogging: {}", e.getMessage(), e);
             } finally {
                 if (inputStream != null) {
                     try {

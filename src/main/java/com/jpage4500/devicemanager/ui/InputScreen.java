@@ -5,11 +5,14 @@ import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
+
 import net.miginfocom.swing.MigLayout;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+
 import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
@@ -36,10 +39,11 @@ public class InputScreen extends BaseScreen {
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initalizeUi();
-        updateDeviceState();
+        updateDevice(device);
     }
 
-    public void updateDeviceState() {
+    public void updateDevice(Device device) {
+        this.device = device;
         if (device.isOnline) {
             setTitle("Input [" + device.getDisplayName() + "]");
         } else {

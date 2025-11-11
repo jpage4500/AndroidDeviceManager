@@ -23,6 +23,9 @@ import java.util.prefs.Preferences;
 public class CustomTable extends JTable {
     private static final Logger log = LoggerFactory.getLogger(CustomTable.class);
 
+    private static final int MIN_COLUMN_WIDTH = 10;
+    private static final int MAX_COLUMN_WIDTH = 2000;
+
     private String prefKey;
     private TooltipListener tooltipListener;
     private DoubleClickListener doubleClickListener;
@@ -345,56 +348,113 @@ public class CustomTable extends JTable {
     public static class ColumnDetails {
         String name;
         int width;
-        int userPos;
         int modelPos;
 
         @ExcludeFromSerialization
-        TableColumn column;
+        transient TableColumn column;
     }
 
     public boolean restoreTable() {
         if (prefKey == null) return false;
-        Preferences prefs = Preferences.userRoot();
-        String detailsStr = prefs.get(prefKey + "-details", null);
-        if (detailsStr == null) return false;
-        List<ColumnDetails> detailsList = GsonHelper.stringToList(detailsStr, ColumnDetails.class);
 
-        // TODO: this is messy but it's the most reliable way I've found to retain user column order..
+        try {
+            Preferences prefs = Preferences.userRoot();
+            String detailsStr = prefs.get(prefKey + "-details", null);
+            if (detailsStr == null || detailsStr.isEmpty()) {
+                if (log.isTraceEnabled()) log.trace("restoreTable: no saved state for {}", prefKey);
+                return false;
+            }
+
+            List<ColumnDetails> detailsList = GsonHelper.stringToList(detailsStr, ColumnDetails.class);
+            if (detailsList == null || detailsList.isEmpty()) {
+                log.warn("restoreTable: failed to parse saved state for {}", prefKey);
+                return false;
+            }
+
+            return restoreColumnOrder(detailsList);
+
+        } catch (Exception e) {
+            log.error("restoreTable: error restoring table state for {}: {}", prefKey, e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean restoreColumnOrder(List<ColumnDetails> detailsList) {
         TableColumnModel columnModel = getColumnModel();
-        // 1) backup columns to ColumnDetails
+
+        // First pass: validate all columns exist and build ordered list
+        List<TableColumn> orderedColumns = new ArrayList<>();
         for (ColumnDetails details : detailsList) {
-            if (details.name == null) {
-                //log.debug("restoreTable: invalid: {}", GsonHelper.toJson(details));
+            if (details.name == null) continue;
+
+            TableColumn column = getColumnByName(details.name);
+            if (column == null) {
+                log.warn("restoreTable: column '{}' not found, skipping", details.name);
                 continue;
             }
-            details.column = getColumnByName(details.name);
-            if (details.column != null) {
-                columnModel.removeColumn(details.column);
+            orderedColumns.add(column);
+        }
+
+        if (orderedColumns.isEmpty()) {
+            log.warn("restoreTable: no valid columns to restore for {}", prefKey);
+            return false;
+        }
+
+        // Check if reordering is actually needed
+        boolean needsReorder = false;
+        int currentColumnCount = columnModel.getColumnCount();
+        if (orderedColumns.size() != currentColumnCount) {
+            needsReorder = true;
+        } else {
+            for (int i = 0; i < orderedColumns.size(); i++) {
+                if (columnModel.getColumn(i) != orderedColumns.get(i)) {
+                    needsReorder = true;
+                    break;
+                }
             }
         }
 
-        // 2) backup any additional columns (if any)
-        List<TableColumn> additionalColumnList = new ArrayList<>();
-        Iterator<TableColumn> iterator = columnModel.getColumns().asIterator();
-        while (iterator.hasNext()) {
-            TableColumn column = iterator.next();
-            additionalColumnList.add(column);
-            columnModel.removeColumn(column);
+        if (!needsReorder) {
+            if (log.isTraceEnabled()) log.trace("restoreTable: columns already in correct order for {}", prefKey);
+            // Still apply widths even if order is correct
+            applyColumnWidths(detailsList);
+            return true;
         }
 
-        // 4) re-add columns in order they were saved
-        for (ColumnDetails details : detailsList) {
-            if (details.column != null) {
-                columnModel.addColumn(details.column);
-                details.column.setPreferredWidth(details.width);
+        // add in any columns that were not found to the end
+        Enumeration<TableColumn> columns = getColumnModel().getColumns();
+        while (columns.hasMoreElements()) {
+            TableColumn column = columns.nextElement();
+            if (!orderedColumns.contains(column)) {
+                log.trace("restoreColumnOrder: adding: {}", column.getHeaderValue());
+                orderedColumns.add(column);
             }
         }
 
-        // 5) re-add additional columns
-        for (TableColumn column : additionalColumnList) {
+        // Remove all columns
+        while (columnModel.getColumnCount() > 0) {
+            columnModel.removeColumn(columnModel.getColumn(0));
+        }
+
+        // Re-add in saved order
+        for (TableColumn column : orderedColumns) {
             columnModel.addColumn(column);
         }
+
+        applyColumnWidths(detailsList);
+        log.debug("restoreTable: restored {} columns for {}", orderedColumns.size(), prefKey);
         return true;
+    }
+
+    private void applyColumnWidths(List<ColumnDetails> detailsList) {
+        for (ColumnDetails details : detailsList) {
+            if (details.name == null) continue;
+            TableColumn column = getColumnByName(details.name);
+            if (column != null && details.width >= MIN_COLUMN_WIDTH && details.width <= MAX_COLUMN_WIDTH) {
+                log.trace("applyColumnWidths: setting width {} for column '{}'", details.width, details.name);
+                column.setPreferredWidth(details.width);
+            }
+        }
     }
 
     /**
@@ -410,7 +470,7 @@ public class CustomTable extends JTable {
                 return column;
             }
         }
-        if (log.isTraceEnabled()) log.trace("getColumnByName: NOT_FOUND:{}, {}", searchName, Utils.getStackTraceString());
+        if (log.isTraceEnabled()) log.trace("getColumnByName: NOT_FOUND:{}", searchName);
         return null;
     }
 
@@ -429,29 +489,39 @@ public class CustomTable extends JTable {
     public void saveTable() {
         if (prefKey == null) return;
 
-        // save columns in display order
-        Enumeration<TableColumn> columns = getColumnModel().getColumns();
-        Iterator<TableColumn> iter = columns.asIterator();
-        List<ColumnDetails> detailList = new ArrayList<>();
-        for (int i = 0; iter.hasNext(); i++) {
-            TableColumn column = iter.next();
-            ColumnDetails details = new ColumnDetails();
-            details.name = column.getHeaderValue().toString();
-            details.userPos = i;
-            details.modelPos = column.getModelIndex();
-            details.width = column.getWidth();
-            //int maxWidth = column.getMaxWidth();
-            if (details.name == null) {
-                log.debug("saveTable: invalid name:{} ({})", GsonHelper.toJson(details), prefKey);
-                continue;
-            }
-            detailList.add(details);
-            //log.trace("persist: {}, pos:{}, i:{}, w:{}, max:{}", details.header, i, details.modelPos, details.width, details.maxWidth);
-        }
+        try {
+            List<ColumnDetails> detailList = new ArrayList<>();
+            TableColumnModel columnModel = getColumnModel();
 
-        Preferences prefs = Preferences.userRoot();
-        prefs.put(prefKey + "-details", GsonHelper.toJson(detailList));
-        //log.trace("persist: {}: {}", prefKey, GsonHelper.toJson(detailList));
+            // Save columns in display order
+            for (int i = 0; i < columnModel.getColumnCount(); i++) {
+                TableColumn column = columnModel.getColumn(i);
+                ColumnDetails details = new ColumnDetails();
+                details.name = column.getHeaderValue().toString();
+                details.modelPos = column.getModelIndex();
+                // Validate and clamp width to reasonable range
+                details.width = Math.max(MIN_COLUMN_WIDTH, Math.min(column.getWidth(), MAX_COLUMN_WIDTH));
+
+                if (details.name == null) {
+                    log.debug("saveTable: skipping column with null name at position {} ({})", i, prefKey);
+                    continue;
+                }
+                detailList.add(details);
+            }
+
+            if (detailList.isEmpty()) {
+                log.warn("saveTable: no columns to save for {}", prefKey);
+                return;
+            }
+
+            Preferences prefs = Preferences.userRoot();
+            prefs.put(prefKey + "-details", GsonHelper.toJson(detailList));
+            prefs.flush(); // Ensure written to disk
+            if (log.isTraceEnabled()) log.trace("saveTable: successfully saved {} columns for {}", detailList.size(), prefKey);
+
+        } catch (Exception e) {
+            log.error("saveTable: failed to save state for {}: {}", prefKey, e.getMessage());
+        }
     }
 
     /**
