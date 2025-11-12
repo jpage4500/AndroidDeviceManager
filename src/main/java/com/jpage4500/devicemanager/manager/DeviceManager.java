@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.*;
@@ -87,6 +88,9 @@ public class DeviceManager {
 
     private JadbConnection connection;
 
+    // Remote connection manager
+    private RemoteConnectionManager remoteConnectionManager;
+
     public static DeviceManager getInstance() {
         if (instance == null) {
             synchronized (DeviceManager.class) {
@@ -107,6 +111,53 @@ public class DeviceManager {
 
         tempFolder = Utils.getTempFolder();
         copyResourcesToFiles();
+
+        // Initialize remote connection manager
+        remoteConnectionManager = new RemoteConnectionManager();
+        remoteConnectionManager.setListener(new RemoteConnectionManager.ConnectionListener() {
+            @Override
+            public void onConnectionEstablished(RemoteServerConfig server) {
+                log.info("Connected to remote server: {}", server.name);
+            }
+
+            @Override
+            public void onConnectionLost(RemoteServerConfig server) {
+                log.warn("Lost connection to remote server: {}", server.name);
+                // Remove devices from this server
+                synchronized (deviceList) {
+                    deviceList.removeIf(d -> d.isRemote && server.id.equals(d.remoteServerId));
+                }
+                if (deviceListener != null) {
+                    deviceListener.handleDevicesUpdated(getDevices());
+                }
+            }
+
+            @Override
+            public void onDevicesUpdated(String serverId, List<Device> devices) {
+                // Merge remote devices into device list
+                synchronized (deviceList) {
+                    // Remove old devices from this server
+                    deviceList.removeIf(d -> d.isRemote && serverId.equals(d.remoteServerId));
+                    // Add new devices
+                    deviceList.addAll(devices);
+                }
+                if (deviceListener != null) {
+                    deviceListener.handleDevicesUpdated(getDevices());
+                }
+            }
+
+            @Override
+            public void onServerDiscovered(RemoteServerConfig server) {
+                log.info("Discovered remote server: {}", server.name);
+            }
+        });
+
+        // Auto-connect to remote servers if configured
+        boolean autoConnect = PreferenceUtils.getPreference(
+            PreferenceUtils.PrefBoolean.PREF_REMOTE_AUTO_CONNECT, false);
+        if (autoConnect) {
+            remoteConnectionManager.initialize();
+        }
     }
 
     public void setDeviceListener(DeviceListener listener) {
@@ -651,6 +702,13 @@ public class DeviceManager {
         }
     }
 
+    /**
+     * Get remote connection manager
+     */
+    public RemoteConnectionManager getRemoteConnectionManager() {
+        return remoteConnectionManager;
+    }
+
     public static class ShellResult {
         public boolean isSuccess;
         public List<String> resultList;
@@ -668,8 +726,51 @@ public class DeviceManager {
 
     /**
      * run a shell command and return multi-line output
+     * Routes to remote server if device is remote
      */
     public ShellResult runShell(Device device, String command) {
+        // Check if device is remote
+        if (device.isRemote && device.remoteServerId != null) {
+            return runShellRemote(device, command);
+        }
+
+        // Local device execution
+        return runShellLocal(device, command);
+    }
+
+    /**
+     * Execute shell command on remote device
+     */
+    private ShellResult runShellRemote(Device device, String command) {
+        ShellResult result = new ShellResult();
+        result.resultList = new ArrayList<>();
+
+        try {
+            String output = remoteConnectionManager.executeRemoteCommand(
+                device.remoteServerId,
+                device.serial,
+                command
+            );
+
+            // Split output into lines
+            if (output != null && !output.isEmpty()) {
+                String[] lines = output.split("\n");
+                result.resultList.addAll(Arrays.asList(lines));
+            }
+            result.isSuccess = true;
+
+        } catch (Exception e) {
+            log.error("runShellRemote: cmd:{}, Exception: {}", command, e.getMessage());
+            result.isSuccess = false;
+        }
+
+        return result;
+    }
+
+    /**
+     * Execute shell command on local device
+     */
+    private ShellResult runShellLocal(Device device, String command) {
         ShellResult result = new ShellResult();
         result.resultList = new ArrayList<>();
         List<String> commandList = TextUtils.splitSafe(command);
