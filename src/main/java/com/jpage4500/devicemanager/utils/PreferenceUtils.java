@@ -27,6 +27,10 @@ public class PreferenceUtils {
         PREF_LOGS_CUSTOM_FILTER,              // logs: last custom filter
         PREF_LOGS_SELECTED_FILTERS,           // logs: last selected filters
         PREF_LOGS_FONT_NAME,
+
+        // Remote Server settings
+        PREF_SERVER_AUTH_TOKEN,                // authentication token
+        PREF_REMOTE_SERVERS,                   // JSON array of RemoteServerConfig
     }
 
     /**
@@ -42,10 +46,15 @@ public class PreferenceUtils {
         PREF_EXIT_TO_TRAY,
         PREF_DEVICE_AUTO_RESIZE,
         PREF_LOGS_AUTO_RESIZE,
+
+        // Remote Server settings
+        PREF_SERVER_ENABLED,                   // server enabled
+        PREF_SERVER_AUTO_START,                // auto-start on app launch
+        PREF_REMOTE_AUTO_CONNECT,              // auto-connect on startup
     }
 
     /**
-     * Boolean value preferences
+     * Integer value preferences
      */
     public enum PrefInt {
         PREF_LOG_LEVEL,
@@ -55,6 +64,9 @@ public class PreferenceUtils {
         PREF_LOGS_FONT_STYLE,
         PREF_LOGS_MAX_LINES,
         PREF_REFRESH_TIME_MINS,
+
+        // Remote Server settings
+        PREF_SERVER_PORT,                      // server port
     }
 
     public static String getPreference(Pref pref) {

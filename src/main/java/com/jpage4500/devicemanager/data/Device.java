@@ -71,6 +71,13 @@ public class Device {
     @ExcludeFromSerialization
     public JadbDevice jadbDevice;
 
+    // Remote device properties
+    public boolean isRemote = false;                    // true if from remote server
+    public String remoteServerId;                       // unique ID of remote server
+    public String remoteServerName;                     // display name of server
+    @ExcludeFromSerialization
+    public transient Object remoteConnection;           // connection instance (not serialized)
+
     /**
      * @return best available device name
      */
