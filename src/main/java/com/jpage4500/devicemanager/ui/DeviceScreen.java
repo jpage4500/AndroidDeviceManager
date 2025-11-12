@@ -1495,8 +1495,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
         String version = null;
         String desc = null;
-        String response = NetworkUtils.getRequest(UPDATE_SOURCE_GITHUB);
-        List<GithubRelease> releases = GsonHelper.stringToList(response, GithubRelease.class);
+        NetworkHelper networkHelper = new NetworkHelper();
+        NetworkHelper.HttpResponse response = networkHelper.getRequest(UPDATE_SOURCE_GITHUB);
+        List<GithubRelease> releases = GsonHelper.stringToList(response.body, GithubRelease.class);
         if (!releases.isEmpty()) {
             GithubRelease latestRelease = releases.get(0);
             Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);

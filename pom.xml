@@ -83,6 +83,12 @@
             <artifactId>jmdns</artifactId>
             <version>3.5.9</version>
         </dependency>
+        <!-- UPnP for automatic port forwarding -->
+        <dependency>
+            <groupId>org.bitlet</groupId>
+            <artifactId>weupnp</artifactId>
+            <version>0.1.4</version>
+        </dependency>
     </dependencies>
 
     <build>

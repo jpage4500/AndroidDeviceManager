@@ -2,7 +2,9 @@ package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.utils.ConnectionStringUtils;
+import com.jpage4500.devicemanager.utils.NetworkHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
+import com.jpage4500.devicemanager.utils.UpnpUtils;
 import fi.iki.elonen.NanoHTTPD;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,6 +78,9 @@ public class RemoteServerManager {
             String serverName = getDeviceName();
             discoveryManager.startBroadcasting(port, authToken, serverName);
 
+            // Try to open port via UPnP
+            tryOpenPortViaUpnp(port);
+
             // Save preferences
             PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED, true);
             PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, port);
@@ -105,6 +110,9 @@ public class RemoteServerManager {
         if (discoveryManager != null) {
             discoveryManager.stopBroadcasting();
         }
+
+        // Close UPnP port mapping
+        tryClosePortViaUpnp(port);
 
         isRunning = false;
         connectedClients.clear();
@@ -152,9 +160,10 @@ public class RemoteServerManager {
     private String getLocalIpAddress() {
         // Try to get public IP address first
         try {
-            String publicIp = com.jpage4500.devicemanager.utils.NetworkUtils.getRequest("https://api.ipify.org");
-            if (publicIp != null && !publicIp.trim().isEmpty()) {
-                return publicIp.trim();
+            NetworkHelper networkHelper = new NetworkHelper();
+            NetworkHelper.HttpResponse response = networkHelper.getRequest("https://api.ipify.org");
+            if (response.status == 200) {
+                return response.body.trim();
             }
         } catch (Exception e) {
             log.debug("Failed to get public IP, falling back to local: {}", e.getMessage());
@@ -232,6 +241,37 @@ public class RemoteServerManager {
             log.info("Auto-starting server (was enabled on last shutdown)");
             startServer(savedPort, savedToken);
         }
+    }
+
+    /**
+     * Try to open port via UPnP in background thread
+     */
+    private void tryOpenPortViaUpnp(int port) {
+        new Thread(() -> {
+            try {
+                boolean success = UpnpUtils.openPort(port, "Android Device Manager");
+                if (success) {
+                    log.info("Port {} opened via UPnP", port);
+                } else {
+                    log.info("UPnP port forwarding not available or failed for port {}", port);
+                }
+            } catch (Exception e) {
+                log.debug("UPnP port forwarding failed: {}", e.getMessage());
+            }
+        }, "UPnP-Open-" + port).start();
+    }
+
+    /**
+     * Try to close port via UPnP in background thread
+     */
+    private void tryClosePortViaUpnp(int port) {
+        new Thread(() -> {
+            try {
+                UpnpUtils.closePort(port);
+            } catch (Exception e) {
+                log.debug("UPnP port closing failed: {}", e.getMessage());
+            }
+        }, "UPnP-Close-" + port).start();
     }
 }
 

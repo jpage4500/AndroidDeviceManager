@@ -79,6 +79,9 @@ public class MainApplication {
                 "DNSIncoming",
                 "DNSCache",
                 "RecordReaper",
+                "SocketListener",
+                "Responder",
+                "DNSQuestion"
             });
         } else {
             System.out.println("ERROR: no logger found: " + iLoggerFactory.getClass().getSimpleName());
