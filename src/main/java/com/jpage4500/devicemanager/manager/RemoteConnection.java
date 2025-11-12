@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -14,6 +15,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.util.*;
 
 /**
@@ -28,21 +32,68 @@ public class RemoteConnection {
     private long lastHealthCheck = 0;
     private boolean isConnected = false;
 
+    // added timeouts
+    private static final int CONNECT_TIMEOUT_MS = 4000;
+    private static final int SOCKET_TIMEOUT_MS = 6000;
+
     public RemoteConnection(RemoteServerConfig config) {
         this.serverConfig = config;
-        this.httpClient = HttpClients.createDefault();
+        this.httpClient = buildHttpClient(); // changed
+    }
+
+    // build http client with timeouts
+    private CloseableHttpClient buildHttpClient() {
+        RequestConfig cfg = RequestConfig.custom()
+            .setConnectTimeout(CONNECT_TIMEOUT_MS)
+            .setConnectionRequestTimeout(CONNECT_TIMEOUT_MS)
+            .setSocketTimeout(SOCKET_TIMEOUT_MS)
+            .build();
+        return HttpClients.custom().setDefaultRequestConfig(cfg).build();
+    }
+
+    // quick port reachability test
+    private boolean testSocketReachable() {
+        try (Socket s = new Socket()) {
+            s.connect(new InetSocketAddress(serverConfig.host, serverConfig.port), CONNECT_TIMEOUT_MS);
+            return true;
+        } catch (Exception e) { return false; }
     }
 
     /**
-     * Establish connection to server
+     * Establish connection to server with diagnostics
      */
     public void connect() throws IOException {
-        // Test connection with server info endpoint
-        @SuppressWarnings("unchecked")
-        Map<String, Object> info = httpGet("/api/info", Map.class);
-        log.info("Connected to server: {} - {}", serverConfig.name, info);
-        isConnected = true;
-        lastHealthCheck = System.currentTimeMillis();
+        long startMs = System.currentTimeMillis();
+        serverConfig.lastError = null;
+
+        // DNS resolution
+        try {
+            InetAddress addr = InetAddress.getByName(serverConfig.host);
+            log.debug("connect: resolved {} -> {}", serverConfig.host, addr.getHostAddress());
+        } catch (Exception e) {
+            serverConfig.lastError = "Host resolution failed: " + e.getMessage();
+            throw new IOException(serverConfig.lastError, e);
+        }
+        // Port reachability
+        if (!testSocketReachable()) {
+            serverConfig.lastError = "Port unreachable: " + serverConfig.host + ":" + serverConfig.port;
+            throw new IOException(serverConfig.lastError);
+        }
+        // Handshake
+        try {
+            @SuppressWarnings("unchecked") Map<String,Object> info = httpGet("/api/info", Map.class);
+            log.info("Connected to server: {} - {}", serverConfig.name, info);
+            isConnected = true;
+            serverConfig.isOnline = true;
+            lastHealthCheck = System.currentTimeMillis();
+        } catch (IOException e) {
+            serverConfig.lastError = "Handshake failed: " + e.getMessage();
+            isConnected = false;
+            serverConfig.isOnline = false;
+            throw e;
+        } finally {
+            log.debug("connect: {} elapsed={}ms success={}", serverConfig.name, (System.currentTimeMillis()-startMs), isConnected);
+        }
     }
 
     /**
@@ -65,7 +116,7 @@ public class RemoteConnection {
      */
     public void reconnect() throws IOException {
         disconnect();
-        httpClient = HttpClients.createDefault();
+        httpClient = buildHttpClient();
         connect();
     }
 
@@ -77,8 +128,7 @@ public class RemoteConnection {
 
         List<Device> devices = new ArrayList<>();
         for (Object obj : deviceDataList) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> data = (Map<String, Object>) obj;
+            @SuppressWarnings("unchecked") Map<String, Object> data = (Map<String, Object>) obj;
 
             Device device = new Device();
             device.serial = (String) data.get("serial");
@@ -119,8 +169,7 @@ public class RemoteConnection {
         request.put("serial", deviceSerial);
         request.put("command", command);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> response = httpPost("/api/execute", request, Map.class);
+        @SuppressWarnings("unchecked") Map<String, Object> response = httpPost("/api/execute", request, Map.class);
 
         boolean success = (Boolean) response.getOrDefault("success", false);
         String output = (String) response.getOrDefault("output", "");
@@ -146,10 +195,14 @@ public class RemoteConnection {
             httpGet("/api/info", Map.class);
             lastHealthCheck = now;
             isConnected = true;
+            serverConfig.isOnline = true;
+            serverConfig.lastError = null;
             return true;
         } catch (Exception e) {
             log.warn("Health check failed for server: {}", serverConfig.name);
             isConnected = false;
+            serverConfig.isOnline = false;
+            serverConfig.lastError = "Health check failed: " + e.getMessage();
             return false;
         }
     }
@@ -163,7 +216,11 @@ public class RemoteConnection {
         request.setHeader("Authorization", "Bearer " + serverConfig.authToken);
 
         try (CloseableHttpResponse response = httpClient.execute(request)) {
+            int status = response.getStatusLine().getStatusCode();
             String json = EntityUtils.toString(response.getEntity());
+            if (status >= 400) {
+                throw new IOException("HTTP " + status + " GET " + path + " body=" + json);
+            }
             return GsonHelper.fromJson(json, responseType);
         }
     }
@@ -181,7 +238,11 @@ public class RemoteConnection {
         request.setEntity(new StringEntity(json));
 
         try (CloseableHttpResponse response = httpClient.execute(request)) {
+            int status = response.getStatusLine().getStatusCode();
             String responseJson = EntityUtils.toString(response.getEntity());
+            if (status >= 400) {
+                throw new IOException("HTTP " + status + " POST " + path + " body=" + responseJson);
+            }
             return GsonHelper.fromJson(responseJson, responseType);
         }
     }

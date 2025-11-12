@@ -70,7 +70,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     align = SwingConstants.RIGHT;
                     break;
                 case NAME:
-                    icon = deviceIcon;
+                    // Show device status icon with optional remote indicator
                     int busyCount = device.getBusyCount();
                     deviceIcon.setNumber(0);
                     if (busyCount > 0) {
@@ -87,6 +87,19 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     } else {
                         deviceIcon.setCircleColor(Color.GRAY);
                     }
+
+                    // Add remote indicator if this is a remote device
+                    if (device.isRemote) {
+                        ImageIcon remoteIcon = null; //UiUtils.getImageIcon("icon_remote.png", UiUtils.IMG_SIZE_SMALL);
+                        if (remoteIcon != null) {
+                            icon = new ComboIcon(deviceIcon, remoteIcon);
+                        } else {
+                            icon = deviceIcon;
+                        }
+                    } else {
+                        icon = deviceIcon;
+                    }
+                    break;
             }
         }
 

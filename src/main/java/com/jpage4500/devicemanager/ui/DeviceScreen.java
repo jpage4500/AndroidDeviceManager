@@ -13,6 +13,7 @@ import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
+import com.jpage4500.devicemanager.ui.dialog.ShareServerDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
@@ -352,17 +353,22 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         table.setTooltipListener((row, col) -> {
             int modelCol = table.convertColumnIndexToModel(col);
             DeviceTableModel.Columns columnType = model.getColumnType(modelCol);
-            if (row >= 0 && columnType == DeviceTableModel.Columns.BATTERY) {
-                // always show battery level and power status in tooltip
+            if (row >= 0) {
                 int modelRow = table.convertRowIndexToModel(row);
                 Device device = (Device) model.getValueAt(modelRow, modelCol);
-                String tooltip = device.batteryLevel + "%";
-                if (device.powerStatus != Device.PowerStatus.POWER_NONE)
-                    tooltip += " (" + device.powerStatus + ")";
-                return tooltip;
-            } else {
-                return table.getTextIfTruncated(row, col);
+
+                if (columnType == DeviceTableModel.Columns.BATTERY) {
+                    // always show battery level and power status in tooltip
+                    String tooltip = device.batteryLevel + "%";
+                    if (device.powerStatus != Device.PowerStatus.POWER_NONE)
+                        tooltip += " (" + device.powerStatus + ")";
+                    return tooltip;
+                } else if (columnType == DeviceTableModel.Columns.NAME && device.isRemote) {
+                    // Show remote server name for remote devices
+                    return "Remote device from: " + device.remoteServerName;
+                }
             }
+            return table.getTextIfTruncated(row, col);
         });
 
         table.getSelectionModel().addListSelectionListener(e -> {
@@ -552,8 +558,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void connectAdbServer() {
-        DeviceManager.getInstance().setDeviceListener(this);
-        DeviceManager.getInstance().connectAdbServer(true);
+        DeviceManager deviceManager = DeviceManager.getInstance();
+        deviceManager.setDeviceListener(this);
+        deviceManager.connectAdbServer(true);
+
+        // Initialize remote connection manager
+        deviceManager.getRemoteConnectionManager().initialize();
+
+        // Initialize remote server manager (auto-starts if previously enabled)
+        deviceManager.getRemoteServerManager().initialize();
     }
 
     @Override
@@ -601,7 +614,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         SwingUtilities.invokeLater(() -> {
             String[] choices = {"Retry", "Cancel"};
             if (!DialogHelper.showOptionDialog(DeviceScreen.this, "ADB Server",
-                    "Unable to connect to ADB server. Please check that it's running and re-try", choices))
+                "Unable to connect to ADB server. Please check that it's running and re-try", choices))
                 return;
 
             connectAdbServer();
@@ -1171,6 +1184,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         SCRIPTS("icon_custom.png", "Scripts", "Run custom scripts"),
         FILTER(null, "Filter", "Filter devices..."),
         REFRESH("icon_refresh.png", "Refresh", "Refresh Devices"),
+        SHARE_SERVER("share_off.png", "Share", "Share Devices"),
         SETTINGS("icon_settings.png", "Settings", "Settings"),
         ;
 
@@ -1257,6 +1271,18 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
 
         createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
+
+        // start/stop server
+        JButton serverButton = createToolbarButton(toolbar, ToolbarButton.SHARE_SERVER, actionEvent -> ShareServerDialog.showShareServerDialog(this));
+        boolean isServerRunning = DeviceManager.getInstance().getRemoteServerManager().isRunning();
+        if (isServerRunning) {
+            serverButton.setIcon(UiUtils.getImageIcon("share_on.png", UiUtils.IMG_SIZE_TOOLBAR));
+            int numConnected = DeviceManager.getInstance().getRemoteServerManager().getConnectedClients().size();
+            if (numConnected > 0) {
+                serverButton.setText(String.format("#%d", numConnected));
+            }
+        }
+
         createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(this));
     }
 

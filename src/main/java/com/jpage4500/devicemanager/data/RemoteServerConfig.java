@@ -14,6 +14,7 @@ public class RemoteServerConfig {
     public boolean enabled;        // whether to connect on startup
     public long lastConnectedMs;   // last successful connection
     public boolean isOnline;       // current connection status
+    public String lastError;       // last connection error (null if last attempt succeeded)
 
     public RemoteServerConfig() {
         this.id = UUID.randomUUID().toString();
@@ -24,4 +25,3 @@ public class RemoteServerConfig {
         return String.format("http://%s:%d", host, port);
     }
 }
-

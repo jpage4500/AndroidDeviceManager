@@ -50,13 +50,19 @@ public class RemoteServerManager {
     }
 
     public void startServer(int port) {
+        startServer(port, null);
+    }
+
+    public void startServer(int port, String customAuthToken) {
         if (isRunning) {
             log.warn("Server already running on port {}", this.port);
             return;
         }
 
         this.port = port;
-        this.authToken = generateAuthToken();
+        this.authToken = (customAuthToken != null && !customAuthToken.isEmpty())
+            ? customAuthToken
+            : generateAuthToken();
 
         try {
             httpServer = new RemoteHttpServer(port, authToken, this);
@@ -144,6 +150,17 @@ public class RemoteServerManager {
      * Get local IP address
      */
     private String getLocalIpAddress() {
+        // Try to get public IP address first
+        try {
+            String publicIp = com.jpage4500.devicemanager.utils.NetworkUtils.getRequest("https://api.ipify.org");
+            if (publicIp != null && !publicIp.trim().isEmpty()) {
+                return publicIp.trim();
+            }
+        } catch (Exception e) {
+            log.debug("Failed to get public IP, falling back to local: {}", e.getMessage());
+        }
+        
+        // Fall back to local IP
         try {
             return InetAddress.getLocalHost().getHostAddress();
         } catch (Exception e) {
@@ -152,6 +169,13 @@ public class RemoteServerManager {
     }
 
     private String getDeviceName() {
+        // Try to get from preferences first
+        String savedName = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_DEVICE_NAME);
+        if (savedName != null && !savedName.isEmpty()) {
+            return savedName;
+        }
+        
+        // Fall back to hostname
         try {
             return InetAddress.getLocalHost().getHostName();
         } catch (Exception e) {
@@ -181,6 +205,33 @@ public class RemoteServerManager {
 
     public void setListener(ServerListener listener) {
         this.listener = listener;
+    }
+
+    /**
+     * Initialize the server manager and auto-start if previously enabled
+     * Call this when the application starts
+     */
+    public void initialize() {
+        // Check if server was running when app last closed
+        boolean wasEnabled = PreferenceUtils.getPreference(
+            PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED,
+            false
+        );
+
+        if (wasEnabled) {
+            // Get saved port and auth token
+            int savedPort = PreferenceUtils.getPreference(
+                PreferenceUtils.PrefInt.PREF_SERVER_PORT,
+                DEFAULT_PORT
+            );
+            String savedToken = PreferenceUtils.getPreference(
+                PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN
+            );
+
+            // Auto-start the server
+            log.info("Auto-starting server (was enabled on last shutdown)");
+            startServer(savedPort, savedToken);
+        }
     }
 }
 

@@ -29,6 +29,7 @@ public class NetworkDiscoveryManager {
 
     public interface DiscoveryListener {
         void onServerDiscovered(RemoteServerConfig server);
+
         void onServerLost(String serverId);
     }
 
@@ -167,5 +168,6 @@ public class NetworkDiscoveryManager {
     public boolean isDiscovering() {
         return jmdns != null;
     }
+
 }
 

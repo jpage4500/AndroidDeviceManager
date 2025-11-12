@@ -46,6 +46,11 @@ public class SettingsDialog extends JPanel {
         UiUtils.addSettingButton(devicePanel, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen, this));
         add(devicePanel, "growx, wrap");
 
+        JPanel remotePanel = UiUtils.createPanel("Remote Servers");
+        UiUtils.addSettingButton(remotePanel, "Connect to Remote Servers", "MANAGE", () -> RemoteServerDialog.showRemoteServerDialog(this));
+        UiUtils.addSettingButton(remotePanel, "Share My Devices", "SHARE", () -> ShareServerDialog.showShareServerDialog(this));
+        add(remotePanel, "growx, wrap");
+
         JPanel logPanel = UiUtils.createPanel("Log Settings");
         UiUtils.addSettingButton(logPanel, "Buffer (lines)", "EDIT", () -> showLogBuffer());
         add(logPanel, "growx, wrap");

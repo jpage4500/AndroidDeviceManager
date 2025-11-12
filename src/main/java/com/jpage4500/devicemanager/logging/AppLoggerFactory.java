@@ -26,6 +26,7 @@ public class AppLoggerFactory implements ILoggerFactory {
     private File fileLog;
     private final long maxFileSize = (1000000); // 1 Meg;
     private ExecutorService fileExecutorService;
+    private String[] ignoreArr;
 
     private final ConcurrentHashMap<String, AppLogger> nameToLogMap = new ConcurrentHashMap<>();
 
@@ -102,6 +103,14 @@ public class AppLoggerFactory implements ILoggerFactory {
      */
     public int getFileLogLevel() {
         return fileLogLevel;
+    }
+
+    public void setIgnoreArr(String[] ignoreArr) {
+        this.ignoreArr = ignoreArr;
+    }
+
+    public String[] getIgnoreArr() {
+        return ignoreArr;
     }
 
     @Override

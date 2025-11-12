@@ -90,6 +90,8 @@ public class DeviceManager {
 
     // Remote connection manager
     private RemoteConnectionManager remoteConnectionManager;
+    // Remote server manager
+    private RemoteServerManager remoteServerManager;
 
     public static DeviceManager getInstance() {
         if (instance == null) {
@@ -707,6 +709,16 @@ public class DeviceManager {
      */
     public RemoteConnectionManager getRemoteConnectionManager() {
         return remoteConnectionManager;
+    }
+
+    /**
+     * Get remote server manager
+     */
+    public RemoteServerManager getRemoteServerManager() {
+        if (remoteServerManager == null) {
+            remoteServerManager = new RemoteServerManager();
+        }
+        return remoteServerManager;
     }
 
     public static class ShellResult {

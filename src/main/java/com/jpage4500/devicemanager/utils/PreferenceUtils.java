@@ -30,6 +30,7 @@ public class PreferenceUtils {
 
         // Remote Server settings
         PREF_SERVER_AUTH_TOKEN,                // authentication token
+        PREF_SERVER_DEVICE_NAME,               // device name for server
         PREF_REMOTE_SERVERS,                   // JSON array of RemoteServerConfig
     }
 

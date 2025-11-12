@@ -235,6 +235,13 @@ public class AppLogger extends MarkerIgnoringBase {
      * - logs to file if enabled
      */
     private void log(int logLevel, String message, Throwable tr) {
+        String[] ignoreArr = appLoggerFactory.getIgnoreArr();
+        if (ignoreArr != null) {
+            for (String ignore : ignoreArr) {
+                if (fullName.startsWith(ignore)) return;
+            }
+        }
+
         if (tr != null) {
             // append throwable if set
             message += '\n' + getStackTraceString(tr);

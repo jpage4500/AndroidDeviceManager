@@ -32,7 +32,7 @@ public class RemoteConnectionManager {
      * Load saved servers and connect to enabled ones
      */
     public void initialize() {
-        // Start network discovery
+        // Initialize discovery manager but don't start it automatically
         discoveryManager = new NetworkDiscoveryManager();
         discoveryManager.setListener(new NetworkDiscoveryManager.DiscoveryListener() {
             @Override
@@ -48,7 +48,7 @@ public class RemoteConnectionManager {
                 log.info("Server lost from network: {}", serverId);
             }
         });
-        discoveryManager.startDiscovery();
+        // Note: Discovery is NOT started here - call startNetworkDiscovery() explicitly
 
         // Load and connect to saved servers
         List<RemoteServerConfig> servers = loadServers();
@@ -71,7 +71,7 @@ public class RemoteConnectionManager {
             return;
         }
 
-        RemoteConnection connection = new RemoteConnection(server);
+        RemoteConnection connection = new RemoteConnection(server); // reverted
         connections.put(server.id, connection);
 
         // Connect asynchronously
@@ -295,6 +295,28 @@ public class RemoteConnectionManager {
         return new HashMap<>();
     }
 
+    /**
+     * Start network discovery for remote servers
+     * Call this when user opens the Remote Server Dialog
+     */
+    public void startNetworkDiscovery() {
+        if (discoveryManager != null && !discoveryManager.isDiscovering()) {
+            log.info("Starting network discovery for remote servers");
+            discoveryManager.startDiscovery();
+        }
+    }
+
+    /**
+     * Stop network discovery
+     * Call this when user closes the Remote Server Dialog
+     */
+    public void stopNetworkDiscovery() {
+        if (discoveryManager != null && discoveryManager.isDiscovering()) {
+            log.info("Stopping network discovery for remote servers");
+            discoveryManager.stopDiscovery();
+        }
+    }
+
     public void setListener(ConnectionListener listener) {
         this.listener = listener;
     }
@@ -317,4 +339,3 @@ public class RemoteConnectionManager {
         return connection != null && connection.isConnected();
     }
 }
-
