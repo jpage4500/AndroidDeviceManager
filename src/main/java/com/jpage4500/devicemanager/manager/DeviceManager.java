@@ -669,7 +669,7 @@ public class DeviceManager {
     /**
      * run a shell command and return multi-line output
      */
-    private ShellResult runShell(Device device, String command) {
+    public ShellResult runShell(Device device, String command) {
         ShellResult result = new ShellResult();
         result.resultList = new ArrayList<>();
         List<String> commandList = TextUtils.splitSafe(command);
@@ -700,7 +700,7 @@ public class DeviceManager {
         return result;
     }
 
-    private Device getDevice(String serial) {
+    public Device getDevice(String serial) {
         synchronized (deviceList) {
             for (Device device : deviceList) {
                 if (TextUtils.equals(device.serial, serial)) {
@@ -962,6 +962,41 @@ public class DeviceManager {
 
     public interface DeviceFileListener {
         void handleFiles(List<DeviceFile> fileList, String error);
+    }
+
+    /**
+     * Synchronous version of listFiles for remote server use
+     */
+    public List<DeviceFile> getFileListSync(Device device, String path) throws Exception {
+        String safePath = path;
+        // make sure folder ends with "/"
+        if (!TextUtils.endsWith(safePath, "/")) safePath += "/";
+        if (safePath.indexOf(' ') > 0) {
+            safePath = "'" + safePath + "'";
+        }
+
+        String command = "ls -alZ " + safePath;
+        ShellResult result = runShell(device, command);
+        List<DeviceFile> fileList = new ArrayList<>();
+
+        for (int i = 0; i < result.resultList.size(); i++) {
+            String dir = result.resultList.get(i);
+            DeviceFile file = DeviceFile.fromEntry(dir);
+            if (file != null) {
+                fileList.add(file);
+            } else if (i == 0) {
+                // not a valid file/dir listing; check for known errors
+                if (TextUtils.contains(dir, "su:")) {
+                    throw new Exception(ERR_ROOT_NOT_AVAILABLE);
+                } else if (TextUtils.containsAny(dir, true, "permission denied")) {
+                    throw new Exception(ERR_PERMISSION_DENIED);
+                } else if (TextUtils.containsAny(dir, true, "Not a directory", "No such file or directory")) {
+                    throw new Exception(ERR_NOT_A_DIRECTORY);
+                }
+            }
+        }
+
+        return fileList;
     }
 
     public void listFiles(Device device, String path, boolean useRoot, DeviceFileListener listener) {
