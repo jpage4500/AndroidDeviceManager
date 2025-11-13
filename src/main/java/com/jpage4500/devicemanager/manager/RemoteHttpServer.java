@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import fi.iki.elonen.NanoHTTPD;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,10 @@ import java.util.*;
  */
 public class RemoteHttpServer extends NanoHTTPD {
     private static final Logger log = LoggerFactory.getLogger(RemoteHttpServer.class);
+
+    public static final String HEADER_IP = "x-client-ip";
+    public static final String HEADER_NAME = "x-client-name";
+    public static final String HEADER_AUTHORIZATION = "authorization";
 
     private final String authToken;
     private final RemoteServerManager serverManager;
@@ -34,18 +39,31 @@ public class RemoteHttpServer extends NanoHTTPD {
         String uri = session.getUri();
         Method method = session.getMethod();
         Map<String, String> headers = session.getHeaders();
-        String clientIp = headers.getOrDefault("remote-addr", headers.getOrDefault("http-client-ip", "unknown"));
+        // client provided IP and name
+        String headerIp = safeHeader(headers.get(HEADER_IP));
+        String headerName = safeHeader(headers.get(HEADER_NAME));
+        // server provided IP address
+        String clientIp = headers.get("remote-addr");
+        if (TextUtils.isEmpty(clientIp)) {
+            clientIp = headers.get("http-client-ip");
+            if (TextUtils.isEmpty(clientIp)) {
+                clientIp = headerIp;
+                if (TextUtils.isEmpty(clientIp)) {
+                    clientIp = "unknown";
+                }
+            }
+        }
 
-        log.debug("Request: {} {} from {}", method, uri, clientIp);
+        log.trace("server: {} {}, ip:{}, name:{}, clientIP:{}", method, uri, clientIp, headerName, headerIp);
 
         // Authenticate
-        String token = headers.get("authorization");
+        String token = headers.get(HEADER_AUTHORIZATION);
         if (token == null || !token.equals("Bearer " + authToken)) {
             return newFixedLengthResponse(Response.Status.UNAUTHORIZED, MIME_PLAINTEXT, "Unauthorized");
         }
 
-        // Track client
-        serverManager.trackClient(clientIp);
+        // Track client (with optional name)
+        serverManager.trackClient(clientIp, headerName);
 
         // Route request
         try {
@@ -348,6 +366,16 @@ public class RemoteHttpServer extends NanoHTTPD {
         // TODO: Implement screenshot capture
         return newFixedLengthResponse(Response.Status.NOT_IMPLEMENTED, MIME_PLAINTEXT,
             "Screenshot feature not yet implemented");
+    }
+
+    private String safeHeader(String value) {
+        if (value == null) return null;
+        value = value.trim();
+        if (value.isEmpty()) return null;
+        // Basic sanitization: limit length and strip control chars
+        value = value.replaceAll("[\r\n]", "");
+        if (value.length() > 128) value = value.substring(0, 128);
+        return value;
     }
 }
 

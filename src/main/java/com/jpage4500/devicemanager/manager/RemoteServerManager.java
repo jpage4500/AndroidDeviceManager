@@ -11,7 +11,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -38,36 +41,29 @@ public class RemoteServerManager {
 
     public interface ServerListener {
         void onServerStarted(int port);
+
         void onServerStopped();
+
         void onClientConnected(RemoteClientInfo client);
+
         void onClientDisconnected(RemoteClientInfo client);
+
         void onError(Exception e);
     }
 
-    /**
-     * Start the remote server
-     */
-    public void startServer() {
-        startServer(DEFAULT_PORT);
-    }
-
-    public void startServer(int port) {
-        startServer(port, null);
-    }
-
-    public void startServer(int port, String customAuthToken) {
+    public void startServer(int port, String authToken) {
         if (isRunning) {
             log.warn("Server already running on port {}", this.port);
             return;
         }
 
         this.port = port;
-        this.authToken = (customAuthToken != null && !customAuthToken.isEmpty())
-            ? customAuthToken
+        this.authToken = (authToken != null && !authToken.isEmpty())
+            ? authToken
             : generateAuthToken();
 
         try {
-            httpServer = new RemoteHttpServer(port, authToken, this);
+            httpServer = new RemoteHttpServer(port, this.authToken, this);
             httpServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
             isRunning = true;
 
@@ -76,15 +72,15 @@ public class RemoteServerManager {
                 discoveryManager = new NetworkDiscoveryManager();
             }
             String serverName = getDeviceName();
-            discoveryManager.startBroadcasting(port, authToken, serverName);
+            discoveryManager.startBroadcasting(port, this.authToken, serverName);
 
             // Try to open port via UPnP
-            tryOpenPortViaUpnp(port);
+            startUpnp(port);
 
             // Save preferences
             PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED, true);
             PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, port);
-            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN, authToken);
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN, this.authToken);
 
             log.info("Remote server started on port {} with broadcasting", port);
             if (listener != null) listener.onServerStarted(port);
@@ -112,12 +108,10 @@ public class RemoteServerManager {
         }
 
         // Close UPnP port mapping
-        tryClosePortViaUpnp(port);
+        stopUpnp(port);
 
         isRunning = false;
         connectedClients.clear();
-
-        PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED, false);
 
         log.info("Remote server stopped");
         if (listener != null) listener.onServerStopped();
@@ -168,7 +162,7 @@ public class RemoteServerManager {
         } catch (Exception e) {
             log.debug("Failed to get public IP, falling back to local: {}", e.getMessage());
         }
-        
+
         // Fall back to local IP
         try {
             return InetAddress.getLocalHost().getHostAddress();
@@ -183,7 +177,7 @@ public class RemoteServerManager {
         if (savedName != null && !savedName.isEmpty()) {
             return savedName;
         }
-        
+
         // Fall back to hostname
         try {
             return InetAddress.getLocalHost().getHostName();
@@ -193,20 +187,34 @@ public class RemoteServerManager {
     }
 
     // Getters
-    public boolean isRunning() { return isRunning; }
-    public int getPort() { return port; }
-    public String getAuthToken() { return authToken; }
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public String getAuthToken() {
+        return authToken;
+    }
+
     public List<RemoteClientInfo> getConnectedClients() {
         return new ArrayList<>(connectedClients.values());
     }
 
-    // Client tracking
-    void trackClient(String clientIp) {
+    void trackClient(String clientIp, String clientName) {
         RemoteClientInfo client = connectedClients.get(clientIp);
         if (client == null) {
             client = new RemoteClientInfo(clientIp);
+            if (clientName != null && !clientName.isEmpty()) {
+                client.name = clientName;
+            }
             connectedClients.put(clientIp, client);
             if (listener != null) listener.onClientConnected(client);
+        } else if (client.name == null && clientName != null && !clientName.isEmpty()) {
+            // update name if it was previously unknown
+            client.name = clientName;
         }
         client.lastActivityMs = System.currentTimeMillis();
         client.requestCount++;
@@ -222,21 +230,11 @@ public class RemoteServerManager {
      */
     public void initialize() {
         // Check if server was running when app last closed
-        boolean wasEnabled = PreferenceUtils.getPreference(
-            PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED,
-            false
-        );
-
+        boolean wasEnabled = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED);
         if (wasEnabled) {
             // Get saved port and auth token
-            int savedPort = PreferenceUtils.getPreference(
-                PreferenceUtils.PrefInt.PREF_SERVER_PORT,
-                DEFAULT_PORT
-            );
-            String savedToken = PreferenceUtils.getPreference(
-                PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN
-            );
-
+            int savedPort = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, DEFAULT_PORT);
+            String savedToken = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
             // Auto-start the server
             log.info("Auto-starting server (was enabled on last shutdown)");
             startServer(savedPort, savedToken);
@@ -246,7 +244,7 @@ public class RemoteServerManager {
     /**
      * Try to open port via UPnP in background thread
      */
-    private void tryOpenPortViaUpnp(int port) {
+    private void startUpnp(int port) {
         Thread thread = new Thread(() -> {
             try {
                 boolean success = UpnpUtils.openPort(port, "Android Device Manager");
@@ -266,7 +264,7 @@ public class RemoteServerManager {
     /**
      * Try to close port via UPnP in background thread
      */
-    private void tryClosePortViaUpnp(int port) {
+    private void stopUpnp(int port) {
         Thread thread = new Thread(() -> {
             try {
                 UpnpUtils.closePort(port);
@@ -278,4 +276,3 @@ public class RemoteServerManager {
         thread.start();
     }
 }
-

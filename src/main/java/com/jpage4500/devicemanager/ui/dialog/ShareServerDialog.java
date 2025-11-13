@@ -199,6 +199,9 @@ public class ShareServerDialog extends JPanel {
             statusLabel.setForeground(Color.ORANGE);
             toggleButton.setEnabled(false);
 
+            // prevent server from running next time app is started
+            PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED, false);
+
             new Thread(() -> {
                 serverManager.stopServer();
                 SwingUtilities.invokeLater(() -> {

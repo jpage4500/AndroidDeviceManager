@@ -71,7 +71,7 @@ public class RemoteConnectionManager {
             return;
         }
 
-        RemoteConnection connection = new RemoteConnection(server); // reverted
+        RemoteConnection connection = new RemoteConnection(server);
         connections.put(server.id, connection);
 
         // Connect asynchronously
@@ -90,7 +90,7 @@ public class RemoteConnectionManager {
                 refreshDevices(server.id);
 
             } catch (Exception e) {
-                log.error("Failed to connect to server: {}", server.name, e);
+                log.error("Failed to connect to server: {}, {}", server.name, e.getMessage());
                 server.isOnline = false;
                 connections.remove(server.id);
             }

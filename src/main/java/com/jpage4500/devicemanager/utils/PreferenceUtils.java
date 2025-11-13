@@ -47,11 +47,7 @@ public class PreferenceUtils {
         PREF_EXIT_TO_TRAY,
         PREF_DEVICE_AUTO_RESIZE,
         PREF_LOGS_AUTO_RESIZE,
-
-        // Remote Server settings
-        PREF_SERVER_ENABLED,                   // server enabled
-        PREF_SERVER_AUTO_START,                // auto-start on app launch
-        PREF_REMOTE_AUTO_CONNECT,              // auto-connect on startup
+        PREF_SERVER_ENABLED,
     }
 
     /**

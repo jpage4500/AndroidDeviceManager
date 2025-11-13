@@ -153,13 +153,7 @@ public class DeviceManager {
                 log.info("Discovered remote server: {}", server.name);
             }
         });
-
-        // Auto-connect to remote servers if configured
-        boolean autoConnect = PreferenceUtils.getPreference(
-            PreferenceUtils.PrefBoolean.PREF_REMOTE_AUTO_CONNECT, false);
-        if (autoConnect) {
-            remoteConnectionManager.initialize();
-        }
+        remoteConnectionManager.initialize();
     }
 
     public void setDeviceListener(DeviceListener listener) {

@@ -28,7 +28,7 @@ public class SettingsDialog extends JPanel {
 
     public static void showSettings(DeviceScreen deviceScreen) {
         SettingsDialog settingsScreen = new SettingsDialog(deviceScreen);
-        DialogHelper.showCustomDialog(null, settingsScreen, "Settings", new String[]{});
+        DialogHelper.showCustomDialog(deviceScreen, settingsScreen, "Settings", new String[]{});
     }
 
     private SettingsDialog(DeviceScreen deviceScreen) {

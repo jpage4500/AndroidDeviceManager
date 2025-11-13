@@ -8,6 +8,7 @@ import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -61,7 +62,9 @@ public class RemoteConnection {
         try (Socket s = new Socket()) {
             s.connect(new InetSocketAddress(serverConfig.host, serverConfig.port), CONNECT_TIMEOUT_MS);
             return true;
-        } catch (Exception e) { return false; }
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**
@@ -70,34 +73,36 @@ public class RemoteConnection {
     public void connect() throws IOException {
         long startMs = System.currentTimeMillis();
         serverConfig.lastError = null;
+        log.trace("connect: {}, {}", serverConfig.host, serverConfig.name);
 
         // DNS resolution
         try {
-            InetAddress addr = InetAddress.getByName(serverConfig.host);
-            log.debug("connect: resolved {} -> {}", serverConfig.host, addr.getHostAddress());
+            InetAddress.getByName(serverConfig.host);
+            //log.debug("connect: resolved {} -> {}", serverConfig.host, addr.getHostAddress());
         } catch (Exception e) {
             serverConfig.lastError = "Host resolution failed: " + e.getMessage();
             throw new IOException(serverConfig.lastError, e);
         }
+
         // Port reachability
         if (!testSocketReachable()) {
             serverConfig.lastError = "Port unreachable: " + serverConfig.host + ":" + serverConfig.port;
             throw new IOException(serverConfig.lastError);
         }
-        // Handshake
+
         try {
-            @SuppressWarnings("unchecked") Map<String,Object> info = httpGet("/api/info", Map.class);
+            @SuppressWarnings("unchecked") Map<String, Object> info = httpGet("/api/info", Map.class);
             log.info("Connected to server: {} - {}", serverConfig.name, info);
             isConnected = true;
             serverConfig.isOnline = true;
             lastHealthCheck = System.currentTimeMillis();
         } catch (IOException e) {
-            serverConfig.lastError = "Handshake failed: " + e.getMessage();
+            serverConfig.lastError = "Connection failed: " + e.getMessage();
             isConnected = false;
             serverConfig.isOnline = false;
             throw e;
         } finally {
-            log.debug("connect: {} elapsed={}ms success={}", serverConfig.name, (System.currentTimeMillis()-startMs), isConnected);
+            log.debug("connect: {} elapsed={}ms success={}", serverConfig.name, (System.currentTimeMillis() - startMs), isConnected);
         }
     }
 
@@ -219,7 +224,7 @@ public class RemoteConnection {
     private <T> T httpGet(String path, Class<T> responseType) throws IOException {
         String url = serverConfig.getConnectionUrl() + path;
         HttpGet request = new HttpGet(url);
-        request.setHeader("Authorization", "Bearer " + serverConfig.authToken);
+        addHeaders(request);
 
         try (CloseableHttpResponse response = httpClient.execute(request)) {
             int status = response.getStatusLine().getStatusCode();
@@ -237,7 +242,7 @@ public class RemoteConnection {
     private <T> T httpPost(String path, Object body, Class<T> responseType) throws IOException {
         String url = serverConfig.getConnectionUrl() + path;
         HttpPost request = new HttpPost(url);
-        request.setHeader("Authorization", "Bearer " + serverConfig.authToken);
+        addHeaders(request);
         request.setHeader("Content-Type", "application/json");
 
         String json = GsonHelper.toJson(body);
@@ -263,7 +268,7 @@ public class RemoteConnection {
         // The server returns a list of DeviceFile objects serialized as JSON
         String url = serverConfig.getConnectionUrl() + endpoint;
         HttpGet request = new HttpGet(url);
-        request.setHeader("Authorization", "Bearer " + serverConfig.authToken);
+        addHeaders(request);
 
         try (CloseableHttpResponse response = httpClient.execute(request)) {
             int status = response.getStatusLine().getStatusCode();
@@ -278,6 +283,16 @@ public class RemoteConnection {
         }
     }
 
+    private void addHeaders(HttpRequestBase request) {
+        request.setHeader(RemoteHttpServer.HEADER_AUTHORIZATION, "Bearer " + serverConfig.authToken);
+        try {
+            InetAddress localHost = InetAddress.getLocalHost();
+            request.setHeader(RemoteHttpServer.HEADER_IP, localHost.getHostAddress());
+            request.setHeader(RemoteHttpServer.HEADER_NAME, localHost.getHostName());
+        } catch (Exception ignored) {
+        }
+    }
+
     /**
      * Download file from remote device
      */
@@ -285,11 +300,11 @@ public class RemoteConnection {
         String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
         String encodedFile = URLEncoder.encode(filename, StandardCharsets.UTF_8);
         String endpoint = "/api/files/download?serial=" + deviceSerial +
-                         "&path=" + encodedPath + "&file=" + encodedFile;
+            "&path=" + encodedPath + "&file=" + encodedFile;
 
         String url = serverConfig.getConnectionUrl() + endpoint;
         HttpGet request = new HttpGet(url);
-        request.setHeader("Authorization", "Bearer " + serverConfig.authToken);
+        addHeaders(request);
 
         try (CloseableHttpResponse response = httpClient.execute(request)) {
             int status = response.getStatusLine().getStatusCode();
@@ -321,11 +336,11 @@ public class RemoteConnection {
         String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
         String encodedFile = URLEncoder.encode(filename, StandardCharsets.UTF_8);
         String endpoint = "/api/files/upload?serial=" + deviceSerial +
-                         "&path=" + encodedPath + "&file=" + encodedFile;
+            "&path=" + encodedPath + "&file=" + encodedFile;
 
         String url = serverConfig.getConnectionUrl() + endpoint;
         HttpPost request = new HttpPost(url);
-        request.setHeader("Authorization", "Bearer " + serverConfig.authToken);
+        addHeaders(request);
 
         // Read the local file and set as request body
         byte[] fileData = Files.readAllBytes(localFile.toPath());
