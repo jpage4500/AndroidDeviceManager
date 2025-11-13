@@ -43,7 +43,6 @@ public class MessageViewScreen extends BaseScreen {
     public MessageViewScreen(DeviceScreen deviceScreen) {
         super("message", 500, 500);
         this.deviceScreen = deviceScreen;
-        setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         initalizeUi();
         refreshUi();
     }
@@ -127,7 +126,7 @@ public class MessageViewScreen extends BaseScreen {
     @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSED) {
+        if (state == WindowState.CLOSING) {
             closeWindow();
         }
     }

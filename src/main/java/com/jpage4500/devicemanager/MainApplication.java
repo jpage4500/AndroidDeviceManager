@@ -81,7 +81,9 @@ public class MainApplication {
                 "RecordReaper",
                 "SocketListener",
                 "Responder",
-                "DNSQuestion"
+                "DNSQuestion",
+                "DNSResolverTask",
+                "NetworkTopologyDiscover",
             });
         } else {
             System.out.println("ERROR: no logger found: " + iLoggerFactory.getClass().getSimpleName());

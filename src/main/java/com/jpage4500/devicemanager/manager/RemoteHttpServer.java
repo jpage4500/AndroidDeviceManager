@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 
 /**
@@ -55,6 +57,10 @@ public class RemoteHttpServer extends NanoHTTPD {
                 return handleExecuteCommand(session);
             } else if (uri.startsWith("/api/files/list")) {
                 return handleListFiles(session);
+            } else if (uri.startsWith("/api/files/download")) {
+                return handleDownloadFile(session);
+            } else if (uri.startsWith("/api/files/upload")) {
+                return handleUploadFile(session);
             } else if (uri.startsWith("/api/screenshot")) {
                 return handleScreenshot(session);
             } else {
@@ -187,6 +193,152 @@ public class RemoteHttpServer extends NanoHTTPD {
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT,
                 "Error: " + e.getMessage());
         }
+    }
+
+    /**
+     * GET /api/files/download?serial=xxx&path=/sdcard&file=test.txt
+     * Downloads a file from the device
+     */
+    private Response handleDownloadFile(IHTTPSession session) {
+        Map<String, String> params = session.getParms();
+        String serial = params.get("serial");
+        String path = params.get("path");
+        String filename = params.get("file");
+
+        if (serial == null || path == null || filename == null) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT,
+                "Missing serial, path, or file parameter");
+        }
+
+        Device device = deviceManager.getDevice(serial);
+        if (device == null || device.isRemote) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT,
+                "Device not found");
+        }
+
+        try {
+            // Create a temporary file to download to
+            File tempFile = File.createTempFile("device_download_", "_" + filename);
+            tempFile.deleteOnExit();
+
+            // Use jadb to pull the file
+            se.vidstige.jadb.RemoteFile remoteFile = new se.vidstige.jadb.RemoteFileRecord(path, filename, 0, 0, 0);
+            device.jadbDevice.pull(remoteFile, tempFile);
+
+            if (!tempFile.exists() || tempFile.length() == 0) {
+                return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT,
+                    "File not found or empty on device");
+            }
+
+            // Determine MIME type
+            String mimeType = getMimeType(filename);
+
+            // Stream the file to the client
+            FileInputStream fis = new FileInputStream(tempFile);
+            Response response = newChunkedResponse(Response.Status.OK, mimeType, fis);
+            response.addHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+            response.addHeader("Content-Length", String.valueOf(tempFile.length()));
+
+            return response;
+        } catch (Exception e) {
+            log.error("Failed to download file", e);
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT,
+                "Error downloading file: " + e.getMessage());
+        }
+    }
+
+    /**
+     * POST /api/files/upload?serial=xxx&path=/sdcard&file=test.txt
+     * Uploads a file to the device
+     * Body: raw file data
+     */
+    private Response handleUploadFile(IHTTPSession session) {
+        Map<String, String> params = session.getParms();
+        String serial = params.get("serial");
+        String path = params.get("path");
+        String filename = params.get("file");
+
+        if (serial == null || path == null || filename == null) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT,
+                "Missing serial, path, or file parameter");
+        }
+
+        Device device = deviceManager.getDevice(serial);
+        if (device == null || device.isRemote) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT,
+                "Device not found");
+        }
+
+        try {
+            // Create a temporary file to receive the upload
+            File tempFile = File.createTempFile("device_upload_", "_" + filename);
+            tempFile.deleteOnExit();
+
+            // Parse the body and save to temp file
+            Map<String, String> files = new HashMap<>();
+            session.parseBody(files);
+
+            // The uploaded file data is in the postData
+            String postData = files.get("postData");
+            if (postData != null && !postData.isEmpty()) {
+                // Write the data to temp file
+                try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                    fos.write(postData.getBytes(StandardCharsets.ISO_8859_1));
+                }
+            } else {
+                // Try to get the uploaded file from the files map
+                String tmpFilePath = files.get("file");
+                if (tmpFilePath != null) {
+                    File uploadedFile = new File(tmpFilePath);
+                    if (uploadedFile.exists()) {
+                        // Copy to our temp file
+                        Files.copy(uploadedFile.toPath(), tempFile.toPath(),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+            }
+
+            if (!tempFile.exists() || tempFile.length() == 0) {
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT,
+                    "No file data received");
+            }
+
+            // Use jadb to push the file to the device
+            se.vidstige.jadb.RemoteFile remoteFile = new se.vidstige.jadb.RemoteFileRecord(path, filename, 0, 0, 0);
+            device.jadbDevice.push(tempFile, remoteFile);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "File uploaded successfully");
+            response.put("path", path + "/" + filename);
+
+            String json = GsonHelper.toJson(response);
+            return newFixedLengthResponse(Response.Status.OK, "application/json", json);
+        } catch (Exception e) {
+            log.error("Failed to upload file", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", "Error uploading file: " + e.getMessage());
+            String json = GsonHelper.toJson(response);
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", json);
+        }
+    }
+
+    /**
+     * Determine MIME type from filename
+     */
+    private String getMimeType(String filename) {
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".txt")) return "text/plain";
+        if (lower.endsWith(".json")) return "application/json";
+        if (lower.endsWith(".xml")) return "application/xml";
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        if (lower.endsWith(".zip")) return "application/zip";
+        if (lower.endsWith(".apk")) return "application/vnd.android.package-archive";
+        return "application/octet-stream";
     }
 
     /**

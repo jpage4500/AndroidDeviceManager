@@ -74,7 +74,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public ViewLogsScreen(DeviceScreen deviceScreen, Device device) {
         super("logs-" + device.serial, 1100, 800);
         this.deviceScreen = deviceScreen;
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initalizeUi();
         updateDevice(device);
@@ -153,16 +153,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
         switch (state) {
-            case CLOSED -> {
-                // stop logging when window is closed
-                log.trace("onWindowStateChanged: CLOSED");
-                stopLogging();
-                saveFrameSize();
-                table.saveTable();
-                if (tooltip != null) {
-                    tooltip.dispose();
-                    tooltip = null;
-                }
+            case CLOSING -> {
+                closeWindow();
             }
             case ACTIVATED -> {
                 // start logging if user didn't stop
@@ -184,7 +176,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // Create a panel to hold both checkboxes
         JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         checkboxPanel.setOpaque(false);
-        
+
         // Show Tooltip checkbox
         showTooltipCheckBox = new JCheckBox("Tooltip");
         showTooltipCheckBox.setToolTipText("Show tooltip when hovering over long messages");
@@ -199,7 +191,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             }
         });
         checkboxPanel.add(showTooltipCheckBox);
-        
+
         // Auto Scroll checkbox
         autoScrollCheckBox = new JCheckBox("Auto Scroll");
         autoScrollCheckBox.setToolTipText("Check to automatically scroll to latest messages");
@@ -212,7 +204,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             }
         });
         checkboxPanel.add(autoScrollCheckBox);
-        
+
         statusBar.setRightComponent(checkboxPanel);
     }
 
@@ -608,7 +600,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         if (!showTooltipCheckBox.isSelected()) {
             return;
         }
-        
+
         Point p = e.getPoint();
         int row = table.rowAtPoint(p);
         int col = table.columnAtPoint(p);
@@ -646,7 +638,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         // Get mouse position on screen
         Point mouseOnScreen = e.getLocationOnScreen();
-        
+
         int x = viewportLocation.x;
         int width = viewportBounds.width;
         int bottomY = viewportLocation.y + viewportBounds.height;
@@ -747,7 +739,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             deviceScreen.setDeviceBusy(device, true);
             // get last log entry and start from there
             String lastLogTime = model.getLastLogTime();
-            DeviceManager.getInstance().startLogging(device, lastLogTime,this);
+            DeviceManager.getInstance().startLogging(device, lastLogTime, this);
         }
     }
 
@@ -824,7 +816,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         if (isQuickViewEnabled) {
             // Save current table state before enabling quick view
             table.saveTable();
-            
+
             // Hide columns: DATE, APP, TID, PID
             List<String> hiddenColList = new ArrayList<>();
             hiddenColList.add(LogsTableModel.Columns.DATE.name());
@@ -832,14 +824,14 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             hiddenColList.add(LogsTableModel.Columns.TID.name());
             hiddenColList.add(LogsTableModel.Columns.PID.name());
             model.setHiddenColumns(hiddenColList);
-            
+
             // Size LEVEL and TAG columns to fit their content BEFORE enabling auto-resize
             TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
-            
+
             // Find column indices by name (after columns have been hidden)
             TableColumn levelColumn = table.getColumnByName(LogsTableModel.Columns.LEVEL.name());
             TableColumn tagColumn = table.getColumnByName(LogsTableModel.Columns.TAG.name());
-            
+
             if (levelColumn != null) {
                 int levelCol = table.convertColumnIndexToView(levelColumn.getModelIndex());
                 if (levelCol >= 0) adjuster.adjustColumn(levelCol);
@@ -848,16 +840,16 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 int tagCol = table.convertColumnIndexToView(tagColumn.getModelIndex());
                 if (tagCol >= 0) adjuster.adjustColumn(tagCol);
             }
-            
+
             // Enable auto-resize for last column (MSG) to fill remaining space
             table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
         } else {
             // Restore previous auto-resize mode FIRST
             table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-            
+
             // Restore: show all columns
             model.setHiddenColumns(new ArrayList<>());
-            
+
             // Restore saved column widths and order
             table.restoreTable();
         }

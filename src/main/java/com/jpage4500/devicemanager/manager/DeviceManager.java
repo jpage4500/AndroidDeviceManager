@@ -1007,11 +1007,28 @@ public class DeviceManager {
                 }
             } else {
                 log.trace("copyFilesInternal: FILE: {}", destFilename);
-                try {
-                    RemoteFile remoteFile = new RemoteFileRecord(dest, filename, 0, 0, 0);
-                    device.jadbDevice.push(file, remoteFile);
-                } catch (Exception e) {
-                    log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
+
+                // Check if device is remote
+                if (device.isRemote && device.remoteServerId != null) {
+                    try {
+                        remoteConnectionManager.uploadRemoteFile(
+                            device.remoteServerId,
+                            device.serial,
+                            dest,
+                            filename,
+                            file
+                        );
+                    } catch (Exception e) {
+                        log.error("copyFile: REMOTE {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
+                    }
+                } else {
+                    // Local device - use JADB
+                    try {
+                        RemoteFile remoteFile = new RemoteFileRecord(dest, filename, 0, 0, 0);
+                        device.jadbDevice.push(file, remoteFile);
+                    } catch (Exception e) {
+                        log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
+                    }
                 }
             }
         }
@@ -1081,6 +1098,21 @@ public class DeviceManager {
      * Synchronous version of listFiles for remote server use
      */
     public List<DeviceFile> getFileListSync(Device device, String path) throws Exception {
+        // Check if device is remote - use remote API
+        if (device.isRemote && device.remoteServerId != null) {
+            try {
+                return remoteConnectionManager.listRemoteFiles(
+                    device.remoteServerId,
+                    device.serial,
+                    path
+                );
+            } catch (Exception e) {
+                log.error("getFileListSync: REMOTE {}, Exception:{}", path, e.getMessage());
+                throw e;
+            }
+        }
+
+        // Local device - use shell command
         String safePath = path;
         // make sure folder ends with "/"
         if (!TextUtils.endsWith(safePath, "/")) safePath += "/";
@@ -1200,11 +1232,28 @@ public class DeviceManager {
         } else {
             // pull file
             log.trace("downloadFileInternal: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
-            RemoteFile remoteFile = new RemoteFileRecord(path, file.name, 0, 0, 0);
-            try {
-                device.jadbDevice.pull(remoteFile, saveFile);
-            } catch (Exception e) {
-                log.error("downloadFileInternal: {}/{}, Exception:{}", path, file.name, e.getMessage());
+
+            // Check if device is remote
+            if (device.isRemote && device.remoteServerId != null) {
+                try {
+                    remoteConnectionManager.downloadRemoteFile(
+                        device.remoteServerId,
+                        device.serial,
+                        path,
+                        file.name,
+                        saveFile
+                    );
+                } catch (Exception e) {
+                    log.error("downloadFileInternal: REMOTE {}/{}, Exception:{}", path, file.name, e.getMessage());
+                }
+            } else {
+                // Local device - use JADB
+                RemoteFile remoteFile = new RemoteFileRecord(path, file.name, 0, 0, 0);
+                try {
+                    device.jadbDevice.pull(remoteFile, saveFile);
+                } catch (Exception e) {
+                    log.error("downloadFileInternal: {}/{}, Exception:{}", path, file.name, e.getMessage());
+                }
             }
         }
     }
@@ -1490,6 +1539,13 @@ public class DeviceManager {
                 log.debug("handleExit: killing: {}", process);
                 process.destroy();
             }
+        }
+
+        if (remoteConnectionManager != null) {
+            remoteConnectionManager.shutdown();
+        }
+        if (remoteServerManager != null) {
+            remoteServerManager.stopServer();
         }
 
         if (deviceRefreshRuture != null) deviceRefreshRuture.cancel(true);

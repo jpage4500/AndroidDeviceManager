@@ -57,7 +57,7 @@ public class SaveLogsScreen extends BaseScreen {
         //setAlwaysOnTop(true);
         setTitle("Save Device Logs");
         this.deviceScreen = deviceScreen;
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         BufferedImage startImg = UiUtils.getImage("icon_play.png", UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
         BufferedImage greenStartImg = UiUtils.replaceColor(startImg, Colors.COLOR_START_RECORDING);
@@ -384,7 +384,7 @@ public class SaveLogsScreen extends BaseScreen {
     @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSED) {
+        if (state == WindowState.CLOSING) {
             closeWindow();
         }
     }

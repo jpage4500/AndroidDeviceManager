@@ -3,16 +3,13 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteServerManager;
-import com.jpage4500.devicemanager.utils.DialogHelper;
-import com.jpage4500.devicemanager.utils.NetworkHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.TextUtils;
-import com.jpage4500.devicemanager.utils.UpnpUtils;
+import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -112,8 +109,8 @@ public class ShareServerDialog extends JPanel {
         testButton.setToolTipText("Test if server is reachable from external networks");
         mainPanel.add(testButton, "skip 1, split 3");
 
-        // Try UPnP button
-        JButton upnpButton = new JButton("Try UPnP");
+        // UPnP button
+        JButton upnpButton = new JButton("UPnP");
         upnpButton.addActionListener(e -> tryUpnpPortForwarding());
         upnpButton.setToolTipText("Attempt automatic port forwarding via UPnP");
         mainPanel.add(upnpButton);
@@ -197,8 +194,18 @@ public class ShareServerDialog extends JPanel {
 
     private void toggleServer() {
         if (serverManager.isRunning()) {
-            // Stop server
-            serverManager.stopServer();
+            // Stop server - update UI immediately and run stop in background
+            statusLabel.setText("Stopping Server...");
+            statusLabel.setForeground(Color.ORANGE);
+            toggleButton.setEnabled(false);
+
+            new Thread(() -> {
+                serverManager.stopServer();
+                SwingUtilities.invokeLater(() -> {
+                    toggleButton.setEnabled(true);
+                    refreshUI();
+                });
+            }, "StopServer").start();
         } else {
             // Start server - use values from fields
             String deviceName = deviceNameField.getText().trim();
@@ -207,10 +214,7 @@ public class ShareServerDialog extends JPanel {
 
             // Save device name preference
             if (!deviceName.isEmpty()) {
-                PreferenceUtils.setPreference(
-                    PreferenceUtils.Pref.PREF_SERVER_DEVICE_NAME,
-                    deviceName
-                );
+                PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SERVER_DEVICE_NAME, deviceName);
             }
 
             // Validate auth token
@@ -237,9 +241,9 @@ public class ShareServerDialog extends JPanel {
                 log.error("Failed to start server", e);
                 DialogHelper.showDialog(this, "Error", "Failed to start server: " + e.getMessage());
             }
-        }
 
-        refreshUI();
+            refreshUI();
+        }
     }
 
     private void copyConnectionString() {
@@ -394,23 +398,23 @@ public class ShareServerDialog extends JPanel {
                 if (success) {
                     String message = String.format(
                         "✅ UPnP Port Forwarding Successful!\n\n" +
-                        "Port %d is now open on your router.\n" +
-                        "External IP: %s\n\n" +
-                        "Your server should now be accessible from the internet.\n" +
-                        "Use the 'Test Connection' button to verify.",
+                            "Port %d is now open on your router.\n" +
+                            "External IP: %s\n\n" +
+                            "Your server should now be accessible from the internet.\n" +
+                            "Use the 'Test Connection' button to verify.",
                         port, externalIp != null ? externalIp : "Unknown"
                     );
                     JOptionPane.showMessageDialog(this, message, "UPnP Success", JOptionPane.INFORMATION_MESSAGE);
                 } else {
                     String message = String.format(
                         "❌ UPnP Port Forwarding Failed\n\n" +
-                        "Port %d could not be opened automatically.\n\n" +
-                        "Possible reasons:\n" +
-                        "• Router doesn't support UPnP/IGD\n" +
-                        "• UPnP is disabled on your router\n" +
-                        "• Router firewall blocking UPnP\n\n" +
-                        "You'll need to manually configure port forwarding.\n" +
-                        "Click 'Firewall Help' for instructions.",
+                            "Port %d could not be opened automatically.\n\n" +
+                            "Possible reasons:\n" +
+                            "• Router doesn't support UPnP/IGD\n" +
+                            "• UPnP is disabled on your router\n" +
+                            "• Router firewall blocking UPnP\n\n" +
+                            "You'll need to manually configure port forwarding.\n" +
+                            "Click 'Firewall Help' for instructions.",
                         port
                     );
                     JOptionPane.showMessageDialog(this, message, "UPnP Failed", JOptionPane.WARNING_MESSAGE);
@@ -432,123 +436,123 @@ public class ShareServerDialog extends JPanel {
             // macOS instructions
             instructions = String.format(
                 "macOS Firewall Configuration\n" +
-                "═══════════════════════════\n\n" +
-                "To allow incoming connections on port %d:\n\n" +
-                "Option 1: Using System Preferences (Recommended)\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                "1. Open System Preferences → Security & Privacy\n" +
-                "2. Click Firewall tab\n" +
-                "3. Click lock to make changes\n" +
-                "4. Click Firewall Options\n" +
-                "5. Click '+' to add this application\n" +
-                "6. Select 'Allow incoming connections'\n\n" +
-                "Option 2: Using Terminal (Advanced)\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                "# Check firewall status\n" +
-                "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate\n\n" +
-                "# Add this app to firewall (replace path if needed)\n" +
-                "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /Applications/AndroidDeviceManager.app\n\n" +
-                "# Allow incoming connections\n" +
-                "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblock /Applications/AndroidDeviceManager.app\n\n" +
-                "Router Port Forwarding\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                "1. Open router admin (usually 192.168.1.1)\n" +
-                "2. Find Port Forwarding settings\n" +
-                "3. Forward external port %d to internal port %d\n" +
-                "4. Set internal IP to your local IP\n",
+                    "═══════════════════════════\n\n" +
+                    "To allow incoming connections on port %d:\n\n" +
+                    "Option 1: Using System Preferences (Recommended)\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "1. Open System Preferences → Security & Privacy\n" +
+                    "2. Click Firewall tab\n" +
+                    "3. Click lock to make changes\n" +
+                    "4. Click Firewall Options\n" +
+                    "5. Click '+' to add this application\n" +
+                    "6. Select 'Allow incoming connections'\n\n" +
+                    "Option 2: Using Terminal (Advanced)\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "# Check firewall status\n" +
+                    "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate\n\n" +
+                    "# Add this app to firewall (replace path if needed)\n" +
+                    "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /Applications/AndroidDeviceManager.app\n\n" +
+                    "# Allow incoming connections\n" +
+                    "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblock /Applications/AndroidDeviceManager.app\n\n" +
+                    "Router Port Forwarding\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "1. Open router admin (usually 192.168.1.1)\n" +
+                    "2. Find Port Forwarding settings\n" +
+                    "3. Forward external port %d to internal port %d\n" +
+                    "4. Set internal IP to your local IP\n",
                 port, port, port
             );
         } else if (os.contains("nix") || os.contains("nux")) {
             // Linux instructions
             instructions = String.format(
                 "Linux Firewall Configuration\n" +
-                "═══════════════════════════\n\n" +
-                "Choose the firewall system your distribution uses:\n\n" +
-                "UFW (Ubuntu/Debian)\n" +
-                "━━━━━━━━━━━━━━━━━━\n" +
-                "# Check UFW status\n" +
-                "sudo ufw status\n\n" +
-                "# Allow port %d\n" +
-                "sudo ufw allow %d/tcp\n\n" +
-                "# Or allow from specific subnet only (more secure)\n" +
-                "sudo ufw allow from 192.168.0.0/24 to any port %d proto tcp\n\n" +
-                "firewalld (CentOS/RHEL/Fedora)\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                "# Check firewalld status\n" +
-                "sudo firewall-cmd --state\n\n" +
-                "# Allow port %d permanently\n" +
-                "sudo firewall-cmd --permanent --add-port=%d/tcp\n" +
-                "sudo firewall-cmd --reload\n\n" +
-                "# Or use rich rule for specific subnet (more secure)\n" +
-                "sudo firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"192.168.0.0/24\" port port=\"%d\" protocol=\"tcp\" accept'\n" +
-                "sudo firewall-cmd --reload\n\n" +
-                "iptables (Legacy)\n" +
-                "━━━━━━━━━━━━━━━━━\n" +
-                "# Allow port %d\n" +
-                "sudo iptables -I INPUT -p tcp --dport %d -m state --state NEW -j ACCEPT\n\n" +
-                "# Save rules (Debian/Ubuntu)\n" +
-                "sudo sh -c 'iptables-save > /etc/iptables/rules.v4'\n\n" +
-                "# Or (CentOS/RHEL)\n" +
-                "sudo service iptables save\n\n" +
-                "Router Port Forwarding\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━\n" +
-                "1. Access router admin (typically 192.168.1.1)\n" +
-                "2. Navigate to Port Forwarding section\n" +
-                "3. Forward external port %d to internal port %d\n" +
-                "4. Set internal IP to your local IP\n",
+                    "═══════════════════════════\n\n" +
+                    "Choose the firewall system your distribution uses:\n\n" +
+                    "UFW (Ubuntu/Debian)\n" +
+                    "━━━━━━━━━━━━━━━━━━\n" +
+                    "# Check UFW status\n" +
+                    "sudo ufw status\n\n" +
+                    "# Allow port %d\n" +
+                    "sudo ufw allow %d/tcp\n\n" +
+                    "# Or allow from specific subnet only (more secure)\n" +
+                    "sudo ufw allow from 192.168.0.0/24 to any port %d proto tcp\n\n" +
+                    "firewalld (CentOS/RHEL/Fedora)\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "# Check firewalld status\n" +
+                    "sudo firewall-cmd --state\n\n" +
+                    "# Allow port %d permanently\n" +
+                    "sudo firewall-cmd --permanent --add-port=%d/tcp\n" +
+                    "sudo firewall-cmd --reload\n\n" +
+                    "# Or use rich rule for specific subnet (more secure)\n" +
+                    "sudo firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"192.168.0.0/24\" port port=\"%d\" protocol=\"tcp\" accept'\n" +
+                    "sudo firewall-cmd --reload\n\n" +
+                    "iptables (Legacy)\n" +
+                    "━━━━━━━━━━━━━━━━━\n" +
+                    "# Allow port %d\n" +
+                    "sudo iptables -I INPUT -p tcp --dport %d -m state --state NEW -j ACCEPT\n\n" +
+                    "# Save rules (Debian/Ubuntu)\n" +
+                    "sudo sh -c 'iptables-save > /etc/iptables/rules.v4'\n\n" +
+                    "# Or (CentOS/RHEL)\n" +
+                    "sudo service iptables save\n\n" +
+                    "Router Port Forwarding\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "1. Access router admin (typically 192.168.1.1)\n" +
+                    "2. Navigate to Port Forwarding section\n" +
+                    "3. Forward external port %d to internal port %d\n" +
+                    "4. Set internal IP to your local IP\n",
                 port, port, port, port, port, port, port, port, port, port
             );
         } else if (os.contains("win")) {
             // Windows instructions
             instructions = String.format(
                 "Windows Firewall Configuration\n" +
-                "═════════════════════════════\n\n" +
-                "Option 1: Windows Defender Firewall GUI (Recommended)\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                "1. Open Control Panel → Windows Defender Firewall\n" +
-                "2. Click 'Advanced settings'\n" +
-                "3. Click 'Inbound Rules' → 'New Rule'\n" +
-                "4. Select 'Port' → Next\n" +
-                "5. Select 'TCP' and enter port: %d\n" +
-                "6. Select 'Allow the connection' → Next\n" +
-                "7. Check all profiles → Next\n" +
-                "8. Name: 'Android Device Manager' → Finish\n\n" +
-                "Option 2: Command Line (Run as Administrator)\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                "REM Add inbound rule for port %d\n" +
-                "netsh advfirewall firewall add rule name=\"Android Device Manager\" dir=in action=allow protocol=TCP localport=%d\n\n" +
-                "REM To remove the rule later:\n" +
-                "netsh advfirewall firewall delete rule name=\"Android Device Manager\"\n\n" +
-                "Option 3: PowerShell (Run as Administrator)\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                "# Add inbound rule\n" +
-                "New-NetFirewallRule -DisplayName \"Android Device Manager\" -Direction Inbound -Protocol TCP -LocalPort %d -Action Allow\n\n" +
-                "# To remove the rule later:\n" +
-                "Remove-NetFirewallRule -DisplayName \"Android Device Manager\"\n\n" +
-                "Router Port Forwarding\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━\n" +
-                "1. Open router admin page (usually 192.168.1.1)\n" +
-                "2. Find Port Forwarding or Virtual Server settings\n" +
-                "3. Add new rule:\n" +
-                "   - External Port: %d\n" +
-                "   - Internal Port: %d\n" +
-                "   - Internal IP: Your computer's local IP\n" +
-                "   - Protocol: TCP\n" +
-                "4. Save and reboot router if required\n",
+                    "═════════════════════════════\n\n" +
+                    "Option 1: Windows Defender Firewall GUI (Recommended)\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "1. Open Control Panel → Windows Defender Firewall\n" +
+                    "2. Click 'Advanced settings'\n" +
+                    "3. Click 'Inbound Rules' → 'New Rule'\n" +
+                    "4. Select 'Port' → Next\n" +
+                    "5. Select 'TCP' and enter port: %d\n" +
+                    "6. Select 'Allow the connection' → Next\n" +
+                    "7. Check all profiles → Next\n" +
+                    "8. Name: 'Android Device Manager' → Finish\n\n" +
+                    "Option 2: Command Line (Run as Administrator)\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "REM Add inbound rule for port %d\n" +
+                    "netsh advfirewall firewall add rule name=\"Android Device Manager\" dir=in action=allow protocol=TCP localport=%d\n\n" +
+                    "REM To remove the rule later:\n" +
+                    "netsh advfirewall firewall delete rule name=\"Android Device Manager\"\n\n" +
+                    "Option 3: PowerShell (Run as Administrator)\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "# Add inbound rule\n" +
+                    "New-NetFirewallRule -DisplayName \"Android Device Manager\" -Direction Inbound -Protocol TCP -LocalPort %d -Action Allow\n\n" +
+                    "# To remove the rule later:\n" +
+                    "Remove-NetFirewallRule -DisplayName \"Android Device Manager\"\n\n" +
+                    "Router Port Forwarding\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "1. Open router admin page (usually 192.168.1.1)\n" +
+                    "2. Find Port Forwarding or Virtual Server settings\n" +
+                    "3. Add new rule:\n" +
+                    "   - External Port: %d\n" +
+                    "   - Internal Port: %d\n" +
+                    "   - Internal IP: Your computer's local IP\n" +
+                    "   - Protocol: TCP\n" +
+                    "4. Save and reboot router if required\n",
                 port, port, port, port, port, port
             );
         } else {
             // Unknown OS
             instructions = String.format(
                 "Firewall Configuration (Generic)\n" +
-                "═══════════════════════════════\n\n" +
-                "Port to open: %d (TCP)\n\n" +
-                "Steps:\n" +
-                "1. Configure your firewall to allow incoming TCP connections on port %d\n" +
-                "2. Configure your router to forward port %d to your computer's local IP\n" +
-                "3. Test connectivity using the 'Test Connection' button\n\n" +
-                "OS detected: %s\n\n" +
-                "Please consult your operating system's documentation for specific firewall configuration steps.\n",
+                    "═══════════════════════════════\n\n" +
+                    "Port to open: %d (TCP)\n\n" +
+                    "Steps:\n" +
+                    "1. Configure your firewall to allow incoming TCP connections on port %d\n" +
+                    "2. Configure your router to forward port %d to your computer's local IP\n" +
+                    "3. Test connectivity using the 'Test Connection' button\n\n" +
+                    "OS detected: %s\n\n" +
+                    "Please consult your operating system's documentation for specific firewall configuration steps.\n",
                 port, port, port, os
             );
         }

@@ -1,12 +1,14 @@
 package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -14,10 +16,13 @@ import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 
 /**
@@ -100,6 +105,7 @@ public class RemoteConnection {
      * Disconnect from server
      */
     public void disconnect() {
+        log.trace("disconnect: {}", GsonHelper.toJson(serverConfig));
         try {
             if (httpClient != null) {
                 httpClient.close();
@@ -244,6 +250,105 @@ public class RemoteConnection {
                 throw new IOException("HTTP " + status + " POST " + path + " body=" + responseJson);
             }
             return GsonHelper.fromJson(responseJson, responseType);
+        }
+    }
+
+    /**
+     * List files on remote device
+     */
+    public List<DeviceFile> listFiles(String deviceSerial, String path) throws IOException {
+        String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
+        String endpoint = "/api/files/list?serial=" + deviceSerial + "&path=" + encodedPath;
+
+        // The server returns a list of DeviceFile objects serialized as JSON
+        String url = serverConfig.getConnectionUrl() + endpoint;
+        HttpGet request = new HttpGet(url);
+        request.setHeader("Authorization", "Bearer " + serverConfig.authToken);
+
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            int status = response.getStatusLine().getStatusCode();
+            String json = EntityUtils.toString(response.getEntity());
+            if (status >= 400) {
+                throw new IOException("HTTP " + status + " GET " + endpoint + " body=" + json);
+            }
+
+            // Deserialize as array of DeviceFile
+            DeviceFile[] filesArray = GsonHelper.fromJson(json, DeviceFile[].class);
+            return filesArray != null ? Arrays.asList(filesArray) : new ArrayList<>();
+        }
+    }
+
+    /**
+     * Download file from remote device
+     */
+    public void downloadFile(String deviceSerial, String path, String filename, File saveFile) throws IOException {
+        String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
+        String encodedFile = URLEncoder.encode(filename, StandardCharsets.UTF_8);
+        String endpoint = "/api/files/download?serial=" + deviceSerial +
+                         "&path=" + encodedPath + "&file=" + encodedFile;
+
+        String url = serverConfig.getConnectionUrl() + endpoint;
+        HttpGet request = new HttpGet(url);
+        request.setHeader("Authorization", "Bearer " + serverConfig.authToken);
+
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            int status = response.getStatusLine().getStatusCode();
+
+            if (status >= 400) {
+                String error = EntityUtils.toString(response.getEntity());
+                throw new IOException("HTTP " + status + " downloading file: " + error);
+            }
+
+            // Save the response body to file
+            try (InputStream inputStream = response.getEntity().getContent();
+                 FileOutputStream outputStream = new FileOutputStream(saveFile)) {
+
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+            }
+
+            log.debug("Downloaded file from remote: {} -> {}", filename, saveFile.getAbsolutePath());
+        }
+    }
+
+    /**
+     * Upload file to remote device
+     */
+    public void uploadFile(String deviceSerial, String path, String filename, File localFile) throws IOException {
+        String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
+        String encodedFile = URLEncoder.encode(filename, StandardCharsets.UTF_8);
+        String endpoint = "/api/files/upload?serial=" + deviceSerial +
+                         "&path=" + encodedPath + "&file=" + encodedFile;
+
+        String url = serverConfig.getConnectionUrl() + endpoint;
+        HttpPost request = new HttpPost(url);
+        request.setHeader("Authorization", "Bearer " + serverConfig.authToken);
+
+        // Read the local file and set as request body
+        byte[] fileData = Files.readAllBytes(localFile.toPath());
+        request.setEntity(new ByteArrayEntity(fileData));
+
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            int status = response.getStatusLine().getStatusCode();
+            String responseJson = EntityUtils.toString(response.getEntity());
+
+            if (status >= 400) {
+                throw new IOException("HTTP " + status + " uploading file: " + responseJson);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = GsonHelper.fromJson(responseJson, Map.class);
+            boolean success = (Boolean) result.getOrDefault("success", false);
+
+            if (!success) {
+                String error = (String) result.getOrDefault("error", "Unknown error");
+                throw new IOException("Upload failed: " + error);
+            }
+
+            log.debug("Uploaded file to remote: {} -> {}/{}", localFile.getName(), path, filename);
         }
     }
 

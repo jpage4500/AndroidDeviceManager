@@ -23,7 +23,8 @@ public class BaseScreen extends JFrame {
         this.prefKey = prefKey;
         restoreFrameSize(defaultWidth, defaultHeight);
 
-        setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        // by default do nothing on exit - each screen needs to handle onWindowStateChanged(CLOSING)
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 
         addWindowListener(new WindowAdapter() {
             @Override

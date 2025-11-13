@@ -69,7 +69,7 @@ public class ExploreScreen extends BaseScreen {
         super("browse-" + device.serial, 500, 500);
         this.deviceScreen = deviceScreen;
         this.device = device;
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         initializeUi();
         updateDevice(device);
     }
@@ -206,7 +206,8 @@ public class ExploreScreen extends BaseScreen {
     @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSED) {
+        log.trace("onWindowStateChanged: {}", state);
+        if (state == WindowState.CLOSING) {
             closeWindow();
         }
     }

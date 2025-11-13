@@ -247,7 +247,7 @@ public class RemoteServerManager {
      * Try to open port via UPnP in background thread
      */
     private void tryOpenPortViaUpnp(int port) {
-        new Thread(() -> {
+        Thread thread = new Thread(() -> {
             try {
                 boolean success = UpnpUtils.openPort(port, "Android Device Manager");
                 if (success) {
@@ -258,20 +258,24 @@ public class RemoteServerManager {
             } catch (Exception e) {
                 log.debug("UPnP port forwarding failed: {}", e.getMessage());
             }
-        }, "UPnP-Open-" + port).start();
+        }, "UPnP-Open-" + port);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     /**
      * Try to close port via UPnP in background thread
      */
     private void tryClosePortViaUpnp(int port) {
-        new Thread(() -> {
+        Thread thread = new Thread(() -> {
             try {
                 UpnpUtils.closePort(port);
             } catch (Exception e) {
                 log.debug("UPnP port closing failed: {}", e.getMessage());
             }
-        }, "UPnP-Close-" + port).start();
+        }, "UPnP-Close-" + port);
+        thread.setDaemon(true);
+        thread.start();
     }
 }
 

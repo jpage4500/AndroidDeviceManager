@@ -86,9 +86,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
     private SaveLogsScreen saveLogsScreen;
 
+    private static volatile boolean hasExited = false; // idempotent exit flag
+
     public DeviceScreen() {
         super("main", 900, 300);
-        setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+
         initalizeUi();
 
         connectAdbServer();
@@ -142,14 +144,25 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             Desktop desktop = Desktop.getDesktop();
             if (desktop.isSupported(Desktop.Action.APP_QUIT_HANDLER)) {
                 desktop.setQuitHandler((quitEvent, quitResponse) -> {
+                    log.trace("initalizeUi: desktop:QUIT");
                     exitApp(true);
                     quitResponse.performQuit();
                 });
             } else {
-                Runtime.getRuntime().addShutdownHook(new Thread(() -> exitApp(true)));
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                    log.trace("initalizeUi: desktop:SHUTDOWN_HOOK");
+                    if (!hasExited) {
+                        DeviceManager.getInstance().handleExit();
+                    }
+                }, "ShutdownHook"));
             }
         } else {
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> exitApp(true)));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                log.trace("initalizeUi: SHUTDOWN_HOOK");
+                if (!hasExited) {
+                    DeviceManager.getInstance().handleExit();
+                }
+            }, "ShutdownHook"));
         }
     }
 
@@ -170,31 +183,65 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
      * @param forceQuit true to exit regardless of setting
      */
     private void exitApp(boolean forceQuit) {
+        if (hasExited) {
+            log.debug("exitApp: already executed (force:{})", forceQuit);
+            return;
+        }
+        boolean exitToTray = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY);
+        log.debug("exitApp: force:{} exitToTray:{}", forceQuit, exitToTray);
         setVisible(false);
-        if (!forceQuit && PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY)) {
+        if (!forceQuit && exitToTray) {
+            log.trace("exitApp: exit-to-tray preference active -> keeping process running");
             return;
         }
 
+        hasExited = true;
         saveFrameSize();
         table.saveTable();
 
         // save positions/sizes of any other open windows
         // NOTE: only saving FIRST open window position
         if (!exploreViewMap.isEmpty())
-            (exploreViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
+            (exploreViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSING);
         if (!logsViewMap.isEmpty())
-            (logsViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
+            (logsViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSING);
         if (!inputViewMap.isEmpty())
-            (inputViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSED);
-        if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(WindowState.CLOSED);
+            (inputViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSING);
+        if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(WindowState.CLOSING);
 
         DeviceManager.getInstance().handleExit();
+
+        // Shutdown update executor service
+        if (updateExecutorService != null) {
+            updateExecutorService.shutdown();
+            updateExecutorService = null;
+        }
 
         if (SystemTray.isSupported() && trayIcon != null) {
             SystemTray.getSystemTray().remove(trayIcon);
         }
 
+        // Shutdown file logging executor
+        try {
+            AppLoggerFactory loggerFactory = (AppLoggerFactory) org.slf4j.LoggerFactory.getILoggerFactory();
+            loggerFactory.shutdown();
+        } catch (Exception ignored) {
+        }
+
         dispose();
+
+        // Fallback: force halt if JVM doesn't terminate (Linux non-daemon thread leak)
+//        Thread haltFallback = new Thread(() -> {
+//            try {
+//                Thread.sleep(3000);
+//            } catch (InterruptedException ignored) {
+//            }
+//            log.trace("exitApp: invoking Runtime.halt(0) fallback");
+//            Runtime.getRuntime().halt(0);
+//        }, "Exit-Halt-Fallback");
+//        haltFallback.setDaemon(true);
+//        haltFallback.start();
+
         System.exit(0);
     }
 

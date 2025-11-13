@@ -202,4 +202,10 @@ public class AppLoggerFactory implements ILoggerFactory {
     public long getMaxFileSize() {
         return maxFileSize;
     }
+
+    public void shutdown() {
+        if (fileExecutorService != null) {
+            fileExecutorService.shutdown();
+        }
+    }
 }

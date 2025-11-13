@@ -168,6 +168,42 @@ public class RemoteConnectionManager {
     }
 
     /**
+     * List files on remote device
+     */
+    public java.util.List<com.jpage4500.devicemanager.data.DeviceFile> listRemoteFiles(String serverId, String deviceSerial, String path) throws Exception {
+        RemoteConnection connection = connections.get(serverId);
+        if (connection == null) {
+            throw new Exception("Server not connected: " + serverId);
+        }
+
+        return connection.listFiles(deviceSerial, path);
+    }
+
+    /**
+     * Download file from remote device
+     */
+    public void downloadRemoteFile(String serverId, String deviceSerial, String path, String filename, java.io.File saveFile) throws Exception {
+        RemoteConnection connection = connections.get(serverId);
+        if (connection == null) {
+            throw new Exception("Server not connected: " + serverId);
+        }
+
+        connection.downloadFile(deviceSerial, path, filename, saveFile);
+    }
+
+    /**
+     * Upload file to remote device
+     */
+    public void uploadRemoteFile(String serverId, String deviceSerial, String path, String filename, java.io.File localFile) throws Exception {
+        RemoteConnection connection = connections.get(serverId);
+        if (connection == null) {
+            throw new Exception("Server not connected: " + serverId);
+        }
+
+        connection.uploadFile(deviceSerial, path, filename, localFile);
+    }
+
+    /**
      * Add a new server configuration
      */
     public void addServer(RemoteServerConfig server) {
@@ -322,6 +358,7 @@ public class RemoteConnectionManager {
     }
 
     public void shutdown() {
+        log.trace("shutdown: ");
         for (RemoteConnection connection : connections.values()) {
             connection.disconnect();
         }
@@ -331,7 +368,11 @@ public class RemoteConnectionManager {
             discoveryManager.stopDiscovery();
         }
 
-        scheduler.shutdown();
+        scheduler.shutdownNow();
+        try {
+            scheduler.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {
+        }
     }
 
     public boolean isConnected(String serverId) {
