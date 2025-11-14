@@ -1,10 +1,10 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
+import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteConnectionManager;
 import com.jpage4500.devicemanager.utils.ConnectionStringUtils;
 import com.jpage4500.devicemanager.utils.DialogHelper;
-import com.jpage4500.devicemanager.utils.UiUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +30,7 @@ public class RemoteServerDialog extends JPanel {
     private ServerTableModel tableModel;
 
     public static void showRemoteServerDialog(Component parent) {
-        RemoteConnectionManager rcm = com.jpage4500.devicemanager.manager.DeviceManager.getInstance().getRemoteConnectionManager();
+        RemoteConnectionManager rcm = DeviceManager.getInstance().getRemoteConnectionManager();
         RemoteServerDialog dialog = new RemoteServerDialog(parent, rcm);
 
         // Start network discovery in background thread (JmDNS.create() can block for several seconds)
@@ -214,12 +214,18 @@ public class RemoteServerDialog extends JPanel {
         public Object getValueAt(int rowIndex, int columnIndex) {
             RemoteServerConfig server = servers.get(rowIndex);
             switch (columnIndex) {
-                case 0: return server.enabled;
-                case 1: return server.name;
-                case 2: return server.host;
-                case 3: return server.port;
-                case 4: return getConnectionStatus(server);
-                default: return null;
+                case 0:
+                    return server.enabled;
+                case 1:
+                    return server.name;
+                case 2:
+                    return server.host;
+                case 3:
+                    return server.port;
+                case 4:
+                    return getConnectionStatus(server);
+                default:
+                    return null;
             }
         }
 

@@ -166,10 +166,10 @@ public class DeviceTableModel extends AbstractTableModel {
             DeviceTableModel.Columns colType = visibleColumns[column];
             return switch (colType) {
                 case SERIAL -> device.serial;
-                case NAME -> TextUtils.firstValid(device.nickname, device.getProperty(Device.PROP_MODEL));
-                case MODEL -> device.getProperty(Device.PROP_MODEL);
-                case OS -> device.getProperty(Device.PROP_OS);
-                case CARRIER -> device.getCarrier();
+                case NAME -> TextUtils.firstValid(device.nickname, device.model);
+                case MODEL -> device.model;
+                case OS -> device.os;
+                case CARRIER -> device.carrier;
                 case PHONE -> {
                     String customPhone = device.getCustomProperty(Device.CUST_PROP_PHONE);
                     if (TextUtils.notEmpty(customPhone)) yield customPhone;

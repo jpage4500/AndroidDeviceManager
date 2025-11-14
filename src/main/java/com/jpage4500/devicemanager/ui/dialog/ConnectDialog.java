@@ -283,13 +283,11 @@ public class ConnectDialog extends JPanel {
 
     public static void addWirelessDevice(Device device) {
         if (!device.isWireless()) return;
-        String model = device.getProperty(Device.PROP_MODEL);
-
         List<WirelessDevice> deviceList = getRecentWirelessDevices();
         deviceList.removeIf(wirelessDevice -> TextUtils.equals(wirelessDevice.serial, device.serial));
         WirelessDevice wd = new WirelessDevice();
         wd.serial = device.serial;
-        wd.model = model;
+        wd.model = device.model;
         wd.nickname = device.nickname;
         // add to top of list
         deviceList.add(0, wd);

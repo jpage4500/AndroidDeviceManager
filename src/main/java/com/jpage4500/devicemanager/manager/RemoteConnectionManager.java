@@ -17,14 +17,17 @@ public class RemoteConnectionManager {
     private static final Logger log = LoggerFactory.getLogger(RemoteConnectionManager.class);
 
     private final Map<String, RemoteConnection> connections = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private NetworkDiscoveryManager discoveryManager;
     private ConnectionListener listener;
 
     public interface ConnectionListener {
-        void onConnectionEstablished(RemoteServerConfig server);
-        void onConnectionLost(RemoteServerConfig server);
-        void onDevicesUpdated(String serverId, List<Device> devices);
+        void onConnectionEstablished(RemoteConnection connection);
+
+        void onConnectionLost(RemoteConnection connection);
+
+        void onDevicesUpdated(RemoteConnection connection, List<Device> devices);
+
         void onServerDiscovered(RemoteServerConfig server); // From network discovery
     }
 
@@ -50,16 +53,59 @@ public class RemoteConnectionManager {
         });
         // Note: Discovery is NOT started here - call startNetworkDiscovery() explicitly
 
-        // Load and connect to saved servers
+        // load and connect to saved servers
         List<RemoteServerConfig> servers = loadServers();
-        for (RemoteServerConfig server : servers) {
-            if (server.enabled) {
-                connectToServer(server);
-            }
+//        for (RemoteServerConfig server : servers) {
+//            if (server.enabled) {
+//                connectToServer(server);
+//            }
+//        }
+
+        // connect to saved devices
+        scheduler.submit(this::checkConnections);
+        //scheduler.scheduleAtFixedRate(this::checkConnections, 0, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * connect to all servers
+     */
+    private void checkConnections() {
+        for (Map.Entry<String, RemoteConnection> entry : connections.entrySet()) {
+            String serverId = entry.getKey();
+            RemoteConnection connection = entry.getValue();
+            checkConnection(serverId, connection);
         }
 
-        // Start health check task
-        scheduler.scheduleAtFixedRate(this::checkConnections, 30, 30, TimeUnit.SECONDS);
+        // schedule another check in 30 seconds
+        scheduler.schedule(this::checkConnections, 30, TimeUnit.SECONDS);
+    }
+
+    private void checkConnection(String serverId, RemoteConnection connection) {
+        RemoteHttpServer.ServerInfo serverInfo = connection.fetchServerInfo();
+        if (serverInfo != null) {
+            if (listener != null) {
+                listener.onConnectionEstablished(connection);
+            }
+            // check if device count has changed
+            if (serverInfo.deviceCount != connection.getDeviceCount()) {
+                // run device list request after all connections have been checked
+                scheduler.submit(() -> fetchDevices(serverId));
+            }
+        }
+    }
+
+    /**
+     * Refresh device list from a specific server
+     */
+    public void fetchDevices(String serverId) {
+        RemoteConnection connection = connections.get(serverId);
+        if (connection == null) return;
+
+        log.debug("Device count changed on server: {}", connection.getServerConfig().name);
+        List<Device> deviceList = connection.fetchDevices();
+        if (listener != null) {
+            listener.onDevicesUpdated(connection, deviceList);
+        }
     }
 
     /**
@@ -74,20 +120,33 @@ public class RemoteConnectionManager {
         RemoteConnection connection = new RemoteConnection(server);
         connections.put(server.id, connection);
 
+        scheduler.submit(() -> {
+            checkConnection(server.id, connection);
+        });
+
         // Connect asynchronously
         CompletableFuture.runAsync(() -> {
             try {
-                connection.connect();
+                connection.fetchServerInfo();
                 server.isOnline = true;
                 server.lastConnectedMs = System.currentTimeMillis();
-                saveServers();
+
+                // Update and save server list
+                List<RemoteServerConfig> servers = loadServers();
+                for (int i = 0; i < servers.size(); i++) {
+                    if (servers.get(i).id.equals(server.id)) {
+                        servers.set(i, server);
+                        break;
+                    }
+                }
+                saveServers(servers);
 
                 if (listener != null) {
-                    listener.onConnectionEstablished(server);
+                    listener.onConnectionEstablished(connection);
                 }
 
                 // Fetch initial device list
-                refreshDevices(server.id);
+                fetchDevices(server.id);
 
             } catch (Exception e) {
                 log.error("Failed to connect to server: {}, {}", server.name, e.getMessage());
@@ -104,35 +163,10 @@ public class RemoteConnectionManager {
         RemoteConnection connection = connections.remove(serverId);
         if (connection != null) {
             connection.disconnect();
-
-            RemoteServerConfig server = connection.getServerConfig();
-            server.isOnline = false;
-
             if (listener != null) {
-                listener.onConnectionLost(server);
+                listener.onConnectionLost(connection);
             }
         }
-    }
-
-    /**
-     * Refresh device list from a specific server
-     */
-    public void refreshDevices(String serverId) {
-        RemoteConnection connection = connections.get(serverId);
-        if (connection == null) return;
-
-        CompletableFuture.supplyAsync(() -> {
-            try {
-                return connection.fetchDevices();
-            } catch (Exception e) {
-                log.error("Failed to fetch devices from server: {}", serverId, e);
-                return Collections.<Device>emptyList();
-            }
-        }).thenAccept(devices -> {
-            if (listener != null) {
-                listener.onDevicesUpdated(serverId, devices);
-            }
-        });
     }
 
     /**
@@ -140,7 +174,7 @@ public class RemoteConnectionManager {
      */
     public void refreshAllDevices() {
         for (String serverId : connections.keySet()) {
-            refreshDevices(serverId);
+            fetchDevices(serverId);
         }
     }
 
@@ -150,7 +184,7 @@ public class RemoteConnectionManager {
     public List<Device> getAllRemoteDevices() {
         List<Device> allDevices = new ArrayList<>();
         for (RemoteConnection connection : connections.values()) {
-            allDevices.addAll(connection.getCachedDevices());
+            allDevices.addAll(connection.getDeviceList());
         }
         return allDevices;
     }
@@ -158,49 +192,48 @@ public class RemoteConnectionManager {
     /**
      * Execute command on remote device
      */
-    public String executeRemoteCommand(String serverId, String deviceSerial, String command) throws Exception {
+    public DeviceManager.ShellResult executeRemoteCommand(String serverId, String deviceSerial, String command) {
         RemoteConnection connection = connections.get(serverId);
         if (connection == null) {
-            throw new Exception("Server not connected: " + serverId);
+            return new DeviceManager.ShellResult(false, null);
         }
-
         return connection.executeCommand(deviceSerial, command);
     }
 
     /**
      * List files on remote device
      */
-    public java.util.List<com.jpage4500.devicemanager.data.DeviceFile> listRemoteFiles(String serverId, String deviceSerial, String path) throws Exception {
+    public DeviceManager.FileResponse listRemoteFiles(String serverId, String deviceSerial, String path) {
         RemoteConnection connection = connections.get(serverId);
         if (connection == null) {
-            throw new Exception("Server not connected: " + serverId);
+            return new DeviceManager.FileResponse(null, "Server not connected: " + serverId);
         }
-
-        return connection.listFiles(deviceSerial, path);
+        return connection.fetchFileList(deviceSerial, path);
     }
 
     /**
      * Download file from remote device
      */
-    public void downloadRemoteFile(String serverId, String deviceSerial, String path, String filename, java.io.File saveFile) throws Exception {
+    public boolean downloadRemoteFile(String serverId, String deviceSerial, String path, String filename, java.io.File saveFile) {
         RemoteConnection connection = connections.get(serverId);
         if (connection == null) {
-            throw new Exception("Server not connected: " + serverId);
+            log.error("downloadRemoteFile: Server not connected: {}", serverId);
+            return false;
         }
-
-        connection.downloadFile(deviceSerial, path, filename, saveFile);
+        return connection.downloadFile(deviceSerial, path, filename, saveFile);
     }
 
     /**
      * Upload file to remote device
      */
-    public void uploadRemoteFile(String serverId, String deviceSerial, String path, String filename, java.io.File localFile) throws Exception {
+    public boolean uploadRemoteFile(String serverId, String deviceSerial, String path, String filename, java.io.File localFile) {
         RemoteConnection connection = connections.get(serverId);
         if (connection == null) {
-            throw new Exception("Server not connected: " + serverId);
+            log.error("uploadRemoteFile: Server not connected: {}", serverId);
+            return false;
         }
 
-        connection.uploadFile(deviceSerial, path, filename, localFile);
+        return connection.uploadFile(deviceSerial, path, filename, localFile);
     }
 
     /**
@@ -209,7 +242,7 @@ public class RemoteConnectionManager {
     public void addServer(RemoteServerConfig server) {
         List<RemoteServerConfig> servers = loadServers();
         servers.add(server);
-        saveServers();
+        saveServers(servers);
 
         if (server.enabled) {
             connectToServer(server);
@@ -224,7 +257,7 @@ public class RemoteConnectionManager {
 
         List<RemoteServerConfig> servers = loadServers();
         servers.removeIf(s -> s.id.equals(serverId));
-        saveServers();
+        saveServers(servers);
     }
 
     /**
@@ -238,7 +271,7 @@ public class RemoteConnectionManager {
                 break;
             }
         }
-        saveServers();
+        saveServers(servers);
 
         // Reconnect if necessary
         boolean wasConnected = connections.containsKey(server.id);
@@ -251,73 +284,19 @@ public class RemoteConnectionManager {
     }
 
     /**
-     * Check health of all connections
-     */
-    private void checkConnections() {
-        for (Map.Entry<String, RemoteConnection> entry : connections.entrySet()) {
-            String serverId = entry.getKey();
-            RemoteConnection connection = entry.getValue();
-
-            if (!connection.isHealthy()) {
-                log.warn("Connection unhealthy: {}", connection.getServerConfig().name);
-                connection.getServerConfig().isOnline = false;
-
-                // Try to reconnect
-                CompletableFuture.runAsync(() -> {
-                    try {
-                        connection.reconnect();
-                        log.info("Reconnected to server: {}", connection.getServerConfig().name);
-                        connection.getServerConfig().isOnline = true;
-                        if (listener != null) {
-                            listener.onConnectionEstablished(connection.getServerConfig());
-                        }
-                    } catch (Exception e) {
-                        log.error("Failed to reconnect to server", e);
-                    }
-                });
-            }
-        }
-    }
-
-    /**
      * Load server configurations from preferences
      */
     private List<RemoteServerConfig> loadServers() {
-        String json = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_REMOTE_SERVERS);
-        if (json == null || json.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        try {
-            RemoteServerConfig[] servers = GsonHelper.fromJson(json, RemoteServerConfig[].class);
-            return new ArrayList<>(Arrays.asList(servers));
-        } catch (Exception e) {
-            log.error("Failed to load server configs", e);
-            return new ArrayList<>();
-        }
+        String serverStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_CONNECTED_SERVERS);
+        return GsonHelper.stringToList(serverStr, RemoteServerConfig.class);
     }
 
     /**
      * Save server configurations to preferences
      */
-    private void saveServers() {
-        List<RemoteServerConfig> allServers = new ArrayList<>();
-
-        // Add connected servers
-        for (RemoteConnection connection : connections.values()) {
-            allServers.add(connection.getServerConfig());
-        }
-
-        // Also add disconnected servers from saved list
-        List<RemoteServerConfig> savedServers = loadServers();
-        for (RemoteServerConfig saved : savedServers) {
-            if (!connections.containsKey(saved.id)) {
-                allServers.add(saved);
-            }
-        }
-
-        String json = GsonHelper.toJson(allServers);
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_REMOTE_SERVERS, json);
+    private void saveServers(List<RemoteServerConfig> serversToSave) {
+        String json = GsonHelper.toJson(serversToSave);
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_CONNECTED_SERVERS, json);
     }
 
     public List<RemoteServerConfig> getServers() {
@@ -337,7 +316,7 @@ public class RemoteConnectionManager {
      */
     public void startNetworkDiscovery() {
         if (discoveryManager != null && !discoveryManager.isDiscovering()) {
-            log.info("Starting network discovery for remote servers");
+            log.debug("Starting network discovery for remote servers");
             discoveryManager.startDiscovery();
         }
     }
@@ -348,7 +327,7 @@ public class RemoteConnectionManager {
      */
     public void stopNetworkDiscovery() {
         if (discoveryManager != null && discoveryManager.isDiscovering()) {
-            log.info("Stopping network discovery for remote servers");
+            log.debug("Stopping network discovery for remote servers");
             discoveryManager.stopDiscovery();
         }
     }

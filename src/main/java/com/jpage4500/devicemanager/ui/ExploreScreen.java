@@ -388,7 +388,7 @@ public class ExploreScreen extends BaseScreen {
 
     private void refreshFiles() {
         if (!device.isOnline) return;
-        DeviceManager.getInstance().listFiles(device, selectedPath, useRoot, (fileList, error) -> SwingUtilities.invokeLater(() -> {
+        DeviceManager.getInstance().fetchFileList(device, selectedPath, useRoot, (fileList, error) -> SwingUtilities.invokeLater(() -> {
             if (error != null) {
                 errorMessage = error;
                 boolean doRefresh = false;

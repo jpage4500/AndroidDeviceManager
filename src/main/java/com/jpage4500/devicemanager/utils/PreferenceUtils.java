@@ -27,11 +27,9 @@ public class PreferenceUtils {
         PREF_LOGS_CUSTOM_FILTER,              // logs: last custom filter
         PREF_LOGS_SELECTED_FILTERS,           // logs: last selected filters
         PREF_LOGS_FONT_NAME,
-
-        // Remote Server settings
-        PREF_SERVER_AUTH_TOKEN,                // authentication token
-        PREF_SERVER_DEVICE_NAME,               // device name for server
-        PREF_REMOTE_SERVERS,                   // JSON array of RemoteServerConfig
+        PREF_SERVER_AUTH_TOKEN,               // remote server: authentication token
+        PREF_SERVER_DEVICE_NAME,              // remote server: device name
+        PREF_CONNECTED_SERVERS,               // connected servers: List<RemoteServerConfig>
     }
 
     /**
@@ -61,9 +59,7 @@ public class PreferenceUtils {
         PREF_LOGS_FONT_STYLE,
         PREF_LOGS_MAX_LINES,
         PREF_REFRESH_TIME_MINS,
-
-        // Remote Server settings
-        PREF_SERVER_PORT,                      // server port
+        PREF_SERVER_PORT,                      // remote server: port
     }
 
     public static String getPreference(Pref pref) {

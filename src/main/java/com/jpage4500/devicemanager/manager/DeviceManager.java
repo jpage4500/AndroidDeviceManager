@@ -118,16 +118,16 @@ public class DeviceManager {
         remoteConnectionManager = new RemoteConnectionManager();
         remoteConnectionManager.setListener(new RemoteConnectionManager.ConnectionListener() {
             @Override
-            public void onConnectionEstablished(RemoteServerConfig server) {
-                log.info("Connected to remote server: {}", server.name);
+            public void onConnectionEstablished(RemoteConnection connection) {
+                log.debug("onConnectionEstablished: {}", connection);
             }
 
             @Override
-            public void onConnectionLost(RemoteServerConfig server) {
-                log.warn("Lost connection to remote server: {}", server.name);
+            public void onConnectionLost(RemoteConnection connection) {
+                log.debug("onConnectionLost: {}", connection);
                 // Remove devices from this server
                 synchronized (deviceList) {
-                    deviceList.removeIf(d -> d.isRemote && server.id.equals(d.remoteServerId));
+                    deviceList.removeIf(d -> d.remoteConnection == connection);
                 }
                 if (deviceListener != null) {
                     deviceListener.handleDevicesUpdated(getDevices());
@@ -135,11 +135,12 @@ public class DeviceManager {
             }
 
             @Override
-            public void onDevicesUpdated(String serverId, List<Device> devices) {
+            public void onDevicesUpdated(RemoteConnection connection, List<Device> devices) {
                 // Merge remote devices into device list
                 synchronized (deviceList) {
+                    // TODO: update instead of replace
                     // Remove old devices from this server
-                    deviceList.removeIf(d -> d.isRemote && serverId.equals(d.remoteServerId));
+                    deviceList.removeIf(d -> d.remoteConnection == connection);
                     // Add new devices
                     deviceList.addAll(devices);
                 }
@@ -355,7 +356,8 @@ public class DeviceManager {
             if (fullRefresh || device.nickname == null) {
                 // -- device properties (model, OS) --
                 try {
-                    device.propMap = new PropertyManager(device.jadbDevice).getprop();
+                    Map<String, String> propMap = new PropertyManager(device.jadbDevice).getprop();
+                    device.parseProperties(propMap);
                 } catch (Exception e) {
                     log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
                 }
@@ -719,6 +721,14 @@ public class DeviceManager {
         public boolean isSuccess;
         public List<String> resultList;
 
+        public ShellResult() {
+        }
+
+        public ShellResult(boolean isSuccess, List<String> resultList) {
+            this.isSuccess = isSuccess;
+            this.resultList = resultList;
+        }
+
         public String getResult(int index) {
             if (resultList != null && resultList.size() > index) return resultList.get(index);
             else return null;
@@ -735,48 +745,12 @@ public class DeviceManager {
      * Routes to remote server if device is remote
      */
     public ShellResult runShell(Device device, String command) {
-        // Check if device is remote
-        if (device.isRemote && device.remoteServerId != null) {
-            return runShellRemote(device, command);
+        if (device.remoteConnection != null) {
+            // remote device
+            return remoteConnectionManager.executeRemoteCommand(device.remoteConnection.getId(), device.serial, command);
         }
 
         // Local device execution
-        return runShellLocal(device, command);
-    }
-
-    /**
-     * Execute shell command on remote device
-     */
-    private ShellResult runShellRemote(Device device, String command) {
-        ShellResult result = new ShellResult();
-        result.resultList = new ArrayList<>();
-
-        try {
-            String output = remoteConnectionManager.executeRemoteCommand(
-                device.remoteServerId,
-                device.serial,
-                command
-            );
-
-            // Split output into lines
-            if (output != null && !output.isEmpty()) {
-                String[] lines = output.split("\n");
-                result.resultList.addAll(Arrays.asList(lines));
-            }
-            result.isSuccess = true;
-
-        } catch (Exception e) {
-            log.error("runShellRemote: cmd:{}, Exception: {}", command, e.getMessage());
-            result.isSuccess = false;
-        }
-
-        return result;
-    }
-
-    /**
-     * Execute shell command on local device
-     */
-    private ShellResult runShellLocal(Device device, String command) {
         ShellResult result = new ShellResult();
         result.resultList = new ArrayList<>();
         List<String> commandList = TextUtils.splitSafe(command);
@@ -1003,18 +977,8 @@ public class DeviceManager {
                 log.trace("copyFilesInternal: FILE: {}", destFilename);
 
                 // Check if device is remote
-                if (device.isRemote && device.remoteServerId != null) {
-                    try {
-                        remoteConnectionManager.uploadRemoteFile(
-                            device.remoteServerId,
-                            device.serial,
-                            dest,
-                            filename,
-                            file
-                        );
-                    } catch (Exception e) {
-                        log.error("copyFile: REMOTE {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
-                    }
+                if (device.remoteConnection != null) {
+                    remoteConnectionManager.uploadRemoteFile(device.remoteConnection.getId(), device.serial, dest, filename, file);
                 } else {
                     // Local device - use JADB
                     try {
@@ -1046,6 +1010,23 @@ public class DeviceManager {
             runShell(device, COMMAND_REBOOT);
             // TODO: detect success/fail
             listener.onTaskComplete(true, null);
+        });
+    }
+
+    public interface DevicePropertyListener {
+        void onTaskComplete(boolean isSuccess, Map<String, String> map);
+    }
+
+    public void fetchDeviceProperties(Device device, DevicePropertyListener listener) {
+        commandExecutorService.submit(() -> {
+            try {
+                Map<String, String> propMap = new PropertyManager(device.jadbDevice).getprop();
+                listener.onTaskComplete(true, propMap);
+                return;
+            } catch (Exception e) {
+                log.error("fetchDeviceProperties: PROP Exception:{}", e.getMessage());
+            }
+            listener.onTaskComplete(false, null);
         });
     }
 
@@ -1088,99 +1069,67 @@ public class DeviceManager {
         void handleFiles(List<DeviceFile> fileList, String error);
     }
 
+    public static class FileResponse {
+        public List<DeviceFile> fileList;
+        public String error;
+
+        public FileResponse(List<DeviceFile> fileList, String error) {
+            this.fileList = fileList;
+            this.error = error;
+        }
+    }
+
     /**
-     * Synchronous version of listFiles for remote server use
+     * fetch list of files for a given folder on device
      */
-    public List<DeviceFile> getFileListSync(Device device, String path) throws Exception {
+    public void fetchFileList(Device device, String path, boolean useRoot, DeviceFileListener listener) {
+        commandExecutorService.submit(() -> {
+            FileResponse fileResponse = fetchFileListInternal(device, path, useRoot);
+            listener.handleFiles(fileResponse.fileList, fileResponse.error);
+        });
+    }
+
+    /**
+     * synchronous version of fetchFileList
+     */
+    protected FileResponse fetchFileListInternal(Device device, String path, boolean useRoot) {
         // Check if device is remote - use remote API
-        if (device.isRemote && device.remoteServerId != null) {
-            try {
-                return remoteConnectionManager.listRemoteFiles(
-                    device.remoteServerId,
-                    device.serial,
-                    path
-                );
-            } catch (Exception e) {
-                log.error("getFileListSync: REMOTE {}, Exception:{}", path, e.getMessage());
-                throw e;
-            }
+        if (device.remoteConnection != null) {
+            return remoteConnectionManager.listRemoteFiles(device.remoteConnection.getId(), device.serial, path);
         }
 
-        // Local device - use shell command
+        if (path == null) path = "";
         String safePath = path;
         // make sure folder ends with "/"
         if (!TextUtils.endsWith(safePath, "/")) safePath += "/";
         if (safePath.indexOf(' ') > 0) {
             safePath = "'" + safePath + "'";
         }
-
+        log.trace("fetchFileListInternal: {} {}", safePath, useRoot ? "(ROOT)" : "");
         String command = "ls -alZ " + safePath;
+        if (useRoot) command = "su -c " + command;
         ShellResult result = runShell(device, command);
         List<DeviceFile> fileList = new ArrayList<>();
-
         for (int i = 0; i < result.resultList.size(); i++) {
             String dir = result.resultList.get(i);
             DeviceFile file = DeviceFile.fromEntry(dir);
-            if (file != null) {
-                fileList.add(file);
-            } else if (i == 0) {
+            if (file != null) fileList.add(file);
+            else if (i == 0) {
                 // not a valid file/dir listing; check for known errors
                 if (TextUtils.contains(dir, "su:")) {
-                    throw new Exception(ERR_ROOT_NOT_AVAILABLE);
+                    log.debug("fetchFileListInternal: NO_ROOT:{}", dir);
+                    return new FileResponse(null, ERR_ROOT_NOT_AVAILABLE);
                 } else if (TextUtils.containsAny(dir, true, "permission denied")) {
-                    throw new Exception(ERR_PERMISSION_DENIED);
+                    log.debug("fetchFileListInternal: NO_PERMISSION:{}", dir);
+                    return new FileResponse(null, ERR_PERMISSION_DENIED);
                 } else if (TextUtils.containsAny(dir, true, "Not a directory", "No such file or directory")) {
-                    throw new Exception(ERR_NOT_A_DIRECTORY);
+                    log.debug("fetchFileListInternal: NOT_DIR:{}, {}", dir, GsonHelper.toJson(result.resultList));
+                    return new FileResponse(null, ERR_NOT_A_DIRECTORY);
                 }
             }
         }
-
-        return fileList;
-    }
-
-    public void listFiles(Device device, String path, boolean useRoot, DeviceFileListener listener) {
-        commandExecutorService.submit(() -> {
-            try {
-                String safePath = path;
-                // make sure folder ends with "/"
-                if (!TextUtils.endsWith(safePath, "/")) safePath += "/";
-                if (safePath.indexOf(' ') > 0) {
-                    safePath = "'" + safePath + "'";
-                }
-                log.trace("listFiles: {} {}", safePath, useRoot ? "(ROOT)" : "");
-                String command = "ls -alZ " + safePath;
-                if (useRoot) command = "su -c " + command;
-                ShellResult result = runShell(device, command);
-                List<DeviceFile> fileList = new ArrayList<>();
-                for (int i = 0; i < result.resultList.size(); i++) {
-                    String dir = result.resultList.get(i);
-                    DeviceFile file = DeviceFile.fromEntry(dir);
-                    if (file != null) fileList.add(file);
-                    else if (i == 0) {
-                        // not a valid file/dir listing; check for known errors
-                        if (TextUtils.contains(dir, "su:")) {
-                            log.debug("listFiles: NO_ROOT:{}", dir);
-                            listener.handleFiles(null, ERR_ROOT_NOT_AVAILABLE);
-                            return;
-                        } else if (TextUtils.containsAny(dir, true, "permission denied")) {
-                            log.debug("listFiles: NO_PERMISSION:{}", dir);
-                            listener.handleFiles(null, ERR_PERMISSION_DENIED);
-                            return;
-                        } else if (TextUtils.containsAny(dir, true, "Not a directory", "No such file or directory")) {
-                            log.debug("listFiles: NOT_DIR:{}, {}", dir, GsonHelper.toJson(result.resultList));
-                            listener.handleFiles(null, ERR_NOT_A_DIRECTORY);
-                            return;
-                        }
-                    }
-                }
-                //log.trace("listFiles: FILES:{}, PATH:{}, {}", fileList.size(), safePath, GsonHelper.toJson(fileList));
-                listener.handleFiles(fileList, null);
-            } catch (Exception e) {
-                log.error("listFiles: {}, Exception:{}", path, e.getMessage());
-                log.debug("listFiles: ", e);
-                listener.handleFiles(null, e.getMessage());
-            }
-        });
+        //log.trace("listFiles: FILES:{}, PATH:{}, {}", fileList.size(), safePath, GsonHelper.toJson(fileList));
+        return new FileResponse(fileList, null);
     }
 
     public interface ProgressListener {
@@ -1195,58 +1144,61 @@ public class DeviceManager {
         void onTaskComplete(ShellResult result);
     }
 
+    /**
+     * download a file or folder from device
+     */
     public void downloadFile(Device device, String path, DeviceFile file, File saveFile, TaskListener listener) {
         log.debug("downloadFile: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
         commandExecutorService.submit(() -> {
-            downloadFileInternal(device, path, file, saveFile);
+            boolean isOk = downloadFileInternal(device, path, file, saveFile);
             // test if file was created
-            listener.onTaskComplete(saveFile.exists(), null);
+            listener.onTaskComplete(isOk, null);
         });
     }
 
     /**
      * recursive method to download a file or folder
      */
-    private void downloadFileInternal(Device device, String path, DeviceFile file, File saveFile) {
+    protected boolean downloadFileInternal(Device device, String path, DeviceFile file, File saveFile) {
         if (file.isDirectory) {
             // create local folder
             if (!saveFile.exists()) {
                 boolean isOk = saveFile.mkdir();
+                if (!isOk) {
+                    log.error("downloadFileInternal: DIR:{}, mkdir:{}", saveFile.getAbsolutePath(), isOk);
+                    return false;
+                }
                 log.trace("downloadFileInternal: DIR:{}, mkdir:{}", saveFile.getAbsolutePath(), isOk);
             }
             // get list of files in folder
             String dirPath = path + "/" + file.name;
-            listFiles(device, dirPath, false, (fileList, error) -> {
-                if (fileList == null || error != null) return;
-                for (DeviceFile deviceFile : fileList) {
-                    File subFile = new File(saveFile, deviceFile.name);
-                    downloadFileInternal(device, path, deviceFile, subFile);
-                }
-            });
+            FileResponse fileResponse = fetchFileListInternal(device, dirPath, false);
+            if (fileResponse.fileList == null || fileResponse.error != null) {
+                log.error("downloadFileInternal: DIR:{}, ERROR:{}", dirPath, fileResponse.error);
+                return false;
+            }
+            // download every file in folder
+            for (DeviceFile deviceFile : fileResponse.fileList) {
+                File subFile = new File(saveFile, deviceFile.name);
+                downloadFileInternal(device, path, deviceFile, subFile);
+            }
+            return true;
         } else {
-            // pull file
+            // download file
             log.trace("downloadFileInternal: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
 
-            // Check if device is remote
-            if (device.isRemote && device.remoteServerId != null) {
-                try {
-                    remoteConnectionManager.downloadRemoteFile(
-                        device.remoteServerId,
-                        device.serial,
-                        path,
-                        file.name,
-                        saveFile
-                    );
-                } catch (Exception e) {
-                    log.error("downloadFileInternal: REMOTE {}/{}, Exception:{}", path, file.name, e.getMessage());
-                }
+            if (device.remoteConnection != null) {
+                // remote device
+                return remoteConnectionManager.downloadRemoteFile(device.remoteConnection.getId(), device.serial, path, file.name, saveFile);
             } else {
-                // Local device - use JADB
+                // local device
                 RemoteFile remoteFile = new RemoteFileRecord(path, file.name, 0, 0, 0);
                 try {
                     device.jadbDevice.pull(remoteFile, saveFile);
+                    return true;
                 } catch (Exception e) {
                     log.error("downloadFileInternal: {}/{}, Exception:{}", path, file.name, e.getMessage());
+                    return false;
                 }
             }
         }

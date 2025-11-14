@@ -23,6 +23,16 @@ public class RemoteHttpServer extends NanoHTTPD {
     public static final String HEADER_NAME = "x-client-name";
     public static final String HEADER_AUTHORIZATION = "authorization";
 
+    public static final String MIME_JSON = "application/json";
+
+    public static final String API_INFO = "/api/info";
+    public static final String API_DEVICES = "/api/devices";
+    public static final String API_EXECUTE = "/api/execute";
+    public static final String API_FILES_LIST = "/api/files/list";
+    public static final String API_FILES_DOWNLOAD = "/api/files/download";
+    public static final String API_FILES_UPLOAD = "/api/files/upload";
+    public static final String API_SCREENSHOT = "/api/screenshot";
+
     private final String authToken;
     private final RemoteServerManager serverManager;
     private final DeviceManager deviceManager;
@@ -67,22 +77,22 @@ public class RemoteHttpServer extends NanoHTTPD {
 
         // Route request
         try {
-            if (uri.equals("/api/info")) {
+            if (uri.equals(API_INFO)) {
                 return handleServerInfo(session);
-            } else if (uri.equals("/api/devices")) {
+            } else if (uri.equals(API_DEVICES)) {
                 return handleGetDevices(session);
-            } else if (uri.equals("/api/execute")) {
+            } else if (uri.equals(API_EXECUTE)) {
                 return handleExecuteCommand(session);
-            } else if (uri.startsWith("/api/files/list")) {
+            } else if (uri.startsWith(API_FILES_LIST)) {
                 return handleListFiles(session);
-            } else if (uri.startsWith("/api/files/download")) {
+            } else if (uri.startsWith(API_FILES_DOWNLOAD)) {
                 return handleDownloadFile(session);
-            } else if (uri.startsWith("/api/files/upload")) {
+            } else if (uri.startsWith(API_FILES_UPLOAD)) {
                 return handleUploadFile(session);
-            } else if (uri.startsWith("/api/screenshot")) {
+            } else if (uri.startsWith(API_SCREENSHOT)) {
                 return handleScreenshot(session);
             } else {
-                return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found");
+                return createNotFoundResponse("Not found");
             }
         } catch (Exception e) {
             log.error("Error handling request", e);
@@ -91,43 +101,35 @@ public class RemoteHttpServer extends NanoHTTPD {
         }
     }
 
+    public static class ServerInfo {
+        public String version;
+        public int deviceCount;
+        public String serverName;
+    }
+
     /**
      * GET /api/info - Server information
+     * - returns JSON of ServerInfo
      */
     private Response handleServerInfo(IHTTPSession session) {
-        Map<String, Object> info = new HashMap<>();
-        info.put("version", "1.0");
-        info.put("deviceCount", deviceManager.getDevices().size());
-        info.put("serverName", "Android Device Manager");
+        ServerInfo info = new ServerInfo();
+        info.version = "1.0";
+        info.deviceCount = deviceManager.getDevices().size();
+        info.serverName = "Android Device Manager";
 
-        String json = GsonHelper.toJson(info);
-        return newFixedLengthResponse(Response.Status.OK, "application/json", json);
+        return createJsonResponse(info);
     }
 
     /**
      * GET /api/devices - Return list of local devices
+     * - returns JSON of List<Device>
      */
     private Response handleGetDevices(IHTTPSession session) {
         List<Device> devices = deviceManager.getDevices();
+        // remove any remote devices
+        devices.removeIf(device -> device.isRemote);
 
-        // Create simplified device list (remove sensitive data)
-        List<Map<String, Object>> deviceList = new ArrayList<>();
-        for (Device device : devices) {
-            if (!device.isRemote) { // Only share local devices
-                Map<String, Object> deviceInfo = new HashMap<>();
-                deviceInfo.put("serial", device.serial);
-                deviceInfo.put("nickname", device.nickname);
-                deviceInfo.put("model", device.getProperty(Device.PROP_MODEL));
-                deviceInfo.put("os", device.getProperty(Device.PROP_OS));
-                deviceInfo.put("batteryLevel", device.batteryLevel);
-                deviceInfo.put("isOnline", device.isOnline);
-                deviceInfo.put("isBooted", device.isBooted);
-                deviceList.add(deviceInfo);
-            }
-        }
-
-        String json = GsonHelper.toJson(deviceList);
-        return newFixedLengthResponse(Response.Status.OK, "application/json", json);
+        return createJsonResponse(devices);
     }
 
     /**
@@ -140,8 +142,7 @@ public class RemoteHttpServer extends NanoHTTPD {
         String body = files.get("postData");
 
         if (body == null || body.isEmpty()) {
-            return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT,
-                "Missing request body");
+            return createBadResponse("Missing request body");
         }
 
         @SuppressWarnings("unchecked")
@@ -150,37 +151,17 @@ public class RemoteHttpServer extends NanoHTTPD {
         String command = request.get("command");
 
         if (serial == null || command == null) {
-            return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT,
-                "Missing serial or command");
+            return createBadResponse("Missing serial or command");
         }
 
         Device device = deviceManager.getDevice(serial);
         if (device == null || device.isRemote) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT,
-                "Device not found");
+            return createNotFoundResponse("Device not found");
         }
 
         // Execute command
         DeviceManager.ShellResult shellResult = deviceManager.runShell(device, command);
-
-        // Convert result list to string
-        StringBuilder outputBuilder = new StringBuilder();
-        if (shellResult.resultList != null) {
-            for (String line : shellResult.resultList) {
-                if (outputBuilder.length() > 0) {
-                    outputBuilder.append("\n");
-                }
-                outputBuilder.append(line);
-            }
-        }
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", shellResult.isSuccess);
-        response.put("output", outputBuilder.toString());
-        response.put("error", shellResult.isSuccess ? "" : "Command failed");
-
-        String json = GsonHelper.toJson(response);
-        return newFixedLengthResponse(Response.Status.OK, "application/json", json);
+        return createJsonResponse(shellResult);
     }
 
     /**
@@ -188,29 +169,23 @@ public class RemoteHttpServer extends NanoHTTPD {
      */
     private Response handleListFiles(IHTTPSession session) {
         Map<String, String> params = session.getParms();
-        String serial = params.get("serial");
+        Device device = getDeviceParam(params);
+        if (device == null) {
+            return createNotFoundResponse("Device not found");
+        }
         String path = params.get("path");
 
-        if (serial == null || path == null) {
-            return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT,
-                "Missing serial or path");
+        DeviceManager.FileResponse fileResponse = deviceManager.fetchFileListInternal(device, path, false);
+        if (fileResponse.fileList != null) {
+            return createJsonResponse(fileResponse.fileList);
+        } else {
+            return createNotFoundResponse("Error: " + fileResponse.error);
         }
+    }
 
-        Device device = deviceManager.getDevice(serial);
-        if (device == null) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT,
-                "Device not found");
-        }
-
-        try {
-            List<DeviceFile> files = deviceManager.getFileListSync(device, path);
-            String json = GsonHelper.toJson(files);
-            return newFixedLengthResponse(Response.Status.OK, "application/json", json);
-        } catch (Exception e) {
-            log.error("Failed to list files", e);
-            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT,
-                "Error: " + e.getMessage());
-        }
+    private Device getDeviceParam(Map<String, String> params) {
+        String serial = params.get("serial");
+        return deviceManager.getDevice(serial);
     }
 
     /**
@@ -219,19 +194,16 @@ public class RemoteHttpServer extends NanoHTTPD {
      */
     private Response handleDownloadFile(IHTTPSession session) {
         Map<String, String> params = session.getParms();
-        String serial = params.get("serial");
+        Device device = getDeviceParam(params);
+        if (device == null) {
+            return createNotFoundResponse("Device not found");
+        }
         String path = params.get("path");
         String filename = params.get("file");
 
-        if (serial == null || path == null || filename == null) {
-            return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT,
+        if (path == null || filename == null) {
+            return createBadResponse(
                 "Missing serial, path, or file parameter");
-        }
-
-        Device device = deviceManager.getDevice(serial);
-        if (device == null || device.isRemote) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT,
-                "Device not found");
         }
 
         try {
@@ -239,13 +211,14 @@ public class RemoteHttpServer extends NanoHTTPD {
             File tempFile = File.createTempFile("device_download_", "_" + filename);
             tempFile.deleteOnExit();
 
-            // Use jadb to pull the file
-            se.vidstige.jadb.RemoteFile remoteFile = new se.vidstige.jadb.RemoteFileRecord(path, filename, 0, 0, 0);
-            device.jadbDevice.pull(remoteFile, tempFile);
+            DeviceFile deviceFile = new DeviceFile();
+            // directories not supported - files only
+            deviceFile.isDirectory = false;
+            deviceFile.name = filename;
 
-            if (!tempFile.exists() || tempFile.length() == 0) {
-                return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT,
-                    "File not found or empty on device");
+            boolean isOk = deviceManager.downloadFileInternal(device, path, deviceFile, tempFile);
+            if (!isOk || !tempFile.exists() || tempFile.length() == 0) {
+                return createNotFoundResponse("File not found on device");
             }
 
             // Determine MIME type
@@ -272,19 +245,17 @@ public class RemoteHttpServer extends NanoHTTPD {
      */
     private Response handleUploadFile(IHTTPSession session) {
         Map<String, String> params = session.getParms();
-        String serial = params.get("serial");
+        Device device = getDeviceParam(params);
+        if (device == null) {
+            return createNotFoundResponse("Device not found");
+        }
+
         String path = params.get("path");
         String filename = params.get("file");
 
-        if (serial == null || path == null || filename == null) {
-            return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT,
+        if (path == null || filename == null) {
+            return createBadResponse(
                 "Missing serial, path, or file parameter");
-        }
-
-        Device device = deviceManager.getDevice(serial);
-        if (device == null || device.isRemote) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT,
-                "Device not found");
         }
 
         try {
@@ -317,7 +288,7 @@ public class RemoteHttpServer extends NanoHTTPD {
             }
 
             if (!tempFile.exists() || tempFile.length() == 0) {
-                return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT,
+                return createBadResponse(
                     "No file data received");
             }
 
@@ -330,15 +301,14 @@ public class RemoteHttpServer extends NanoHTTPD {
             response.put("message", "File uploaded successfully");
             response.put("path", path + "/" + filename);
 
-            String json = GsonHelper.toJson(response);
-            return newFixedLengthResponse(Response.Status.OK, "application/json", json);
+            return createJsonResponse(response);
         } catch (Exception e) {
             log.error("Failed to upload file", e);
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("error", "Error uploading file: " + e.getMessage());
             String json = GsonHelper.toJson(response);
-            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", json);
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_JSON, json);
         }
     }
 
@@ -351,7 +321,7 @@ public class RemoteHttpServer extends NanoHTTPD {
         if (lower.endsWith(".png")) return "image/png";
         if (lower.endsWith(".gif")) return "image/gif";
         if (lower.endsWith(".txt")) return "text/plain";
-        if (lower.endsWith(".json")) return "application/json";
+        if (lower.endsWith(".json")) return MIME_JSON;
         if (lower.endsWith(".xml")) return "application/xml";
         if (lower.endsWith(".pdf")) return "application/pdf";
         if (lower.endsWith(".zip")) return "application/zip";
@@ -377,5 +347,18 @@ public class RemoteHttpServer extends NanoHTTPD {
         if (value.length() > 128) value = value.substring(0, 128);
         return value;
     }
+
+    private Response createJsonResponse(Object object) {
+        return newFixedLengthResponse(Response.Status.OK, MIME_JSON, GsonHelper.toJson(object));
+    }
+
+    private Response createBadResponse(String errorMessage) {
+        return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, errorMessage);
+    }
+
+    private Response createNotFoundResponse(String errorMessage) {
+        return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, errorMessage);
+    }
+
 }
 

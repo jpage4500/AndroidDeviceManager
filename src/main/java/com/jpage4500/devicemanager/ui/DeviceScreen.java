@@ -553,32 +553,32 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private BufferedImage getTrayIconWithCount(int count) {
-        BufferedImage baseImage = UiUtils.getImage("system_tray.png", 100, 100, Color.WHITE);
+        Color iconColor = Utils.isLinux() ? Color.BLACK : Color.WHITE;
+        BufferedImage baseImage = UiUtils.getImage("system_tray.png", 22, 22, iconColor);
         int w = baseImage.getWidth();
         int h = baseImage.getHeight();
-        String text = String.valueOf(count);
-        Font font = new Font("Arial", Font.BOLD, 60);
+        if (count == 0) return baseImage;
 
         // Measure text width
         BufferedImage tempImg = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = tempImg.createGraphics();
+        Font font = new Font("Arial", Font.PLAIN, 16);
         g2.setFont(font);
         FontMetrics fm = g2.getFontMetrics();
+        String text = String.valueOf(count);
         int textWidth = fm.stringWidth(text);
         int textHeight = fm.getHeight();
         g2.dispose();
 
-        int combinedWidth = w + (count > 0 ? textWidth + 6 : 0);
+        int combinedWidth = w + textWidth + 6;
         BufferedImage combined = new BufferedImage(combinedWidth, h, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = combined.createGraphics();
         g.drawImage(baseImage, 0, 0, null);
-        if (count > 0) {
-            g.setFont(font);
-            g.setColor(Color.WHITE);
-            int x = w + 6;
-            int y = h / 2 + textHeight / 3;
-            g.drawString(text, x, y);
-        }
+        g.setFont(font);
+        g.setColor(Color.WHITE);
+        int x = w + 6;
+        int y = h / 2 + textHeight / 3;
+        g.drawString(text, x, y);
         g.dispose();
         return combined;
     }
@@ -1045,23 +1045,21 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JPanel panel = new JPanel(new MigLayout());
         addDeviceDetail(panel, "Serial", device.serial);
         addDeviceDetail(panel, "Nickname", device.nickname);
-        addDeviceDetail(panel, "Model", device.getProperty(Device.PROP_MODEL));
+        addDeviceDetail(panel, "Model", device.model);
         addDeviceDetail(panel, "Phone", device.phone);
         addDeviceDetail(panel, "IMEI", device.imei);
-        addDeviceDetail(panel, "Carrier", device.getCarrier());
-        addDeviceDetail(panel, "OS", device.getProperty(Device.PROP_OS));
-        addDeviceDetail(panel, "SDK", device.getProperty(Device.PROP_SDK));
+        addDeviceDetail(panel, "Carrier", device.carrier);
+        addDeviceDetail(panel, "OS", device.os);
+        addDeviceDetail(panel, "SDK", device.sdk);
         addDeviceDetail(panel, "Free Space", FileUtils.bytesToDisplayString(device.freeSpace));
         addDeviceDetail(panel, "Custom1", device.getCustomProperty(Device.CUST_PROP_1));
         addDeviceDetail(panel, "Custom2", device.getCustomProperty(Device.CUST_PROP_2));
 
         // device properties
         ImageIcon icon = UiUtils.getImageIcon("arrow_right.png", UiUtils.IMG_SIZE_SMALL);
-        if (device.propMap != null) {
-            HoverLabel devicePropLabel = new HoverLabel("Device Properties", icon);
-            UiUtils.addLeftClickListener(devicePropLabel, mouseEvent -> showDeviceProperties(device));
-            panel.add(devicePropLabel, "wrap");
-        }
+        HoverLabel devicePropLabel = new HoverLabel("Device Properties", icon);
+        UiUtils.addLeftClickListener(devicePropLabel, mouseEvent -> showDeviceProperties(device));
+        panel.add(devicePropLabel, "wrap");
 
         HoverLabel appsLabel = new HoverLabel("Installed Apps / Versions", icon);
         UiUtils.addLeftClickListener(appsLabel, mouseEvent -> showInstalledApps(device));
@@ -1131,10 +1129,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void showDeviceProperties(Device device) {
-        if (device == null || device.propMap == null) return;
-        TreeMap<String, String> sortedPropMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        sortedPropMap.putAll(device.propMap);
-        DialogHelper.showListDialog(this, "Device Properties", sortedPropMap, null);
+        if (device == null || !device.isOnline) return;
+        // fetch all device properties & display
+        DeviceManager.getInstance().fetchDeviceProperties(device, (isSuccess, propMap) -> {
+            TreeMap<String, String> sortedPropMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+            sortedPropMap.putAll(propMap);
+            DialogHelper.showListDialog(this, "Device Properties", sortedPropMap, null);
+        });
     }
 
     private void addDeviceDetail(JPanel panel, String label, String value) {
