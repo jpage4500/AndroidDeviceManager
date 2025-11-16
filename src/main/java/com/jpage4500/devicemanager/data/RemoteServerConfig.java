@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.data;
 
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -21,4 +22,5 @@ public class RemoteServerConfig {
     public String getUrl() {
         return String.format("http://%s:%d", host, port);
     }
+
 }

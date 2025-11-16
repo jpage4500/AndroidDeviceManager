@@ -7,8 +7,14 @@ import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Manages connections to remote ADB servers
@@ -35,49 +41,13 @@ public class RemoteConnectionManager {
      * Load saved servers and connect to enabled ones
      */
     public void initialize() {
-        // Initialize discovery manager but don't start it automatically
-        discoveryManager = new NetworkDiscoveryManager();
-        discoveryManager.setListener(new NetworkDiscoveryManager.DiscoveryListener() {
-            @Override
-            public void onServerDiscovered(RemoteServerConfig server) {
-                log.info("Discovered server on network: {}", server.name);
-                if (listener != null) {
-                    listener.onServerDiscovered(server);
-                }
-            }
-
-            @Override
-            public void onServerLost(String serverId) {
-                log.info("Server lost from network: {}", serverId);
-            }
-        });
-        // Note: Discovery is NOT started here - call startNetworkDiscovery() explicitly
-
         // load and connect to saved servers
-        List<RemoteServerConfig> servers = loadServers();
+        List<RemoteServerConfig> servers = getServers();
         for (RemoteServerConfig server : servers) {
             if (server.enabled) {
                 connectToServer(server);
             }
         }
-
-        // connect to saved devices
-        //scheduler.submit(this::checkConnections);
-        //scheduler.scheduleAtFixedRate(this::checkConnections, 0, 30, TimeUnit.SECONDS);
-    }
-
-    /**
-     * connect to all servers
-     */
-    private void checkConnections() {
-        for (Map.Entry<String, RemoteConnection> entry : connections.entrySet()) {
-            String serverId = entry.getKey();
-            RemoteConnection connection = entry.getValue();
-            checkConnection(serverId, connection);
-        }
-
-        // schedule another check in 30 seconds
-        scheduler.schedule(this::checkConnections, 30, TimeUnit.SECONDS);
     }
 
     private void checkConnection(String serverId, RemoteConnection connection) {
@@ -91,8 +61,11 @@ public class RemoteConnectionManager {
             if (serverInfo.deviceCount != connection.getDeviceCount()) {
                 // run device list request after all connections have been checked
                 scheduler.submit(() -> fetchDevices(serverId));
+                return;
             }
         }
+        // schedule another check in 30 seconds
+        scheduler.schedule(() -> checkConnection(serverId, connection), 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -102,11 +75,13 @@ public class RemoteConnectionManager {
         RemoteConnection connection = connections.get(serverId);
         if (connection == null) return;
 
-        log.debug("Device count changed on server: {}", connection.getServerConfig().name);
         List<Device> deviceList = connection.fetchDevices();
         if (listener != null) {
             listener.onDevicesUpdated(connection, deviceList);
         }
+
+        // schedule another check in 30 seconds
+        scheduler.schedule(() -> checkConnection(serverId, connection), 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -114,7 +89,7 @@ public class RemoteConnectionManager {
      */
     public void connectToServer(RemoteServerConfig server) {
         if (connections.containsKey(server.id)) {
-            log.warn("Already connected to server: {}", server.name);
+            log.warn("connectToServer: Already connected: {}, {}", server.id, server.name);
             return;
         }
 
@@ -144,17 +119,6 @@ public class RemoteConnectionManager {
         for (String serverId : connections.keySet()) {
             fetchDevices(serverId);
         }
-    }
-
-    /**
-     * Get all remote devices from all connected servers
-     */
-    public List<Device> getAllRemoteDevices() {
-        List<Device> allDevices = new ArrayList<>();
-        for (RemoteConnection connection : connections.values()) {
-            allDevices.addAll(connection.getDeviceList());
-        }
-        return allDevices;
     }
 
     /**
@@ -208,7 +172,7 @@ public class RemoteConnectionManager {
      * Add a new server configuration
      */
     public void addServer(RemoteServerConfig server) {
-        List<RemoteServerConfig> servers = loadServers();
+        List<RemoteServerConfig> servers = getServers();
         servers.add(server);
         saveServers(servers);
 
@@ -223,7 +187,7 @@ public class RemoteConnectionManager {
     public void removeServer(String serverId) {
         disconnectFromServer(serverId);
 
-        List<RemoteServerConfig> servers = loadServers();
+        List<RemoteServerConfig> servers = getServers();
         servers.removeIf(s -> s.id.equals(serverId));
         saveServers(servers);
     }
@@ -232,7 +196,7 @@ public class RemoteConnectionManager {
      * Update server configuration
      */
     public void updateServer(RemoteServerConfig server) {
-        List<RemoteServerConfig> servers = loadServers();
+        List<RemoteServerConfig> servers = getServers();
         for (int i = 0; i < servers.size(); i++) {
             if (servers.get(i).id.equals(server.id)) {
                 servers.set(i, server);
@@ -254,7 +218,7 @@ public class RemoteConnectionManager {
     /**
      * Load server configurations from preferences
      */
-    private List<RemoteServerConfig> loadServers() {
+    public List<RemoteServerConfig> getServers() {
         String serverStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_CONNECTED_SERVERS);
         return GsonHelper.stringToList(serverStr, RemoteServerConfig.class);
     }
@@ -265,10 +229,6 @@ public class RemoteConnectionManager {
     private void saveServers(List<RemoteServerConfig> serversToSave) {
         String json = GsonHelper.toJson(serversToSave);
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_CONNECTED_SERVERS, json);
-    }
-
-    public List<RemoteServerConfig> getServers() {
-        return loadServers();
     }
 
     public Map<String, RemoteServerConfig> getDiscoveredServers() {
@@ -283,7 +243,25 @@ public class RemoteConnectionManager {
      * Call this when user opens the Remote Server Dialog
      */
     public void startNetworkDiscovery() {
-        if (discoveryManager != null && !discoveryManager.isDiscovering()) {
+        if (discoveryManager == null) {
+            discoveryManager = new NetworkDiscoveryManager();
+            discoveryManager.setListener(new NetworkDiscoveryManager.DiscoveryListener() {
+                @Override
+                public void onServerDiscovered(RemoteServerConfig server) {
+                    log.info("startNetworkDiscovery: onServerDiscovered: {}", server.name);
+                    if (listener != null) {
+                        listener.onServerDiscovered(server);
+                    }
+                }
+
+                @Override
+                public void onServerLost(String serverId) {
+                    log.info("startNetworkDiscovery: onServerLost: {}", serverId);
+                }
+            });
+        }
+
+        if (!discoveryManager.isDiscovering()) {
             log.debug("Starting network discovery for remote servers");
             discoveryManager.startDiscovery();
         }
@@ -316,10 +294,10 @@ public class RemoteConnectionManager {
         }
 
         scheduler.shutdownNow();
-        try {
-            scheduler.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (InterruptedException ignored) {
-        }
+//        try {
+//            scheduler.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS);
+//        } catch (InterruptedException ignored) {
+//        }
     }
 
     public boolean isConnected(String serverId) {

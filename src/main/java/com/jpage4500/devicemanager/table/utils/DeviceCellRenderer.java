@@ -89,7 +89,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     }
 
                     // Add remote indicator if this is a remote device
-                    if (device.isRemote) {
+                    if (device.remoteConnection != null) {
                         ImageIcon remoteIcon = null; //UiUtils.getImageIcon("icon_remote.png", UiUtils.IMG_SIZE_SMALL);
                         if (remoteIcon != null) {
                             icon = new ComboIcon(deviceIcon, remoteIcon);
