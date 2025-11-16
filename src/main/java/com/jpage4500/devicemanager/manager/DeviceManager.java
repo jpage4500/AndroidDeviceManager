@@ -148,11 +148,6 @@ public class DeviceManager {
                     deviceListener.handleDevicesUpdated(getDevices());
                 }
             }
-
-            @Override
-            public void onServerDiscovered(RemoteServerConfig server) {
-                log.info("Discovered remote server: {}", server.name);
-            }
         });
         remoteConnectionManager.initialize();
     }

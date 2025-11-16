@@ -71,20 +71,6 @@ public class MainApplication {
 
             int logLevel = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOG_LEVEL, Log.INFO);
             logger.setFileLogLevel(logLevel);
-
-            // filter out JmDNS logging
-            logger.setIgnoreArr(new String[]{
-                "JmDNSImpl",
-                "DNSStateTask",
-                "DNSIncoming",
-                "DNSCache",
-                "RecordReaper",
-                "SocketListener",
-                "Responder",
-                "DNSQuestion",
-                "DNSResolverTask",
-                "NetworkTopologyDiscover",
-            });
         } else {
             System.out.println("ERROR: no logger found: " + iLoggerFactory.getClass().getSimpleName());
         }

@@ -33,19 +33,7 @@ public class RemoteServerDialog extends JPanel {
         RemoteConnectionManager rcm = DeviceManager.getInstance().getRemoteConnectionManager();
         RemoteServerDialog dialog = new RemoteServerDialog(parent, rcm);
 
-        // Start network discovery in background thread (JmDNS.create() can block for several seconds)
-        new Thread(() -> {
-            try {
-                rcm.startNetworkDiscovery();
-            } catch (Exception e) {
-                log.error("Failed to start network discovery", e);
-            }
-        }, "NetworkDiscovery").start();
-
         DialogHelper.showCustomDialog(parent, dialog, "Remote Servers", new String[]{});
-
-        // Stop network discovery when dialog closes
-        rcm.stopNetworkDiscovery();
     }
 
     public RemoteServerDialog(Component parent, RemoteConnectionManager rcm) {

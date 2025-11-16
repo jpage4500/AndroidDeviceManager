@@ -1,8 +1,8 @@
 package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
-import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
+import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import com.jpage4500.devicemanager.utils.UpnpUtils;
 import fi.iki.elonen.NanoHTTPD;
 import org.slf4j.Logger;
@@ -28,9 +28,6 @@ public class RemoteServerManager {
     private int port;
     private String authToken;
     private boolean isRunning;
-
-    // Network discovery
-    private NetworkDiscoveryManager discoveryManager;
 
     // Track connected clients
     private final Map<String, RemoteClientInfo> connectedClients = new ConcurrentHashMap<>();
@@ -66,13 +63,6 @@ public class RemoteServerManager {
             httpServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
             isRunning = true;
 
-            // Start network discovery broadcasting
-            if (discoveryManager == null) {
-                discoveryManager = new NetworkDiscoveryManager();
-            }
-            String serverName = getDeviceName();
-            discoveryManager.startBroadcasting(port, this.authToken, serverName);
-
             // Try to open port via UPnP
             startUpnp(port);
 
@@ -99,11 +89,6 @@ public class RemoteServerManager {
         if (httpServer != null) {
             httpServer.stop();
             httpServer = null;
-        }
-
-        // Stop network discovery broadcasting
-        if (discoveryManager != null) {
-            discoveryManager.stopBroadcasting();
         }
 
         // Close UPnP port mapping

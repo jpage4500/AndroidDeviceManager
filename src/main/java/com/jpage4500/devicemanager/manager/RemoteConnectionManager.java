@@ -7,7 +7,6 @@ import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,7 +22,6 @@ public class RemoteConnectionManager {
 
     private final Map<String, RemoteConnection> connections = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    private NetworkDiscoveryManager discoveryManager;
     private ConnectionListener listener;
 
     public interface ConnectionListener {
@@ -32,8 +30,6 @@ public class RemoteConnectionManager {
         void onConnectionLost(RemoteConnection connection);
 
         void onDevicesUpdated(RemoteConnection connection, List<Device> devices);
-
-        void onServerDiscovered(RemoteServerConfig server); // From network discovery
     }
 
     /**
@@ -183,53 +179,6 @@ public class RemoteConnectionManager {
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_CONNECTED_SERVERS, json);
     }
 
-    public Map<String, RemoteServerConfig> getDiscoveredServers() {
-        if (discoveryManager != null) {
-            return discoveryManager.getDiscoveredServers();
-        }
-        return new HashMap<>();
-    }
-
-    /**
-     * Start network discovery for remote servers
-     * Call this when user opens the Remote Server Dialog
-     */
-    public void startNetworkDiscovery() {
-        if (discoveryManager == null) {
-            discoveryManager = new NetworkDiscoveryManager();
-            discoveryManager.setListener(new NetworkDiscoveryManager.DiscoveryListener() {
-                @Override
-                public void onServerDiscovered(RemoteServerConfig server) {
-                    log.info("startNetworkDiscovery: onServerDiscovered: {}", server.name);
-                    if (listener != null) {
-                        listener.onServerDiscovered(server);
-                    }
-                }
-
-                @Override
-                public void onServerLost(String serverId) {
-                    log.info("startNetworkDiscovery: onServerLost: {}", serverId);
-                }
-            });
-        }
-
-        if (!discoveryManager.isDiscovering()) {
-            log.debug("Starting network discovery for remote servers");
-            discoveryManager.startDiscovery();
-        }
-    }
-
-    /**
-     * Stop network discovery
-     * Call this when user closes the Remote Server Dialog
-     */
-    public void stopNetworkDiscovery() {
-        if (discoveryManager != null && discoveryManager.isDiscovering()) {
-            log.debug("Stopping network discovery for remote servers");
-            discoveryManager.stopDiscovery();
-        }
-    }
-
     public void setListener(ConnectionListener listener) {
         this.listener = listener;
     }
@@ -240,10 +189,6 @@ public class RemoteConnectionManager {
             connection.disconnect();
         }
         connections.clear();
-
-        if (discoveryManager != null) {
-            discoveryManager.stopDiscovery();
-        }
 
         scheduler.shutdownNow();
 //        try {
