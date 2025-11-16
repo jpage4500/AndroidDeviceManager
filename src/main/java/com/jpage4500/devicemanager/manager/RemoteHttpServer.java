@@ -27,6 +27,7 @@ public class RemoteHttpServer extends NanoHTTPD {
 
     public static final String API_INFO = "/api/info";
     public static final String API_DEVICES = "/api/devices";
+    public static final String API_DEVICE_PROPERTIES = "/api/properties";
     public static final String API_EXECUTE = "/api/execute";
     public static final String API_FILES_LIST = "/api/files/list";
     public static final String API_FILES_DOWNLOAD = "/api/files/download";
@@ -81,6 +82,8 @@ public class RemoteHttpServer extends NanoHTTPD {
                 return handleServerInfo(session);
             } else if (uri.equals(API_DEVICES)) {
                 return handleGetDevices(session);
+            } else if (uri.equals(API_DEVICE_PROPERTIES)) {
+                return handleGetProperties(session);
             } else if (uri.equals(API_EXECUTE)) {
                 return handleExecuteCommand(session);
             } else if (uri.startsWith(API_FILES_LIST)) {
@@ -98,6 +101,20 @@ public class RemoteHttpServer extends NanoHTTPD {
             log.error("Error handling request", e);
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT,
                 "Error: " + e.getMessage());
+        }
+    }
+
+    private Response handleGetProperties(IHTTPSession session) {
+        Map<String, String> params = session.getParms();
+        Device device = getDeviceParam(params);
+        if (device == null) {
+            return createNotFoundResponse("Device not found");
+        }
+        Map<String, String> map = deviceManager.fetchDevicePropertiesInternal(device);
+        if (map != null) {
+            return createJsonResponse(map);
+        } else {
+            return createNotFoundResponse("Error: ");
         }
     }
 
@@ -127,7 +144,7 @@ public class RemoteHttpServer extends NanoHTTPD {
     private Response handleGetDevices(IHTTPSession session) {
         List<Device> devices = deviceManager.getDevices();
         // remove any remote devices
-        devices.removeIf(device -> device.remoteConnection == null);
+        devices.removeIf(device -> device.remoteConnection != null);
 
         return createJsonResponse(devices);
     }

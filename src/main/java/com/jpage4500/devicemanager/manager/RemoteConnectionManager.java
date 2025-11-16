@@ -7,7 +7,6 @@ import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,53 +118,6 @@ public class RemoteConnectionManager {
         for (String serverId : connections.keySet()) {
             fetchDevices(serverId);
         }
-    }
-
-    /**
-     * Execute command on remote device
-     */
-    public DeviceManager.ShellResult executeRemoteCommand(String serverId, String deviceSerial, String command) {
-        RemoteConnection connection = connections.get(serverId);
-        if (connection == null) {
-            return new DeviceManager.ShellResult(false, null);
-        }
-        return connection.executeCommand(deviceSerial, command);
-    }
-
-    /**
-     * List files on remote device
-     */
-    public DeviceManager.FileResponse listRemoteFiles(String serverId, String deviceSerial, String path) {
-        RemoteConnection connection = connections.get(serverId);
-        if (connection == null) {
-            return new DeviceManager.FileResponse(null, "Server not connected: " + serverId);
-        }
-        return connection.fetchFileList(deviceSerial, path);
-    }
-
-    /**
-     * Download file from remote device
-     */
-    public boolean downloadRemoteFile(String serverId, String deviceSerial, String path, String filename, java.io.File saveFile) {
-        RemoteConnection connection = connections.get(serverId);
-        if (connection == null) {
-            log.error("downloadRemoteFile: Server not connected: {}", serverId);
-            return false;
-        }
-        return connection.downloadFile(deviceSerial, path, filename, saveFile);
-    }
-
-    /**
-     * Upload file to remote device
-     */
-    public boolean uploadRemoteFile(String serverId, String deviceSerial, String path, String filename, java.io.File localFile) {
-        RemoteConnection connection = connections.get(serverId);
-        if (connection == null) {
-            log.error("uploadRemoteFile: Server not connected: {}", serverId);
-            return false;
-        }
-
-        return connection.uploadFile(deviceSerial, path, filename, localFile);
     }
 
     /**

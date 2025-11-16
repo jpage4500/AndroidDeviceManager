@@ -747,7 +747,7 @@ public class DeviceManager {
     public ShellResult runShell(Device device, String command) {
         if (device.remoteConnection != null) {
             // remote device
-            return remoteConnectionManager.executeRemoteCommand(device.remoteConnection.getId(), device.serial, command);
+            return device.remoteConnection.executeCommand(device.serial, command);
         }
 
         // Local device execution
@@ -978,7 +978,7 @@ public class DeviceManager {
 
                 // Check if device is remote
                 if (device.remoteConnection != null) {
-                    remoteConnectionManager.uploadRemoteFile(device.remoteConnection.getId(), device.serial, dest, filename, file);
+                    device.remoteConnection.uploadFile(device.serial, dest, filename, file);
                 } else {
                     // Local device - use JADB
                     try {
@@ -1019,15 +1019,23 @@ public class DeviceManager {
 
     public void fetchDeviceProperties(Device device, DevicePropertyListener listener) {
         commandExecutorService.submit(() -> {
-            try {
-                Map<String, String> propMap = new PropertyManager(device.jadbDevice).getprop();
-                listener.onTaskComplete(true, propMap);
-                return;
-            } catch (Exception e) {
-                log.error("fetchDeviceProperties: PROP Exception:{}", e.getMessage());
+            Map<String, String> map;
+            if (device.remoteConnection != null) {
+                map = device.remoteConnection.fetchDeviceProperties(device.serial);
+            } else {
+                map = fetchDevicePropertiesInternal(device);
             }
-            listener.onTaskComplete(false, null);
+            listener.onTaskComplete(false, map);
         });
+    }
+
+    public Map<String, String> fetchDevicePropertiesInternal(Device device) {
+        try {
+            return new PropertyManager(device.jadbDevice).getprop();
+        } catch (Exception e) {
+            log.error("fetchDevicePropertiesInternal: PROP Exception:{}", e.getMessage());
+            return null;
+        }
     }
 
     public void runCustomCommand(Device device, String customCommand, CommandListener listener) {
@@ -1095,7 +1103,8 @@ public class DeviceManager {
     protected FileResponse fetchFileListInternal(Device device, String path, boolean useRoot) {
         // Check if device is remote - use remote API
         if (device.remoteConnection != null) {
-            return remoteConnectionManager.listRemoteFiles(device.remoteConnection.getId(), device.serial, path);
+            // NOTE: root actions not supported remotely
+            return device.remoteConnection.fetchFileList(device.serial, path);
         }
 
         if (path == null) path = "";
@@ -1158,6 +1167,8 @@ public class DeviceManager {
 
     /**
      * recursive method to download a file or folder
+     *
+     * @return true if download was successful & file/folder exists
      */
     protected boolean downloadFileInternal(Device device, String path, DeviceFile file, File saveFile) {
         if (file.isDirectory) {
@@ -1189,18 +1200,19 @@ public class DeviceManager {
 
             if (device.remoteConnection != null) {
                 // remote device
-                return remoteConnectionManager.downloadRemoteFile(device.remoteConnection.getId(), device.serial, path, file.name, saveFile);
+                device.remoteConnection.downloadFile(device.serial, path, file.name, saveFile);
             } else {
                 // local device
                 RemoteFile remoteFile = new RemoteFileRecord(path, file.name, 0, 0, 0);
                 try {
                     device.jadbDevice.pull(remoteFile, saveFile);
-                    return true;
                 } catch (Exception e) {
                     log.error("downloadFileInternal: {}/{}, Exception:{}", path, file.name, e.getMessage());
                     return false;
                 }
             }
+
+            return saveFile.exists() && saveFile.length() > 0;
         }
     }
 

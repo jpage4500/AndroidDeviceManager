@@ -1,8 +1,7 @@
 package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
-import com.jpage4500.devicemanager.utils.ConnectionStringUtils;
-import com.jpage4500.devicemanager.utils.NetworkHelper;
+import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UpnpUtils;
 import fi.iki.elonen.NanoHTTPD;
@@ -128,47 +127,8 @@ public class RemoteServerManager {
      * Get connection string for easy sharing
      */
     public String getConnectionString() {
-        return ConnectionStringUtils.generateConnectionString(
-            getLocalIpAddress(),
-            port,
-            authToken,
-            getDeviceName()
-        );
-    }
-
-    /**
-     * Get shareable URL
-     */
-    public String getShareUrl() {
-        return ConnectionStringUtils.generateShareUrl(
-            getLocalIpAddress(),
-            port,
-            authToken,
-            getDeviceName()
-        );
-    }
-
-    /**
-     * Get local IP address
-     */
-    private String getLocalIpAddress() {
-        // Try to get public IP address first
-        try {
-            NetworkHelper networkHelper = new NetworkHelper();
-            NetworkHelper.HttpResponse response = networkHelper.getRequest("https://api.ipify.org");
-            if (response.status == 200) {
-                return response.body.trim();
-            }
-        } catch (Exception e) {
-            log.debug("Failed to get public IP, falling back to local: {}", e.getMessage());
-        }
-
-        // Fall back to local IP
-        try {
-            return InetAddress.getLocalHost().getHostAddress();
-        } catch (Exception e) {
-            return "localhost";
-        }
+        String ipAddress = RemoteConnectionUtils.getPublicIpAddress();
+        return RemoteConnectionUtils.generateConnectionString(ipAddress, port, authToken, getDeviceName());
     }
 
     private String getDeviceName() {
@@ -203,7 +163,7 @@ public class RemoteServerManager {
         return new ArrayList<>(connectedClients.values());
     }
 
-    void trackClient(String clientIp, String clientName) {
+    public void trackClient(String clientIp, String clientName) {
         RemoteClientInfo client = connectedClients.get(clientIp);
         if (client == null) {
             client = new RemoteClientInfo(clientIp);

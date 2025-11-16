@@ -4,7 +4,7 @@ import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.URLEncoder;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
@@ -13,8 +13,9 @@ import java.util.Map;
 /**
  * Utilities for generating and parsing connection strings
  */
-public class ConnectionStringUtils {
-    private static final Logger log = LoggerFactory.getLogger(ConnectionStringUtils.class);
+public class RemoteConnectionUtils {
+    private static final Logger log = LoggerFactory.getLogger(RemoteConnectionUtils.class);
+
     private static final String PREFIX = "adm://";
 
     /**
@@ -62,35 +63,27 @@ public class ConnectionStringUtils {
     }
 
     /**
-     * Generate shareable URL that can be clicked to open app
+     * Get public IP address
      */
-    public static String generateShareUrl(String host, int port, String authToken, String name) {
+    public static String getPublicIpAddress() {
+        // Try to get public IP address first
         try {
-            return String.format("adb-manager://connect?host=%s&port=%d&token=%s&name=%s",
-                URLEncoder.encode(host, StandardCharsets.UTF_8),
-                port,
-                URLEncoder.encode(authToken, StandardCharsets.UTF_8),
-                URLEncoder.encode(name, StandardCharsets.UTF_8)
-            );
+            NetworkHelper networkHelper = new NetworkHelper();
+            NetworkHelper.HttpResponse response = networkHelper.getRequest("https://api.ipify.org");
+            if (response.status == 200) {
+                return response.body.trim();
+            }
         } catch (Exception e) {
-            log.error("Failed to generate share URL", e);
-            return null;
+            log.debug("Failed to get public IP, falling back to local: {}", e.getMessage());
+        }
+
+        // Fall back to local IP
+        try {
+            return InetAddress.getLocalHost().getHostAddress();
+        } catch (Exception e) {
+            return "localhost";
         }
     }
 
-    /**
-     * Check if string is a valid connection string
-     */
-    public static boolean isValidConnectionString(String str) {
-        if (str == null || !str.startsWith(PREFIX)) {
-            return false;
-        }
-        try {
-            parseConnectionString(str);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 }
 

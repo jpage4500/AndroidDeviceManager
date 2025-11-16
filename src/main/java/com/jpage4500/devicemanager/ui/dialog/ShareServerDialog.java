@@ -15,10 +15,9 @@ import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Dialog for sharing local devices via HTTP server
@@ -648,37 +647,21 @@ public class ShareServerDialog extends JPanel {
 
     private void fetchPublicIpAsync() {
         new Thread(() -> {
-            try {
-                NetworkHelper networkHelper = new NetworkHelper();
-                NetworkHelper.HttpResponse response = networkHelper.getRequest("https://api.ipify.org");
-                if (response.body != null && !response.body.trim().isEmpty()) {
-                    cachedPublicIp = response.body.trim();
-                    // Update UI on the event dispatch thread
-                    SwingUtilities.invokeLater(() -> {
-                        ipAddressField.setText(cachedPublicIp);
-                    });
-                }
-            } catch (Exception e) {
-                log.debug("Failed to fetch public IP: {}", e.getMessage());
-                SwingUtilities.invokeLater(() -> {
-                    ipAddressField.setText("N/A");
-                });
-            }
-        }, "FetchPublicIP").start();
+            cachedPublicIp = RemoteConnectionUtils.getPublicIpAddress();
+            // Update UI on the event dispatch thread
+            SwingUtilities.invokeLater(() -> {
+                ipAddressField.setText(cachedPublicIp);
+            });
+        }).start();
     }
 
     private int getDefaultPort() {
-        return PreferenceUtils.getPreference(
-            PreferenceUtils.PrefInt.PREF_SERVER_PORT,
-            8765
-        );
+        return PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, 8765);
     }
 
     private String getDefaultOrGenerateAuthToken() {
         // Try to get saved token first
-        String savedToken = PreferenceUtils.getPreference(
-            PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN
-        );
+        String savedToken = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
 
         if (savedToken != null && !savedToken.isEmpty()) {
             return savedToken;
@@ -730,7 +713,7 @@ public class ShareServerDialog extends JPanel {
                 case 1:
                     return client.ipAddress;
                 case 2:
-                    return new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date(client.connectedAtMs));
+                    return new SimpleDateFormat("HH:mm:ss").format(new Date(client.connectedAtMs));
                 default:
                     return null;
             }

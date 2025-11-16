@@ -91,6 +91,21 @@ public class RemoteConnection {
         }
     }
 
+    /**
+     * List files on remote device
+     */
+    public Map<String, String> fetchDeviceProperties(String deviceSerial) {
+        String url = serverConfig.getUrl() + RemoteHttpServer.API_DEVICE_PROPERTIES + "?serial=" + deviceSerial;
+        Map<String, String> headers = getDefaultHeaders();
+        NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
+        log.trace("fetchFileList: {}", GsonHelper.toJson(response));
+        if (response.status == 200) {
+            return GsonHelper.stringToMap(response.body, String.class, String.class);
+        } else {
+            return null;
+        }
+    }
+
     private Map<String, String> getDefaultHeaders() {
         Map<String, String> headers = new HashMap<>();
         // all requests require authorization
@@ -113,14 +128,6 @@ public class RemoteConnection {
      */
     public void disconnect() {
         isConnected = false;
-    }
-
-    /**
-     * Reconnect to server
-     */
-    public void reconnect() throws IOException {
-        disconnect();
-        fetchServerInfo();
     }
 
     /**
@@ -150,7 +157,7 @@ public class RemoteConnection {
         String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
         String encodedFile = URLEncoder.encode(filename, StandardCharsets.UTF_8);
         String url = serverConfig.getUrl() + RemoteHttpServer.API_FILES_DOWNLOAD + "?serial=" + deviceSerial +
-                "&path=" + encodedPath + "&file=" + encodedFile;
+            "&path=" + encodedPath + "&file=" + encodedFile;
 
         Map<String, String> headers = getDefaultHeaders();
         NetworkHelper.HttpResponse response = networkHelper.download(url, saveFile, headers);
@@ -164,7 +171,7 @@ public class RemoteConnection {
         String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
         String encodedFile = URLEncoder.encode(filename, StandardCharsets.UTF_8);
         String url = serverConfig.getUrl() + RemoteHttpServer.API_FILES_UPLOAD + "?serial=" + deviceSerial +
-                "&path=" + encodedPath + "&file=" + encodedFile;
+            "&path=" + encodedPath + "&file=" + encodedFile;
 
         Map<String, String> headers = getDefaultHeaders();
         NetworkHelper.HttpResponse response = networkHelper.upload(url, localFile, headers);

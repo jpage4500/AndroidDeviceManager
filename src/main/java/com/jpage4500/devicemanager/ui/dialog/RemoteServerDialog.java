@@ -3,8 +3,8 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteConnectionManager;
-import com.jpage4500.devicemanager.utils.ConnectionStringUtils;
 import com.jpage4500.devicemanager.utils.DialogHelper;
+import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,7 +143,7 @@ public class RemoteServerDialog extends JPanel {
 
             if (connStr != null && !connStr.trim().isEmpty()) {
                 try {
-                    RemoteServerConfig config = ConnectionStringUtils.parseConnectionString(connStr.trim());
+                    RemoteServerConfig config = RemoteConnectionUtils.parseConnectionString(connStr.trim());
                     connectionManager.addServer(config);
                     loadServers();
                 } catch (Exception e) {
@@ -247,7 +247,7 @@ public class RemoteServerDialog extends JPanel {
                 server.enabled = (Boolean) value;
 
                 // Update server
-                RemoteConnectionManager rcm = com.jpage4500.devicemanager.manager.DeviceManager.getInstance().getRemoteConnectionManager();
+                RemoteConnectionManager rcm = DeviceManager.getInstance().getRemoteConnectionManager();
                 rcm.updateServer(server);
 
                 fireTableCellUpdated(rowIndex, columnIndex);
@@ -257,7 +257,7 @@ public class RemoteServerDialog extends JPanel {
         private String getConnectionStatus(RemoteServerConfig server) {
             if (!server.enabled) return "Disabled";
 
-            RemoteConnectionManager rcm = com.jpage4500.devicemanager.manager.DeviceManager.getInstance().getRemoteConnectionManager();
+            RemoteConnectionManager rcm = DeviceManager.getInstance().getRemoteConnectionManager();
             if (rcm.isConnected(server.id)) {
                 return "Connected";
             } else {
