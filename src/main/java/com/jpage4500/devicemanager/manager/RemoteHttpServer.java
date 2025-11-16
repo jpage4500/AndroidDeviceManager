@@ -127,7 +127,7 @@ public class RemoteHttpServer extends NanoHTTPD {
     private Response handleGetDevices(IHTTPSession session) {
         List<Device> devices = deviceManager.getDevices();
         // remove any remote devices
-        devices.removeIf(device -> device.isRemote);
+        devices.removeIf(device -> device.remoteConnection == null);
 
         return createJsonResponse(devices);
     }
@@ -155,7 +155,7 @@ public class RemoteHttpServer extends NanoHTTPD {
         }
 
         Device device = deviceManager.getDevice(serial);
-        if (device == null || device.isRemote) {
+        if (device == null || device.remoteConnection != null) {
             return createNotFoundResponse("Device not found");
         }
 

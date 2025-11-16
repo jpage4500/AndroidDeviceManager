@@ -5,7 +5,7 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.NetworkHelper;
-import org.apache.http.client.methods.HttpRequestBase;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -143,16 +143,6 @@ public class RemoteConnection {
         }
     }
 
-    private void addHeaders(HttpRequestBase request) {
-        request.setHeader(RemoteHttpServer.HEADER_AUTHORIZATION, "Bearer " + serverConfig.authToken);
-        try {
-            InetAddress localHost = InetAddress.getLocalHost();
-            request.setHeader(RemoteHttpServer.HEADER_IP, localHost.getHostAddress());
-            request.setHeader(RemoteHttpServer.HEADER_NAME, localHost.getHostName());
-        } catch (Exception ignored) {
-        }
-    }
-
     /**
      * Download file from remote device
      */
@@ -160,7 +150,7 @@ public class RemoteConnection {
         String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
         String encodedFile = URLEncoder.encode(filename, StandardCharsets.UTF_8);
         String url = serverConfig.getUrl() + RemoteHttpServer.API_FILES_DOWNLOAD + "?serial=" + deviceSerial +
-            "&path=" + encodedPath + "&file=" + encodedFile;
+                "&path=" + encodedPath + "&file=" + encodedFile;
 
         Map<String, String> headers = getDefaultHeaders();
         NetworkHelper.HttpResponse response = networkHelper.download(url, saveFile, headers);
@@ -174,7 +164,7 @@ public class RemoteConnection {
         String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
         String encodedFile = URLEncoder.encode(filename, StandardCharsets.UTF_8);
         String url = serverConfig.getUrl() + RemoteHttpServer.API_FILES_UPLOAD + "?serial=" + deviceSerial +
-            "&path=" + encodedPath + "&file=" + encodedFile;
+                "&path=" + encodedPath + "&file=" + encodedFile;
 
         Map<String, String> headers = getDefaultHeaders();
         NetworkHelper.HttpResponse response = networkHelper.upload(url, localFile, headers);

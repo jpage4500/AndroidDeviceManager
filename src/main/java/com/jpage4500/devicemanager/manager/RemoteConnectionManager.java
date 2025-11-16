@@ -55,14 +55,14 @@ public class RemoteConnectionManager {
 
         // load and connect to saved servers
         List<RemoteServerConfig> servers = loadServers();
-//        for (RemoteServerConfig server : servers) {
-//            if (server.enabled) {
-//                connectToServer(server);
-//            }
-//        }
+        for (RemoteServerConfig server : servers) {
+            if (server.enabled) {
+                connectToServer(server);
+            }
+        }
 
         // connect to saved devices
-        scheduler.submit(this::checkConnections);
+        //scheduler.submit(this::checkConnections);
         //scheduler.scheduleAtFixedRate(this::checkConnections, 0, 30, TimeUnit.SECONDS);
     }
 
@@ -81,6 +81,7 @@ public class RemoteConnectionManager {
     }
 
     private void checkConnection(String serverId, RemoteConnection connection) {
+        // fetch server info
         RemoteHttpServer.ServerInfo serverInfo = connection.fetchServerInfo();
         if (serverInfo != null) {
             if (listener != null) {
@@ -120,40 +121,7 @@ public class RemoteConnectionManager {
         RemoteConnection connection = new RemoteConnection(server);
         connections.put(server.id, connection);
 
-        scheduler.submit(() -> {
-            checkConnection(server.id, connection);
-        });
-
-        // Connect asynchronously
-        CompletableFuture.runAsync(() -> {
-            try {
-                connection.fetchServerInfo();
-                server.isOnline = true;
-                server.lastConnectedMs = System.currentTimeMillis();
-
-                // Update and save server list
-                List<RemoteServerConfig> servers = loadServers();
-                for (int i = 0; i < servers.size(); i++) {
-                    if (servers.get(i).id.equals(server.id)) {
-                        servers.set(i, server);
-                        break;
-                    }
-                }
-                saveServers(servers);
-
-                if (listener != null) {
-                    listener.onConnectionEstablished(connection);
-                }
-
-                // Fetch initial device list
-                fetchDevices(server.id);
-
-            } catch (Exception e) {
-                log.error("Failed to connect to server: {}, {}", server.name, e.getMessage());
-                server.isOnline = false;
-                connections.remove(server.id);
-            }
-        });
+        scheduler.submit(() -> checkConnection(server.id, connection));
     }
 
     /**
