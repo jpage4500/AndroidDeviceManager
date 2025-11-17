@@ -22,6 +22,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManager.DeviceLogListener {
     private static final Logger log = LoggerFactory.getLogger(LogStreamWebSocket.class);
 
+    // message types
+    public static final String TYPE_CONNECTED = "connected";
+    public static final String TYPE_LOGS = "logs";
+    public static final String TYPE_PROCESS_MAP = "processMap";
+    public static final String TYPE_STATUS = "status";
+    public static final String TYPE_WARNING = "warning";
+    public static final String TYPE_ERROR = "error";
+
+    // control actions
+    public static final String ACTION_PAUSE = "pause";
+    public static final String ACTION_RESUME = "resume";
+    public static final String ACTION_FILTER = "filter";
+
     private static final int BATCH_INTERVAL_MS = 500;
     private static final int MAX_BATCH_SIZE = 50;
     private static final int MAX_BUFFER_SIZE = 1000;
@@ -47,10 +60,10 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
 
     @Override
     protected void onOpen() {
-        log.info("WebSocket opened for device: {}", device.serial);
+        log.info("onOpen: device: {}", device.serial);
 
         // Send initial connection message
-        sendMessage("connected", Map.of(
+        sendMessage(TYPE_CONNECTED, Map.of(
             "device", device.serial,
             "message", "Connected to log stream"
         ));
@@ -67,7 +80,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
 
     @Override
     protected void onClose(NanoWSD.WebSocketFrame.CloseCode code, String reason, boolean initiatedByRemote) {
-        log.info("WebSocket closed for device: {}, code: {}, reason: {}", device.serial, code, reason);
+        log.info("onClose: device: {}, code: {}, reason: {}", device.serial, code, reason);
         cleanup();
     }
 
@@ -75,7 +88,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     protected void onMessage(NanoWSD.WebSocketFrame message) {
         try {
             String messageText = message.getTextPayload();
-            log.debug("Received message: {}", messageText);
+            log.debug("onMessage: device: {}, text: {}", device.serial, messageText);
 
             @SuppressWarnings("unchecked")
             Map<String, Object> controlMessage = GsonHelper.fromJson(messageText, Map.class);
@@ -87,25 +100,25 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
             }
 
             switch (action) {
-                case "pause" -> handlePause();
-                case "resume" -> handleResume();
-                case "filter" -> handleFilterUpdate(controlMessage);
+                case ACTION_PAUSE -> handlePause();
+                case ACTION_RESUME -> handleResume();
+                case ACTION_FILTER -> handleFilterUpdate(controlMessage);
                 default -> sendError("Unknown action: " + action);
             }
         } catch (Exception e) {
-            log.error("Error processing message", e);
+            log.error("onMessage: device: {} error", device.serial, e);
             sendError("Error processing message: " + e.getMessage());
         }
     }
 
     @Override
     protected void onPong(NanoWSD.WebSocketFrame pong) {
-        log.trace("Received pong from device: {}", device.serial);
+        log.trace("onPong: device: {}", device.serial);
     }
 
     @Override
     protected void onException(IOException exception) {
-        log.error("WebSocket exception for device: {}", device.serial, exception);
+        log.error("onException: device: {}", device.serial, exception);
         cleanup();
     }
 
@@ -144,21 +157,21 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
         if (!isOpen()) {
             return;
         }
-        sendMessage("processMap", Map.of("map", processMap));
+        sendMessage(TYPE_PROCESS_MAP, Map.of("map", processMap));
     }
 
     // Private helper methods
 
     private void startLogging() {
         if (isLogging.compareAndSet(false, true)) {
-            log.debug("Starting log capture for device: {}", device.serial);
+            log.debug("startLogging: device: {}", device.serial);
             deviceManager.startLogging(device, null, this);
         }
     }
 
     private void stopLogging() {
         if (isLogging.compareAndSet(true, false)) {
-            log.debug("Stopping log capture for device: {}", device.serial);
+            log.debug("stopLogging: device: {}", device.serial);
             deviceManager.stopLogging(device);
         }
     }
@@ -168,7 +181,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
             try {
                 sendBatch();
             } catch (Exception e) {
-                log.error("Error sending batch", e);
+                log.error("batchTask: device: {} error", device.serial, e);
             }
         }, BATCH_INTERVAL_MS, BATCH_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
@@ -180,7 +193,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
                     ping("heartbeat".getBytes());
                 }
             } catch (Exception e) {
-                log.error("Error sending ping", e);
+                log.error("pingTask: device: {} error", device.serial, e);
             }
         }, PING_INTERVAL_MS, PING_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
@@ -205,11 +218,11 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
         }
 
         if (!toSend.isEmpty()) {
-            sendMessage("logs", Map.of("entries", toSend));
+            sendMessage(TYPE_LOGS, Map.of("entries", toSend));
         }
 
         if (dropped > 0) {
-            sendMessage("warning", Map.of(
+            sendMessage(TYPE_WARNING, Map.of(
                 "message", "Dropped " + dropped + " log entries due to buffer overflow"
             ));
         }
@@ -217,17 +230,17 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
 
     private void handlePause() {
         if (isPaused.compareAndSet(false, true)) {
-            log.debug("Pausing log stream for device: {}", device.serial);
+            log.debug("handlePause: device: {}", device.serial);
             stopLogging();
-            sendMessage("status", Map.of("state", "paused"));
+            sendMessage(TYPE_STATUS, Map.of("state", "paused"));
         }
     }
 
     private void handleResume() {
         if (isPaused.compareAndSet(true, false)) {
-            log.debug("Resuming log stream for device: {}", device.serial);
+            log.debug("handleResume: device: {}", device.serial);
             startLogging();
-            sendMessage("status", Map.of("state", "resumed"));
+            sendMessage(TYPE_STATUS, Map.of("state", "resumed"));
         }
     }
 
@@ -235,12 +248,12 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
         String filterText = (String) controlMessage.get("filterText");
         if (filterText == null || filterText.isEmpty()) {
             filter = null;
-            log.debug("Cleared filter for device: {}", device.serial);
+            log.debug("handleFilterUpdate: device: {} cleared", device.serial);
         } else {
             filter = LogFilter.parse(filterText);
-            log.debug("Updated filter for device: {}, filter: {}", device.serial, filterText);
+            log.debug("handleFilterUpdate: device: {} filter: {}", device.serial, filterText);
         }
-        sendMessage("status", Map.of(
+        sendMessage(TYPE_STATUS, Map.of(
             "state", "filter_updated",
             "filter", filterText != null ? filterText : ""
         ));
@@ -258,12 +271,12 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
             String json = GsonHelper.toJson(message);
             send(json);
         } catch (IOException e) {
-            log.error("Error sending message", e);
+            log.error("sendMessage: device: {} type: {} error", device.serial, type, e);
         }
     }
 
     private void sendError(String errorMessage) {
-        sendMessage("error", Map.of("message", errorMessage));
+        sendMessage(TYPE_ERROR, Map.of("message", errorMessage));
     }
 
     private void cleanup() {
@@ -283,7 +296,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
             batchBuffer.clear();
         }
 
-        log.debug("Cleaned up WebSocket resources for device: {}", device.serial);
+        log.debug("cleanup: device: {}", device.serial);
     }
 }
 

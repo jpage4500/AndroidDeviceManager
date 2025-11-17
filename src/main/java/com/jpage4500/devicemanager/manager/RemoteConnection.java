@@ -70,7 +70,7 @@ public class RemoteConnection {
         Map<String, String> headers = getDefaultHeaders();
         String url = serverConfig.getUrl() + RemoteHttpServer.API_INFO;
         NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
-        log.trace("fetchServerInfo: {}", GsonHelper.toJson(response));
+        log.trace("fetchServerInfo: response: {}", GsonHelper.toJson(response));
         if (response.status == 200) {
             isConnected = true;
             lastHealthCheck = System.currentTimeMillis();
@@ -88,7 +88,7 @@ public class RemoteConnection {
         Map<String, String> headers = getDefaultHeaders();
         String url = serverConfig.getUrl() + RemoteHttpServer.API_DEVICES;
         NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
-        log.trace("fetchDevices: {}", GsonHelper.toJson(response));
+        log.trace("fetchDevices: response: {}", GsonHelper.toJson(response));
         if (response.status == 200) {
             List<Device> deviceList = GsonHelper.stringToList(response.body, Device.class);
             for (Device device : deviceList) {
@@ -109,7 +109,7 @@ public class RemoteConnection {
         String url = serverConfig.getUrl() + RemoteHttpServer.API_FILES_LIST + "?serial=" + deviceSerial + "&path=" + encodedPath;
         Map<String, String> headers = getDefaultHeaders();
         NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
-        log.trace("fetchFileList: {}", GsonHelper.toJson(response));
+        log.trace("fetchFileList: response: {}", GsonHelper.toJson(response));
         if (response.status == 200) {
             List<DeviceFile> fileList = GsonHelper.stringToList(response.body, DeviceFile.class);
             return new DeviceManager.FileResponse(fileList, null);
@@ -125,7 +125,7 @@ public class RemoteConnection {
         String url = serverConfig.getUrl() + RemoteHttpServer.API_DEVICE_PROPERTIES + "?serial=" + deviceSerial;
         Map<String, String> headers = getDefaultHeaders();
         NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
-        log.trace("fetchFileList: {}", GsonHelper.toJson(response));
+        log.trace("fetchDeviceProperties: response: {}", GsonHelper.toJson(response));
         if (response.status == 200) {
             return GsonHelper.stringToMap(response.body, String.class, String.class);
         } else {
@@ -241,7 +241,7 @@ public class RemoteConnection {
         // Stop any existing session
         stopLogging(deviceSerial);
 
-        log.debug("startLogging: serial={}, filter={}", deviceSerial, filterText);
+        log.debug("startLogging: serial: {}, filter: {}", deviceSerial, filterText);
 
         // Build WebSocket URL
         String wsUrl = buildWebSocketUrl(deviceSerial, filterText);
@@ -250,7 +250,7 @@ public class RemoteConnection {
         WebSocket.Listener wsListener = new WebSocket.Listener() {
             @Override
             public void onOpen(WebSocket webSocket) {
-                log.info("WebSocket opened for device: {}", deviceSerial);
+                log.info("onOpen: device: {}", deviceSerial);
                 WebSocket.Listener.super.onOpen(webSocket);
             }
 
@@ -273,14 +273,14 @@ public class RemoteConnection {
 
             @Override
             public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-                log.info("WebSocket closed for device: {}, code: {}, reason: {}", deviceSerial, statusCode, reason);
+                log.info("onClose: device: {}, code: {}, reason: {}", deviceSerial, statusCode, reason);
                 logStreamSessions.remove(deviceSerial);
                 return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
             }
 
             @Override
             public void onError(WebSocket webSocket, Throwable error) {
-                log.error("WebSocket error for device: {}", deviceSerial, error);
+                log.error("onError: device: {}", deviceSerial, error);
                 logStreamSessions.remove(deviceSerial);
                 WebSocket.Listener.super.onError(webSocket, error);
             }
@@ -293,16 +293,16 @@ public class RemoteConnection {
 
             wsFuture.whenComplete((ws, throwable) -> {
                 if (throwable != null) {
-                    log.error("Failed to connect WebSocket for device: {}", deviceSerial, throwable);
+                    log.error("startLogging: device: {} failed", deviceSerial, throwable);
                 } else {
                     // Store session
                     LogStreamSession session = new LogStreamSession(ws, listener, deviceSerial);
                     logStreamSessions.put(deviceSerial, session);
-                    log.debug("WebSocket session created for device: {}", deviceSerial);
+                    log.debug("startLogging: device: {} session created", deviceSerial);
                 }
             });
         } catch (Exception e) {
-            log.error("Error starting log stream for device: {}", deviceSerial, e);
+            log.error("startLogging: device: {} error", deviceSerial, e);
         }
     }
 
@@ -312,11 +312,11 @@ public class RemoteConnection {
     public void stopLogging(String deviceSerial) {
         LogStreamSession session = logStreamSessions.remove(deviceSerial);
         if (session != null && session.webSocket != null) {
-            log.debug("stopLogging: {}", deviceSerial);
+            log.debug("stopLogging: device: {}", deviceSerial);
             session.webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "Client closing")
                 .whenComplete((ws, throwable) -> {
                     if (throwable != null) {
-                        log.warn("Error closing WebSocket: {}", throwable.getMessage());
+                        log.warn("stopLogging: device: {} error closing", deviceSerial, throwable);
                     }
                 });
         }
@@ -335,7 +335,7 @@ public class RemoteConnection {
     public void pauseLogging(String deviceSerial) {
         LogStreamSession session = logStreamSessions.get(deviceSerial);
         if (session != null && session.webSocket != null) {
-            sendControlMessage(session.webSocket, "pause", null);
+            sendControlMessage(session.webSocket, LogStreamWebSocket.ACTION_PAUSE, null);
         }
     }
 
@@ -345,7 +345,7 @@ public class RemoteConnection {
     public void resumeLogging(String deviceSerial) {
         LogStreamSession session = logStreamSessions.get(deviceSerial);
         if (session != null && session.webSocket != null) {
-            sendControlMessage(session.webSocket, "resume", null);
+            sendControlMessage(session.webSocket, LogStreamWebSocket.ACTION_RESUME, null);
         }
     }
 
@@ -357,7 +357,7 @@ public class RemoteConnection {
         if (session != null && session.webSocket != null) {
             Map<String, Object> params = new HashMap<>();
             params.put("filterText", filterText != null ? filterText : "");
-            sendControlMessage(session.webSocket, "filter", params);
+            sendControlMessage(session.webSocket, LogStreamWebSocket.ACTION_FILTER, params);
         }
     }
 
@@ -368,7 +368,7 @@ public class RemoteConnection {
     public Map<String, String> getProcessMap(String deviceSerial) {
         // Process map is received via WebSocket messages and forwarded to listener
         // This method is a placeholder for API compatibility
-        log.debug("getProcessMap: {} (handled via WebSocket)", deviceSerial);
+        log.debug("getProcessMap: device: {}", deviceSerial);
         return new HashMap<>();
     }
 
@@ -399,43 +399,32 @@ public class RemoteConnection {
             String type = (String) msg.get("type");
 
             if (type == null) {
-                log.warn("Received message without type field");
+                log.warn("handleWebSocketMessage: device: {} missing type", session.deviceSerial);
                 return;
             }
 
             switch (type) {
-                case "connected":
-                    log.debug("Connected to log stream for device: {}", session.deviceSerial);
-                    break;
-
-                case "logs":
-                    handleLogsMessage(msg, session);
-                    break;
-
-                case "processMap":
-                    handleProcessMapMessage(msg, session);
-                    break;
-
-                case "status":
+                case LogStreamWebSocket.TYPE_CONNECTED -> {
+                    log.debug("handleWebSocketMessage: device: {} connected", session.deviceSerial);
+                }
+                case LogStreamWebSocket.TYPE_LOGS -> handleLogsMessage(msg, session);
+                case LogStreamWebSocket.TYPE_PROCESS_MAP -> handleProcessMapMessage(msg, session);
+                case LogStreamWebSocket.TYPE_STATUS -> {
                     String state = (String) msg.get("state");
-                    log.debug("Status update for device {}: {}", session.deviceSerial, state);
-                    break;
-
-                case "warning":
+                    log.debug("handleWebSocketMessage: device: {} status: {}", session.deviceSerial, state);
+                }
+                case LogStreamWebSocket.TYPE_WARNING -> {
                     String warning = (String) msg.get("message");
-                    log.warn("Warning from server for device {}: {}", session.deviceSerial, warning);
-                    break;
-
-                case "error":
+                    log.warn("handleWebSocketMessage: device: {} warning: {}", session.deviceSerial, warning);
+                }
+                case LogStreamWebSocket.TYPE_ERROR -> {
                     String error = (String) msg.get("message");
-                    log.error("Error from server for device {}: {}", session.deviceSerial, error);
-                    break;
-
-                default:
-                    log.debug("Unknown message type: {}", type);
+                    log.error("handleWebSocketMessage: device: {} error: {}", session.deviceSerial, error);
+                }
+                default -> log.debug("handleWebSocketMessage: device: {} unknown type: {}", session.deviceSerial, type);
             }
         } catch (Exception e) {
-            log.error("Error handling WebSocket message", e);
+            log.error("handleWebSocketMessage: device: {}", session.deviceSerial, e);
         }
     }
 
@@ -507,7 +496,7 @@ public class RemoteConnection {
 
             return entry;
         } catch (Exception e) {
-            log.error("Error parsing log entry", e);
+            log.error("parseLogEntry: error", e);
             return null;
         }
     }
@@ -526,12 +515,11 @@ public class RemoteConnection {
             }
             String json = GsonHelper.toJson(message);
             webSocket.sendText(json, true);
-            log.debug("Sent control message: {}", json);
+            log.debug("sendControlMessage: action: {}", action);
         } catch (Exception e) {
-            log.error("Error sending control message", e);
+            log.error("sendControlMessage: error", e);
         }
     }
 
 }
-
 

@@ -9,10 +9,15 @@ import fi.iki.elonen.NanoWSD;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * HTTP server that handles remote client requests
@@ -39,36 +44,11 @@ public class RemoteHttpServer extends NanoWSD {
 
     private final String authToken;
     private final RemoteServerManager serverManager;
-    private final DeviceManager deviceManager;
 
     public RemoteHttpServer(int port, String authToken, RemoteServerManager serverManager) {
         super(port);
         this.authToken = authToken;
         this.serverManager = serverManager;
-        this.deviceManager = DeviceManager.getInstance();
-    }
-
-    @Override
-    protected WebSocket openWebSocket(IHTTPSession handshake) {
-        String uri = handshake.getUri();
-        Map<String, String> headers = handshake.getHeaders();
-        Map<String, String> params = handshake.getParms();
-
-        log.debug("WebSocket upgrade request: {}", uri);
-
-        // Authenticate via query parameter or header
-        if (!authenticateClient(params, headers)) {
-            log.warn("Unauthorized WebSocket connection attempt");
-            return null;
-        }
-
-        // Handle log streaming WebSocket
-        if (uri.equals(WS_LOGS)) {
-            return handleLogStreamWebSocket(handshake, params);
-        }
-
-        log.warn("Unknown WebSocket endpoint: {}", uri);
-        return null;
     }
 
     /**
@@ -91,37 +71,22 @@ public class RemoteHttpServer extends NanoWSD {
         return TextUtils.equals(token, authToken);
     }
 
-    private WebSocket handleLogStreamWebSocket(IHTTPSession handshake, Map<String, String> params) {
-        String serial = params.get("serial");
-        if (serial == null) {
-            log.warn("Missing serial parameter for WebSocket log stream");
-            return null;
-        }
-
-        Device device = deviceManager.getDevice(serial);
-        if (device == null || device.remoteConnection != null) {
-            log.warn("Device not found or is remote: {}", serial);
-            return null;
-        }
-
-        // Parse optional filter parameter
-        String filterText = params.get("filter");
-        LogFilter filter = null;
-        if (filterText != null && !filterText.isEmpty()) {
-            filter = LogFilter.parse(filterText);
-            log.debug("Applying filter to log stream: {}", filterText);
-        }
-
-        log.info("Opening WebSocket log stream for device: {}", serial);
-        return new LogStreamWebSocket(handshake, device, filter);
-    }
-
     @Override
     public Response serve(IHTTPSession session) {
         String uri = session.getUri();
         Method method = session.getMethod();
         Map<String, String> headers = session.getHeaders();
         Map<String, String> params = session.getParms();
+
+        // Check if this is a WebSocket upgrade request
+        String upgradeHeader = headers.get("upgrade");
+        if ("websocket".equalsIgnoreCase(upgradeHeader)) {
+            log.debug("serve: WebSocket upgrade request detected: {}", uri);
+            // Let the parent class handle WebSocket upgrade which will call openWebSocket()
+            return super.serve(session);
+        }
+
+        // Regular HTTP request handling
         // client provided IP and name
         String headerIp = safeHeader(headers.get(HEADER_IP));
         String headerName = safeHeader(headers.get(HEADER_NAME));
@@ -137,7 +102,7 @@ public class RemoteHttpServer extends NanoWSD {
             }
         }
 
-        log.trace("server: {} {}, ip:{}, name:{}, clientIP:{}", method, uri, clientIp, headerName, headerIp);
+        log.trace("serve: {} {}, ip:{}, name:{}, clientIP:{}", method, uri, clientIp, headerName, headerIp);
 
         // Authenticate
         if (!authenticateClient(params, headers)) {
@@ -181,7 +146,7 @@ public class RemoteHttpServer extends NanoWSD {
         if (device == null) {
             return createNotFoundResponse("Device not found");
         }
-        Map<String, String> map = deviceManager.fetchDevicePropertiesInternal(device);
+        Map<String, String> map = DeviceManager.getInstance().fetchDevicePropertiesInternal(device);
         if (map != null) {
             return createJsonResponse(map);
         } else {
@@ -202,7 +167,7 @@ public class RemoteHttpServer extends NanoWSD {
     private Response handleServerInfo(IHTTPSession session) {
         ServerInfo info = new ServerInfo();
         info.version = "1.0";
-        info.deviceCount = deviceManager.getDevices().size();
+        info.deviceCount = DeviceManager.getInstance().getDevices().size();
         info.serverName = "Android Device Manager";
 
         return createJsonResponse(info);
@@ -213,7 +178,7 @@ public class RemoteHttpServer extends NanoWSD {
      * - returns JSON of List<Device>
      */
     private Response handleGetDevices(IHTTPSession session) {
-        List<Device> devices = deviceManager.getDevices();
+        List<Device> devices = DeviceManager.getInstance().getDevices();
         // remove any remote devices
         devices.removeIf(device -> device.remoteConnection != null);
 
@@ -242,13 +207,13 @@ public class RemoteHttpServer extends NanoWSD {
             return createBadResponse("Missing serial or command");
         }
 
-        Device device = deviceManager.getDevice(serial);
+        Device device = DeviceManager.getInstance().getDevice(serial);
         if (device == null || device.remoteConnection != null) {
             return createNotFoundResponse("Device not found");
         }
 
         // Execute command
-        DeviceManager.ShellResult shellResult = deviceManager.runShell(device, command);
+        DeviceManager.ShellResult shellResult = DeviceManager.getInstance().runShell(device, command);
         return createJsonResponse(shellResult);
     }
 
@@ -263,7 +228,7 @@ public class RemoteHttpServer extends NanoWSD {
         }
         String path = params.get("path");
 
-        DeviceManager.FileResponse fileResponse = deviceManager.fetchFileListInternal(device, path, false);
+        DeviceManager.FileResponse fileResponse = DeviceManager.getInstance().fetchFileListInternal(device, path, false);
         if (fileResponse.fileList != null) {
             return createJsonResponse(fileResponse.fileList);
         } else {
@@ -273,7 +238,7 @@ public class RemoteHttpServer extends NanoWSD {
 
     private Device getDeviceParam(Map<String, String> params) {
         String serial = params.get("serial");
-        return deviceManager.getDevice(serial);
+        return DeviceManager.getInstance().getDevice(serial);
     }
 
     /**
@@ -304,7 +269,7 @@ public class RemoteHttpServer extends NanoWSD {
             deviceFile.isDirectory = false;
             deviceFile.name = filename;
 
-            boolean isOk = deviceManager.downloadFileInternal(device, path, deviceFile, tempFile);
+            boolean isOk = DeviceManager.getInstance().downloadFileInternal(device, path, deviceFile, tempFile);
             if (!isOk || !tempFile.exists() || tempFile.length() == 0) {
                 return createNotFoundResponse("File not found on device");
             }
@@ -404,7 +369,7 @@ public class RemoteHttpServer extends NanoWSD {
      * Determine MIME type from filename
      */
     private String getMimeType(String filename) {
-        String lower = filename.toLowerCase();
+        String lower = getString(filename);
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
         if (lower.endsWith(".png")) return "image/png";
         if (lower.endsWith(".gif")) return "image/gif";
@@ -415,6 +380,11 @@ public class RemoteHttpServer extends NanoWSD {
         if (lower.endsWith(".zip")) return "application/zip";
         if (lower.endsWith(".apk")) return "application/vnd.android.package-archive";
         return "application/octet-stream";
+    }
+
+    private static String getString(String filename) {
+        String lower = filename.toLowerCase();
+        return lower;
     }
 
     /**
@@ -446,6 +416,101 @@ public class RemoteHttpServer extends NanoWSD {
 
     private Response createNotFoundResponse(String errorMessage) {
         return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, errorMessage);
+    }
+
+    // added rejecting websocket helper
+    private static class RejectWebSocket extends WebSocket {
+        private final String reason;
+        private final boolean sendError;
+
+        public RejectWebSocket(IHTTPSession hs, String reason, boolean sendError) {
+            super(hs);
+            this.reason = reason == null ? "Rejected" : reason;
+            this.sendError = sendError;
+        }
+
+        @Override
+        protected void onOpen() {
+            try {
+                if (sendError) {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("type", "error");
+                    m.put("message", reason);
+                    send(GsonHelper.toJson(m));
+                }
+                close(WebSocketFrame.CloseCode.PolicyViolation, reason, false);
+            } catch (IOException ignored) {
+            }
+        }
+
+        @Override
+        protected void onClose(WebSocketFrame.CloseCode code, String r, boolean remote) {
+        }
+
+        @Override
+        protected void onMessage(WebSocketFrame msg) {
+        }
+
+        @Override
+        protected void onPong(WebSocketFrame pong) {
+        }
+
+        @Override
+        protected void onException(IOException ex) {
+        }
+    }
+
+    private WebSocket handleLogStreamWebSocket(IHTTPSession handshake, Map<String, String> params) {
+        String serial = params.get("serial");
+        if (serial == null) {
+            log.warn("handleLogStreamWebSocket: no serial");
+            return new RejectWebSocket(handshake, "Missing serial parameter", true);
+        }
+        Device device = DeviceManager.getInstance().getDevice(serial);
+        if (device == null) {
+            log.warn("handleLogStreamWebSocket: device not found: {}", serial);
+            return new RejectWebSocket(handshake, "Device not found", true);
+        }
+        if (device.remoteConnection != null) {
+            log.warn("handleLogStreamWebSocket: remote device unsupported: {}", serial);
+            return new RejectWebSocket(handshake, "Remote device unsupported", true);
+        }
+        String filterText = params.get("filter");
+        LogFilter filter = null;
+        if (filterText != null && !filterText.isEmpty()) {
+            try {
+                filter = LogFilter.parse(filterText);
+                log.debug("Applying filter to log stream: {}", filterText);
+            } catch (Exception e) {
+                log.warn("Filter parse error: {}", e.getMessage());
+                return new RejectWebSocket(handshake, "Invalid filter expression", true);
+            }
+        }
+        log.info("Opening WebSocket log stream for device: {}", serial);
+        return new LogStreamWebSocket(handshake, device, filter);
+    }
+
+    @Override
+    protected WebSocket openWebSocket(IHTTPSession handshake) {
+        String uri = handshake.getUri();
+        Map<String, String> headers = handshake.getHeaders();
+        Map<String, String> params = handshake.getParms();
+
+        log.debug("WebSocket upgrade request: {}", uri);
+
+        // Authenticate via query parameter or header
+        if (!authenticateClient(params, headers)) {
+            log.warn("Unauthorized WebSocket connection attempt");
+            return new RejectWebSocket(handshake, "Unauthorized", true);
+        }
+
+        // Handle log streaming WebSocket
+        if (uri.equals(WS_LOGS)) {
+            return handleLogStreamWebSocket(handshake, params);
+        }
+
+        log.warn("Unknown WebSocket endpoint: {}", uri);
+        return new RejectWebSocket(handshake, "Unknown endpoint", true);
     }
 
 }
