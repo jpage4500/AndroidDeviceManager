@@ -34,6 +34,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     public static final String ACTION_PAUSE = "pause";
     public static final String ACTION_RESUME = "resume";
     public static final String ACTION_FILTER = "filter";
+    public static final String ACTION_PING = "ping";
 
     private static final int BATCH_INTERVAL_MS = 500;
     private static final int MAX_BATCH_SIZE = 50;
@@ -103,6 +104,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
                 case ACTION_PAUSE -> handlePause();
                 case ACTION_RESUME -> handleResume();
                 case ACTION_FILTER -> handleFilterUpdate(controlMessage);
+                case ACTION_PING -> handlePing();
                 default -> sendError("Unknown action: " + action);
             }
         } catch (Exception e) {
@@ -165,7 +167,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     private void startLogging() {
         if (isLogging.compareAndSet(false, true)) {
             log.debug("startLogging: device: {}", device.serial);
-            deviceManager.startLogging(device, null, this);
+            deviceManager.startLogging(device, null, null, this);
         }
     }
 
@@ -218,10 +220,12 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
         }
 
         if (!toSend.isEmpty()) {
+            //log.trace("sendBatch: sending: {}", toSend.size());
             sendMessage(TYPE_LOGS, Map.of("entries", toSend));
         }
 
         if (dropped > 0) {
+            log.trace("sendBatch: dropped: {}", dropped);
             sendMessage(TYPE_WARNING, Map.of("message", "Dropped " + dropped + " log entries due to buffer overflow"));
         }
     }
@@ -252,6 +256,12 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
             log.trace("handleFilterUpdate: device: {} filter: {}", device.serial, filterText);
         }
         sendMessage(TYPE_STATUS, Map.of("state", "filter_updated", "filter", filterText != null ? filterText : ""));
+    }
+
+    private void handlePing() {
+        // Respond to client heartbeat ping with pong
+        log.trace("handlePing: device: {}", device.serial);
+        sendMessage("pong", Map.of("timestamp", System.currentTimeMillis()));
     }
 
     private void sendMessage(String type, Map<String, Object> data) {

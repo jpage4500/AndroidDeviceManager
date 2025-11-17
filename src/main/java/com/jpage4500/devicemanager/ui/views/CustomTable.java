@@ -451,7 +451,7 @@ public class CustomTable extends JTable {
             if (details.name == null) continue;
             TableColumn column = getColumnByName(details.name);
             if (column != null && details.width >= MIN_COLUMN_WIDTH && details.width <= MAX_COLUMN_WIDTH) {
-                log.trace("applyColumnWidths: setting width {} for column '{}'", details.width, details.name);
+                //log.trace("applyColumnWidths: setting width {} for column '{}'", details.width, details.name);
                 column.setPreferredWidth(details.width);
             }
         }

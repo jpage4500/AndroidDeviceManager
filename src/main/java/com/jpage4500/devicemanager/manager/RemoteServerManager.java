@@ -4,7 +4,6 @@ import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import com.jpage4500.devicemanager.utils.UpnpUtils;
-import fi.iki.elonen.NanoHTTPD;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,7 +59,9 @@ public class RemoteServerManager {
 
         try {
             httpServer = new RemoteHttpServer(port, this.authToken, this);
-            httpServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            // Use longer timeout (60 seconds) to support WebSocket connections
+            // WebSocket connections are long-lived and need more time between client messages
+            httpServer.start(60000, false);
             isRunning = true;
 
             // Try to open port via UPnP

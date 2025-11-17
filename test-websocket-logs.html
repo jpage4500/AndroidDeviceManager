@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Android Device Manager - Log Stream Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 20px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #4ec9b0;
+        }
+        .controls {
+            background-color: #252526;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .control-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            color: #9cdcfe;
+        }
+        input, button {
+            padding: 5px 10px;
+            margin-right: 10px;
+            background-color: #3c3c3c;
+            color: #d4d4d4;
+            border: 1px solid #555;
+            border-radius: 3px;
+        }
+        button {
+            cursor: pointer;
+            background-color: #0e639c;
+            color: white;
+        }
+        button:hover {
+            background-color: #1177bb;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background-color: #1a472a;
+            color: #4ec9b0;
+        }
+        .status.disconnected {
+            background-color: #3f1f1f;
+            color: #f48771;
+        }
+        .log-container {
+            background-color: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 5px;
+            height: 500px;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        .log-entry.level-E {
+            color: #f48771;
+        }
+        .log-entry.level-W {
+            color: #dcdcaa;
+        }
+        .log-entry.level-I {
+            color: #4ec9b0;
+        }
+        .log-entry.level-D {
+            color: #9cdcfe;
+        }
+        .log-entry.level-V {
+            color: #808080;
+        }
+        .message {
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        .message.info {
+            background-color: #1a3d5c;
+            color: #9cdcfe;
+        }
+        .message.warning {
+            background-color: #4a3a1a;
+            color: #dcdcaa;
+        }
+        .message.error {
+            background-color: #3f1f1f;
+            color: #f48771;
+        }
+        .stats {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #252526;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 Android Device Manager - Log Stream Test</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Server URL:</label>
+                <input type="text" id="serverUrl" value="ws://localhost:8765/ws/logs" style="width: 300px;">
+            </div>
+            <div class="control-group">
+                <label>Auth Token:</label>
+                <input type="password" id="authToken" value="hello" style="width: 300px;">
+            </div>
+            <div class="control-group">
+                <label>Device Serial:</label>
+                <input type="text" id="deviceSerial" value="4A190DLAQ001UT" style="width: 300px;">
+            </div>
+            <div class="control-group">
+                <label>Filter (optional):</label>
+                <input type="text" id="filterText" value="" placeholder="e.g., level:E && tag:*MyTag*" style="width: 300px;">
+            </div>
+            <div class="control-group">
+                <button id="connectBtn" onclick="connect()">Connect</button>
+                <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+                <button id="pauseBtn" onclick="pause()" disabled>Pause</button>
+                <button id="resumeBtn" onclick="resume()" disabled>Resume</button>
+                <button id="clearBtn" onclick="clearLogs()">Clear Logs</button>
+                <button id="applyFilterBtn" onclick="applyFilter()" disabled>Apply Filter</button>
+            </div>
+        </div>
+
+        <div id="status" class="status disconnected">Disconnected</div>
+
+        <div id="messages"></div>
+
+        <div class="log-container" id="logContainer"></div>
+
+        <div class="stats">
+            <span>Total Logs: <strong id="totalLogs">0</strong></span> |
+            <span>Rate: <strong id="logRate">0</strong> logs/sec</span> |
+            <span>Connection Time: <strong id="connTime">-</strong></span>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let logCount = 0;
+        let lastLogCount = 0;
+        let connectTime = null;
+        let isConnected = false;
+        let isPaused = false;
+        let statsInterval = null;
+        let heartbeatInterval = null;
+
+        function connect() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const authToken = document.getElementById('authToken').value;
+            const deviceSerial = document.getElementById('deviceSerial').value;
+            const filterText = document.getElementById('filterText').value;
+
+            if (!authToken || !deviceSerial) {
+                showMessage('error', 'Please provide auth token and device serial');
+                return;
+            }
+
+            // Build WebSocket URL with query parameters
+            let url = `${serverUrl}?token=${encodeURIComponent(authToken)}&serial=${encodeURIComponent(deviceSerial)}`;
+            if (filterText) {
+                url += `&filter=${encodeURIComponent(filterText)}`;
+            }
+
+            showMessage('info', `Connecting to ${serverUrl}...`);
+
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                isConnected = true;
+                connectTime = new Date();
+                updateStatus('connected', 'Connected');
+                updateButtons();
+                showMessage('info', 'WebSocket connection established');
+                startStats();
+                startHeartbeat();
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    handleMessage(message);
+                } catch (e) {
+                    console.error('Error parsing message:', e);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                showMessage('error', 'WebSocket error occurred');
+            };
+
+            ws.onclose = (event) => {
+                isConnected = false;
+                updateStatus('disconnected', `Disconnected (${event.code})`);
+                updateButtons();
+                showMessage('warning', `Connection closed: ${event.reason || 'Unknown reason'}`);
+                stopStats();
+                stopHeartbeat();
+                ws = null;
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+            }
+        }
+
+        function pause() {
+            if (ws && isConnected) {
+                ws.send(JSON.stringify({ action: 'pause' }));
+                isPaused = true;
+                updateButtons();
+            }
+        }
+
+        function resume() {
+            if (ws && isConnected) {
+                ws.send(JSON.stringify({ action: 'resume' }));
+                isPaused = false;
+                updateButtons();
+            }
+        }
+
+        function applyFilter() {
+            if (ws && isConnected) {
+                const filterText = document.getElementById('filterText').value;
+                ws.send(JSON.stringify({
+                    action: 'filter',
+                    filterText: filterText
+                }));
+                showMessage('info', `Applied filter: ${filterText || '(none)'}`);
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('logContainer').innerHTML = '';
+            logCount = 0;
+            updateStats();
+        }
+
+        function handleMessage(message) {
+            const type = message.type;
+
+            switch (type) {
+                case 'connected':
+                    showMessage('info', message.message);
+                    break;
+
+                case 'logs':
+                    displayLogs(message.entries);
+                    break;
+
+                case 'processMap':
+                    console.log('Process map updated:', message.map);
+                    break;
+
+                case 'status':
+                    showMessage('info', `Status: ${message.state}`);
+                    break;
+
+                case 'warning':
+                    showMessage('warning', message.message);
+                    break;
+
+                case 'error':
+                    showMessage('error', message.message);
+                    break;
+
+                default:
+                    console.log('Unknown message type:', type, message);
+            }
+        }
+
+        function displayLogs(entries) {
+            const container = document.getElementById('logContainer');
+            const shouldAutoScroll = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+
+            entries.forEach(entry => {
+                const logDiv = document.createElement('div');
+                logDiv.className = `log-entry level-${entry.level || 'D'}`;
+
+                let logText = '';
+                if (entry.date) logText += `${entry.date} `;
+                if (entry.pid) logText += `${entry.pid} `;
+                if (entry.tid) logText += `${entry.tid} `;
+                if (entry.level) logText += `${entry.level} `;
+                if (entry.tag) logText += `${entry.tag}: `;
+                if (entry.message) logText += entry.message;
+
+                logDiv.textContent = logText;
+                container.appendChild(logDiv);
+                logCount++;
+            });
+
+            if (shouldAutoScroll) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function showMessage(type, text) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = text;
+            messagesDiv.appendChild(messageDiv);
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+
+        function updateStatus(className, text) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${className}`;
+            statusDiv.textContent = text;
+        }
+
+        function updateButtons() {
+            document.getElementById('connectBtn').disabled = isConnected;
+            document.getElementById('disconnectBtn').disabled = !isConnected;
+            document.getElementById('pauseBtn').disabled = !isConnected || isPaused;
+            document.getElementById('resumeBtn').disabled = !isConnected || !isPaused;
+            document.getElementById('applyFilterBtn').disabled = !isConnected;
+        }
+
+        function startStats() {
+            statsInterval = setInterval(updateStats, 1000);
+        }
+
+        function stopStats() {
+            if (statsInterval) {
+                clearInterval(statsInterval);
+                statsInterval = null;
+            }
+        }
+
+        function startHeartbeat() {
+            // Send a ping message every 20 seconds to keep the connection alive
+            heartbeatInterval = setInterval(() => {
+                if (ws && isConnected) {
+                    ws.send(JSON.stringify({ action: 'ping' }));
+                }
+            }, 20000);
+        }
+
+        function stopHeartbeat() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('totalLogs').textContent = logCount;
+
+            const rate = logCount - lastLogCount;
+            document.getElementById('logRate').textContent = rate;
+            lastLogCount = logCount;
+
+            if (connectTime) {
+                const elapsed = Math.floor((new Date() - connectTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('connTime').textContent = `${minutes}m ${seconds}s`;
+            }
+        }
+
+        // Initialize
+        updateButtons();
+    </script>
+</body>
+</html>
+

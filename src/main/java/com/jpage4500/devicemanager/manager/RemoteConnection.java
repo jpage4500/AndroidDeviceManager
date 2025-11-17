@@ -88,9 +88,10 @@ public class RemoteConnection {
         Map<String, String> headers = getDefaultHeaders();
         String url = serverConfig.getUrl() + RemoteHttpServer.API_DEVICES;
         NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
-        log.trace("fetchDevices: response: {}", GsonHelper.toJson(response));
+        //log.trace("fetchDevices: response: {}", GsonHelper.toJson(response));
         if (response.status == 200) {
             List<Device> deviceList = GsonHelper.stringToList(response.body, Device.class);
+            log.trace("fetchDevices: got: {} remote devices", deviceList.size());
             for (Device device : deviceList) {
                 // mark as remote
                 device.remoteConnection = this;
@@ -232,10 +233,10 @@ public class RemoteConnection {
     /**
      * Start streaming logs from remote device via WebSocket
      *
-     * @param deviceSerial  Device serial number
-     * @param lastLogTime   Optional last log time to resume from
-     * @param filterText    Optional filter expression (e.g., "level:E && tag:*MyTag*")
-     * @param listener      Listener to receive log entries
+     * @param deviceSerial Device serial number
+     * @param lastLogTime  Optional last log time to resume from
+     * @param filterText   Optional filter expression (e.g., "level:E && tag:*MyTag*")
+     * @param listener     Listener to receive log entries
      */
     public void startLogging(String deviceSerial, String lastLogTime, String filterText, DeviceManager.DeviceLogListener listener) {
         // Stop any existing session
@@ -258,14 +259,28 @@ public class RemoteConnection {
             public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
                 LogStreamSession session = logStreamSessions.get(deviceSerial);
                 if (session != null) {
-                    // Accumulate message parts
-                    session.messageBuffer.append(data);
+                    synchronized (session.messageBuffer) {
+                        // Accumulate message parts
+                        session.messageBuffer.append(data);
 
-                    if (last) {
-                        // Complete message received
-                        String message = session.messageBuffer.toString();
-                        session.messageBuffer.setLength(0);
-                        handleWebSocketMessage(message, session);
+                        if (log.isTraceEnabled()) {
+                            log.trace("onText: device: {}, chunkSize: {}, last: {}, bufferSize: {}",
+                                deviceSerial, data.length(), last, session.messageBuffer.length());
+                        }
+
+                        if (last) {
+                            // Complete message received
+                            String message = session.messageBuffer.toString();
+                            int messageLength = message.length();
+                            session.messageBuffer.setLength(0);
+
+                            if (log.isDebugEnabled()) {
+                                log.debug("onText: device: {}, complete message received, size: {}",
+                                    deviceSerial, messageLength);
+                            }
+
+                            handleWebSocketMessage(message, session);
+                        }
                     }
                 }
                 return WebSocket.Listener.super.onText(webSocket, data, last);
@@ -396,6 +411,17 @@ public class RemoteConnection {
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> msg = GsonHelper.fromJson(message, Map.class);
+
+            if (msg == null) {
+                // Log first and last 100 chars to help debug truncation
+                String preview = message.length() > 200 ?
+                    message.substring(0, 100) + "..." + message.substring(message.length() - 100) :
+                    message;
+                log.error("handleWebSocketMessage: device: {} failed to parse message, length: {}, preview: {}",
+                    session.deviceSerial, message.length(), preview);
+                return;
+            }
+
             String type = (String) msg.get("type");
 
             if (type == null) {

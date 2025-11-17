@@ -234,6 +234,8 @@ public class DeviceManager {
         // 2) look for devices that are now offline
         for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
             Device device = iterator.next();
+            // ignore remote devices
+            if (device.remoteConnection != null) continue;
             boolean isFound = false;
             for (JadbDevice jadbDevice : devices) {
                 if (device.serial.equals(jadbDevice.getSerial())) {
@@ -1311,15 +1313,13 @@ public class DeviceManager {
      *
      * @param lastLogTime - last log entry (if logging had started previousl) - 10-16 11:34:17.824
      */
-    public void startLogging(Device device, String lastLogTime, DeviceLogListener listener) {
+    public void startLogging(Device device, String lastLogTime, String filterText, DeviceLogListener listener) {
         stopLogging(device);
 
         // Handle remote device via WebSocket
         if (device.remoteConnection != null) {
-            log.debug("startLogging: remote device via WebSocket: {}", device.serial);
-            // For remote devices, we don't support lastLogTime filtering yet
-            // The filter would need to be passed differently
-            device.remoteConnection.startLogging(device.serial, lastLogTime, null, listener);
+            log.debug("startLogging: REMOTE: device: {}, filter:{}", device.serial, filterText);
+            device.remoteConnection.startLogging(device.serial, lastLogTime, filterText, listener);
             return;
         }
 
@@ -1477,7 +1477,6 @@ public class DeviceManager {
     public void stopLogging(Device device) {
         // Handle remote device
         if (device.remoteConnection != null) {
-            log.debug("stopLogging: remote device via WebSocket: {}", device.serial);
             device.remoteConnection.stopLogging(device.serial);
             return;
         }

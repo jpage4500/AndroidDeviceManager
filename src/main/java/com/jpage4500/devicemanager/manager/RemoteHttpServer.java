@@ -239,7 +239,13 @@ public class RemoteHttpServer extends NanoWSD {
 
     private Device getDeviceParam(Map<String, String> params) {
         String serial = params.get("serial");
-        return DeviceManager.getInstance().getDevice(serial);
+        Device device = DeviceManager.getInstance().getDevice(serial);
+        if (device == null) {
+            log.warn("getDeviceParam: device not found: {}", serial);
+        } else if (device.remoteConnection != null) {
+            log.warn("getDeviceParam: remote device not supported: {}", serial);
+        }
+        return device;
     }
 
     /**
@@ -256,8 +262,7 @@ public class RemoteHttpServer extends NanoWSD {
         String filename = params.get("file");
 
         if (path == null || filename == null) {
-            return createBadResponse(
-                "Missing serial, path, or file parameter");
+            return createBadResponse("Missing path, or file parameter");
         }
 
         try {
@@ -286,7 +291,7 @@ public class RemoteHttpServer extends NanoWSD {
 
             return response;
         } catch (Exception e) {
-            log.error("Failed to download file", e);
+            log.error("handleDownloadFile: Failed to download file", e);
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT,
                 "Error downloading file: " + e.getMessage());
         }
@@ -308,8 +313,7 @@ public class RemoteHttpServer extends NanoWSD {
         String filename = params.get("file");
 
         if (path == null || filename == null) {
-            return createBadResponse(
-                "Missing serial, path, or file parameter");
+            return createBadResponse("Missing path, or file parameter");
         }
 
         try {
@@ -342,8 +346,7 @@ public class RemoteHttpServer extends NanoWSD {
             }
 
             if (!tempFile.exists() || tempFile.length() == 0) {
-                return createBadResponse(
-                    "No file data received");
+                return createBadResponse("No file data received");
             }
 
             // Use jadb to push the file to the device
@@ -357,7 +360,7 @@ public class RemoteHttpServer extends NanoWSD {
 
             return createJsonResponse(response);
         } catch (Exception e) {
-            log.error("Failed to upload file", e);
+            log.error("handleUploadFile: Failed to upload file", e);
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("error", "Error uploading file: " + e.getMessage());
@@ -440,32 +443,22 @@ public class RemoteHttpServer extends NanoWSD {
     }
 
     private WebSocket handleLogStreamWebSocket(IHTTPSession handshake, Map<String, String> params) {
-        String serial = params.get("serial");
-        if (serial == null) {
-            log.warn("handleLogStreamWebSocket: no serial");
-            return new RejectWebSocket(handshake, "Missing serial parameter", true);
-        }
-        Device device = DeviceManager.getInstance().getDevice(serial);
+        Device device = getDeviceParam(params);
         if (device == null) {
-            log.warn("handleLogStreamWebSocket: device not found: {}", serial);
             return new RejectWebSocket(handshake, "Device not found", true);
-        }
-        if (device.remoteConnection != null) {
-            log.warn("handleLogStreamWebSocket: remote device unsupported: {}", serial);
-            return new RejectWebSocket(handshake, "Remote device unsupported", true);
         }
         String filterText = params.get("filter");
         LogFilter filter = null;
         if (filterText != null && !filterText.isEmpty()) {
             try {
                 filter = LogFilter.parse(filterText);
-                log.debug("Applying filter to log stream: {}", filterText);
+                log.debug("handleLogStreamWebSocket: filter: {}", filterText);
             } catch (Exception e) {
-                log.warn("Filter parse error: {}", e.getMessage());
+                log.warn("handleLogStreamWebSocket: Filter parse error: {}", e.getMessage());
                 return new RejectWebSocket(handshake, "Invalid filter expression", true);
             }
         }
-        log.info("Opening WebSocket log stream for device: {}", serial);
+        log.info("handleLogStreamWebSocket: Opening WebSocket log stream for device: {}", device.getDisplayName());
         return new LogStreamWebSocket(handshake, device, filter);
     }
 
@@ -475,21 +468,21 @@ public class RemoteHttpServer extends NanoWSD {
         Map<String, String> headers = handshake.getHeaders();
         Map<String, String> params = handshake.getParms();
 
-        log.debug("WebSocket upgrade request: {}", uri);
+        log.debug("openWebSocket: upgrade request: {}", uri);
 
         // Authenticate via query parameter or header
         if (!authenticateClient(params, headers)) {
-            log.warn("Unauthorized WebSocket connection attempt");
+            log.warn("openWebSocket: Unauthorized WebSocket connection attempt");
             return new RejectWebSocket(handshake, "Unauthorized", true);
         }
 
         // Handle log streaming WebSocket
         if (uri.equals(WS_LOGS)) {
             return handleLogStreamWebSocket(handshake, params);
+        } else {
+            log.warn("openWebSocket: Unknown WebSocket endpoint: {}", uri);
+            return new RejectWebSocket(handshake, "Unknown endpoint", true);
         }
-
-        log.warn("Unknown WebSocket endpoint: {}", uri);
-        return new RejectWebSocket(handshake, "Unknown endpoint", true);
     }
 
 }

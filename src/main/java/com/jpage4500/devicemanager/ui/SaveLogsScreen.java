@@ -113,7 +113,7 @@ public class SaveLogsScreen extends BaseScreen {
             entry.saveFile = new File(lastLogsFolder, entry.device.serial + ".txt");
 
             deviceScreen.setDeviceBusy(entry.device, true);
-            DeviceManager.getInstance().startLogging(entry.device, null, new DeviceManager.DeviceLogListener() {
+            DeviceManager.getInstance().startLogging(entry.device, null, null, new DeviceManager.DeviceLogListener() {
                 @Override
                 public void handleLogEntries(List<LogEntry> logEntryList) {
                     if (!isRecording) return;
