@@ -1314,6 +1314,17 @@ public class DeviceManager {
      */
     public void startLogging(Device device, String lastLogTime, DeviceLogListener listener) {
         stopLogging(device);
+
+        // Handle remote device via WebSocket
+        if (device.remoteConnection != null) {
+            log.debug("startLogging: remote device via WebSocket: {}", device.serial);
+            // For remote devices, we don't support lastLogTime filtering yet
+            // The filter would need to be passed differently
+            device.remoteConnection.startLogging(device.serial, lastLogTime, null, listener);
+            return;
+        }
+
+        // Local device - existing implementation
         commandExecutorService.submit(() -> {
             String logStartTime = lastLogTime;
             log.debug("startLogging: {}, from:{}", device.serial, lastLogTime);
@@ -1465,6 +1476,14 @@ public class DeviceManager {
     }
 
     public void stopLogging(Device device) {
+        // Handle remote device
+        if (device.remoteConnection != null) {
+            log.debug("stopLogging: remote device via WebSocket: {}", device.serial);
+            device.remoteConnection.stopLogging(device.serial);
+            return;
+        }
+
+        // Local device
         AtomicBoolean loggingState = getLoggingState(device.serial, false);
         if (loggingState != null && loggingState.get()) {
             log.debug("stopLogging: {}", device.serial);
@@ -1473,6 +1492,11 @@ public class DeviceManager {
     }
 
     public boolean isLogging(Device device) {
+        // Handle remote device
+        if (device.remoteConnection != null) {
+            return device.remoteConnection.isLogging(device.serial);
+        }
+        // Local device
         return isLogging(device.serial);
     }
 

@@ -2,9 +2,10 @@ package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
+import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
-import fi.iki.elonen.NanoHTTPD;
+import fi.iki.elonen.NanoWSD;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,12 +17,13 @@ import java.util.*;
 /**
  * HTTP server that handles remote client requests
  */
-public class RemoteHttpServer extends NanoHTTPD {
+public class RemoteHttpServer extends NanoWSD {
     private static final Logger log = LoggerFactory.getLogger(RemoteHttpServer.class);
 
     public static final String HEADER_IP = "x-client-ip";
     public static final String HEADER_NAME = "x-client-name";
     public static final String HEADER_AUTHORIZATION = "authorization";
+    public static final String BEARER_PREFIX = "Bearer ";
 
     public static final String MIME_JSON = "application/json";
 
@@ -33,6 +35,7 @@ public class RemoteHttpServer extends NanoHTTPD {
     public static final String API_FILES_DOWNLOAD = "/api/files/download";
     public static final String API_FILES_UPLOAD = "/api/files/upload";
     public static final String API_SCREENSHOT = "/api/screenshot";
+    public static final String WS_LOGS = "/ws/logs";
 
     private final String authToken;
     private final RemoteServerManager serverManager;
@@ -46,10 +49,79 @@ public class RemoteHttpServer extends NanoHTTPD {
     }
 
     @Override
+    protected WebSocket openWebSocket(IHTTPSession handshake) {
+        String uri = handshake.getUri();
+        Map<String, String> headers = handshake.getHeaders();
+        Map<String, String> params = handshake.getParms();
+
+        log.debug("WebSocket upgrade request: {}", uri);
+
+        // Authenticate via query parameter or header
+        if (!authenticateClient(params, headers)) {
+            log.warn("Unauthorized WebSocket connection attempt");
+            return null;
+        }
+
+        // Handle log streaming WebSocket
+        if (uri.equals(WS_LOGS)) {
+            return handleLogStreamWebSocket(handshake, params);
+        }
+
+        log.warn("Unknown WebSocket endpoint: {}", uri);
+        return null;
+    }
+
+    /**
+     * authenticate the client using token from params or headers
+     *
+     * @return true if authenticated, false if not
+     */
+    private boolean authenticateClient(Map<String, String> params, Map<String, String> headers) {
+        String token = null;
+        if (params != null) {
+            token = params.get("token");
+        }
+        if (token == null) {
+            token = headers.get(HEADER_AUTHORIZATION);
+            if (TextUtils.startsWith(token, BEARER_PREFIX)) {
+                token = token.substring(BEARER_PREFIX.length());
+            }
+        }
+
+        return TextUtils.equals(token, authToken);
+    }
+
+    private WebSocket handleLogStreamWebSocket(IHTTPSession handshake, Map<String, String> params) {
+        String serial = params.get("serial");
+        if (serial == null) {
+            log.warn("Missing serial parameter for WebSocket log stream");
+            return null;
+        }
+
+        Device device = deviceManager.getDevice(serial);
+        if (device == null || device.remoteConnection != null) {
+            log.warn("Device not found or is remote: {}", serial);
+            return null;
+        }
+
+        // Parse optional filter parameter
+        String filterText = params.get("filter");
+        LogFilter filter = null;
+        if (filterText != null && !filterText.isEmpty()) {
+            filter = LogFilter.parse(filterText);
+            log.debug("Applying filter to log stream: {}", filterText);
+        }
+
+        log.info("Opening WebSocket log stream for device: {}", serial);
+        return new LogStreamWebSocket(handshake, device, filter);
+    }
+
+    @Override
     public Response serve(IHTTPSession session) {
         String uri = session.getUri();
         Method method = session.getMethod();
         Map<String, String> headers = session.getHeaders();
+        Map<String, String> params = session.getParms();
         // client provided IP and name
         String headerIp = safeHeader(headers.get(HEADER_IP));
         String headerName = safeHeader(headers.get(HEADER_NAME));
@@ -68,8 +140,7 @@ public class RemoteHttpServer extends NanoHTTPD {
         log.trace("server: {} {}, ip:{}, name:{}, clientIP:{}", method, uri, clientIp, headerName, headerIp);
 
         // Authenticate
-        String token = headers.get(HEADER_AUTHORIZATION);
-        if (token == null || !token.equals("Bearer " + authToken)) {
+        if (!authenticateClient(params, headers)) {
             return newFixedLengthResponse(Response.Status.UNAUTHORIZED, MIME_PLAINTEXT, "Unauthorized");
         }
 
