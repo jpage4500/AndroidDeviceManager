@@ -49,7 +49,7 @@ public class RemoteServerManager {
 
     public void startServer(int port, String authToken) {
         if (isRunning) {
-            log.warn("Server already running on port {}", this.port);
+            log.warn("startServer: already running on port: {}", this.port);
             return;
         }
 
@@ -71,11 +71,11 @@ public class RemoteServerManager {
             PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, port);
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN, this.authToken);
 
-            log.info("Remote server started on port {} with broadcasting", port);
+            log.info("startServer: port: {}", port);
             if (listener != null) listener.onServerStarted(port);
 
         } catch (IOException e) {
-            log.error("Failed to start server", e);
+            log.error("startServer: error", e);
             if (listener != null) listener.onError(e);
         }
     }
@@ -97,7 +97,7 @@ public class RemoteServerManager {
         isRunning = false;
         connectedClients.clear();
 
-        log.info("Remote server stopped");
+        log.info("stopServer: stopped");
         if (listener != null) listener.onServerStopped();
     }
 
@@ -181,7 +181,7 @@ public class RemoteServerManager {
             int savedPort = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, DEFAULT_PORT);
             String savedToken = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
             // Auto-start the server
-            log.info("Auto-starting server (was enabled on last shutdown)");
+            log.info("initialize: auto-starting server");
             startServer(savedPort, savedToken);
         }
     }
@@ -194,12 +194,12 @@ public class RemoteServerManager {
             try {
                 boolean success = UpnpUtils.openPort(port, "Android Device Manager");
                 if (success) {
-                    log.info("Port {} opened via UPnP", port);
+                    log.info("startUpnp: port: {} opened", port);
                 } else {
-                    log.info("UPnP port forwarding not available or failed for port {}", port);
+                    log.info("startUpnp: port: {} unavailable", port);
                 }
             } catch (Exception e) {
-                log.debug("UPnP port forwarding failed: {}", e.getMessage());
+                log.debug("startUpnp: port: {} failed", port, e);
             }
         }, "UPnP-Open-" + port);
         thread.setDaemon(true);
@@ -214,7 +214,7 @@ public class RemoteServerManager {
             try {
                 UpnpUtils.closePort(port);
             } catch (Exception e) {
-                log.debug("UPnP port closing failed: {}", e.getMessage());
+                log.debug("stopUpnp: port: {} failed", port, e);
             }
         }, "UPnP-Close-" + port);
         thread.setDaemon(true);

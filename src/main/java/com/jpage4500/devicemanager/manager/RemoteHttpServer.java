@@ -5,6 +5,7 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.Utils;
 import fi.iki.elonen.NanoWSD;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -275,7 +276,7 @@ public class RemoteHttpServer extends NanoWSD {
             }
 
             // Determine MIME type
-            String mimeType = getMimeType(filename);
+            String mimeType = Utils.getMimeType(filename);
 
             // Stream the file to the client
             FileInputStream fis = new FileInputStream(tempFile);
@@ -363,28 +364,6 @@ public class RemoteHttpServer extends NanoWSD {
             String json = GsonHelper.toJson(response);
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_JSON, json);
         }
-    }
-
-    /**
-     * Determine MIME type from filename
-     */
-    private String getMimeType(String filename) {
-        String lower = getString(filename);
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-        if (lower.endsWith(".png")) return "image/png";
-        if (lower.endsWith(".gif")) return "image/gif";
-        if (lower.endsWith(".txt")) return "text/plain";
-        if (lower.endsWith(".json")) return MIME_JSON;
-        if (lower.endsWith(".xml")) return "application/xml";
-        if (lower.endsWith(".pdf")) return "application/pdf";
-        if (lower.endsWith(".zip")) return "application/zip";
-        if (lower.endsWith(".apk")) return "application/vnd.android.package-archive";
-        return "application/octet-stream";
-    }
-
-    private static String getString(String filename) {
-        String lower = filename.toLowerCase();
-        return lower;
     }
 
     /**

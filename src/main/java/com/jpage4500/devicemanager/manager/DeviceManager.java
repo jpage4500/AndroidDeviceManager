@@ -3,7 +3,6 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.*;
@@ -119,12 +118,12 @@ public class DeviceManager {
         remoteConnectionManager.setListener(new RemoteConnectionManager.ConnectionListener() {
             @Override
             public void onConnectionEstablished(RemoteConnection connection) {
-                log.debug("onConnectionEstablished: {}", connection);
+                //log.trace("onConnectionEstablished: {}", connection);
             }
 
             @Override
             public void onConnectionLost(RemoteConnection connection) {
-                log.debug("onConnectionLost: {}", connection);
+                log.trace("onConnectionLost: {}", connection);
                 // Remove devices from this server
                 synchronized (deviceList) {
                     deviceList.removeIf(d -> d.remoteConnection == connection);

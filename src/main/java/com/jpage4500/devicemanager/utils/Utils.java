@@ -3,8 +3,8 @@ package com.jpage4500.devicemanager.utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.swing.Timer;
 import javax.swing.*;
+import javax.swing.Timer;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
@@ -244,6 +244,24 @@ public class Utils {
         if (sizeInBytes <= 0) return String.valueOf(sizeInBytes);
         int digitGroups = (int) (Math.log10(sizeInBytes) / Math.log10(1024));
         return sizeDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + SIZE_UNITS[digitGroups];
+    }
+
+    /**
+     * Determine MIME type from filename
+     */
+    public static String getMimeType(String filename) {
+        if (filename == null) return null;
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".txt")) return "text/plain";
+        if (lower.endsWith(".json")) return "application/json";
+        if (lower.endsWith(".xml")) return "application/xml";
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        if (lower.endsWith(".zip")) return "application/zip";
+        if (lower.endsWith(".apk")) return "application/vnd.android.package-archive";
+        return "application/octet-stream";
     }
 
 }

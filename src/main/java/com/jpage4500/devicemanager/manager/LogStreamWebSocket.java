@@ -222,9 +222,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
         }
 
         if (dropped > 0) {
-            sendMessage(TYPE_WARNING, Map.of(
-                "message", "Dropped " + dropped + " log entries due to buffer overflow"
-            ));
+            sendMessage(TYPE_WARNING, Map.of("message", "Dropped " + dropped + " log entries due to buffer overflow"));
         }
     }
 
@@ -238,7 +236,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
 
     private void handleResume() {
         if (isPaused.compareAndSet(true, false)) {
-            log.debug("handleResume: device: {}", device.serial);
+            log.trace("handleResume: device: {}", device.serial);
             startLogging();
             sendMessage(TYPE_STATUS, Map.of("state", "resumed"));
         }
@@ -248,15 +246,12 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
         String filterText = (String) controlMessage.get("filterText");
         if (filterText == null || filterText.isEmpty()) {
             filter = null;
-            log.debug("handleFilterUpdate: device: {} cleared", device.serial);
+            log.trace("handleFilterUpdate: device: {} cleared", device.serial);
         } else {
             filter = LogFilter.parse(filterText);
-            log.debug("handleFilterUpdate: device: {} filter: {}", device.serial, filterText);
+            log.trace("handleFilterUpdate: device: {} filter: {}", device.serial, filterText);
         }
-        sendMessage(TYPE_STATUS, Map.of(
-            "state", "filter_updated",
-            "filter", filterText != null ? filterText : ""
-        ));
+        sendMessage(TYPE_STATUS, Map.of("state", "filter_updated", "filter", filterText != null ? filterText : ""));
     }
 
     private void sendMessage(String type, Map<String, Object> data) {
@@ -296,7 +291,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
             batchBuffer.clear();
         }
 
-        log.debug("cleanup: device: {}", device.serial);
+        log.trace("cleanup: device: {}", device.serial);
     }
 }
 

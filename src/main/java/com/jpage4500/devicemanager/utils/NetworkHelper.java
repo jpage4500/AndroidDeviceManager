@@ -6,9 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
@@ -28,7 +26,6 @@ public class NetworkHelper {
      * GET request
      */
     public HttpResponse getRequest(String urlStr) {
-        // TODO: come up with some default headers
         return getRequest(urlStr, null);
     }
 
@@ -38,29 +35,12 @@ public class NetworkHelper {
     public HttpResponse getRequest(String urlStr, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
         try {
-            URL url = new URL(urlStr);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
-            conn.setInstanceFollowRedirects(false);
-
+            HttpURLConnection conn = createConnection(urlStr);
             addHeaders(conn, headers);
 
             response.status = conn.getResponseCode();
-            log.debug("getRequest: {}, http:{}", urlStr, response.status);
-            // http:302 has no body
-            if (conn.getContentLength() == 0) return response;
-
-            InputStream inputStream = getInputStream(conn);
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line);
-                }
-                response.body = sb.toString();
-            }
+            response.body = readResponse(conn);
+            log.trace("getRequest: {}, http:{}", urlStr, response.status);
         } catch (Exception e) {
             log.error("getRequest: error connecting to hub: {}, {}", urlStr, e.getMessage());
             response.status = -1;
@@ -73,7 +53,6 @@ public class NetworkHelper {
      * POST request
      */
     public HttpResponse postRequest(String urlStr, String body) {
-        // TODO: come up with some default headers
         return postRequest(urlStr, body, null);
     }
 
@@ -83,14 +62,7 @@ public class NetworkHelper {
     public HttpResponse postRequest(String urlStr, String body, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
         try {
-            URL url = new URL(urlStr);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
-            conn.setInstanceFollowRedirects(false);
-            conn.setDoOutput(true);
-
+            HttpURLConnection conn = createPostConnection(urlStr);
             addHeaders(conn, headers);
 
             // Send body
@@ -100,19 +72,8 @@ public class NetworkHelper {
             }
 
             response.status = conn.getResponseCode();
-            log.debug("postRequest: {}, http:{}, body:{}", urlStr, response.status, body);
-            // http:302 has no body
-            if (conn.getContentLength() == 0) return response;
-
-            InputStream inputStream = getInputStream(conn);
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line.trim());
-                }
-                response.body = sb.toString();
-            }
+            log.trace("postRequest: {}, http:{}, body:{}", urlStr, response.status, body);
+            response.body = readResponse(conn);
             // only log body if error
             if (response.status != 200) {
                 log.trace("postRequest: {}", response.body);
@@ -131,13 +92,7 @@ public class NetworkHelper {
     public HttpResponse download(String urlStr, File file, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
         try {
-            URL url = new URL(urlStr);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
-            conn.setInstanceFollowRedirects(false);
-
+            HttpURLConnection conn = createConnection(urlStr);
             addHeaders(conn, headers);
 
             DataInputStream dis = new DataInputStream(conn.getInputStream());
@@ -152,7 +107,7 @@ public class NetworkHelper {
             dis.close();
             response.status = conn.getResponseCode();
         } catch (Exception e) {
-            log.error("postRequest: error connecting to hub: {}, {}", urlStr, e.getMessage());
+            log.error("download: error connecting to hub: {}, {}", urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
         }
@@ -165,13 +120,7 @@ public class NetworkHelper {
     public HttpResponse upload(String urlStr, File file, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
         try {
-            URL url = new URL(urlStr);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
-            conn.setInstanceFollowRedirects(false);
-            conn.setDoOutput(true);
+            HttpURLConnection conn = createPostConnection(urlStr);
 
             // Set content type for file upload
             String boundary = "===" + System.currentTimeMillis() + "===";
@@ -207,20 +156,9 @@ public class NetworkHelper {
             }
 
             response.status = conn.getResponseCode();
-            log.debug("upload: {}, http:{}, file:{}", urlStr, response.status, file.getName());
-
+            log.trace("upload: {}, http:{}, file:{}", urlStr, response.status, file.getName());
             // Read response if available
-            if (conn.getContentLength() != 0) {
-                InputStream inputStream = getInputStream(conn);
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = br.readLine()) != null) {
-                        sb.append(line.trim());
-                    }
-                    response.body = sb.toString();
-                }
-            }
+            response.body = readResponse(conn);
 
             // Log body if error
             if (response.status != 200 && response.body != null) {
@@ -232,6 +170,43 @@ public class NetworkHelper {
             response.body = e.getMessage();
         }
         return response;
+    }
+
+    /**
+     * create HttpURLConnection (GET)
+     */
+    private HttpURLConnection createConnection(String urlStr) throws IOException {
+        URL url = new URL(urlStr);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setConnectTimeout(CONNECT_TIMEOUT);
+        conn.setReadTimeout(READ_TIMEOUT);
+        return conn;
+    }
+
+    /**
+     * create HttpURLConnection (POST)
+     */
+    private HttpURLConnection createPostConnection(String urlStr) throws IOException {
+        HttpURLConnection connection = createConnection(urlStr);
+        connection.setRequestMethod("POST");
+        connection.setDoOutput(true);
+        return connection;
+    }
+
+    private String readResponse(HttpURLConnection conn) throws IOException {
+        if (conn.getContentLength() != 0) {
+            InputStream inputStream = getInputStream(conn);
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sb.append(line.trim());
+                }
+                return sb.toString();
+            }
+        }
+        return null;
     }
 
     private InputStream getInputStream(HttpURLConnection conn) throws IOException {
@@ -247,23 +222,12 @@ public class NetworkHelper {
     }
 
     private void addHeaders(HttpURLConnection conn, Map<String, String> headers) {
-        // Set request headers if provided
-        boolean hasReferer = false;
         if (headers != null) {
-            //log.trace("addHeaders: {}", GsonHelper.toJson(headers));
             for (Map.Entry<String, String> entry : headers.entrySet()) {
                 String key = entry.getKey();
-                if ("Referer".equalsIgnoreCase(key)) {
-                    hasReferer = true;
-                }
                 String value = entry.getValue();
                 conn.setRequestProperty(key, value);
             }
-        }
-        if (!hasReferer) {
-            // always add referer header
-            conn.setRequestProperty("Referer", conn.getURL().toString());
-            //log.trace("addHeaders: Referer: {}", conn.getURL().toString());
         }
     }
 
