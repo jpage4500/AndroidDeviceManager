@@ -10,12 +10,14 @@ import com.jpage4500.devicemanager.utils.NetworkHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,6 +41,8 @@ public class RemoteConnection {
 
     // WebSocket log streaming
     private final Map<String, LogStreamSession> logStreamSessions = new ConcurrentHashMap<>();
+    // WebSocket screen streaming
+    private final Map<String, ScreenStreamSession> screenStreamSessions = new ConcurrentHashMap<>();
     private HttpClient httpClient;
 
     public RemoteConnection(RemoteServerConfig config) {
@@ -544,6 +548,322 @@ public class RemoteConnection {
             log.debug("sendControlMessage: action: {}", action);
         } catch (Exception e) {
             log.error("sendControlMessage: error", e);
+        }
+    }
+
+    // ========================================================================
+    // Screen Streaming
+    // ========================================================================
+
+    /**
+     * Listener for screen stream frames
+     */
+    public interface ScreenStreamListener {
+        void onFrame(java.awt.image.BufferedImage image, int width, int height);
+        void onStatus(String status, String message);
+        void onError(String error);
+        void onClosed();
+    }
+
+    /**
+     * Represents an active screen streaming session
+     */
+    private static class ScreenStreamSession {
+        WebSocket webSocket;
+        ScreenStreamListener listener;
+        String deviceSerial;
+        ByteArrayOutputStream dataBuffer = new ByteArrayOutputStream();
+        int expectedHeaderLength = -1;
+        byte[] currentHeader = null;
+        int currentImageSize = 0;
+
+        ScreenStreamSession(WebSocket ws, ScreenStreamListener listener, String serial) {
+            this.webSocket = ws;
+            this.listener = listener;
+            this.deviceSerial = serial;
+        }
+    }
+
+    /**
+     * Start streaming screen from remote device via WebSocket
+     */
+    public void startScreenStream(String deviceSerial, int intervalMs, ScreenStreamListener listener) {
+        // Stop any existing session
+        stopScreenStream(deviceSerial);
+
+        log.debug("startScreenStream: serial: {}, intervalMs: {}", deviceSerial, intervalMs);
+
+        // Build WebSocket URL
+        String wsUrl = buildScreenStreamUrl(deviceSerial, intervalMs);
+
+        // Create WebSocket listener
+        WebSocket.Listener wsListener = new WebSocket.Listener() {
+            @Override
+            public void onOpen(WebSocket webSocket) {
+                log.info("onOpen: screen stream device: {}", deviceSerial);
+                WebSocket.Listener.super.onOpen(webSocket);
+            }
+
+            @Override
+            public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
+                ScreenStreamSession session = screenStreamSessions.get(deviceSerial);
+                if (session != null) {
+                    try {
+                        handleScreenStreamBinary(data, last, session);
+                    } catch (Exception e) {
+                        log.error("onBinary: error handling data", e);
+                    }
+                }
+                return WebSocket.Listener.super.onBinary(webSocket, data, last);
+            }
+
+            @Override
+            public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+                ScreenStreamSession session = screenStreamSessions.get(deviceSerial);
+                if (session != null && last) {
+                    handleScreenStreamText(data.toString(), session);
+                }
+                return WebSocket.Listener.super.onText(webSocket, data, last);
+            }
+
+            @Override
+            public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+                log.info("onClose: screen stream device: {}, code: {}, reason: {}", deviceSerial, statusCode, reason);
+                ScreenStreamSession session = screenStreamSessions.remove(deviceSerial);
+                if (session != null && session.listener != null) {
+                    session.listener.onClosed();
+                }
+                return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
+            }
+
+            @Override
+            public void onError(WebSocket webSocket, Throwable error) {
+                log.error("onError: screen stream device: {}", deviceSerial, error);
+                ScreenStreamSession session = screenStreamSessions.remove(deviceSerial);
+                if (session != null && session.listener != null) {
+                    session.listener.onError("WebSocket error: " + error.getMessage());
+                }
+                WebSocket.Listener.super.onError(webSocket, error);
+            }
+        };
+
+        // Connect WebSocket
+        try {
+            CompletableFuture<WebSocket> wsFuture = httpClient.newWebSocketBuilder()
+                .buildAsync(URI.create(wsUrl), wsListener);
+
+            wsFuture.whenComplete((ws, throwable) -> {
+                if (throwable != null) {
+                    log.error("startScreenStream: device: {} failed", deviceSerial, throwable);
+                    listener.onError("Failed to connect: " + throwable.getMessage());
+                } else {
+                    // Store session
+                    ScreenStreamSession session = new ScreenStreamSession(ws, listener, deviceSerial);
+                    screenStreamSessions.put(deviceSerial, session);
+                    log.debug("startScreenStream: device: {} session created", deviceSerial);
+                }
+            });
+        } catch (Exception e) {
+            log.error("startScreenStream: device: {} error", deviceSerial, e);
+            listener.onError("Failed to start: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Stop streaming screen from remote device
+     */
+    public void stopScreenStream(String deviceSerial) {
+        ScreenStreamSession session = screenStreamSessions.remove(deviceSerial);
+        if (session != null && session.webSocket != null) {
+            log.debug("stopScreenStream: device: {}", deviceSerial);
+            session.webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "Client closing")
+                .whenComplete((ws, throwable) -> {
+                    if (throwable != null) {
+                        log.warn("stopScreenStream: device: {} error closing", deviceSerial, throwable);
+                    }
+                });
+        }
+    }
+
+    /**
+     * Send tap input to remote device
+     */
+    public void sendScreenInputTap(String deviceSerial, int x, int y) {
+        ScreenStreamSession session = screenStreamSessions.get(deviceSerial);
+        if (session != null && session.webSocket != null) {
+            Map<String, Object> message = new HashMap<>();
+            message.put("action", ScreenStreamWebSocket.ACTION_INPUT);
+            message.put("type", ScreenStreamWebSocket.INPUT_TAP);
+            message.put("x", x);
+            message.put("y", y);
+            sendScreenControlMessage(session.webSocket, message);
+        }
+    }
+
+    /**
+     * Send swipe input to remote device
+     */
+    public void sendScreenInputSwipe(String deviceSerial, int x1, int y1, int x2, int y2, int duration) {
+        ScreenStreamSession session = screenStreamSessions.get(deviceSerial);
+        if (session != null && session.webSocket != null) {
+            Map<String, Object> message = new HashMap<>();
+            message.put("action", ScreenStreamWebSocket.ACTION_INPUT);
+            message.put("type", ScreenStreamWebSocket.INPUT_SWIPE);
+            message.put("x1", x1);
+            message.put("y1", y1);
+            message.put("x2", x2);
+            message.put("y2", y2);
+            message.put("duration", duration);
+            sendScreenControlMessage(session.webSocket, message);
+        }
+    }
+
+    /**
+     * Send text input to remote device
+     */
+    public void sendScreenInputText(String deviceSerial, String text) {
+        ScreenStreamSession session = screenStreamSessions.get(deviceSerial);
+        if (session != null && session.webSocket != null) {
+            Map<String, Object> message = new HashMap<>();
+            message.put("action", ScreenStreamWebSocket.ACTION_INPUT);
+            message.put("type", ScreenStreamWebSocket.INPUT_TEXT);
+            message.put("text", text);
+            sendScreenControlMessage(session.webSocket, message);
+        }
+    }
+
+    /**
+     * Send keyevent to remote device
+     */
+    public void sendScreenInputKeyEvent(String deviceSerial, int keycode) {
+        ScreenStreamSession session = screenStreamSessions.get(deviceSerial);
+        if (session != null && session.webSocket != null) {
+            Map<String, Object> message = new HashMap<>();
+            message.put("action", ScreenStreamWebSocket.ACTION_INPUT);
+            message.put("type", ScreenStreamWebSocket.INPUT_KEYEVENT);
+            message.put("keycode", keycode);
+            sendScreenControlMessage(session.webSocket, message);
+        }
+    }
+
+    /**
+     * Set screen stream interval
+     */
+    public void setScreenStreamInterval(String deviceSerial, int intervalMs) {
+        ScreenStreamSession session = screenStreamSessions.get(deviceSerial);
+        if (session != null && session.webSocket != null) {
+            Map<String, Object> message = new HashMap<>();
+            message.put("action", ScreenStreamWebSocket.ACTION_SET_INTERVAL);
+            message.put("intervalMs", intervalMs);
+            sendScreenControlMessage(session.webSocket, message);
+        }
+    }
+
+    private String buildScreenStreamUrl(String deviceSerial, int intervalMs) {
+        String baseUrl = serverConfig.getUrl();
+        String wsUrl = baseUrl.replace("http://", "ws://").replace("https://", "wss://");
+
+        StringBuilder url = new StringBuilder(wsUrl);
+        url.append(RemoteHttpServer.WS_SCREEN);
+        url.append("?token=").append(URLEncoder.encode(serverConfig.authToken, StandardCharsets.UTF_8));
+        url.append("&serial=").append(URLEncoder.encode(deviceSerial, StandardCharsets.UTF_8));
+        url.append("&intervalMs=").append(intervalMs);
+
+        return url.toString();
+    }
+
+    private void handleScreenStreamBinary(ByteBuffer data, boolean last, ScreenStreamSession session) {
+        try {
+            // Append data to buffer
+            byte[] bytes = new byte[data.remaining()];
+            data.get(bytes);
+            session.dataBuffer.write(bytes);
+
+            if (!last) {
+                return; // Wait for complete message
+            }
+
+            // Complete binary message received
+            byte[] fullData = session.dataBuffer.toByteArray();
+            session.dataBuffer.reset();
+
+            if (fullData.length < 4) {
+                log.warn("handleScreenStreamBinary: insufficient data");
+                return;
+            }
+
+            // Parse frame: 4-byte header length + header JSON + PNG image
+            ByteBuffer buffer = ByteBuffer.wrap(fullData);
+            int headerLength = buffer.getInt();
+
+            if (fullData.length < 4 + headerLength) {
+                log.warn("handleScreenStreamBinary: incomplete header");
+                return;
+            }
+
+            byte[] headerBytes = new byte[headerLength];
+            buffer.get(headerBytes);
+            String headerJson = new String(headerBytes, StandardCharsets.UTF_8);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> header = GsonHelper.fromJson(headerJson, Map.class);
+
+            if (header == null) {
+                log.warn("handleScreenStreamBinary: invalid header JSON");
+                return;
+            }
+
+            int imageSize = buffer.remaining();
+            byte[] imageBytes = new byte[imageSize];
+            buffer.get(imageBytes);
+
+            // Decode PNG image
+            java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(imageBytes);
+            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(bais);
+
+            if (image != null) {
+                int width = ((Number) header.get("width")).intValue();
+                int height = ((Number) header.get("height")).intValue();
+                session.listener.onFrame(image, width, height);
+            } else {
+                log.warn("handleScreenStreamBinary: failed to decode image");
+            }
+
+        } catch (Exception e) {
+            log.error("handleScreenStreamBinary: error", e);
+            session.listener.onError("Frame decode error: " + e.getMessage());
+        }
+    }
+
+    private void handleScreenStreamText(String message, ScreenStreamSession session) {
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> msg = GsonHelper.fromJson(message, Map.class);
+            if (msg == null) return;
+
+            String type = (String) msg.get("type");
+            if ("status".equals(type)) {
+                String status = (String) msg.get("status");
+                String statusMsg = (String) msg.get("message");
+                session.listener.onStatus(status, statusMsg);
+            } else if ("error".equals(type)) {
+                String error = (String) msg.get("error");
+                session.listener.onError(error);
+            }
+        } catch (Exception e) {
+            log.error("handleScreenStreamText: error", e);
+        }
+    }
+
+    private void sendScreenControlMessage(WebSocket webSocket, Map<String, Object> message) {
+        try {
+            String json = GsonHelper.toJson(message);
+            webSocket.sendText(json, true);
+            if (log.isTraceEnabled()) {
+                log.trace("sendScreenControlMessage: {}", json);
+            }
+        } catch (Exception e) {
+            log.error("sendScreenControlMessage: error", e);
         }
     }
 

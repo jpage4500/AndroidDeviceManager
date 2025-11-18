@@ -12,6 +12,7 @@ import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
 import javax.imageio.ImageIO;
+import javax.swing.SwingUtilities;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -767,6 +768,25 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
      * run scrcpy app to mirror device
      */
     public void mirrorDevice(Device device, TaskListener listener) {
+        // Handle remote devices differently
+        if (device.remoteConnection != null) {
+            log.debug("mirrorDevice: remote device: {}", device.getDisplayName());
+            // Show remote screen window on UI thread
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    com.jpage4500.devicemanager.ui.RemoteScreenWindow window =
+                        new com.jpage4500.devicemanager.ui.RemoteScreenWindow(device);
+                    window.setVisible(true);
+                    listener.onTaskComplete(true, null);
+                } catch (Exception e) {
+                    log.error("mirrorDevice: error showing remote screen", e);
+                    listener.onTaskComplete(false, "Failed to open remote screen: " + e.getMessage());
+                }
+            });
+            return;
+        }
+
+        // Local device - use scrcpy
         commandExecutorService.submit(() -> {
             log.debug("mirrorDevice: {}", device.getDisplayName());
             AppResult appResult = null;

@@ -45,6 +45,7 @@ public class RemoteHttpServer extends NanoWSD {
     public static final String API_FILES_UPLOAD = "/api/files/upload";
     public static final String API_SCREENSHOT = "/api/screenshot";
     public static final String WS_LOGS = "/ws/logs";
+    public static final String WS_SCREEN = "/ws/screen";
 
     private final String authToken;
     private final RemoteServerManager serverManager;
@@ -486,10 +487,32 @@ public class RemoteHttpServer extends NanoWSD {
         // Handle log streaming WebSocket
         if (uri.equals(WS_LOGS)) {
             return handleLogStreamWebSocket(handshake, params);
+        } else if (uri.equals(WS_SCREEN)) {
+            return handleScreenStreamWebSocket(handshake, params);
         } else {
             log.warn("openWebSocket: Unknown WebSocket endpoint: {}", uri);
             return new RejectWebSocket(handshake, "Unknown endpoint", true);
         }
+    }
+
+    /**
+     * Handle screen streaming WebSocket connection
+     */
+    private WebSocket handleScreenStreamWebSocket(IHTTPSession handshake, Map<String, String> params) {
+        String serial = params.get("serial");
+        if (serial == null) {
+            log.warn("handleScreenStreamWebSocket: Missing serial parameter");
+            return new RejectWebSocket(handshake, "Missing serial parameter", true);
+        }
+
+        Device device = DeviceManager.getInstance().getDevice(serial);
+        if (device == null) {
+            log.warn("handleScreenStreamWebSocket: Device not found: {}", serial);
+            return new RejectWebSocket(handshake, "Device not found", true);
+        }
+
+        log.info("handleScreenStreamWebSocket: Opening WebSocket screen stream for device: {}", device.getDisplayName());
+        return new ScreenStreamWebSocket(handshake, device);
     }
 
 }
