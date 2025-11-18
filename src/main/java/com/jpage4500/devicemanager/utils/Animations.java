@@ -11,27 +11,50 @@ public final class Animations {
     // Unified colors for all animations
     public static final Color MAIN_COLOR = new Color(0, 255, 180);
     public static final Color GLOW_COLOR = new Color(0, 255, 180, 80);
+    // Long press specific color (warmer to differentiate)
+    public static final Color LONG_PRESS_COLOR = new Color(255, 160, 0);
+    public static final Color LONG_PRESS_GLOW = new Color(255, 160, 0, 70);
 
     private Animations() { /* no instances */ }
 
-    /** Base animation class with timing and progress helpers */
+    /**
+     * Base animation class with timing and progress helpers
+     */
     public abstract static class Animation {
         protected final long startTime = System.currentTimeMillis();
         protected final int durationMs;
-        protected Animation(int durationMs) { this.durationMs = durationMs; }
-        public boolean isFinished() { return System.currentTimeMillis() - startTime >= durationMs; }
-        public double progress() { return Math.min(1.0, (System.currentTimeMillis() - startTime) / (double) durationMs); }
+
+        protected Animation(int durationMs) {
+            this.durationMs = durationMs;
+        }
+
+        public boolean isFinished() {
+            return System.currentTimeMillis() - startTime >= durationMs;
+        }
+
+        public double progress() {
+            return Math.min(1.0, (System.currentTimeMillis() - startTime) / (double) durationMs);
+        }
+
         public abstract void paint(Graphics2D g);
     }
 
-    /** Tap (click) animation: expanding ring with glow and inner pulse */
+    /**
+     * Tap (click) animation: expanding ring with glow and inner pulse
+     */
     public static class TapAnimation extends Animation {
         private final int x, y;
         private final int maxRadius = 30; // tuned size
         private static final int TAP_GROW_MS = 200;
         private static final int TAP_HOLD_MS = 50;
         private static final int TAP_FADE_MS = 350;
-        public TapAnimation(int x, int y) { super(TAP_GROW_MS + TAP_HOLD_MS + TAP_FADE_MS); this.x = x; this.y = y; }
+
+        public TapAnimation(int x, int y) {
+            super(TAP_GROW_MS + TAP_HOLD_MS + TAP_FADE_MS);
+            this.x = x;
+            this.y = y;
+        }
+
         @Override
         public void paint(Graphics2D g) {
             long elapsed = System.currentTimeMillis() - startTime;
@@ -52,15 +75,97 @@ public final class Animations {
             g2.setColor(MAIN_COLOR);
             g2.drawOval(x - outerR, y - outerR, outerR * 2, outerR * 2);
             double pulseScale;
-            if (elapsed < TAP_GROW_MS) pulseScale = pGrow; else if (elapsed < TAP_GROW_MS + TAP_HOLD_MS) pulseScale = 1.0; else pulseScale = 1.0 - ((elapsed - TAP_GROW_MS - TAP_HOLD_MS) / (double) TAP_FADE_MS) * 0.3;
+            if (elapsed < TAP_GROW_MS) pulseScale = pGrow;
+            else if (elapsed < TAP_GROW_MS + TAP_HOLD_MS) pulseScale = 1.0;
+            else pulseScale = 1.0 - ((elapsed - TAP_GROW_MS - TAP_HOLD_MS) / (double) TAP_FADE_MS) * 0.3;
             int pulseR = (int) (innerR * pulseScale);
-            g2.setColor(new Color(MAIN_COLOR.getRed(), MAIN_COLOR.getGreen(), MAIN_COLOR.getBlue(), (int)(150 * alpha)));
+            g2.setColor(new Color(MAIN_COLOR.getRed(), MAIN_COLOR.getGreen(), MAIN_COLOR.getBlue(), (int) (150 * alpha)));
             g2.fillOval(x - pulseR, y - pulseR, pulseR * 2, pulseR * 2);
             g2.dispose();
         }
     }
 
-    /** Swipe (gesture) animation: directional arrow with glow and start marker */
+    // NEW: Long press animation: slower expanding dual-ring with pulsing inner fill
+    public static class LongPressAnimation extends Animation {
+        private final int x, y;
+        private static final int GROW_MS = 450; // slower growth
+        private static final int HOLD_MS = 250; // hold at full size
+        private static final int FADE_MS = 500; // fade out
+        private static final int MAX_RADIUS = 46; // larger than tap
+        private static final int INNER_BASE_RADIUS = 18;
+
+        public LongPressAnimation(int x, int y) {
+            super(GROW_MS + HOLD_MS + FADE_MS);
+            this.x = x;
+            this.y = y;
+        }
+
+        @Override
+        public void paint(Graphics2D g) {
+            long elapsed = System.currentTimeMillis() - startTime;
+            if (elapsed >= durationMs) return;
+            float alpha;
+            if (elapsed < GROW_MS + HOLD_MS) {
+                alpha = 1f;
+            } else {
+                float fadeProgress = (elapsed - GROW_MS - HOLD_MS) / (float) FADE_MS;
+                alpha = 1f - Math.min(1f, fadeProgress);
+            }
+            if (alpha <= 0f) return;
+
+            double growProgress = Math.min(1.0, elapsed / (double) GROW_MS);
+            int outerR = (int) (MAX_RADIUS * growProgress);
+            int innerR;
+            if (elapsed < GROW_MS) {
+                innerR = (int) (INNER_BASE_RADIUS * (0.6 + growProgress * 0.4));
+            } else if (elapsed < GROW_MS + HOLD_MS) {
+                innerR = (int) (INNER_BASE_RADIUS * 1.0);
+            } else {
+                double fadeProgress = (elapsed - GROW_MS - HOLD_MS) / (double) FADE_MS;
+                innerR = (int) (INNER_BASE_RADIUS * (1.0 - fadeProgress * 0.25));
+            }
+
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+
+            // Glow ring (thicker than tap)
+            if (outerR > 0) {
+                g2.setStroke(new BasicStroke(14f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(LONG_PRESS_GLOW);
+                g2.drawOval(x - outerR, y - outerR, outerR * 2, outerR * 2);
+            }
+            // Main ring
+            g2.setStroke(new BasicStroke(5f));
+            g2.setColor(LONG_PRESS_COLOR);
+            g2.drawOval(x - outerR, y - outerR, outerR * 2, outerR * 2);
+
+            // Pulsing inner fill (subtle breathing effect)
+            double pulsePeriodMs = 220.0;
+            double pulsePhase = (elapsed % pulsePeriodMs) / pulsePeriodMs; // 0..1
+            double pulseScale = 0.85 + Math.sin(pulsePhase * Math.PI * 2) * 0.15; // 0.7..1.0
+            int pulseR = (int) (innerR * pulseScale);
+            int pulseAlpha = (int) (160 * alpha);
+            g2.setColor(new Color(LONG_PRESS_COLOR.getRed(), LONG_PRESS_COLOR.getGreen(), LONG_PRESS_COLOR.getBlue(), pulseAlpha));
+            g2.fillOval(x - pulseR, y - pulseR, pulseR * 2, pulseR * 2);
+
+            // Secondary faint outer pulse appears after growth complete
+            if (elapsed >= GROW_MS) {
+                double secondaryPhase = ((elapsed - GROW_MS) % 400) / 400.0;
+                int secR = (int) (outerR * (0.9 + secondaryPhase * 0.3));
+                int secAlpha = (int) (60 * (1.0 - secondaryPhase) * alpha);
+                if (secAlpha > 5) {
+                    g2.setColor(new Color(LONG_PRESS_COLOR.getRed(), LONG_PRESS_COLOR.getGreen(), LONG_PRESS_COLOR.getBlue(), secAlpha));
+                    g2.drawOval(x - secR, y - secR, secR * 2, secR * 2);
+                }
+            }
+            g2.dispose();
+        }
+    }
+
+    /**
+     * Swipe (gesture) animation: directional arrow with glow and start marker
+     */
     public static class SwipeAnimation extends Animation {
         private final int x1, y1, x2, y2;
         private static final int GROWTH_MS = 250;
@@ -68,7 +173,15 @@ public final class Animations {
         private static final int FADE_MS = 350;
         private static final double HEAD_LEN = 32;
         private static final double HEAD_WIDTH = 26;
-        public SwipeAnimation(int x1, int y1, int x2, int y2) { super(GROWTH_MS + HOLD_MS + FADE_MS); this.x1 = x1; this.y1 = y1; this.x2 = x2; this.y2 = y2; }
+
+        public SwipeAnimation(int x1, int y1, int x2, int y2) {
+            super(GROWTH_MS + HOLD_MS + FADE_MS);
+            this.x1 = x1;
+            this.y1 = y1;
+            this.x2 = x2;
+            this.y2 = y2;
+        }
+
         @Override
         public void paint(Graphics2D g) {
             long elapsed = System.currentTimeMillis() - startTime;
@@ -94,7 +207,8 @@ public final class Animations {
             Graphics2D gGlow = (Graphics2D) g.create();
             gGlow.setStroke(new BasicStroke(10f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             gGlow.setColor(GLOW_COLOR);
-            if (lineLen > 0) gGlow.drawLine(x1, y1, (int) lineEndX, (int) lineEndY); else gGlow.drawLine(x1, y1, (int) tipX, (int) tipY);
+            if (lineLen > 0) gGlow.drawLine(x1, y1, (int) lineEndX, (int) lineEndY);
+            else gGlow.drawLine(x1, y1, (int) tipX, (int) tipY);
             gGlow.dispose();
             g.setStroke(new BasicStroke(5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             g.setColor(MAIN_COLOR);
@@ -116,7 +230,7 @@ public final class Animations {
             int[] xs = {(int) tipX, (int) leftX, (int) rightX};
             int[] ys = {(int) tipY, (int) leftY, (int) rightY};
             g.fillPolygon(xs, ys, 3);
-            float startAlpha = (float)(1.0 - growthProgress) * alpha;
+            float startAlpha = (float) (1.0 - growthProgress) * alpha;
             if (startAlpha > 0.05f) {
                 Graphics2D gStart = (Graphics2D) g.create();
                 gStart.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, startAlpha));
@@ -128,11 +242,19 @@ public final class Animations {
         }
     }
 
-    /** Key animation: centered bubble showing key text */
+    /**
+     * Key animation: centered bubble showing key text
+     */
     public static class KeyAnimation extends Animation {
         private final String text;
         private final JComponent panel; // used for size
-        public KeyAnimation(String text, JComponent panel) { super(600); this.text = text; this.panel = panel; }
+
+        public KeyAnimation(String text, JComponent panel) {
+            super(600);
+            this.text = text;
+            this.panel = panel;
+        }
+
         @Override
         public void paint(Graphics2D g) {
             double p = progress();
@@ -160,7 +282,7 @@ public final class Animations {
             g2.setColor(GLOW_COLOR);
             g2.fillRoundRect(bubbleX - 6, bubbleY - 6, bubbleW + 12, bubbleH + 12, 40, 40);
             g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-            g2.setColor(new Color(MAIN_COLOR.getRed(), MAIN_COLOR.getGreen(), MAIN_COLOR.getBlue(), (int)(195 * alpha)));
+            g2.setColor(new Color(MAIN_COLOR.getRed(), MAIN_COLOR.getGreen(), MAIN_COLOR.getBlue(), (int) (195 * alpha)));
             g2.fillRoundRect(bubbleX, bubbleY, bubbleW, bubbleH, 32, 32);
             g2.setColor(Color.BLACK);
             g2.drawString(text, x, y);

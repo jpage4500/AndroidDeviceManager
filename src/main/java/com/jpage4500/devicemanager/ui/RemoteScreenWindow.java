@@ -214,6 +214,14 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         private final java.util.List<Animations.Animation> animations = new java.util.ArrayList<>();
         private Timer animationTimer; // lazily created
 
+        // Long press handling
+        private static final int LONG_PRESS_THRESHOLD_MS = 500; // hold duration before triggering
+        private static final int LONG_PRESS_DURATION_MS = 650; // duration sent to device to simulate long press
+        private static final int LONG_PRESS_MOVE_THRESHOLD_PX = 10; // cancel if moved more than this before trigger
+        private Timer longPressTimer;
+        private Point pressStartPoint;
+        private boolean longPressTriggered;
+
         public ScreenPanel() {
             setBackground(Color.BLACK);
             setFocusable(true);
@@ -226,11 +234,25 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 public void mousePressed(MouseEvent e) {
                     requestFocusInWindow();
                     dragStart = e.getPoint();
+                    pressStartPoint = e.getPoint();
+                    longPressTriggered = false;
                     isDragging = true;
+                    startLongPressTimer();
                 }
 
                 @Override
                 public void mouseReleased(MouseEvent e) {
+                    // stop long press timer
+                    stopLongPressTimer();
+
+                    if (longPressTriggered) {
+                        // long press already handled; ignore further tap/swipe logic
+                        isDragging = false;
+                        dragStart = null;
+                        pressStartPoint = null;
+                        return;
+                    }
+
                     if (isDragging && dragStart != null) {
                         Point dragEnd = e.getPoint();
                         int distance = (int) dragStart.distance(dragEnd);
@@ -245,11 +267,25 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                     }
                     isDragging = false;
                     dragStart = null;
+                    pressStartPoint = null;
                 }
 
                 @Override
                 public void mouseClicked(MouseEvent e) {
                     requestFocusInWindow();
+                }
+            });
+
+            addMouseMotionListener(new MouseAdapter() {
+                @Override
+                public void mouseDragged(MouseEvent e) {
+                    if (pressStartPoint != null && !longPressTriggered) {
+                        int dist = (int) pressStartPoint.distance(e.getPoint());
+                        if (dist > LONG_PRESS_MOVE_THRESHOLD_PX) {
+                            // movement exceeded threshold before long press fired; cancel
+                            stopLongPressTimer();
+                        }
+                    }
                 }
             });
 
@@ -362,6 +398,53 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                     deviceStart.x, deviceStart.y, deviceEnd.x, deviceEnd.y, 300);
                 addSwipeAnimation(screenStart, screenEnd);
             }
+        }
+
+        // Long press helpers
+        private void startLongPressTimer() {
+            stopLongPressTimer();
+            longPressTimer = new Timer(LONG_PRESS_THRESHOLD_MS, e -> {
+                if (pressStartPoint == null || longPressTriggered) return;
+                // Check movement again (safety) - ensure still within threshold
+                if (dragStart != null) {
+                    int dist = (int) pressStartPoint.distance(dragStart);
+                    if (dist > LONG_PRESS_MOVE_THRESHOLD_PX) {
+                        stopLongPressTimer();
+                        return;
+                    }
+                }
+                triggerLongPress(pressStartPoint);
+                longPressTriggered = true;
+                stopLongPressTimer();
+            });
+            longPressTimer.setRepeats(false);
+            longPressTimer.start();
+        }
+
+        private void stopLongPressTimer() {
+            if (longPressTimer != null) {
+                longPressTimer.stop();
+                longPressTimer = null;
+            }
+        }
+
+        private void triggerLongPress(Point screenPoint) {
+            Point devicePoint = screenToDeviceCoordinates(screenPoint);
+            if (devicePoint != null) {
+                log.debug("handleLongPress: screen={}, device={}", screenPoint, devicePoint);
+                // simulate long press using swipe with same coords and longer duration
+                remoteConnection.sendScreenInputSwipe(device.serial,
+                        devicePoint.x, devicePoint.y,
+                        devicePoint.x, devicePoint.y,
+                        LONG_PRESS_DURATION_MS);
+                addLongPressAnimation(screenPoint);
+            }
+        }
+
+        private void addLongPressAnimation(Point p) {
+            animations.add(new Animations.LongPressAnimation(p.x, p.y));
+            startAnimationLoop();
+            repaint();
         }
 
         private void handleKeyTyped(KeyEvent e) {

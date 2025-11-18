@@ -826,7 +826,6 @@ public class RemoteConnection {
 
             @SuppressWarnings("unchecked")
             Map<String, Object> header = GsonHelper.fromJson(headerJson, Map.class);
-
             if (header == null) {
                 log.warn("handleScreenStreamBinary: invalid header JSON");
                 return;
@@ -847,9 +846,7 @@ public class RemoteConnection {
             if (image != null) {
                 int width = ((Number) header.get("width")).intValue();
                 int height = ((Number) header.get("height")).intValue();
-                if (log.isTraceEnabled()) {
-                    log.trace("handleScreenStreamBinary: decoded frame format={}, size={}KB, w={}, h={}", format, imageBytes.length / 1024, width, height);
-                }
+                // if (log.isTraceEnabled()) log.trace("handleScreenStreamBinary: decoded frame format={}, size={}KB, w={}, h={}", format, imageBytes.length / 1024, width, height);
                 session.listener.onFrame(image, width, height);
             } else {
                 log.warn("handleScreenStreamBinary: failed to decode image, format={}, bytes={}", format, imageBytes.length);
