@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-public class DeviceManager {
+public class DeviceManager implements RemoteConnectionManager.ConnectionListener {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
 
     // adb commands
@@ -112,43 +112,6 @@ public class DeviceManager {
 
         tempFolder = Utils.getTempFolder();
         copyResourcesToFiles();
-
-        // Initialize remote connection manager
-        remoteConnectionManager = new RemoteConnectionManager();
-        remoteConnectionManager.setListener(new RemoteConnectionManager.ConnectionListener() {
-            @Override
-            public void onConnectionEstablished(RemoteConnection connection) {
-                //log.trace("onConnectionEstablished: {}", connection);
-            }
-
-            @Override
-            public void onConnectionLost(RemoteConnection connection) {
-                log.trace("onConnectionLost: {}", connection);
-                // Remove devices from this server
-                synchronized (deviceList) {
-                    deviceList.removeIf(d -> d.remoteConnection == connection);
-                }
-                if (deviceListener != null) {
-                    deviceListener.handleDevicesUpdated(getDevices());
-                }
-            }
-
-            @Override
-            public void onDevicesUpdated(RemoteConnection connection, List<Device> devices) {
-                // Merge remote devices into device list
-                synchronized (deviceList) {
-                    // TODO: update instead of replace
-                    // Remove old devices from this server
-                    deviceList.removeIf(d -> d.remoteConnection == connection);
-                    // Add new devices
-                    deviceList.addAll(devices);
-                }
-                if (deviceListener != null) {
-                    deviceListener.handleDevicesUpdated(getDevices());
-                }
-            }
-        });
-        remoteConnectionManager.initialize();
     }
 
     public void setDeviceListener(DeviceListener listener) {
@@ -166,6 +129,18 @@ public class DeviceManager {
         void handleDeviceRemoved(Device device);
 
         void handleException(Exception e);
+    }
+
+    public void initialize() {
+        // remote connection manager
+        String serverStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_CONNECTED_SERVERS);
+        if (TextUtils.notEmpty(serverStr)) {
+            remoteConnectionManager = new RemoteConnectionManager(this);
+        }
+
+        // Initialize remote server manager (auto-starts if previously enabled)
+        // TODO: only create if running
+        getRemoteServerManager().initialize();
     }
 
     public void connectAdbServer(boolean allowRetry) {
@@ -1787,4 +1762,36 @@ public class DeviceManager {
         }
         return null;
     }
+
+    @Override
+    public void onRemoteConnection(RemoteConnection connection) {
+    }
+
+    @Override
+    public void onRemoteConnectionLost(RemoteConnection connection) {
+        log.trace("onConnectionLost: {}", connection);
+        // Remove devices from this server
+        synchronized (deviceList) {
+            deviceList.removeIf(d -> d.remoteConnection == connection);
+        }
+        if (deviceListener != null) {
+            deviceListener.handleDevicesUpdated(getDevices());
+        }
+    }
+
+    @Override
+    public void onRemoteDevicesUpdated(RemoteConnection connection, List<Device> devices) {
+        // Merge remote devices into device list
+        synchronized (deviceList) {
+            // TODO: update instead of replace
+            // Remove old devices from this server
+            deviceList.removeIf(d -> d.remoteConnection == connection);
+            // Add new devices
+            deviceList.addAll(devices);
+        }
+        if (deviceListener != null) {
+            deviceListener.handleDevicesUpdated(getDevices());
+        }
+    }
+
 }

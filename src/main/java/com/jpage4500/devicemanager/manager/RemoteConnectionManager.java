@@ -22,14 +22,19 @@ public class RemoteConnectionManager {
 
     private final Map<String, RemoteConnection> connections = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    private ConnectionListener listener;
+    private final ConnectionListener listener;
 
     public interface ConnectionListener {
-        void onConnectionEstablished(RemoteConnection connection);
+        void onRemoteConnection(RemoteConnection connection);
 
-        void onConnectionLost(RemoteConnection connection);
+        void onRemoteConnectionLost(RemoteConnection connection);
 
-        void onDevicesUpdated(RemoteConnection connection, List<Device> devices);
+        void onRemoteDevicesUpdated(RemoteConnection connection, List<Device> devices);
+    }
+
+    public RemoteConnectionManager(ConnectionListener listener) {
+        this.listener = listener;
+        initialize();
     }
 
     /**
@@ -50,7 +55,7 @@ public class RemoteConnectionManager {
         RemoteHttpServer.ServerInfo serverInfo = connection.fetchServerInfo();
         if (serverInfo != null) {
             if (listener != null) {
-                listener.onConnectionEstablished(connection);
+                listener.onRemoteConnection(connection);
             }
             // check if device count has changed
             if (serverInfo.deviceCount != connection.getDeviceCount()) {
@@ -72,7 +77,7 @@ public class RemoteConnectionManager {
 
         List<Device> deviceList = connection.fetchDevices();
         if (listener != null) {
-            listener.onDevicesUpdated(connection, deviceList);
+            listener.onRemoteDevicesUpdated(connection, deviceList);
         }
 
         // schedule another check in 30 seconds
@@ -87,6 +92,7 @@ public class RemoteConnectionManager {
             log.warn("connectToServer: Already connected: {}, {}", server.id, server.name);
             return;
         }
+        log.trace("connectToServer: {}", server.name);
 
         RemoteConnection connection = new RemoteConnection(server);
         connections.put(server.id, connection);
@@ -102,7 +108,7 @@ public class RemoteConnectionManager {
         if (connection != null) {
             connection.disconnect();
             if (listener != null) {
-                listener.onConnectionLost(connection);
+                listener.onRemoteConnectionLost(connection);
             }
         }
     }
@@ -177,10 +183,6 @@ public class RemoteConnectionManager {
     private void saveServers(List<RemoteServerConfig> serversToSave) {
         String json = GsonHelper.toJson(serversToSave);
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_CONNECTED_SERVERS, json);
-    }
-
-    public void setListener(ConnectionListener listener) {
-        this.listener = listener;
     }
 
     public void shutdown() {

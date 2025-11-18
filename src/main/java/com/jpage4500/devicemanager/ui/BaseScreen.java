@@ -153,7 +153,7 @@ public class BaseScreen extends JFrame {
     protected void saveFrameSize() {
         Preferences prefs = Preferences.userRoot();
         Rectangle rect = getBounds();
-        log.trace("saveFrameSize: {}, w:{}, h:{}", prefKey, rect.width, rect.height);
+        //log.trace("saveFrameSize: {}, w:{}, h:{}", prefKey, rect.width, rect.height);
         prefs.put(prefKey, GsonHelper.toJson(rect));
     }
 

@@ -3,8 +3,9 @@ package com.jpage4500.devicemanager.utils;
 import java.awt.*;
 
 public class Colors {
-    // busy state (device list)
+    // device icon colors
     public static final Color COLOR_ONLINE = new Color(24, 134, 0);
+    public static final Color COLOR_OFFLINE = new Color(128, 128, 128);
     public static final Color COLOR_BUSY = new Color(251, 109, 8);
     public static final Color COLOR_NOT_READY = new Color(251, 247, 8);
 

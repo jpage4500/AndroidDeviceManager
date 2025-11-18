@@ -14,7 +14,9 @@ import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
+import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
@@ -161,8 +163,8 @@ public class ShareServerDialog extends JPanel {
         }
 
         // Get device name and IP
-        String deviceName = getDeviceName();
-        String localIp = getRealLocalIpAddress();
+        String deviceName = RemoteConnectionUtils.getDeviceName();
+        String localIp = RemoteConnectionUtils.getRealLocalIpAddress();
         String publicIp = getPublicIpAddress();
         int port = isRunning ? serverManager.getPort() : getDefaultPort();
         String authToken = isRunning ? serverManager.getAuthToken() : getDefaultOrGenerateAuthToken();
@@ -577,61 +579,6 @@ public class ShareServerDialog extends JPanel {
             clientTableModel.setClients(clients);
         } else {
             clientTableModel.setClients(new ArrayList<>());
-        }
-    }
-
-    private String getDeviceName() {
-        // Try to get from preferences first
-        String savedName = PreferenceUtils.getPreference(
-            PreferenceUtils.Pref.PREF_SERVER_DEVICE_NAME
-        );
-        if (savedName != null && !savedName.isEmpty()) {
-            return savedName;
-        }
-
-        // Fall back to hostname
-        try {
-            return InetAddress.getLocalHost().getHostName();
-        } catch (Exception e) {
-            return "My Device";
-        }
-    }
-
-    private String getRealLocalIpAddress() {
-        // Get the actual LAN IP (not 127.0.0.1)
-        try {
-            InetAddress localHost = InetAddress.getLocalHost();
-            String ip = localHost.getHostAddress();
-
-            // If it's localhost, try to find the real network interface
-            if (ip.equals("127.0.0.1") || ip.equals("0.0.0.0")) {
-                java.util.Enumeration<java.net.NetworkInterface> interfaces =
-                    java.net.NetworkInterface.getNetworkInterfaces();
-
-                while (interfaces.hasMoreElements()) {
-                    java.net.NetworkInterface iface = interfaces.nextElement();
-
-                    // Skip loopback and inactive interfaces
-                    if (iface.isLoopback() || !iface.isUp()) {
-                        continue;
-                    }
-
-                    java.util.Enumeration<InetAddress> addresses = iface.getInetAddresses();
-                    while (addresses.hasMoreElements()) {
-                        InetAddress addr = addresses.nextElement();
-
-                        // We want IPv4 addresses only (skip IPv6)
-                        if (addr instanceof java.net.Inet4Address && !addr.isLoopbackAddress()) {
-                            return addr.getHostAddress();
-                        }
-                    }
-                }
-            }
-
-            return ip;
-        } catch (Exception e) {
-            log.debug("Failed to get local IP: {}", e.getMessage());
-            return "N/A";
         }
     }
 

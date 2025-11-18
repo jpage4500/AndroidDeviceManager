@@ -58,6 +58,12 @@ public class UiUtils {
         else return null;
     }
 
+    public static ImageIcon getImageIcon(String imageName, int w, int h, Color color) {
+        Image image = getImage(imageName, w, h, color);
+        if (image != null) return new ImageIcon(image);
+        else return null;
+    }
+
     public static BufferedImage replaceColor(BufferedImage image, Color color) {
         int w = image.getWidth();
         int h = image.getHeight();

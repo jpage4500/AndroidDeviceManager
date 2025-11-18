@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Utils;
 import fi.iki.elonen.NanoWSD;
@@ -25,6 +26,8 @@ import java.util.Map;
  */
 public class RemoteHttpServer extends NanoWSD {
     private static final Logger log = LoggerFactory.getLogger(RemoteHttpServer.class);
+
+    public static final String VERSION = "1.0";
 
     public static final String HEADER_IP = "x-client-ip";
     public static final String HEADER_NAME = "x-client-name";
@@ -167,9 +170,13 @@ public class RemoteHttpServer extends NanoWSD {
      */
     private Response handleServerInfo(IHTTPSession session) {
         ServerInfo info = new ServerInfo();
-        info.version = "1.0";
-        info.deviceCount = DeviceManager.getInstance().getDevices().size();
-        info.serverName = "Android Device Manager";
+        info.version = VERSION;
+
+        // return count of devices (local only)
+        List<Device> devices = DeviceManager.getInstance().getDevices();
+        devices.removeIf(device -> device.remoteConnection != null);
+        info.deviceCount = devices.size();
+        info.serverName = RemoteConnectionUtils.getDeviceName();
 
         return createJsonResponse(info);
     }

@@ -604,33 +604,25 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void connectAdbServer() {
         DeviceManager deviceManager = DeviceManager.getInstance();
         deviceManager.setDeviceListener(this);
+        deviceManager.initialize();
         deviceManager.connectAdbServer(true);
-
-        // Initialize remote connection manager
-        deviceManager.getRemoteConnectionManager().initialize();
-
-        // Initialize remote server manager (auto-starts if previously enabled)
-        deviceManager.getRemoteServerManager().initialize();
     }
 
     @Override
     public void handleDevicesUpdated(List<Device> deviceList) {
         SwingUtilities.invokeLater(() -> {
-            if (deviceList != null) {
-                model.setDeviceList(deviceList);
+            model.setDeviceList(deviceList);
 
-                // auto-select first device
-                if (!hasSelectedDevice && !deviceList.isEmpty() && table.getSelectedRow() == -1) {
-                    table.changeSelection(0, 0, false, false);
-                    hasSelectedDevice = true;
-                }
+            // auto-select first device
+            if (!hasSelectedDevice && !deviceList.isEmpty() && table.getSelectedRow() == -1) {
+                table.changeSelection(0, 0, false, false);
+                hasSelectedDevice = true;
+            }
 
-                refreshUi();
+            refreshUi();
 
-                log.trace("handleDevicesUpdated: deviceList: {}", deviceList.size());
-                for (Device device : deviceList) {
-                    updateDeviceState(device);
-                }
+            for (Device device : deviceList) {
+                updateDeviceState(device);
             }
         });
     }

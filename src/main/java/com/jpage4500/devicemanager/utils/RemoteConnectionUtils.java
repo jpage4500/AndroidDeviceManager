@@ -4,9 +4,12 @@ import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -82,6 +85,57 @@ public class RemoteConnectionUtils {
             return InetAddress.getLocalHost().getHostAddress();
         } catch (Exception e) {
             return "localhost";
+        }
+    }
+
+
+    public static String getRealLocalIpAddress() {
+        // Get the actual LAN IP (not 127.0.0.1)
+        try {
+            InetAddress localHost = InetAddress.getLocalHost();
+            String ip = localHost.getHostAddress();
+
+            // If it's localhost, try to find the real network interface
+            if (ip.equals("127.0.0.1") || ip.equals("0.0.0.0")) {
+                Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+                while (interfaces.hasMoreElements()) {
+                    NetworkInterface iface = interfaces.nextElement();
+
+                    // Skip loopback and inactive interfaces
+                    if (iface.isLoopback() || !iface.isUp()) {
+                        continue;
+                    }
+
+                    Enumeration<InetAddress> addresses = iface.getInetAddresses();
+                    while (addresses.hasMoreElements()) {
+                        InetAddress addr = addresses.nextElement();
+
+                        // We want IPv4 addresses only (skip IPv6)
+                        if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
+                            return addr.getHostAddress();
+                        }
+                    }
+                }
+            }
+            return ip;
+        } catch (Exception e) {
+            log.debug("Failed to get local IP: {}", e.getMessage());
+            return "N/A";
+        }
+    }
+
+    public static String getDeviceName() {
+        // Try to get from preferences first
+        String savedName = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_DEVICE_NAME);
+        if (savedName != null && !savedName.isEmpty()) {
+            return savedName;
+        }
+
+        // Fall back to hostname
+        try {
+            return InetAddress.getLocalHost().getHostName();
+        } catch (Exception e) {
+            return "My Device";
         }
     }
 

@@ -415,7 +415,7 @@ public class CustomTable extends JTable {
         }
 
         if (!needsReorder) {
-            if (log.isTraceEnabled()) log.trace("restoreTable: columns already in correct order for {}", prefKey);
+            //if (log.isTraceEnabled()) log.trace("restoreTable: columns already in correct order for {}", prefKey);
             // Still apply widths even if order is correct
             applyColumnWidths(detailsList);
             return true;
@@ -517,8 +517,7 @@ public class CustomTable extends JTable {
             Preferences prefs = Preferences.userRoot();
             prefs.put(prefKey + "-details", GsonHelper.toJson(detailList));
             prefs.flush(); // Ensure written to disk
-            if (log.isTraceEnabled()) log.trace("saveTable: successfully saved {} columns for {}", detailList.size(), prefKey);
-
+            //if (log.isTraceEnabled()) log.trace("saveTable: successfully saved {} columns for {}", detailList.size(), prefKey);
         } catch (Exception e) {
             log.error("saveTable: failed to save state for {}: {}", prefKey, e.getMessage());
         }
