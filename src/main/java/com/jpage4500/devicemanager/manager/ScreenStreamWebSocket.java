@@ -3,10 +3,12 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.utils.*;
 import fi.iki.elonen.NanoWSD;
+import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -33,6 +35,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     public static final String ACTION_PAUSE = "pause";
     public static final String ACTION_RESUME = "resume";
     public static final String ACTION_SET_INTERVAL = "setInterval";
+    public static final String ACTION_SET_COMPRESSION = "setCompression";
     public static final String ACTION_INPUT = "input";
 
     // Input types
@@ -52,11 +55,15 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final AtomicInteger intervalMs = new AtomicInteger(DEFAULT_INTERVAL_MS);
     private final AtomicLong frameId = new AtomicLong(0);
+    private final AtomicBoolean useCompression = new AtomicBoolean(false);
+    private static final float JPEG_QUALITY = 0.70f; // JPEG compression quality (0.0-1.0)
 
-    public ScreenStreamWebSocket(NanoWSD.IHTTPSession handshakeRequest, Device device) {
+    public ScreenStreamWebSocket(NanoWSD.IHTTPSession handshakeRequest, Device device, boolean useCompression) {
         super(handshakeRequest);
         this.device = device;
         this.deviceManager = DeviceManager.getInstance();
+        this.useCompression.set(useCompression);
+        log.debug("ScreenStreamWebSocket: device: {}, compression: {}", device.serial, useCompression);
     }
 
     @Override
@@ -145,6 +152,16 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
                     setInterval(newInterval);
                 } else {
                     sendErrorMessage("Invalid intervalMs value");
+                }
+                break;
+
+            case ACTION_SET_COMPRESSION:
+                Object compressionObj = message.get("useCompression");
+                if (compressionObj instanceof Boolean) {
+                    boolean newCompression = (Boolean) compressionObj;
+                    setCompression(newCompression);
+                } else {
+                    sendErrorMessage("Invalid useCompression value");
                 }
                 break;
 
@@ -336,9 +353,30 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
                 return;
             }
 
-            // Convert to PNG
+            // Thumbnailator-based encoding (JPEG/PNG)
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImageIO.write(image, "PNG", baos);
+            String format;
+            if (useCompression.get()) {
+                // JPEG doesn't support alpha channel; convert ARGB -> RGB
+                BufferedImage rgbImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
+                Graphics2D g = rgbImage.createGraphics();
+                g.drawImage(image, 0, 0, null);
+                g.dispose();
+
+                Thumbnails.of(rgbImage)
+                        .size(rgbImage.getWidth(), rgbImage.getHeight())
+                        .outputFormat("jpg")
+                        .outputQuality(JPEG_QUALITY)
+                        .toOutputStream(baos);
+                format = "jpeg";
+            } else {
+                Thumbnails.of(image)
+                        .size(image.getWidth(), image.getHeight())
+                        .outputFormat("png")
+                        .scale(1.0)
+                        .toOutputStream(baos);
+                format = "png";
+            }
             byte[] imageBytes = baos.toByteArray();
 
             // Create frame header
@@ -349,7 +387,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             header.put("width", image.getWidth());
             header.put("height", image.getHeight());
             header.put("timestamp", System.currentTimeMillis());
-            header.put("format", "png");
+            header.put("format", format);
             header.put("size", imageBytes.length);
 
             String headerJson = GsonHelper.toJson(header);
@@ -364,7 +402,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             send(buffer.array());
 
             if (log.isTraceEnabled()) {
-                log.trace("captureAndSendFrame: sent frame {}, size={}KB", currentFrameId, imageBytes.length / 1024);
+                log.trace("captureAndSendFrame: sent frame {}, format={}, size={}KB", currentFrameId, format, imageBytes.length / 1024);
             }
 
         } catch (Exception e) {
@@ -397,6 +435,23 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
         }, 0, newIntervalMs, TimeUnit.MILLISECONDS);
 
         sendStatusMessage("interval_changed", "Interval set to " + newIntervalMs + "ms");
+    }
+
+    /**
+     * Set compression mode
+     */
+    private void setCompression(boolean newCompression) {
+        boolean currentCompression = useCompression.get();
+        if (currentCompression == newCompression) {
+            log.debug("setCompression: already set to {}", newCompression);
+            return;
+        }
+
+        log.info("setCompression: changing from {} to {}", currentCompression, newCompression);
+        useCompression.set(newCompression);
+
+        String format = newCompression ? "JPEG" : "PNG";
+        sendStatusMessage("compression_changed", "Compression set to " + format);
     }
 
     /**

@@ -511,8 +511,12 @@ public class RemoteHttpServer extends NanoWSD {
             return new RejectWebSocket(handshake, "Device not found", true);
         }
 
-        log.info("handleScreenStreamWebSocket: Opening WebSocket screen stream for device: {}", device.getDisplayName());
-        return new ScreenStreamWebSocket(handshake, device);
+        // Get compression parameter (defaults to false)
+        boolean useCompression = "true".equalsIgnoreCase(params.get("compress"));
+
+        log.info("handleScreenStreamWebSocket: Opening WebSocket screen stream for device: {}, compression: {}",
+                 device.getDisplayName(), useCompression);
+        return new ScreenStreamWebSocket(handshake, device, useCompression);
     }
 
 }

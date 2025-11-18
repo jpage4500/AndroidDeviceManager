@@ -11,7 +11,10 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 
 /**
@@ -111,8 +114,8 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     }
 
     private void startScreenStream(RefreshSpeed speed) {
-        log.debug("startScreenStream: speed={}", speed);
-        remoteConnection.startScreenStream(device.serial, speed.intervalMs, this);
+        log.debug("startScreenStream: speed={}, compress=true", speed);
+        remoteConnection.startScreenStream(device.serial, speed.intervalMs, true, this);
     }
 
     private void handleSpeedChange() {

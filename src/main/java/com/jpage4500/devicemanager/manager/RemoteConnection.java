@@ -10,6 +10,9 @@ import com.jpage4500.devicemanager.utils.NetworkHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.net.InetAddress;
@@ -587,16 +590,16 @@ public class RemoteConnection {
     }
 
     /**
-     * Start streaming screen from remote device via WebSocket
+     * Start streaming screen from remote device
      */
-    public void startScreenStream(String deviceSerial, int intervalMs, ScreenStreamListener listener) {
+    public void startScreenStream(String deviceSerial, int intervalMs, boolean useCompression, ScreenStreamListener listener) {
         // Stop any existing session
         stopScreenStream(deviceSerial);
 
-        log.debug("startScreenStream: serial: {}, intervalMs: {}", deviceSerial, intervalMs);
+        log.debug("startScreenStream: serial: {}, intervalMs: {}, compress: {}", deviceSerial, intervalMs, useCompression);
 
         // Build WebSocket URL
-        String wsUrl = buildScreenStreamUrl(deviceSerial, intervalMs);
+        String wsUrl = buildScreenStreamUrl(deviceSerial, intervalMs, useCompression);
 
         // Create WebSocket listener
         WebSocket.Listener wsListener = new WebSocket.Listener() {
@@ -761,7 +764,20 @@ public class RemoteConnection {
         }
     }
 
-    private String buildScreenStreamUrl(String deviceSerial, int intervalMs) {
+    /**
+     * Set compression mode for screen stream
+     */
+    public void setScreenStreamCompression(String deviceSerial, boolean useCompression) {
+        ScreenStreamSession session = screenStreamSessions.get(deviceSerial);
+        if (session != null && session.webSocket != null) {
+            Map<String, Object> message = new HashMap<>();
+            message.put("action", ScreenStreamWebSocket.ACTION_SET_COMPRESSION);
+            message.put("useCompression", useCompression);
+            sendScreenControlMessage(session.webSocket, message);
+        }
+    }
+
+    private String buildScreenStreamUrl(String deviceSerial, int intervalMs, boolean useCompression) {
         String baseUrl = serverConfig.getUrl();
         String wsUrl = baseUrl.replace("http://", "ws://").replace("https://", "wss://");
 
@@ -770,6 +786,7 @@ public class RemoteConnection {
         url.append("?token=").append(URLEncoder.encode(serverConfig.authToken, StandardCharsets.UTF_8));
         url.append("&serial=").append(URLEncoder.encode(deviceSerial, StandardCharsets.UTF_8));
         url.append("&intervalMs=").append(intervalMs);
+        url.append("&compress=").append(useCompression);
 
         return url.toString();
     }
@@ -819,16 +836,23 @@ public class RemoteConnection {
             byte[] imageBytes = new byte[imageSize];
             buffer.get(imageBytes);
 
-            // Decode PNG image
-            java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(imageBytes);
-            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(bais);
+            // Get format from header ("png" or "jpeg")
+            String format = (String) header.get("format");
+            if (format == null) format = "png"; // default fallback
+
+            // Decode image bytes (ImageIO supports both PNG and JPEG)
+            ByteArrayInputStream bais = new ByteArrayInputStream(imageBytes);
+            BufferedImage image = ImageIO.read(bais);
 
             if (image != null) {
                 int width = ((Number) header.get("width")).intValue();
                 int height = ((Number) header.get("height")).intValue();
+                if (log.isTraceEnabled()) {
+                    log.trace("handleScreenStreamBinary: decoded frame format={}, size={}KB, w={}, h={}", format, imageBytes.length / 1024, width, height);
+                }
                 session.listener.onFrame(image, width, height);
             } else {
-                log.warn("handleScreenStreamBinary: failed to decode image");
+                log.warn("handleScreenStreamBinary: failed to decode image, format={}, bytes={}", format, imageBytes.length);
             }
 
         } catch (Exception e) {
@@ -870,4 +894,3 @@ public class RemoteConnection {
     }
 
 }
-
