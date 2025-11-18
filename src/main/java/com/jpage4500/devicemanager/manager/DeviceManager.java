@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.ui.RemoteScreenWindow;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.*;
@@ -12,7 +13,7 @@ import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
 import javax.imageio.ImageIO;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -771,18 +772,10 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
         // Handle remote devices differently
         if (device.remoteConnection != null) {
             log.debug("mirrorDevice: remote device: {}", device.getDisplayName());
-            // Show remote screen window on UI thread
-            SwingUtilities.invokeLater(() -> {
-                try {
-                    com.jpage4500.devicemanager.ui.RemoteScreenWindow window =
-                        new com.jpage4500.devicemanager.ui.RemoteScreenWindow(device);
-                    window.setVisible(true);
-                    listener.onTaskComplete(true, null);
-                } catch (Exception e) {
-                    log.error("mirrorDevice: error showing remote screen", e);
-                    listener.onTaskComplete(false, "Failed to open remote screen: " + e.getMessage());
-                }
-            });
+            RemoteScreenWindow window = new RemoteScreenWindow(device);
+            window.setVisible(true);
+            // TODO: wait for window to close before calling listener.onTaskComplete()
+            listener.onTaskComplete(true, null);
             return;
         }
 

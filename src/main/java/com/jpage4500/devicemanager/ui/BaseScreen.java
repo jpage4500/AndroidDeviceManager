@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +19,8 @@ public class BaseScreen extends JFrame {
     private static final Logger log = LoggerFactory.getLogger(BaseScreen.class);
 
     private String prefKey;
+    private String titleBackup;
+    private Timer resizeTitleTimer;
 
     public BaseScreen(String prefKey, int defaultWidth, int defaultHeight) {
         this.prefKey = prefKey;
@@ -53,13 +56,13 @@ public class BaseScreen extends JFrame {
             }
         });
 
-        // TODO: handle window resizing
-        //addComponentListener(new ComponentAdapter() {
-        //    @Override
-        //    public void componentResized(ComponentEvent componentEvent) {
-        //        log.trace("componentResized: {}: W:{}, H:{}", prefKey, getWidth(), getHeight());
-        //    }
-        //});
+        // handle window resizing by changing title to "WxH"
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent componentEvent) {
+                handleResize();
+            }
+        });
 
         // NOTE: this breaks dragging the scrollbar on Mac
         // getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);
@@ -82,6 +85,44 @@ public class BaseScreen extends JFrame {
 
     protected void onWindowStateChanged(WindowState state) {
         //log.trace("onWindowStateChanged: {}: {}", prefKey, state);
+    }
+
+    /**
+     * Handle window resize - show dimensions in title temporarily
+     */
+    private void handleResize() {
+        // Backup original title on first resize
+        if (titleBackup == null) {
+            titleBackup = getTitle();
+        }
+
+        // Show current dimensions in title
+        int width = getWidth();
+        int height = getHeight();
+        setTitle(width + "x" + height);
+
+        // Reset or start timer to restore original title after 1 second
+        if (resizeTitleTimer != null) {
+            resizeTitleTimer.restart();
+        } else {
+            resizeTitleTimer = new Timer(1000, e -> restoreTitle());
+            resizeTitleTimer.setRepeats(false);
+            resizeTitleTimer.start();
+        }
+    }
+
+    /**
+     * Restore original title after resize completes
+     */
+    private void restoreTitle() {
+        if (titleBackup != null) {
+            setTitle(titleBackup);
+            titleBackup = null;
+        }
+        if (resizeTitleTimer != null) {
+            resizeTitleTimer.stop();
+            resizeTitleTimer = null;
+        }
     }
 
     protected JButton createSmallToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {

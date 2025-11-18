@@ -121,6 +121,13 @@ public class Utils {
         return downloadFolder;
     }
 
+    public static void sleep(int ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (Exception ignored) {
+        }
+    }
+
     public enum CompareResult {
         VERSION_EQUALS,
         VERSION_NEWER,

@@ -74,7 +74,6 @@ public class RemoteConnection {
         Map<String, String> headers = getDefaultHeaders();
         String url = serverConfig.getUrl() + RemoteHttpServer.API_INFO;
         NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
-        log.trace("fetchServerInfo: response: {}", GsonHelper.toJson(response));
         if (response.status == 200) {
             isConnected = true;
             lastHealthCheck = System.currentTimeMillis();
@@ -560,8 +559,11 @@ public class RemoteConnection {
      */
     public interface ScreenStreamListener {
         void onFrame(java.awt.image.BufferedImage image, int width, int height);
+
         void onStatus(String status, String message);
+
         void onError(String error);
+
         void onClosed();
     }
 

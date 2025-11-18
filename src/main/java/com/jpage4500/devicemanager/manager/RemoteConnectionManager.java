@@ -191,12 +191,7 @@ public class RemoteConnectionManager {
             connection.disconnect();
         }
         connections.clear();
-
         scheduler.shutdownNow();
-//        try {
-//            scheduler.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS);
-//        } catch (InterruptedException ignored) {
-//        }
     }
 
     public boolean isConnected(String serverId) {

@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.RemoteConnection;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.AndroidKeyMapper;
+import com.jpage4500.devicemanager.utils.Animations;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +17,7 @@ import java.awt.image.BufferedImage;
 /**
  * Window that displays a remote device screen stream with interactive input
  */
-public class RemoteScreenWindow extends JFrame implements RemoteConnection.ScreenStreamListener {
+public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.ScreenStreamListener {
     private static final Logger log = LoggerFactory.getLogger(RemoteScreenWindow.class);
 
     private final Device device;
@@ -61,22 +62,15 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
     }
 
     public RemoteScreenWindow(Device device) {
+        super("RemoteScreenWindow", 600, 900);
+
         this.device = device;
         this.remoteConnection = device.remoteConnection;
 
         setTitle("Mirror: " + device.getDisplayName());
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setSize(800, 1200);
 
         initUI();
         startScreenStream(RefreshSpeed.NORMAL);
-
-        addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                cleanup();
-            }
-        });
     }
 
     private void initUI() {
@@ -134,6 +128,16 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
         if (frameCount > 0) {
             fpsLabel.setText(String.format("FPS: %.1f", currentFps));
             frameCount = 0;
+        }
+    }
+
+    @Override
+    protected void onWindowStateChanged(WindowState state) {
+        super.onWindowStateChanged(state);
+        if (state == WindowState.CLOSING) {
+            cleanup();
+            saveFrameSize();
+            dispose();
         }
     }
 
@@ -203,10 +207,16 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
     // ========================================================================
 
     private class ScreenPanel extends JPanel {
+        // Animation handling
+        private final java.util.List<Animations.Animation> animations = new java.util.ArrayList<>();
+        private Timer animationTimer; // lazily created
+
         public ScreenPanel() {
             setBackground(Color.BLACK);
             setFocusable(true);
             requestFocusInWindow();
+
+            // Removed always-on timer; will start when first animation is added
 
             addMouseListener(new MouseAdapter() {
                 @Override
@@ -253,6 +263,30 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
             });
         }
 
+        private void startAnimationLoop() {
+            if (animationTimer != null) return;
+            animationTimer = new Timer(30, e -> {
+                if (animations.isEmpty()) {
+                    // Nothing to animate; stop and cleanup
+                    animationTimer.stop();
+                    animationTimer = null;
+                    return;
+                }
+                // Remove finished animations first
+                boolean removed = animations.removeIf(Animations.Animation::isFinished);
+                if (removed && animations.isEmpty()) {
+                    // All finished; stop loop
+                    animationTimer.stop();
+                    animationTimer = null;
+                    repaint(); // final repaint to clear
+                    return;
+                }
+                // Active animations remain; repaint
+                repaint();
+            });
+            animationTimer.start();
+        }
+
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
@@ -291,6 +325,20 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
 
             // Draw image
             g.drawImage(currentImage, drawX, drawY, drawWidth, drawHeight, null);
+
+            // Draw animations overlay
+            if (!animations.isEmpty()) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                for (Animations.Animation a : animations) {
+                    try {
+                        a.paint(g2);
+                    } catch (Exception ex) {
+                        log.warn("Animation paint error", ex);
+                    }
+                }
+                g2.dispose();
+            }
         }
 
         private void handleTap(Point screenPoint) {
@@ -298,6 +346,7 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
             if (devicePoint != null) {
                 log.debug("handleTap: screen={}, device={}", screenPoint, devicePoint);
                 remoteConnection.sendScreenInputTap(device.serial, devicePoint.x, devicePoint.y);
+                addTapAnimation(screenPoint);
             }
         }
 
@@ -308,6 +357,7 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
                 log.debug("handleSwipe: screen={}→{}, device={}→{}", screenStart, screenEnd, deviceStart, deviceEnd);
                 remoteConnection.sendScreenInputSwipe(device.serial,
                     deviceStart.x, deviceStart.y, deviceEnd.x, deviceEnd.y, 300);
+                addSwipeAnimation(screenStart, screenEnd);
             }
         }
 
@@ -326,6 +376,9 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
                 textBatchTimer.setRepeats(false);
             }
             textBatchTimer.restart();
+
+            // Animation for typed character
+            addKeyAnimation(String.valueOf(ch));
         }
 
         private void handleKeyPressed(KeyEvent e) {
@@ -340,6 +393,7 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
                 flushTextBuffer();
                 // Send keyevent
                 remoteConnection.sendScreenInputKeyEvent(device.serial, androidKeyCode);
+                addKeyAnimation(KeyEvent.getKeyText(keyCode));
                 e.consume();
             }
         }
@@ -382,10 +436,29 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
 
             return new Point(deviceX, deviceY);
         }
+
+        // Animation helpers
+        private void addTapAnimation(Point p) {
+            animations.add(new Animations.TapAnimation(p.x, p.y));
+            startAnimationLoop();
+            repaint();
+        }
+
+        private void addSwipeAnimation(Point start, Point end) {
+            animations.add(new Animations.SwipeAnimation(start.x, start.y, end.x, end.y));
+            startAnimationLoop();
+            repaint();
+        }
+
+        private void addKeyAnimation(String text) {
+            animations.add(new Animations.KeyAnimation(text, this));
+            startAnimationLoop();
+            repaint();
+        }
     }
 
     private void flushTextBuffer() {
-        if (textBuffer.length() > 0) {
+        if (!textBuffer.isEmpty()) {
             String text = textBuffer.toString();
             log.debug("flushTextBuffer: sending {} chars", text.length());
             remoteConnection.sendScreenInputText(device.serial, text);
@@ -393,4 +466,3 @@ public class RemoteScreenWindow extends JFrame implements RemoteConnection.Scree
         }
     }
 }
-

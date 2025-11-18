@@ -1,7 +1,7 @@
 package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.*;
 import fi.iki.elonen.NanoWSD;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -282,22 +282,26 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
      * Wake device screen
      */
     private void wakeDevice() {
-        try {
-            log.debug("wakeDevice: {}", device.serial);
-            // Check if screen is awake
-            DeviceManager.ShellResult result = deviceManager.runShell(device, "dumpsys power | grep mWakefulness");
-            if (result != null && result.resultList != null && !result.resultList.isEmpty()) {
-                String wakefulness = result.resultList.get(0);
-                if (wakefulness.contains("Asleep") || wakefulness.contains("Dozing")) {
-                    // Wake up the device
-                    deviceManager.runShell(device, "input keyevent 224"); // KEYCODE_WAKEUP
-                    Thread.sleep(100);
-                    // Keep screen on during mirroring
-                    deviceManager.runShell(device, "svc power stayon true");
+        log.debug("wakeDevice: {}", device.serial);
+        // Check if screen is awake
+        DeviceManager.ShellResult result = deviceManager.runShell(device, "dumpsys power");
+        if (result.isSuccess && result.resultList != null) {
+            log.trace("wakeDevice: {}", result);
+            for (String line : result.resultList) {
+                if (line.contains("mWakefulness=")) {
+                    // mWakefulness=Dozing
+                    // mWakefulness=Asleep
+                    log.debug("wakeDevice: {}", line);
+                    if (TextUtils.containsAny(line, true, "Asleep", "Dozing")) {
+                        // Wake up the device
+                        deviceManager.runShell(device, "input keyevent " + AndroidKeyMapper.KEYCODE_WAKEUP);
+                        Utils.sleep(1000);
+                        // Keep screen on during mirroring
+                        deviceManager.runShell(device, "svc power stayon true");
+                    }
+                    return;
                 }
             }
-        } catch (Exception e) {
-            log.warn("wakeDevice: error waking device", e);
         }
     }
 
@@ -420,7 +424,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             msg.put("error", error);
             send(GsonHelper.toJson(msg));
         } catch (IOException e) {
-            log.error("sendErrorMessage: error", e);
+            log.error("sendErrorMessage: error: {}", e.getMessage());
         }
     }
 
@@ -447,11 +451,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
         }
 
         // Reset screen stay-on setting
-        try {
-            deviceManager.runShell(device, "svc power stayon false");
-        } catch (Exception e) {
-            log.warn("cleanup: error resetting power settings", e);
-        }
+        deviceManager.runShell(device, "svc power stayon false");
     }
 }
 
