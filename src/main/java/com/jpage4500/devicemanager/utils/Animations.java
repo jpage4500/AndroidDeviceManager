@@ -88,11 +88,11 @@ public final class Animations {
     // NEW: Long press animation: slower expanding dual-ring with pulsing inner fill
     public static class LongPressAnimation extends Animation {
         private final int x, y;
-        private static final int GROW_MS = 450; // slower growth
-        private static final int HOLD_MS = 250; // hold at full size
-        private static final int FADE_MS = 500; // fade out
-        private static final int MAX_RADIUS = 46; // larger than tap
-        private static final int INNER_BASE_RADIUS = 18;
+        // Adjusted timing for a longer, smoother long-press visualization
+        private static final int GROW_MS = 400;
+        private static final int HOLD_MS = 400;
+        private static final int FADE_MS = 600;
+        private static final int MAX_RADIUS = 46; // similar size to previous version
 
         public LongPressAnimation(int x, int y) {
             super(GROW_MS + HOLD_MS + FADE_MS);
@@ -104,6 +104,8 @@ public final class Animations {
         public void paint(Graphics2D g) {
             long elapsed = System.currentTimeMillis() - startTime;
             if (elapsed >= durationMs) return;
+
+            // Alpha handling (same approach as Tap but longer)
             float alpha;
             if (elapsed < GROW_MS + HOLD_MS) {
                 alpha = 1f;
@@ -113,52 +115,36 @@ public final class Animations {
             }
             if (alpha <= 0f) return;
 
+            // Growth progress for outer ring
             double growProgress = Math.min(1.0, elapsed / (double) GROW_MS);
             int outerR = (int) (MAX_RADIUS * growProgress);
-            int innerR;
-            if (elapsed < GROW_MS) {
-                innerR = (int) (INNER_BASE_RADIUS * (0.6 + growProgress * 0.4));
-            } else if (elapsed < GROW_MS + HOLD_MS) {
-                innerR = (int) (INNER_BASE_RADIUS * 1.0);
-            } else {
-                double fadeProgress = (elapsed - GROW_MS - HOLD_MS) / (double) FADE_MS;
-                innerR = (int) (INNER_BASE_RADIUS * (1.0 - fadeProgress * 0.25));
-            }
+            if (outerR <= 0) outerR = 1;
+
+            // Lighter fill color derived from LONG_PRESS_COLOR
+            int r = Math.min(255, LONG_PRESS_COLOR.getRed() + 25);
+            int gCh = Math.min(255, LONG_PRESS_COLOR.getGreen() + 25);
+            int b = Math.min(255, LONG_PRESS_COLOR.getBlue() + 25);
+            Color fillColor = new Color(r, gCh, b, (int) (160 * alpha));
 
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 
-            // Glow ring (thicker than tap)
-            if (outerR > 0) {
-                g2.setStroke(new BasicStroke(14f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.setColor(LONG_PRESS_GLOW);
-                g2.drawOval(x - outerR, y - outerR, outerR * 2, outerR * 2);
-            }
+            // Glow ring (like TapAnimation but thicker for emphasis)
+            g2.setStroke(new BasicStroke(12f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.setColor(LONG_PRESS_GLOW);
+            g2.drawOval(x - outerR, y - outerR, outerR * 2, outerR * 2);
+
             // Main ring
             g2.setStroke(new BasicStroke(5f));
             g2.setColor(LONG_PRESS_COLOR);
             g2.drawOval(x - outerR, y - outerR, outerR * 2, outerR * 2);
 
-            // Pulsing inner fill (subtle breathing effect)
-            double pulsePeriodMs = 220.0;
-            double pulsePhase = (elapsed % pulsePeriodMs) / pulsePeriodMs; // 0..1
-            double pulseScale = 0.85 + Math.sin(pulsePhase * Math.PI * 2) * 0.15; // 0.7..1.0
-            int pulseR = (int) (innerR * pulseScale);
-            int pulseAlpha = (int) (160 * alpha);
-            g2.setColor(new Color(LONG_PRESS_COLOR.getRed(), LONG_PRESS_COLOR.getGreen(), LONG_PRESS_COLOR.getBlue(), pulseAlpha));
-            g2.fillOval(x - pulseR, y - pulseR, pulseR * 2, pulseR * 2);
+            // Filled inner circle (slightly smaller than outer ring to preserve outline)
+            int fillR = (int) (outerR * 0.65);
+            g2.setColor(fillColor);
+            g2.fillOval(x - fillR, y - fillR, fillR * 2, fillR * 2);
 
-            // Secondary faint outer pulse appears after growth complete
-            if (elapsed >= GROW_MS) {
-                double secondaryPhase = ((elapsed - GROW_MS) % 400) / 400.0;
-                int secR = (int) (outerR * (0.9 + secondaryPhase * 0.3));
-                int secAlpha = (int) (60 * (1.0 - secondaryPhase) * alpha);
-                if (secAlpha > 5) {
-                    g2.setColor(new Color(LONG_PRESS_COLOR.getRed(), LONG_PRESS_COLOR.getGreen(), LONG_PRESS_COLOR.getBlue(), secAlpha));
-                    g2.drawOval(x - secR, y - secR, secR * 2, secR * 2);
-                }
-            }
             g2.dispose();
         }
     }

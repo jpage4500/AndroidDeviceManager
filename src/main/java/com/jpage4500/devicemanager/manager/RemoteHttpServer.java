@@ -11,6 +11,8 @@ import fi.iki.elonen.NanoWSD;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -245,6 +247,43 @@ public class RemoteHttpServer extends NanoWSD {
         }
     }
 
+    /**
+     * GET /api/screenshot?serial=xxx
+     */
+    private Response handleScreenshot(IHTTPSession session) {
+        Map<String, String> params = session.getParms();
+        Device device = getDeviceParam(params);
+        if (device == null) {
+            return createNotFoundResponse("Device not found");
+        }
+
+        BufferedImage bufferedImage = DeviceManager.getInstance().captureScreenshotInternal(device);
+
+        try {
+            // Create a temporary file to download to
+            File tempFile = File.createTempFile("screenshot_" + device.serial, ".png");
+            tempFile.deleteOnExit();
+
+            // Write the image to the file
+            ImageIO.write(bufferedImage, "png", tempFile);
+
+            // Determine MIME type
+            String mimeType = Utils.getMimeType(tempFile.getName());
+
+            // Stream the file to the client
+            FileInputStream fis = new FileInputStream(tempFile);
+            Response response = newChunkedResponse(Response.Status.OK, mimeType, fis);
+            response.addHeader("Content-Disposition", "attachment; filename=\"" + tempFile.getName() + "\"");
+            response.addHeader("Content-Length", String.valueOf(tempFile.length()));
+
+            return response;
+        } catch (Exception e) {
+            log.error("handleScreenshot: Failed to download file", e);
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT,
+                "Error downloading file: " + e.getMessage());
+        }
+    }
+
     private Device getDeviceParam(Map<String, String> params) {
         String serial = params.get("serial");
         Device device = DeviceManager.getInstance().getDevice(serial);
@@ -377,15 +416,6 @@ public class RemoteHttpServer extends NanoWSD {
         }
     }
 
-    /**
-     * GET /api/screenshot?serial=xxx
-     */
-    private Response handleScreenshot(IHTTPSession session) {
-        // TODO: Implement screenshot capture
-        return newFixedLengthResponse(Response.Status.NOT_IMPLEMENTED, MIME_PLAINTEXT,
-            "Screenshot feature not yet implemented");
-    }
-
     private String safeHeader(String value) {
         if (value == null) return null;
         value = value.trim();
@@ -515,7 +545,7 @@ public class RemoteHttpServer extends NanoWSD {
         boolean useCompression = "true".equalsIgnoreCase(params.get("compress"));
 
         log.info("handleScreenStreamWebSocket: Opening WebSocket screen stream for device: {}, compression: {}",
-                 device.getDisplayName(), useCompression);
+            device.getDisplayName(), useCompression);
         return new ScreenStreamWebSocket(handshake, device, useCompression);
     }
 

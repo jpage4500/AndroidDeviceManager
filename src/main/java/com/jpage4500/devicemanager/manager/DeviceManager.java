@@ -883,26 +883,30 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
         return null;
     }
 
-    public void captureScreenshot(Device device, TaskListener listener) {
+    public interface ScreenshotListener {
+        void onScreenshot(BufferedImage image);
+    }
+
+    public void captureScreenshot(Device device, ScreenshotListener listener) {
         commandExecutorService.submit(() -> {
-            String downloadFolder = Utils.getDownloadFolder();
-            // 20211215-1441PM-1.png
-            String name = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date()) + ".png";
-            try {
-                Timer timer = new Timer();
-                BufferedImage image = device.jadbDevice.screencap();
-                // save to file
-                File outputfile = new File(downloadFolder, name);
-                ImageIO.write(image, "png", outputfile);
-                log.debug("captureScreenshot: DONE:{}, {}x{}, {}", timer, image.getWidth(), image.getHeight(), outputfile.getAbsolutePath());
-                // open with default viewer
-                Utils.openFile(outputfile);
-                listener.onTaskComplete(true, null);
-            } catch (Exception e) {
-                log.error("captureScreenshot: {}", e.getMessage());
-                listener.onTaskComplete(false, e.getMessage());
-            }
+            BufferedImage bufferedImage = captureScreenshotInternal(device);
+            listener.onScreenshot(bufferedImage);
         });
+    }
+
+    public BufferedImage captureScreenshotInternal(Device device) {
+        if (device.remoteConnection != null) {
+            // remote device
+            // device.remoteConnection.
+        } else {
+            // local device
+            try {
+                return device.jadbDevice.screencap();
+            } catch (Exception e) {
+                log.error("captureScreenshotInternal: {}", e.getMessage());
+            }
+        }
+        return null;
     }
 
     public void setProperty(Device device, String key, String value, TaskListener listener) {

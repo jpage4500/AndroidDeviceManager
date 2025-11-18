@@ -303,7 +303,6 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
         // Check if screen is awake
         DeviceManager.ShellResult result = deviceManager.runShell(device, "dumpsys power");
         if (result.isSuccess && result.resultList != null) {
-            log.trace("wakeDevice: {}", result);
             for (String line : result.resultList) {
                 if (line.contains("mWakefulness=")) {
                     // mWakefulness=Dozing
@@ -314,7 +313,11 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
                         deviceManager.runShell(device, "input keyevent " + AndroidKeyMapper.KEYCODE_WAKEUP);
                         Utils.sleep(1000);
                         // Keep screen on during mirroring
-                        deviceManager.runShell(device, "svc power stayon true");
+                        DeviceManager.ShellResult r = deviceManager.runShell(device, "svc power stayon true");
+                        if (!r.isSuccess) {
+                            // Fallback: keep screen on while AC or USB (1|2 = 3)
+                            deviceManager.runShell(device, "settings put global stay_on_while_plugged_in 3");
+                        }
                     }
                     return;
                 }
@@ -364,17 +367,17 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
                 g.dispose();
 
                 Thumbnails.of(rgbImage)
-                        .size(rgbImage.getWidth(), rgbImage.getHeight())
-                        .outputFormat("jpg")
-                        .outputQuality(JPEG_QUALITY)
-                        .toOutputStream(baos);
+                    .size(rgbImage.getWidth(), rgbImage.getHeight())
+                    .outputFormat("jpg")
+                    .outputQuality(JPEG_QUALITY)
+                    .toOutputStream(baos);
                 format = "jpeg";
             } else {
                 Thumbnails.of(image)
-                        .size(image.getWidth(), image.getHeight())
-                        .outputFormat("png")
-                        .scale(1.0)
-                        .toOutputStream(baos);
+                    .size(image.getWidth(), image.getHeight())
+                    .outputFormat("png")
+                    .scale(1.0)
+                    .toOutputStream(baos);
                 format = "png";
             }
             byte[] imageBytes = baos.toByteArray();

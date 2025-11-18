@@ -25,6 +25,11 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
     private final Device device;
     private final RemoteConnection remoteConnection;
+    // Connection state + reconnect
+    private boolean connected = false;     // true after first frame arrives
+    private Timer reconnectTimer;          // schedules a reconnect attempt
+    private boolean closing = false;       // window is closing; skip reconnect
+
     private ScreenPanel screenPanel;
     private StatusBar statusBar;
     private JComboBox<RefreshSpeed> speedComboBox;
@@ -138,6 +143,11 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
         if (state == WindowState.CLOSING) {
+            closing = true;
+            if (reconnectTimer != null) {
+                reconnectTimer.stop();
+                reconnectTimer = null;
+            }
             cleanup();
             saveFrameSize();
             dispose();
@@ -148,6 +158,10 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         log.trace("cleanup");
         if (remoteConnection != null) {
             remoteConnection.stopScreenStream(device.serial);
+        }
+        if (reconnectTimer != null) {
+            reconnectTimer.stop();
+            reconnectTimer = null;
         }
         if (textBatchTimer != null) {
             textBatchTimer.stop();
@@ -162,6 +176,10 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     @Override
     public void onFrame(BufferedImage image, int width, int height) {
         SwingUtilities.invokeLater(() -> {
+            connected = true;
+            if (!"Connected".equals(statusBar.getCenterLabelText())) {
+                statusBar.setCenterLabel("Connected");
+            }
             currentImage = image;
             deviceWidth = width;
             deviceHeight = height;
@@ -201,7 +219,13 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     public void onClosed() {
         SwingUtilities.invokeLater(() -> {
             log.info("onClosed");
-            statusBar.setCenterLabel("Disconnected");
+            if (closing) {
+                statusBar.setCenterLabel("Closed");
+                return;
+            }
+            connected = false;
+            statusBar.setCenterLabel("Disconnected. Reconnecting...");
+            scheduleReconnect();
         });
     }
 
@@ -302,6 +326,10 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             });
         }
 
+        private boolean isInputAllowed() {
+            return connected;
+        }
+
         private void startAnimationLoop() {
             if (animationTimer != null) return;
             animationTimer = new Timer(30, e -> {
@@ -381,6 +409,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         }
 
         private void handleTap(Point screenPoint) {
+            if (!isInputAllowed()) return;
             Point devicePoint = screenToDeviceCoordinates(screenPoint);
             if (devicePoint != null) {
                 log.debug("handleTap: screen={}, device={}", screenPoint, devicePoint);
@@ -390,6 +419,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         }
 
         private void handleSwipe(Point screenStart, Point screenEnd) {
+            if (!isInputAllowed()) return;
             Point deviceStart = screenToDeviceCoordinates(screenStart);
             Point deviceEnd = screenToDeviceCoordinates(screenEnd);
             if (deviceStart != null && deviceEnd != null) {
@@ -429,14 +459,15 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         }
 
         private void triggerLongPress(Point screenPoint) {
+            if (!isInputAllowed()) return;
             Point devicePoint = screenToDeviceCoordinates(screenPoint);
             if (devicePoint != null) {
                 log.debug("handleLongPress: screen={}, device={}", screenPoint, devicePoint);
                 // simulate long press using swipe with same coords and longer duration
                 remoteConnection.sendScreenInputSwipe(device.serial,
-                        devicePoint.x, devicePoint.y,
-                        devicePoint.x, devicePoint.y,
-                        LONG_PRESS_DURATION_MS);
+                    devicePoint.x, devicePoint.y,
+                    devicePoint.x, devicePoint.y,
+                    LONG_PRESS_DURATION_MS);
                 addLongPressAnimation(screenPoint);
             }
         }
@@ -448,6 +479,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         }
 
         private void handleKeyTyped(KeyEvent e) {
+            if (!isInputAllowed()) return;
             char ch = e.getKeyChar();
             if (Character.isISOControl(ch)) {
                 return; // Skip control characters
@@ -468,6 +500,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         }
 
         private void handleKeyPressed(KeyEvent e) {
+            if (!isInputAllowed()) return;
             int keyCode = e.getKeyCode();
 
             // Map to Android keycode
@@ -551,4 +584,23 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             textBuffer.setLength(0);
         }
     }
+
+    private void scheduleReconnect() {
+        if (closing) return;
+        if (reconnectTimer != null && reconnectTimer.isRunning()) return;
+        reconnectTimer = new Timer(2000, e -> {
+            if (closing) {
+                reconnectTimer.stop();
+                return;
+            }
+            log.info("Attempting to reconnect screen stream for {}", device.serial);
+            connected = false; // will flip true on next frame
+            startScreenStream((RefreshSpeed) speedComboBox.getSelectedItem());
+            statusBar.setCenterLabel("Reconnecting...");
+            reconnectTimer.stop();
+        });
+        reconnectTimer.setRepeats(false);
+        reconnectTimer.start();
+    }
+
 }

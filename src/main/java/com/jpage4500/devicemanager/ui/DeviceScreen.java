@@ -20,11 +20,13 @@ import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.ui.views.TrayMenuItem;
 import com.jpage4500.devicemanager.utils.*;
 
+import com.jpage4500.devicemanager.utils.Timer;
 import net.miginfocom.swing.MigLayout;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 
 import java.awt.*;
@@ -35,6 +37,7 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -967,9 +970,26 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
         for (Device device : selectedDeviceList) {
             setDeviceBusy(device, true);
-            DeviceManager.getInstance().captureScreenshot(device, (isSuccess, error) -> {
+            DeviceManager.getInstance().captureScreenshot(device, image -> {
                 setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
+                boolean isSuccess = image != null;
+                if (isSuccess) {
+                    // save image to file
+                    String downloadFolder = Utils.getDownloadFolder();
+                    // 20211215-1441PM-1.png
+                    String name = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date()) + ".png";
+                    try {
+                        // save to file
+                        File outputfile = new File(downloadFolder, name);
+                        ImageIO.write(image, "png", outputfile);
+                        log.debug("captureScreenshot: DONE: {}x{}, {}", image.getWidth(), image.getHeight(), outputfile.getAbsolutePath());
+                        // open with default viewer
+                        Utils.openFile(outputfile);
+                    } catch (Exception e) {
+                        log.error("captureScreenshot: {}", e.getMessage());
+                    }
+                }
+                resultWatcher.handleResult(device.serial, isSuccess, null);
             });
         }
     }
