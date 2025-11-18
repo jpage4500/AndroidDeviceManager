@@ -123,7 +123,7 @@ public class LogsCellRenderer extends CustomTextField implements TableCellRender
         int size = fontSize + fontOffset;
         if (size > 25) size = 25;
         else if (size < 8) size = 8;
-        log.trace("notifyFontChanged: {}, {}, {}, offset:{}", fontName, fontStyle, fontSize, fontOffset);
+        //log.trace("notifyFontChanged: {}, {}, {}, offset:{}", fontName, fontStyle, fontSize, fontOffset);
         Font font = new Font(fontName, fontStyle, size);
         setFont(font);
     }

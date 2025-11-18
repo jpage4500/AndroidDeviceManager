@@ -426,7 +426,7 @@ public class CustomTable extends JTable {
         while (columns.hasMoreElements()) {
             TableColumn column = columns.nextElement();
             if (!orderedColumns.contains(column)) {
-                log.trace("restoreColumnOrder: adding: {}", column.getHeaderValue());
+                //log.trace("restoreColumnOrder: adding: {}", column.getHeaderValue());
                 orderedColumns.add(column);
             }
         }
@@ -442,7 +442,7 @@ public class CustomTable extends JTable {
         }
 
         applyColumnWidths(detailsList);
-        log.debug("restoreTable: restored {} columns for {}", orderedColumns.size(), prefKey);
+        //log.trace("restoreTable: restored {} columns for {}", orderedColumns.size(), prefKey);
         return true;
     }
 

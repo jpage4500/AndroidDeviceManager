@@ -80,6 +80,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public ViewLogsScreen(DeviceScreen deviceScreen, Device device) {
         super("logs-" + device.serial, 1100, 800);
         this.deviceScreen = deviceScreen;
+        this.device = device;
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initalizeUi();
@@ -89,6 +90,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public void updateDevice(Device device) {
         this.device = device;
         log.trace("updateDeviceState: ONLINE:{}", device.isOnline);
+        hideFilterPanel();
         if (device.isOnline) {
             setTitle("Logs: [" + device.getDisplayName() + "]");
             startLogging();
@@ -96,7 +98,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             setTitle("OFFLINE [" + device.getDisplayName() + "]");
             stopLogging();
         }
-        hideFilterPanel();
     }
 
     protected void initalizeUi() {
@@ -924,6 +925,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void restoreSelectedFilters() {
+        // remote device doesn't filter locally
+        if (device.remoteConnection != null) return;
+
         // select last used filter(s)
         String recentFilterStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS);
         List<String> recentFilterList = GsonHelper.stringToList(recentFilterStr, String.class);
@@ -1074,6 +1078,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void doFilter(String text) {
+        // remote device doesn't filter locally
+        if (device.remoteConnection != null) return;
         if (sorter == null) return;
         List<LogFilter> list = new ArrayList<>();
 

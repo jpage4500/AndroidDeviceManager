@@ -35,7 +35,8 @@ public class LogEntry {
         String dayStr = lineArr[0];
         String timeStr = lineArr[1];
         // remove micro-seconds (could be useful to parse but not necessary to display today)
-        if (timeStr.length() > 4) timeStr = timeStr.substring(0, timeStr.length() - 4);
+        // "10-16 11:34:17.824" -> "10-16 11:34:17"
+        if (timeStr.length() >= 14) timeStr = timeStr.substring(0, timeStr.length() - 4);
         date = dayStr + " " + timeStr;
 
         pid = lineArr[2];

@@ -81,10 +81,18 @@ public class Device {
      */
     public String getDisplayName() {
         StringBuilder sb = new StringBuilder();
-        if (TextUtils.notEmpty(nickname)) sb.append(nickname);
-        else {
-            if (model != null) sb.append(model);
+        if (remoteConnection != null) {
+            sb.append(remoteConnection.getServerConfig().name);
         }
+
+        if (TextUtils.notEmpty(nickname)) {
+            if (!sb.isEmpty()) sb.append(" - ");
+            sb.append(nickname);
+        } else if (model != null) {
+            if (!sb.isEmpty()) sb.append(" - ");
+            sb.append(model);
+        }
+
         if (phone != null) {
             if (!sb.isEmpty()) sb.append(" - ");
             sb.append(phone);
