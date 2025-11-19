@@ -9,13 +9,23 @@ import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
  * Window that displays a remote device screen stream with interactive input
@@ -500,8 +510,24 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         }
 
         private void handleKeyPressed(KeyEvent e) {
-            if (!isInputAllowed()) return;
             int keyCode = e.getKeyCode();
+            
+            // Check for CMD+C (Mac) or CTRL+C (other platforms) to copy image
+            boolean isMetaDown = e.isMetaDown() || e.isControlDown();
+            if (isMetaDown && keyCode == KeyEvent.VK_C) {
+                copyImageToClipboard();
+                e.consume();
+                return;
+            }
+            
+            // Check for CMD+S (Mac) or CTRL+S (other platforms) to save image
+            if (isMetaDown && keyCode == KeyEvent.VK_S) {
+                saveImageToFile();
+                e.consume();
+                return;
+            }
+            
+            if (!isInputAllowed()) return;
 
             // Map to Android keycode
             Integer androidKeyCode = AndroidKeyMapper.mapKeyCode(keyCode);
@@ -514,6 +540,70 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 remoteConnection.sendScreenInputKeyEvent(device.serial, androidKeyCode);
                 addKeyAnimation(KeyEvent.getKeyText(keyCode));
                 e.consume();
+            }
+        }
+
+        private void copyImageToClipboard() {
+            if (currentImage == null) {
+                log.warn("copyImageToClipboard: no image available");
+                statusBar.setCenterLabel("No image to copy");
+                return;
+            }
+            
+            try {
+                Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                ImageTransferable transferable = new ImageTransferable(currentImage);
+                clipboard.setContents(transferable, null);
+                log.debug("copyImageToClipboard: image copied to clipboard");
+                statusBar.setCenterLabel("Image copied to clipboard");
+            } catch (Exception ex) {
+                log.error("copyImageToClipboard: error", ex);
+                statusBar.setCenterLabel("Error copying image");
+            }
+        }
+
+        private void saveImageToFile() {
+            if (currentImage == null) {
+                log.warn("saveImageToFile: no image available");
+                statusBar.setCenterLabel("No image to save");
+                return;
+            }
+            
+            // Create file chooser
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("Save Screenshot");
+            
+            // Set default filename with timestamp
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
+            String defaultName = device.getDisplayName().replaceAll("[^a-zA-Z0-9.-]", "_") + "_" + sdf.format(new Date()) + ".png";
+            fileChooser.setSelectedFile(new File(defaultName));
+            
+            // Set file filter
+            FileNameExtensionFilter filter = new FileNameExtensionFilter("PNG Images (*.png)", "png");
+            fileChooser.setFileFilter(filter);
+            
+            // Show save dialog
+            int result = fileChooser.showSaveDialog(RemoteScreenWindow.this);
+            if (result == JFileChooser.APPROVE_OPTION) {
+                File file = fileChooser.getSelectedFile();
+                
+                // Ensure .png extension
+                if (!file.getName().toLowerCase().endsWith(".png")) {
+                    file = new File(file.getAbsolutePath() + ".png");
+                }
+                
+                try {
+                    ImageIO.write(currentImage, "png", file);
+                    log.debug("saveImageToFile: image saved to {}", file.getAbsolutePath());
+                    statusBar.setCenterLabel("Image saved: " + file.getName());
+                } catch (IOException ex) {
+                    log.error("saveImageToFile: error saving image", ex);
+                    statusBar.setCenterLabel("Error saving image");
+                    JOptionPane.showMessageDialog(RemoteScreenWindow.this, 
+                        "Failed to save image: " + ex.getMessage(), 
+                        "Save Error", 
+                        JOptionPane.ERROR_MESSAGE);
+                }
             }
         }
 
@@ -601,6 +691,35 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         });
         reconnectTimer.setRepeats(false);
         reconnectTimer.start();
+    }
+
+    /**
+     * Helper class to make BufferedImage transferable to clipboard
+     */
+    private static class ImageTransferable implements Transferable {
+        private final BufferedImage image;
+
+        public ImageTransferable(BufferedImage image) {
+            this.image = image;
+        }
+
+        @Override
+        public DataFlavor[] getTransferDataFlavors() {
+            return new DataFlavor[]{DataFlavor.imageFlavor};
+        }
+
+        @Override
+        public boolean isDataFlavorSupported(DataFlavor flavor) {
+            return DataFlavor.imageFlavor.equals(flavor);
+        }
+
+        @Override
+        public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException, IOException {
+            if (!isDataFlavorSupported(flavor)) {
+                throw new UnsupportedFlavorException(flavor);
+            }
+            return image;
+        }
     }
 
 }
