@@ -55,6 +55,9 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
         column = table.convertColumnIndexToModel(column);
         DeviceTableModel.Columns columnType = model.getColumnType(column);
 
+        // hasFocus is for the cell only (not entire row)
+        boolean isSelectedAndFocused = isSelected && table.hasFocus();
+
         Icon icon = null;
         String text = null;
         int align = SwingConstants.LEFT;
@@ -78,7 +81,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     break;
                 case NAME:
                     // Show device status icon with optional remote indicator
-                    icon = getDeviceIcon(device, isSelected);
+                    icon = getDeviceIcon(device, isSelectedAndFocused);
                     text = model.deviceValue(device, column);
                     if (device.remoteConnection != null) {
                         String serverName = device.remoteConnection.getServerConfig().name;
@@ -103,11 +106,10 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
         setIcon(icon);
         setText(text);
 
-        boolean isTableFocused = table.hasFocus();
-        Color textColor = isSelected && isTableFocused ? Color.WHITE : Color.BLACK;
+        Color textColor = isSelectedAndFocused ? Color.WHITE : Color.BLACK;
         Color backgroundColor = isSelected ? table.getSelectionBackground() : table.getBackground();
         if (!device.isOnline) {
-            textColor = isSelected && isTableFocused ? Color.WHITE : Color.GRAY;
+            textColor = isSelectedAndFocused ? Color.WHITE : Color.GRAY;
         }
 
         int highlightStartPos = -1;
@@ -128,7 +130,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     highlightPainter = new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW);
                     highlightPainter2 = new DefaultHighlighter.DefaultHighlightPainter(new Color(251, 109, 8));
                 }
-                Highlighter.HighlightPainter highlight = isSelected ? highlightPainter2 : highlightPainter;
+                Highlighter.HighlightPainter highlight = isSelectedAndFocused ? highlightPainter2 : highlightPainter;
                 try {
                     highlighter.addHighlight(highlightStartPos, highlightStartPos + searchText.length(), highlight);
                 } catch (BadLocationException e) {
