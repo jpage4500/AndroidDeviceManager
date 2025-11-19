@@ -209,4 +209,10 @@ public class UiUtils {
         });
         return checkbox;
     }
+
+    public static boolean closeWindow(Component component) {
+        Window window = SwingUtilities.getWindowAncestor(component);
+        if (window != null) window.dispose();
+        return window != null;
+    }
 }

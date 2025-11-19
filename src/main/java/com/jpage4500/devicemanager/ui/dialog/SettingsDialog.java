@@ -8,6 +8,7 @@ import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
+import com.jpage4500.devicemanager.ui.views.DraggableCheckBoxList;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
@@ -231,33 +232,96 @@ public class SettingsDialog extends JPanel {
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenToolbarList));
     }
 
+    public static List<String> getToolbarOrder() {
+        String orderStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_TOOLBAR_ORDER);
+        List<String> orderList = GsonHelper.stringToList(orderStr, String.class);
+        if (orderList == null) orderList = new ArrayList<>();
+        return orderList;
+    }
+
     public static void showManageToolbar(DeviceScreen deviceScreen, Component component) {
         List<String> hiddenColList = getHiddenToolbarList();
-        CheckBoxList checkBoxList = new CheckBoxList();
-        DeviceScreen.ToolbarButton[] arr = DeviceScreen.ToolbarButton.values();
-        for (DeviceScreen.ToolbarButton val : arr) {
-            // prevent some buttons from being hidden
-            switch (val) {
-                case SETTINGS:
-                    continue;
+        List<String> orderedList = getToolbarOrder();
+        
+        DraggableCheckBoxList checkBoxList = new DraggableCheckBoxList();
+        
+        // Build ordered array of toolbar buttons
+        DeviceScreen.ToolbarButton[] allButtons = DeviceScreen.ToolbarButton.values();
+        List<DeviceScreen.ToolbarButton> orderedButtons = new ArrayList<>();
+        
+        // First add buttons in saved order
+        for (String label : orderedList) {
+            DeviceScreen.ToolbarButton button = DeviceScreen.ToolbarButton.buttonFromLabel(label);
+            if (button != null && button != DeviceScreen.ToolbarButton.SETTINGS) {
+                orderedButtons.add(button);
             }
-            boolean isHidden = hiddenColList.contains(val.label);
-            checkBoxList.addItem(val.label, !isHidden);
+        }
+        
+        // Then add any new buttons not in saved order
+        for (DeviceScreen.ToolbarButton button : allButtons) {
+            if (button == DeviceScreen.ToolbarButton.SETTINGS) continue;
+            if (!orderedButtons.contains(button)) {
+                orderedButtons.add(button);
+            }
+        }
+        
+        // Add items to list with icons
+        for (DeviceScreen.ToolbarButton button : orderedButtons) {
+            boolean isHidden = hiddenColList.contains(button.label);
+            ImageIcon icon = null;
+            if (button.image != null) {
+                icon = UiUtils.getImageIcon(button.image, 32);
+            }
+            checkBoxList.addItem(button.label, !isHidden, icon);
         }
 
         JPanel panel = new JPanel(new MigLayout("fillx"));
-        panel.add(new JLabel("Select buttons to SHOW"), "span");
+        panel.add(new JLabel("<html>Select buttons to SHOW<br>Drag to reorder</html>"), "span");
 
         JScrollPane scroll = new JScrollPane(checkBoxList);
         panel.add(scroll, "grow, span, wrap");
 
-        if (!DialogHelper.showCustomDialog(component, panel, "Toolbar Buttons", null)) return;
+        // Add Restore Default button
+        JButton defaultButton = new JButton("Restore Default");
+        defaultButton.addActionListener(e -> {
+            // Reset to default order and visibility
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_TOOLBAR_ORDER, null);
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, null);
+            deviceScreen.setupToolbar();
+            UiUtils.closeWindow(panel);
+        });
+        panel.add(defaultButton, "span, align right, wrap");
+        
+        // Add OK/Cancel buttons at bottom
+        JPanel buttonPanel = new JPanel(new MigLayout("fillx", "push[][]"));
+        
+        JButton cancelButton = new JButton("Cancel");
+        cancelButton.addActionListener(e -> {
+            UiUtils.closeWindow(panel);
+        });
+        buttonPanel.add(cancelButton, "");
+        
+        JButton okButton = new JButton("OK");
+        okButton.addActionListener(e -> {
+            // Save order
+            List<String> orderedItems = checkBoxList.getAllItems();
+            log.debug("ORDER: {}", GsonHelper.toJson(orderedItems));
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_TOOLBAR_ORDER, GsonHelper.toJson(orderedItems));
+            
+            // Save hidden items
+            List<String> hiddenItems = checkBoxList.getUnSelectedItems();
+            log.debug("HIDDEN: {}", GsonHelper.toJson(hiddenItems));
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenItems));
+            
+            deviceScreen.setupToolbar();
+            
+            UiUtils.closeWindow(panel);
+        });
+        buttonPanel.add(okButton, "");
+        
+        panel.add(buttonPanel, "span, align right");
 
-        // save columns that are NOT selected
-        List<String> selectedItems = checkBoxList.getUnSelectedItems();
-        log.debug("HIDDEN: {}", GsonHelper.toJson(selectedItems));
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(selectedItems));
-        deviceScreen.setupToolbar();
+        DialogHelper.showCustomDialog(component, panel, "Toolbar Buttons", new String[]{});
     }
 
     private void showAppsSettings() {

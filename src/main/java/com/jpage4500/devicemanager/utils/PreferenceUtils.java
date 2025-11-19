@@ -23,6 +23,7 @@ public class PreferenceUtils {
         PREF_RECENT_INPUT,
         PREF_MESSAGE_FILTERS,
         PREF_HIDDEN_TOOLBAR_ITEMS,
+        PREF_TOOLBAR_ORDER,
         PREF_LOGS_HIDDEN_COLUMNS,
         PREF_LOGS_CUSTOM_FILTER,              // logs: last custom filter
         PREF_LOGS_SELECTED_FILTERS,           // logs: last selected filters

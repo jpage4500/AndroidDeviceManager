@@ -19,16 +19,12 @@ import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.ui.views.TrayMenuItem;
 import com.jpage4500.devicemanager.utils.*;
-
-import com.jpage4500.devicemanager.utils.Timer;
 import net.miginfocom.swing.MigLayout;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
-
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -1272,46 +1268,87 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
 
         toolbar.setRollover(true);
-        JButton connectBtn = createToolbarButton(toolbar, ToolbarButton.CONNECT, actionEvent -> handleConnectDevice());
-        if (connectBtn != null) toolbar.addSeparator();
 
-        JButton browseBtn = createToolbarButton(toolbar, ToolbarButton.BROWSE, actionEvent -> handleBrowseCommand(null));
+        // Get ordered toolbar buttons
+        List<String> orderedList = SettingsDialog.getToolbarOrder();
+        List<ToolbarButton> orderedButtons = new ArrayList<>();
 
-        JButton viewLogsBtn = createToolbarButton(toolbar, ToolbarButton.LOGS, actionEvent -> handleViewLogsCommand(null));
+        // First add buttons in saved order (excluding right-side buttons)
+        for (String label : orderedList) {
+            ToolbarButton button = ToolbarButton.buttonFromLabel(label);
+            if (button != null && !isRightSideButton(button)) {
+                orderedButtons.add(button);
+            }
+        }
 
-        JButton saveLogsBtn = createToolbarButton(toolbar, ToolbarButton.SAVE_LOGS, actionEvent -> handleSaveLogsCommand());
+        // Then add any new buttons not in saved order (excluding right-side buttons)
+        ToolbarButton[] allButtons = ToolbarButton.values();
+        for (ToolbarButton button : allButtons) {
+            if (!isRightSideButton(button) && !orderedButtons.contains(button)) {
+                orderedButtons.add(button);
+            }
+        }
 
-        JButton inputBtn = createToolbarButton(toolbar, ToolbarButton.INPUT, actionEvent -> handleInputCommand());
-
-        if (browseBtn != null || viewLogsBtn != null || inputBtn != null || saveLogsBtn != null)
-            toolbar.addSeparator();
-
-        JButton mirrorBtn = createToolbarButton(toolbar, ToolbarButton.MIRROR, actionEvent -> handleMirrorCommand());
-
-        JButton recordBtn = createToolbarButton(toolbar, ToolbarButton.RECORD, actionEvent -> handleRecordCommand());
-
-        JButton screenBtn = createToolbarButton(toolbar, ToolbarButton.SCREENSHOT, actionEvent -> handleScreenshotCommand());
-
-        JButton installBtn = createToolbarButton(toolbar, ToolbarButton.INSTALL, actionEvent -> handleInstallCommand());
-        JButton termBtn = createToolbarButton(toolbar, ToolbarButton.TERMINAL, actionEvent -> handleTermCommand());
-
-        if (mirrorBtn != null || recordBtn != null || screenBtn != null || installBtn != null || termBtn != null)
-            toolbar.addSeparator();
-
-        // create custom action buttons
-        createToolbarButton(toolbar, ToolbarButton.ADB, actionEvent -> handleRunCustomCommand());
-
-        loadCustomScripts(toolbar);
+        // Create toolbar buttons in order
+        for (ToolbarButton button : orderedButtons) {
+            JButton btn = null;
+            switch (button) {
+                case CONNECT:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleConnectDevice());
+                    if (btn != null) {
+                        toolbar.addSeparator();
+                    }
+                    break;
+                case BROWSE:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleBrowseCommand(null));
+                    break;
+                case LOGS:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleViewLogsCommand(null));
+                    break;
+                case SAVE_LOGS:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleSaveLogsCommand());
+                    break;
+                case INPUT:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleInputCommand());
+                    break;
+                case MIRROR:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleMirrorCommand());
+                    break;
+                case RECORD:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleRecordCommand());
+                    break;
+                case SCREENSHOT:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleScreenshotCommand());
+                    break;
+                case INSTALL:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleInstallCommand());
+                    break;
+                case TERMINAL:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleTermCommand());
+                    break;
+                case ADB:
+                    btn = createToolbarButton(toolbar, button, actionEvent -> handleRunCustomCommand());
+                    break;
+                case SCRIPTS:
+                    loadCustomScripts(toolbar);
+                    break;
+                // Right-side buttons are handled separately
+                case FILTER:
+                case REFRESH:
+                case SHARE_SERVER:
+                case SETTINGS:
+                    break;
+            }
+        }
 
         // -- right side toolbar buttons --
-
         toolbar.add(Box.createHorizontalGlue());
 
         filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
         if (!isToobarHidden(ToolbarButton.FILTER)) {
-            filterTextField.setPreferredSize(new Dimension(150, 40));
-            filterTextField.setMinimumSize(new Dimension(10, 40));
-            filterTextField.setMaximumSize(new Dimension(200, 40));
+            filterTextField.setPreferredSize(new Dimension(150, UiUtils.IMG_SIZE_TOOLBAR));
+            filterTextField.setMinimumSize(new Dimension(10, UiUtils.IMG_SIZE_TOOLBAR));
+            filterTextField.setMaximumSize(new Dimension(200, UiUtils.IMG_SIZE_TOOLBAR));
             UiUtils.addRightClickListener(filterTextField, e -> {
                 JPopupMenu popupMenu = new JPopupMenu();
                 JMenuItem hideItem = new JMenuItem("Hide " + ToolbarButton.FILTER.label);
@@ -1343,6 +1380,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(this));
     }
 
+    private boolean isRightSideButton(ToolbarButton button) {
+        return button == ToolbarButton.FILTER || button == ToolbarButton.REFRESH ||
+            button == ToolbarButton.SHARE_SERVER || button == ToolbarButton.SETTINGS;
+    }
+
     protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {
         if (isToobarHidden(toolbarButton)) return null;
 
@@ -1350,7 +1392,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         String label = toolbarButton.label;
         String tooltip = toolbarButton.tooltip;
 
-        JButton button = createToolbarButton(toolbar, imageName, label, tooltip, 40, listener);
+        JButton button = createToolbarButton(toolbar, imageName, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
         UiUtils.addRightClickListener(button, e -> {
             if (toolbarButton == ToolbarButton.SETTINGS) return;
             JPopupMenu popupMenu = new JPopupMenu();
