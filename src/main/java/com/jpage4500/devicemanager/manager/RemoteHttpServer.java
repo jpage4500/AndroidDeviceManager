@@ -257,6 +257,9 @@ public class RemoteHttpServer extends NanoWSD {
             return createNotFoundResponse("Device not found");
         }
 
+        // wake device
+        DeviceManager.getInstance().wakeDevice(device);
+
         BufferedImage bufferedImage = DeviceManager.getInstance().captureScreenshotInternal(device);
 
         try {

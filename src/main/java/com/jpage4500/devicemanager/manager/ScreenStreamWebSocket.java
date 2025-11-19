@@ -71,7 +71,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
         log.info("onOpen: device: {}", device.serial);
 
         // Wake device screen before starting
-        wakeDevice();
+        deviceManager.wakeDevice(device);
 
         // Send initial connection message
         sendStatusMessage("connected", "Screen stream started");
@@ -293,36 +293,6 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
         log.debug("handleKeyEvent: keycode={}", keycode);
         String command = String.format("input keyevent %d", keycode);
         deviceManager.runShell(device, command);
-    }
-
-    /**
-     * Wake device screen
-     */
-    private void wakeDevice() {
-        log.debug("wakeDevice: {}", device.serial);
-        // Check if screen is awake
-        DeviceManager.ShellResult result = deviceManager.runShell(device, "dumpsys power");
-        if (result.isSuccess && result.resultList != null) {
-            for (String line : result.resultList) {
-                if (line.contains("mWakefulness=")) {
-                    // mWakefulness=Dozing
-                    // mWakefulness=Asleep
-                    log.debug("wakeDevice: {}", line);
-                    if (TextUtils.containsAny(line, true, "Asleep", "Dozing")) {
-                        // Wake up the device
-                        deviceManager.runShell(device, "input keyevent " + AndroidKeyMapper.KEYCODE_WAKEUP);
-                        Utils.sleep(1000);
-                        // Keep screen on during mirroring
-                        DeviceManager.ShellResult r = deviceManager.runShell(device, "svc power stayon true");
-                        if (!r.isSuccess) {
-                            // Fallback: keep screen on while AC or USB (1|2 = 3)
-                            deviceManager.runShell(device, "settings put global stay_on_while_plugged_in 3");
-                        }
-                    }
-                    return;
-                }
-            }
-        }
     }
 
     /**

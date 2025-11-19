@@ -12,8 +12,6 @@ import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
-import javax.imageio.ImageIO;
-import javax.swing.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -897,7 +895,7 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
     public BufferedImage captureScreenshotInternal(Device device) {
         if (device.remoteConnection != null) {
             // remote device
-            // device.remoteConnection.
+            return device.remoteConnection.fetchScreenshot(device.serial);
         } else {
             // local device
             try {
@@ -1763,6 +1761,40 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
             String appVersion = getAppVersion(device, appPkg);
             listener.onComplete(appVersion);
         });
+    }
+
+    /**
+     * Wake device screen
+     */
+    public boolean wakeDevice(Device device) {
+        log.debug("wakeDevice: {}", device.serial);
+        // Check if screen is awake
+        DeviceManager.ShellResult result = runShell(device, "dumpsys power");
+        if (result.isSuccess && result.resultList != null) {
+            boolean isScreenOn = true;
+            for (String line : result.resultList) {
+                if (line.contains("mWakefulness=")) {
+                    // mWakefulness=Dozing; mWakefulness=Asleep
+                    log.debug("wakeDevice: {}", line);
+                    if (TextUtils.containsAny(line, true, "Asleep", "Dozing")) {
+                        isScreenOn = false;
+                        break;
+                    }
+                }
+            }
+            if (!isScreenOn) {
+                // Wake up the device
+                runShell(device, "input keyevent " + AndroidKeyMapper.KEYCODE_WAKEUP);
+                Utils.sleep(1000);
+                // Keep screen on during mirroring
+                result = runShell(device, "svc power stayon true");
+                if (!result.isSuccess) {
+                    // Fallback: keep screen on while AC or USB (1|2 = 3)
+                    result = runShell(device, "settings put global stay_on_while_plugged_in 3");
+                }
+            }
+        }
+        return result.isSuccess;
     }
 
     private String getAppVersion(Device device, String appPkg) {

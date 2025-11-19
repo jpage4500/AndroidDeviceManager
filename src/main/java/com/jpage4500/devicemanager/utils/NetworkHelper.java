@@ -22,6 +22,10 @@ public class NetworkHelper {
         public String body;                         // response body or error message
     }
 
+    public static class HttpDataResponse extends HttpResponse {
+        public byte[] data;
+    }
+
     /**
      * GET request
      */
@@ -87,9 +91,43 @@ public class NetworkHelper {
     }
 
     /**
+     * download URL to byte array
+     */
+    public HttpDataResponse download(String urlStr, Map<String, String> headers) {
+        HttpDataResponse response = new HttpDataResponse();
+        try {
+            HttpURLConnection conn = createConnection(urlStr);
+            addHeaders(conn, headers);
+
+            response.status = conn.getResponseCode();
+
+            if (response.status >= 200 && response.status < 300) {
+                InputStream inputStream = getInputStream(conn);
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    baos.write(buffer, 0, bytesRead);
+                }
+                response.data = baos.toByteArray();
+                inputStream.close();
+                log.trace("download: {}, http:{}, size:{} bytes", urlStr, response.status, response.data.length);
+            } else {
+                log.warn("download: failed, status: {}", response.status);
+                response.body = readResponse(conn);
+            }
+        } catch (Exception e) {
+            log.error("download: error connecting to hub: {}, {}", urlStr, e.getMessage());
+            response.status = -1;
+            response.body = e.getMessage();
+        }
+        return response;
+    }
+
+    /**
      * download file from URL
      */
-    public HttpResponse download(String urlStr, File file, Map<String, String> headers) {
+    public HttpResponse downloadFile(String urlStr, File file, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
         try {
             HttpURLConnection conn = createConnection(urlStr);

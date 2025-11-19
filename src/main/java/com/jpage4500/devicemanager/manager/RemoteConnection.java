@@ -140,6 +140,25 @@ public class RemoteConnection {
         }
     }
 
+    /**
+     * capture screenshot
+     */
+    public BufferedImage fetchScreenshot(String deviceSerial) {
+        String url = serverConfig.getUrl() + RemoteHttpServer.API_SCREENSHOT + "?serial=" + deviceSerial;
+        Map<String, String> headers = getDefaultHeaders();
+        NetworkHelper.HttpDataResponse response = networkHelper.download(url, headers);
+        if (response.status == 200 && response.data != null) {
+            try (ByteArrayInputStream bais = new ByteArrayInputStream(response.data)) {
+                return ImageIO.read(bais);
+            } catch (Exception e) {
+                log.error("fetchScreenshot: error decoding image", e);
+            }
+        } else {
+            log.warn("fetchScreenshot: failed, status: {}", response.status);
+        }
+        return null;
+    }
+
     private Map<String, String> getDefaultHeaders() {
         Map<String, String> headers = new HashMap<>();
         // all requests require authorization
@@ -194,7 +213,7 @@ public class RemoteConnection {
             "&path=" + encodedPath + "&file=" + encodedFile;
 
         Map<String, String> headers = getDefaultHeaders();
-        NetworkHelper.HttpResponse response = networkHelper.download(url, saveFile, headers);
+        NetworkHelper.HttpResponse response = networkHelper.downloadFile(url, saveFile, headers);
         return response.status == 200;
     }
 
