@@ -8,10 +8,7 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Utilities for generating and parsing connection strings
@@ -20,6 +17,17 @@ public class RemoteConnectionUtils {
     private static final Logger log = LoggerFactory.getLogger(RemoteConnectionUtils.class);
 
     private static final String PREFIX = "adm://";
+
+    public static String generateAuthToken() {
+        // Generate a new random token (16 characters)
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        StringBuilder token = new StringBuilder();
+        for (int i = 0; i < 16; i++) {
+            int index = (int) (Math.random() * chars.length());
+            token.append(chars.charAt(index));
+        }
+        return token.toString();
+    }
 
     /**
      * Generate connection string from server config
@@ -48,8 +56,7 @@ public class RemoteConnectionUtils {
         try {
             String encoded = connectionString.substring(PREFIX.length());
             String json = new String(Base64.getDecoder().decode(encoded), StandardCharsets.UTF_8);
-
-            Map<String, Object> data = GsonHelper.fromJson(json, Map.class);
+            Map<String, Object> data = GsonHelper.stringToMap(json, String.class, Object.class);
 
             RemoteServerConfig config = new RemoteServerConfig();
             config.name = (String) data.getOrDefault("name", "Unknown Server");
@@ -88,8 +95,13 @@ public class RemoteConnectionUtils {
         }
     }
 
+    public static class Network {
+        public String label;
+        public String host;
+    }
 
-    public static String getRealLocalIpAddress() {
+    public static List<Network> getActiveNetworkInfo() {
+        List<Network> networkList = new ArrayList<>();
         // Get the actual LAN IP (not 127.0.0.1)
         try {
             InetAddress localHost = InetAddress.getLocalHost();
@@ -102,26 +114,27 @@ public class RemoteConnectionUtils {
                     NetworkInterface iface = interfaces.nextElement();
 
                     // Skip loopback and inactive interfaces
-                    if (iface.isLoopback() || !iface.isUp()) {
-                        continue;
-                    }
+                    if (iface.isLoopback() || !iface.isUp()) continue;
 
                     Enumeration<InetAddress> addresses = iface.getInetAddresses();
                     while (addresses.hasMoreElements()) {
                         InetAddress addr = addresses.nextElement();
-
                         // We want IPv4 addresses only (skip IPv6)
                         if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
-                            return addr.getHostAddress();
+                            log.trace("getRealLocalIpAddress: {}, {}, {}", addr.getHostAddress(), addr.getHostName(), iface.getName());
+                            Network network = new Network();
+                            network.label = iface.getName();
+                            network.host = addr.getHostName();
+                            networkList.add(network);
+                            //return addr.getHostAddress();
                         }
                     }
                 }
             }
-            return ip;
         } catch (Exception e) {
-            log.debug("Failed to get local IP: {}", e.getMessage());
-            return "N/A";
+            log.error("Failed to get local IP: {}", e.getMessage());
         }
+        return networkList;
     }
 
     public static String getDeviceName() {

@@ -367,7 +367,7 @@ public class SaveLogsScreen extends BaseScreen {
     private void deleteLogs() {
         if (lastLogsFolder == null) return;
         String msg = String.format("Delete last log folder: %s?", lastLogsFolder.getAbsolutePath());
-        boolean isDelete = DialogHelper.showOptionDialog(this, "Delete Logs", msg, new String[]{"Yes", "No"});
+        boolean isDelete = DialogHelper.showConfirmDialog(this, "Delete Logs", msg);
         if (isDelete) {
             log.trace("deleteLogs: {}", lastLogsFolder.getAbsolutePath());
             FileUtils.deleteFolder(lastLogsFolder);

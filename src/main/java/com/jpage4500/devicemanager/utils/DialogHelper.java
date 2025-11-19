@@ -40,12 +40,12 @@ public class DialogHelper {
     /**
      * show a prompt dialog with custom buttons
      *
-     * @return true if YES is selected
+     * @return index of selected button or -1 if cancelled
      */
-    public static boolean showOptionDialog(Component component, String title, String text, String[] buttons) {
+    public static int showOptionDialog(Component component, String title, String text, String[] buttons) {
         int rc = JOptionPane.showOptionDialog(component, text, title, JOptionPane.DEFAULT_OPTION,
             JOptionPane.QUESTION_MESSAGE, null, buttons, null);
-        return (rc == JOptionPane.YES_OPTION);
+        return rc;
     }
 
     public static void showTextDialog(Component component, String title, String text) {

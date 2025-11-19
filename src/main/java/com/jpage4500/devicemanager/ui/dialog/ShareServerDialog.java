@@ -3,22 +3,21 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteServerManager;
-import com.jpage4500.devicemanager.utils.*;
+import com.jpage4500.devicemanager.utils.DialogHelper;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
+import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.Timer;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -31,16 +30,12 @@ public class ShareServerDialog extends JPanel {
 
     private JLabel statusLabel;
     private JTextField deviceNameField;
-    private JTextField localIpAddressField;
-    private JTextField ipAddressField;
     private JTextField portField;
     private JTextField authTokenField;
     private ClientTableModel clientTableModel;
     private JButton toggleButton;
     private JButton copyButton;
-    private JButton testButton;
-
-    private String cachedPublicIp = null;
+    private List<RemoteConnectionUtils.Network> networkList;
 
     public static void showShareServerDialog(Component parent) {
         RemoteServerManager serverManager = DeviceManager.getInstance().getRemoteServerManager();
@@ -54,9 +49,6 @@ public class ShareServerDialog extends JPanel {
         setLayout(new BorderLayout(10, 10));
         initUI();
         refreshUI();
-
-        // Fetch public IP asynchronously
-        fetchPublicIpAsync();
     }
 
     private void initUI() {
@@ -68,24 +60,21 @@ public class ShareServerDialog extends JPanel {
         statusLabel.setFont(statusLabel.getFont().deriveFont(Font.BOLD));
         mainPanel.add(statusLabel, "wrap");
 
-        // Device Name
-        mainPanel.add(new JLabel("Device Name:"));
+        // Server Name
+        mainPanel.add(new JLabel("Server Name:"));
         deviceNameField = new JTextField();
         mainPanel.add(deviceNameField, "wrap");
 
-        // Local IP Address
-        mainPanel.add(new JLabel("Local IP:"));
-        localIpAddressField = new JTextField();
-        localIpAddressField.setEditable(false);
-        localIpAddressField.setBackground(Color.LIGHT_GRAY);
-        mainPanel.add(localIpAddressField, "wrap");
-
-        // Public IP Address
-        mainPanel.add(new JLabel("Public IP:"));
-        ipAddressField = new JTextField();
-        ipAddressField.setEditable(false);
-        ipAddressField.setBackground(Color.LIGHT_GRAY);
-        mainPanel.add(ipAddressField, "wrap");
+        networkList = RemoteConnectionUtils.getActiveNetworkInfo();
+        for (RemoteConnectionUtils.Network network : networkList) {
+            // IP Address
+            mainPanel.add(new JLabel("Host / IP:"));
+            JTextField hostField = new JTextField();
+            hostField.setText(network.host);
+            hostField.setEditable(false);
+            hostField.setBackground(Color.LIGHT_GRAY);
+            mainPanel.add(hostField, "wrap");
+        }
 
         // Port
         mainPanel.add(new JLabel("Port:"));
@@ -102,25 +91,6 @@ public class ShareServerDialog extends JPanel {
         copyButton.addActionListener(e -> copyConnectionString());
         copyButton.setEnabled(false); // Disabled until server starts
         mainPanel.add(copyButton, "skip 1, wrap");
-
-        // Test Connection button
-        testButton = new JButton("Test Connection");
-        testButton.addActionListener(e -> testConnection());
-        testButton.setEnabled(false); // Disabled until server starts
-        testButton.setToolTipText("Test if server is reachable from external networks");
-        mainPanel.add(testButton, "skip 1, split 3");
-
-        // UPnP button
-        JButton upnpButton = new JButton("UPnP");
-        upnpButton.addActionListener(e -> tryUpnpPortForwarding());
-        upnpButton.setToolTipText("Attempt automatic port forwarding via UPnP");
-        mainPanel.add(upnpButton);
-
-        // Firewall button
-        JButton firewallButton = new JButton("Firewall Help");
-        firewallButton.addActionListener(e -> showFirewallHelp());
-        firewallButton.setToolTipText("Show commands to open port in firewall");
-        mainPanel.add(firewallButton, "wrap 10px");
 
         // Connected Clients label
         mainPanel.add(new JLabel("Connected Clients:"), "wrap");
@@ -164,15 +134,11 @@ public class ShareServerDialog extends JPanel {
 
         // Get device name and IP
         String deviceName = RemoteConnectionUtils.getDeviceName();
-        String localIp = RemoteConnectionUtils.getRealLocalIpAddress();
-        String publicIp = getPublicIpAddress();
         int port = isRunning ? serverManager.getPort() : getDefaultPort();
         String authToken = isRunning ? serverManager.getAuthToken() : getDefaultOrGenerateAuthToken();
 
         // Update fields
         deviceNameField.setText(deviceName);
-        localIpAddressField.setText(localIp);
-        ipAddressField.setText(publicIp);
         portField.setText(String.valueOf(port));
         authTokenField.setText(authToken);
 
@@ -188,7 +154,6 @@ public class ShareServerDialog extends JPanel {
 
         // Enable/disable copy button based on server status
         copyButton.setEnabled(isRunning);
-        testButton.setEnabled(isRunning);
 
         refreshClientList();
     }
@@ -223,8 +188,7 @@ public class ShareServerDialog extends JPanel {
 
             // Validate auth token
             if (authToken.isEmpty()) {
-                DialogHelper.showDialog(this, "Error", "Auth token cannot be empty");
-                return;
+                authToken = RemoteConnectionUtils.generateAuthToken();
             }
 
             int port;
@@ -251,326 +215,33 @@ public class ShareServerDialog extends JPanel {
     }
 
     private void copyConnectionString() {
-        if (!serverManager.isRunning()) {
-            return;
+        if (!serverManager.isRunning()) return;
+
+        String hostname = null;
+        // if multiple networks listed, prompt which one to use
+        if (networkList.size() > 1) {
+            String[] choices = new String[networkList.size()];
+            for (int i = 0; i < networkList.size(); i++) {
+                RemoteConnectionUtils.Network network = networkList.get(i);
+                choices[i] = network.host;
+            }
+            int rc = DialogHelper.showOptionDialog(this, "Select hostname/IP", "Which hostname/IP address do you want to use?", choices);
+            if (rc >= 0) hostname = choices[rc];
+        } else if (networkList.size() == 1) {
+            hostname = networkList.get(0).host;
         }
+
+        String connectionStr = RemoteConnectionUtils.generateConnectionString(hostname, serverManager.getPort(), serverManager.getAuthToken(), deviceNameField.getText());
 
         try {
-            String connStr = serverManager.getConnectionString();
-            if (connStr != null && !connStr.isEmpty()) {
-                StringSelection selection = new StringSelection(connStr);
-                Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                clipboard.setContents(selection, selection);
-
-                // Visual feedback
-                JOptionPane.showMessageDialog(this,
-                    "Connection string copied to clipboard!\n\nShare this with others to let them connect to your devices.",
-                    "Copied",
-                    JOptionPane.INFORMATION_MESSAGE);
-            }
+            StringSelection selection = new StringSelection(connectionStr);
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(selection, selection);
+            JOptionPane.showMessageDialog(this, "Connection string copied to clipboard", "Copied", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
             log.error("Failed to copy connection string", e);
-            JOptionPane.showMessageDialog(this,
-                "Failed to generate connection string",
-                "Error",
-                JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Failed to generate connection string", "Error", JOptionPane.ERROR_MESSAGE);
         }
-    }
-
-    private void testConnection() {
-        if (!serverManager.isRunning()) {
-            return;
-        }
-
-        // Disable button during test
-        testButton.setEnabled(false);
-        testButton.setText("Testing...");
-
-        // Run test in background thread
-        new Thread(() -> {
-            String publicIp = getPublicIpAddress();
-            int port = serverManager.getPort();
-
-            if (publicIp == null || publicIp.equals("Fetching...") || publicIp.equals("N/A")) {
-                SwingUtilities.invokeLater(() -> {
-                    testButton.setEnabled(true);
-                    testButton.setText("Test Connection");
-                    JOptionPane.showMessageDialog(this,
-                        "Cannot test: Public IP not available.\nPlease wait a moment and try again.",
-                        "Test Failed",
-                        JOptionPane.WARNING_MESSAGE);
-                });
-                return;
-            }
-
-            // Test using portchecker.io API (GET /api/{host}/{port} as per their docs)
-            String testUrl = String.format("https://portchecker.io/api/%s/%d", publicIp, port);
-            log.debug("Testing external reachability: {}", testUrl);
-
-            NetworkHelper networkHelper = new NetworkHelper();
-            Map<String, String> headers = new HashMap<>();
-            headers.put("Accept", "application/json");
-
-            NetworkHelper.HttpResponse response = networkHelper.getRequest(testUrl, headers);
-            log.trace("testConnection: http:{}, body:{}", response.status, response.body);
-
-            final boolean isReachable;
-            final String message;
-
-            if (response.status == 200 && response.body != null) {
-                // request went through
-                if (TextUtils.equalsIgnoreCase(response.body, "true")) {
-                    isReachable = true;
-                    message = String.format(
-                        "✅ Server is reachable from external networks!\n\n" +
-                            "Public IP: %s\n" +
-                            "Port: %d\n\n" +
-                            "Your server can be accessed from the internet.",
-                        publicIp, port
-                    );
-                } else {
-                    isReachable = false;
-                    message = String.format(
-                        "❌ Server is NOT reachable from external networks.\n\n" +
-                            "Public IP: %s\n" +
-                            "Port: %d\n\n" +
-                            "Possible causes:\n" +
-                            "• Firewall blocking port %d\n" +
-                            "• Router not forwarding port %d\n" +
-                            "• ISP blocking incoming connections\n\n" +
-                            "Your server is only accessible on your local network.",
-                        publicIp, port, port, port
-                    );
-                }
-            } else {
-                // network error
-                isReachable = false;
-                String errorDetails = response.status == -1 ? response.body :
-                    String.format("HTTP %d: %s", response.status, response.body);
-                message = String.format(
-                    "⚠️ Could not determine external reachability.\n\n" +
-                        "Public IP: %s\n" +
-                        "Port: %d\n\n" +
-                        "Error: %s\n\n" +
-                        "The test service may be temporarily unavailable.\n" +
-                        "Try testing manually or wait and try again.",
-                    publicIp, port, errorDetails
-                );
-            }
-
-            SwingUtilities.invokeLater(() -> {
-                testButton.setEnabled(true);
-                testButton.setText("Test Connection");
-
-                JOptionPane.showMessageDialog(this,
-                    message,
-                    isReachable ? "Connection Test: Success" : "Connection Test: Failed",
-                    isReachable ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
-            });
-        }, "TestConnection").start();
-    }
-
-    private void tryUpnpPortForwarding() {
-        int port = serverManager.isRunning() ? serverManager.getPort() : getDefaultPort();
-
-        // Show progress dialog
-        JDialog progressDialog = new JDialog();
-        progressDialog.setTitle("UPnP Port Forwarding");
-        progressDialog.setModal(true);
-        progressDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
-
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        panel.add(new JLabel("Searching for UPnP gateway and opening port " + port + "..."), BorderLayout.CENTER);
-
-        JProgressBar progressBar = new JProgressBar();
-        progressBar.setIndeterminate(true);
-        panel.add(progressBar, BorderLayout.SOUTH);
-
-        progressDialog.add(panel);
-        progressDialog.pack();
-        progressDialog.setLocationRelativeTo(this);
-
-        // Run UPnP in background
-        new Thread(() -> {
-            boolean success = UpnpUtils.openPort(port, "Android Device Manager");
-            String externalIp = UpnpUtils.getExternalIP();
-
-            SwingUtilities.invokeLater(() -> {
-                progressDialog.dispose();
-
-                if (success) {
-                    String message = String.format(
-                        "✅ UPnP Port Forwarding Successful!\n\n" +
-                            "Port %d is now open on your router.\n" +
-                            "External IP: %s\n\n" +
-                            "Your server should now be accessible from the internet.\n" +
-                            "Use the 'Test Connection' button to verify.",
-                        port, externalIp != null ? externalIp : "Unknown"
-                    );
-                    JOptionPane.showMessageDialog(this, message, "UPnP Success", JOptionPane.INFORMATION_MESSAGE);
-                } else {
-                    String message = String.format(
-                        "❌ UPnP Port Forwarding Failed\n\n" +
-                            "Port %d could not be opened automatically.\n\n" +
-                            "Possible reasons:\n" +
-                            "• Router doesn't support UPnP/IGD\n" +
-                            "• UPnP is disabled on your router\n" +
-                            "• Router firewall blocking UPnP\n\n" +
-                            "You'll need to manually configure port forwarding.\n" +
-                            "Click 'Firewall Help' for instructions.",
-                        port
-                    );
-                    JOptionPane.showMessageDialog(this, message, "UPnP Failed", JOptionPane.WARNING_MESSAGE);
-                }
-            });
-        }, "UPnP-Manual").start();
-
-        progressDialog.setVisible(true);
-    }
-
-    private void showFirewallHelp() {
-        int port = serverManager.isRunning() ? serverManager.getPort() : getDefaultPort();
-        String os = System.getProperty("os.name").toLowerCase();
-
-        String title = "Firewall Configuration Help";
-        String instructions;
-
-        if (os.contains("mac")) {
-            // macOS instructions
-            instructions = String.format(
-                "macOS Firewall Configuration\n" +
-                    "═══════════════════════════\n\n" +
-                    "To allow incoming connections on port %d:\n\n" +
-                    "Option 1: Using System Preferences (Recommended)\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "1. Open System Preferences → Security & Privacy\n" +
-                    "2. Click Firewall tab\n" +
-                    "3. Click lock to make changes\n" +
-                    "4. Click Firewall Options\n" +
-                    "5. Click '+' to add this application\n" +
-                    "6. Select 'Allow incoming connections'\n\n" +
-                    "Option 2: Using Terminal (Advanced)\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "# Check firewall status\n" +
-                    "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate\n\n" +
-                    "# Add this app to firewall (replace path if needed)\n" +
-                    "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /Applications/AndroidDeviceManager.app\n\n" +
-                    "# Allow incoming connections\n" +
-                    "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblock /Applications/AndroidDeviceManager.app\n\n" +
-                    "Router Port Forwarding\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "1. Open router admin (usually 192.168.1.1)\n" +
-                    "2. Find Port Forwarding settings\n" +
-                    "3. Forward external port %d to internal port %d\n" +
-                    "4. Set internal IP to your local IP\n",
-                port, port, port
-            );
-        } else if (os.contains("nix") || os.contains("nux")) {
-            // Linux instructions
-            instructions = String.format(
-                "Linux Firewall Configuration\n" +
-                    "═══════════════════════════\n\n" +
-                    "Choose the firewall system your distribution uses:\n\n" +
-                    "UFW (Ubuntu/Debian)\n" +
-                    "━━━━━━━━━━━━━━━━━━\n" +
-                    "# Check UFW status\n" +
-                    "sudo ufw status\n\n" +
-                    "# Allow port %d\n" +
-                    "sudo ufw allow %d/tcp\n\n" +
-                    "# Or allow from specific subnet only (more secure)\n" +
-                    "sudo ufw allow from 192.168.0.0/24 to any port %d proto tcp\n\n" +
-                    "firewalld (CentOS/RHEL/Fedora)\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "# Check firewalld status\n" +
-                    "sudo firewall-cmd --state\n\n" +
-                    "# Allow port %d permanently\n" +
-                    "sudo firewall-cmd --permanent --add-port=%d/tcp\n" +
-                    "sudo firewall-cmd --reload\n\n" +
-                    "# Or use rich rule for specific subnet (more secure)\n" +
-                    "sudo firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"192.168.0.0/24\" port port=\"%d\" protocol=\"tcp\" accept'\n" +
-                    "sudo firewall-cmd --reload\n\n" +
-                    "iptables (Legacy)\n" +
-                    "━━━━━━━━━━━━━━━━━\n" +
-                    "# Allow port %d\n" +
-                    "sudo iptables -I INPUT -p tcp --dport %d -m state --state NEW -j ACCEPT\n\n" +
-                    "# Save rules (Debian/Ubuntu)\n" +
-                    "sudo sh -c 'iptables-save > /etc/iptables/rules.v4'\n\n" +
-                    "# Or (CentOS/RHEL)\n" +
-                    "sudo service iptables save\n\n" +
-                    "Router Port Forwarding\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "1. Access router admin (typically 192.168.1.1)\n" +
-                    "2. Navigate to Port Forwarding section\n" +
-                    "3. Forward external port %d to internal port %d\n" +
-                    "4. Set internal IP to your local IP\n",
-                port, port, port, port, port, port, port, port, port, port
-            );
-        } else if (os.contains("win")) {
-            // Windows instructions
-            instructions = String.format(
-                "Windows Firewall Configuration\n" +
-                    "═════════════════════════════\n\n" +
-                    "Option 1: Windows Defender Firewall GUI (Recommended)\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "1. Open Control Panel → Windows Defender Firewall\n" +
-                    "2. Click 'Advanced settings'\n" +
-                    "3. Click 'Inbound Rules' → 'New Rule'\n" +
-                    "4. Select 'Port' → Next\n" +
-                    "5. Select 'TCP' and enter port: %d\n" +
-                    "6. Select 'Allow the connection' → Next\n" +
-                    "7. Check all profiles → Next\n" +
-                    "8. Name: 'Android Device Manager' → Finish\n\n" +
-                    "Option 2: Command Line (Run as Administrator)\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "REM Add inbound rule for port %d\n" +
-                    "netsh advfirewall firewall add rule name=\"Android Device Manager\" dir=in action=allow protocol=TCP localport=%d\n\n" +
-                    "REM To remove the rule later:\n" +
-                    "netsh advfirewall firewall delete rule name=\"Android Device Manager\"\n\n" +
-                    "Option 3: PowerShell (Run as Administrator)\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "# Add inbound rule\n" +
-                    "New-NetFirewallRule -DisplayName \"Android Device Manager\" -Direction Inbound -Protocol TCP -LocalPort %d -Action Allow\n\n" +
-                    "# To remove the rule later:\n" +
-                    "Remove-NetFirewallRule -DisplayName \"Android Device Manager\"\n\n" +
-                    "Router Port Forwarding\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "1. Open router admin page (usually 192.168.1.1)\n" +
-                    "2. Find Port Forwarding or Virtual Server settings\n" +
-                    "3. Add new rule:\n" +
-                    "   - External Port: %d\n" +
-                    "   - Internal Port: %d\n" +
-                    "   - Internal IP: Your computer's local IP\n" +
-                    "   - Protocol: TCP\n" +
-                    "4. Save and reboot router if required\n",
-                port, port, port, port, port, port
-            );
-        } else {
-            // Unknown OS
-            instructions = String.format(
-                "Firewall Configuration (Generic)\n" +
-                    "═══════════════════════════════\n\n" +
-                    "Port to open: %d (TCP)\n\n" +
-                    "Steps:\n" +
-                    "1. Configure your firewall to allow incoming TCP connections on port %d\n" +
-                    "2. Configure your router to forward port %d to your computer's local IP\n" +
-                    "3. Test connectivity using the 'Test Connection' button\n\n" +
-                    "OS detected: %s\n\n" +
-                    "Please consult your operating system's documentation for specific firewall configuration steps.\n",
-                port, port, port, os
-            );
-        }
-
-        // Create dialog with scrollable text area
-        JTextArea textArea = new JTextArea(instructions);
-        textArea.setEditable(false);
-        textArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        textArea.setCaretPosition(0);
-
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        scrollPane.setPreferredSize(new Dimension(700, 500));
-
-        JOptionPane.showMessageDialog(this, scrollPane, title, JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void refreshClientList() {
@@ -582,28 +253,8 @@ public class ShareServerDialog extends JPanel {
         }
     }
 
-    private String getPublicIpAddress() {
-        // Use cached public IP if available
-        if (cachedPublicIp != null) {
-            return cachedPublicIp;
-        }
-
-        // Return placeholder while fetching
-        return "Fetching...";
-    }
-
-    private void fetchPublicIpAsync() {
-        new Thread(() -> {
-            cachedPublicIp = RemoteConnectionUtils.getPublicIpAddress();
-            // Update UI on the event dispatch thread
-            SwingUtilities.invokeLater(() -> {
-                ipAddressField.setText(cachedPublicIp);
-            });
-        }).start();
-    }
-
     private int getDefaultPort() {
-        return PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, 8765);
+        return PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, RemoteServerManager.DEFAULT_PORT);
     }
 
     private String getDefaultOrGenerateAuthToken() {
@@ -614,22 +265,16 @@ public class ShareServerDialog extends JPanel {
             return savedToken;
         }
 
-        // Generate a new random token (16 characters)
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder token = new StringBuilder();
-        for (int i = 0; i < 16; i++) {
-            int index = (int) (Math.random() * chars.length());
-            token.append(chars.charAt(index));
-        }
-        return token.toString();
+        return RemoteConnectionUtils.generateAuthToken();
     }
 
     /**
      * Table model for connected clients
      */
     private static class ClientTableModel extends AbstractTableModel {
-        private final String[] columnNames = {"Client Name", "IP Address", "Connected At"};
+        private final String[] columnNames = {"Client Name", "IP Address", "Connected", "Last", "#"};
         private List<RemoteClientInfo> clients = new ArrayList<>();
+        private final SimpleDateFormat sdf = new SimpleDateFormat("M/d @ h:mm aa");
 
         public void setClients(List<RemoteClientInfo> clients) {
             this.clients = clients != null ? clients : new ArrayList<>();
@@ -656,11 +301,15 @@ public class ShareServerDialog extends JPanel {
             RemoteClientInfo client = clients.get(rowIndex);
             switch (columnIndex) {
                 case 0:
-                    return client.name != null ? client.name : "Unknown";
+                    return client.name != null ? client.name : client.id;
                 case 1:
                     return client.ipAddress;
                 case 2:
-                    return new SimpleDateFormat("HH:mm:ss").format(new Date(client.connectedAtMs));
+                    return sdf.format(new Date(client.connectedAtMs));
+                case 3:
+                    return sdf.format(new Date(client.lastActivityMs));
+                case 4:
+                    return String.valueOf(client.requestCount);
                 default:
                     return null;
             }

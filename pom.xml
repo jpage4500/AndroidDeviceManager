@@ -72,12 +72,6 @@
             <artifactId>nanohttpd-websocket</artifactId>
             <version>2.3.1</version>
         </dependency>
-        <!-- UPnP for automatic port forwarding -->
-        <dependency>
-            <groupId>org.bitlet</groupId>
-            <artifactId>weupnp</artifactId>
-            <version>0.1.4</version>
-        </dependency>
     </dependencies>
 
     <build>
@@ -129,40 +123,6 @@
                 <configuration>
                     <mainClass>com.jpage4500.devicemanager.MainApplication</mainClass>
                 </configuration>
-            </plugin>
-            <!-- create native MacOS app from jar -->
-            <plugin>
-                <groupId>de.perdian.maven.plugins</groupId>
-                <artifactId>macosappbundler-maven-plugin</artifactId>
-                <version>1.21.1</version>
-                <configuration>
-                    <plist>
-                        <CFBundleIconFile>resources/device-manager.icns</CFBundleIconFile>
-                        <JVMMainClassName>com.jpage4500.devicemanager.MainApplication</JVMMainClassName>
-                        <CFBundleDisplayName>Android Device Manager</CFBundleDisplayName>
-                        <CFBundleDevelopmentRegion>English</CFBundleDevelopmentRegion>
-                        <CFBundleDocumentTypes>
-                            <CFBundleDocumentTypes>
-                                <CFBundleTypeExtensions>
-                                    <string>apk</string>
-                                </CFBundleTypeExtensions>
-                            </CFBundleDocumentTypes>
-                        </CFBundleDocumentTypes>
-                    </plist>
-                    <jdk>
-                        <!-- set to true to package entire JRE -->
-                        <include>true</include>
-                        <!--<location>/Applications/Android Studio Preview.app/Contents/jbr/Contents/Home</location>-->
-                    </jdk>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>bundle</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

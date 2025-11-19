@@ -139,30 +139,30 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         refreshUi();
         table.requestFocus();
 
-        if (Desktop.isDesktopSupported()) {
-            Desktop desktop = Desktop.getDesktop();
-            if (desktop.isSupported(Desktop.Action.APP_QUIT_HANDLER)) {
-                desktop.setQuitHandler((quitEvent, quitResponse) -> {
-                    log.trace("initalizeUi: desktop:QUIT");
-                    exitApp(true);
-                    quitResponse.performQuit();
-                });
-            } else {
-                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                    log.trace("initalizeUi: desktop:SHUTDOWN_HOOK");
-                    if (!hasExited) {
-                        DeviceManager.getInstance().handleExit();
-                    }
-                }, "ShutdownHook"));
-            }
-        } else {
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                log.trace("initalizeUi: SHUTDOWN_HOOK");
-                if (!hasExited) {
-                    DeviceManager.getInstance().handleExit();
-                }
-            }, "ShutdownHook"));
-        }
+//        if (Desktop.isDesktopSupported()) {
+//            Desktop desktop = Desktop.getDesktop();
+//            if (desktop.isSupported(Desktop.Action.APP_QUIT_HANDLER)) {
+//                desktop.setQuitHandler((quitEvent, quitResponse) -> {
+//                    log.trace("initalizeUi: desktop:QUIT");
+//                    exitApp(true);
+//                    quitResponse.performQuit();
+//                });
+//            } else {
+//                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+//                    log.trace("initalizeUi: desktop:SHUTDOWN_HOOK");
+//                    if (!hasExited) {
+//                        DeviceManager.getInstance().handleExit();
+//                    }
+//                }, "ShutdownHook"));
+//            }
+//        } else {
+//            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+//                log.trace("initalizeUi: SHUTDOWN_HOOK");
+//                if (!hasExited) {
+//                    DeviceManager.getInstance().handleExit();
+//                }
+//            }, "ShutdownHook"));
+//        }
     }
 
     @Override
@@ -228,18 +228,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
 
         dispose();
-
-        // Fallback: force halt if JVM doesn't terminate (Linux non-daemon thread leak)
-//        Thread haltFallback = new Thread(() -> {
-//            try {
-//                Thread.sleep(3000);
-//            } catch (InterruptedException ignored) {
-//            }
-//            log.trace("exitApp: invoking Runtime.halt(0) fallback");
-//            Runtime.getRuntime().halt(0);
-//        }, "Exit-Halt-Fallback");
-//        haltFallback.setDaemon(true);
-//        haltFallback.start();
 
         System.exit(0);
     }
@@ -517,6 +505,28 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void setupSystemTray() {
         if (!SystemTray.isSupported()) return;
 
+        // Linux system tray support isn't great.. keep it simple - open and exit
+        if (Utils.isLinux()) {
+            if (trayIcon != null) return;
+            BufferedImage icon = UiUtils.getImage("system_tray.png", 16, 16, Color.BLACK);
+            trayIcon = new TrayIcon(icon, "Android Device Manager");
+            PopupMenu popupMenu = new PopupMenu();
+            MenuItem openItem = new MenuItem("Open");
+            openItem.addActionListener(actionEvent -> bringWindowToFront());
+            popupMenu.add(openItem);
+            MenuItem exitItem = new MenuItem("Exit");
+            exitItem.addActionListener(actionEvent -> exitApp(true));
+            popupMenu.add(exitItem);
+            trayIcon.setPopupMenu(popupMenu);
+            try {
+                SystemTray tray = SystemTray.getSystemTray();
+                tray.add(trayIcon);
+            } catch (Exception e) {
+                log.error("setupSystemTray: Exception: {}", e.getMessage());
+            }
+            return;
+        }
+
         List<Device> devices = DeviceManager.getInstance().getDevices();
         if (devices.size() == trayIconDevices && trayIcon != null) return;
 
@@ -529,6 +539,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             trayIcon.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
+                    log.trace("mouseClicked: tray:{}", trayPopupMenu);
                     if (trayPopupMenu != null) {
                         trayPopupMenu.setVisible(false);
                         trayPopupMenu = null;
@@ -648,11 +659,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public void handleException(Exception e) {
         SwingUtilities.invokeLater(() -> {
             String[] choices = {"Retry", "Cancel"};
-            if (!DialogHelper.showOptionDialog(DeviceScreen.this, "ADB Server",
-                "Unable to connect to ADB server. Please check that it's running and re-try", choices))
-                return;
-
-            connectAdbServer();
+            int rc = DialogHelper.showOptionDialog(this, "ADB Server", "Unable to connect to ADB server. Please check that it's running and re-try", choices);
+            if (rc == 0) connectAdbServer();
         });
     }
 

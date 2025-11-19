@@ -3,7 +3,7 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
-import com.jpage4500.devicemanager.utils.UpnpUtils;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RemoteServerManager {
     private static final Logger log = LoggerFactory.getLogger(RemoteServerManager.class);
 
-    private static final int DEFAULT_PORT = 8765;
+    public static final int DEFAULT_PORT = 8765;
 
     private RemoteHttpServer httpServer;
     private int port;
@@ -53,9 +53,7 @@ public class RemoteServerManager {
         }
 
         this.port = port;
-        this.authToken = (authToken != null && !authToken.isEmpty())
-            ? authToken
-            : generateAuthToken();
+        this.authToken = authToken;
 
         try {
             httpServer = new RemoteHttpServer(port, this.authToken, this);
@@ -63,9 +61,6 @@ public class RemoteServerManager {
             // WebSocket connections are long-lived and need more time between client messages
             httpServer.start(60000, false);
             isRunning = true;
-
-            // Try to open port via UPnP
-            startUpnp(port);
 
             // Save preferences
             PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED, true);
@@ -91,9 +86,6 @@ public class RemoteServerManager {
             httpServer.stop();
             httpServer = null;
         }
-
-        // Close UPnP port mapping
-        stopUpnp(port);
 
         isRunning = false;
         connectedClients.clear();
@@ -181,44 +173,12 @@ public class RemoteServerManager {
             // Get saved port and auth token
             int savedPort = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, DEFAULT_PORT);
             String savedToken = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
-            // Auto-start the server
-            log.info("initialize: auto-starting server");
-            startServer(savedPort, savedToken);
+            if (TextUtils.notEmpty(savedToken) && savedPort > 0) {
+                // Auto-start the server
+                log.info("initialize: auto-starting server");
+                startServer(savedPort, savedToken);
+            }
         }
     }
 
-    /**
-     * Try to open port via UPnP in background thread
-     */
-    private void startUpnp(int port) {
-        Thread thread = new Thread(() -> {
-            try {
-                boolean success = UpnpUtils.openPort(port, "Android Device Manager");
-                if (success) {
-                    log.info("startUpnp: port: {} opened", port);
-                } else {
-                    log.info("startUpnp: port: {} unavailable", port);
-                }
-            } catch (Exception e) {
-                log.debug("startUpnp: port: {} failed", port, e);
-            }
-        }, "UPnP-Open-" + port);
-        thread.setDaemon(true);
-        thread.start();
-    }
-
-    /**
-     * Try to close port via UPnP in background thread
-     */
-    private void stopUpnp(int port) {
-        Thread thread = new Thread(() -> {
-            try {
-                UpnpUtils.closePort(port);
-            } catch (Exception e) {
-                log.debug("stopUpnp: port: {} failed", port, e);
-            }
-        }, "UPnP-Close-" + port);
-        thread.setDaemon(true);
-        thread.start();
-    }
 }
