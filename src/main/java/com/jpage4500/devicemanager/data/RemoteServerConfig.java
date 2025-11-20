@@ -22,7 +22,7 @@ public class RemoteServerConfig {
 
     public String getUrl() {
         if (!TextUtils.startsWith(host, "http")) {
-            return String.format("https://%s:%d", host, port);
+            return String.format("http://%s:%d", host, port);
         }
         return String.format("%s:%d", host, port);
     }

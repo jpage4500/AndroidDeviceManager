@@ -25,12 +25,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * WebSocket handler for streaming device screen as PNG images
+ * websocket handler for streaming device screen as PNG images
  */
 public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     private static final Logger log = LoggerFactory.getLogger(ScreenStreamWebSocket.class);
 
-    // Control actions
+    // control actions
     public static final String ACTION_CLOSE = "close";
     public static final String ACTION_PAUSE = "pause";
     public static final String ACTION_RESUME = "resume";
@@ -38,13 +38,13 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     public static final String ACTION_SET_COMPRESSION = "setCompression";
     public static final String ACTION_INPUT = "input";
 
-    // Input types
+    // input types
     public static final String INPUT_TAP = "tap";
     public static final String INPUT_SWIPE = "swipe";
     public static final String INPUT_TEXT = "text";
     public static final String INPUT_KEYEVENT = "keyevent";
 
-    // Default refresh interval in milliseconds
+    // default refresh interval in milliseconds
     private static final int DEFAULT_INTERVAL_MS = 250;
 
     private final Device device;
@@ -56,7 +56,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     private final AtomicInteger intervalMs = new AtomicInteger(DEFAULT_INTERVAL_MS);
     private final AtomicLong frameId = new AtomicLong(0);
     private final AtomicBoolean useCompression = new AtomicBoolean(false);
-    private static final float JPEG_QUALITY = 0.70f; // JPEG compression quality (0.0-1.0)
+    private static final float JPEG_QUALITY = 0.70f; // jpeg compression quality (0.0-1.0)
 
     public ScreenStreamWebSocket(NanoWSD.IHTTPSession handshakeRequest, Device device, boolean useCompression) {
         super(handshakeRequest);
@@ -70,13 +70,13 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     protected void onOpen() {
         log.info("onOpen: device: {}", device.serial);
 
-        // Wake device screen before starting
+        // wake device screen before starting
         deviceManager.wakeDevice(device);
 
-        // Send initial connection message
+        // send initial connection message
         sendStatusMessage("connected", "Screen stream started");
 
-        // Start capture loop
+        // start capture loop
         startCaptureLoop();
     }
 
@@ -110,7 +110,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
 
     @Override
     protected void onPong(NanoWSD.WebSocketFrame pong) {
-        // Connection health check
+        // connection health check
     }
 
     @Override
@@ -120,7 +120,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Handle control messages from client
+     * handle control messages from client
      */
     private void handleControlMessage(String action, Map<String, Object> message) {
         switch (action) {
@@ -177,7 +177,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Handle input messages (tap, swipe, text, keyevent)
+     * handle input messages (tap, swipe, text, keyevent)
      */
     private void handleInputMessage(Map<String, Object> message) {
         String type = (String) message.get("type");
@@ -211,7 +211,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Handle tap input
+     * handle tap input
      */
     private void handleTap(Map<String, Object> message) {
         Object xObj = message.get("x");
@@ -231,7 +231,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Handle swipe input
+     * handle swipe input
      */
     private void handleSwipe(Map<String, Object> message) {
         Object x1Obj = message.get("x1");
@@ -250,7 +250,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
         int x2 = ((Number) x2Obj).intValue();
         int y2 = ((Number) y2Obj).intValue();
 
-        // Optional duration parameter (default 300ms)
+        // optional duration parameter (default 300ms)
         int duration = 300;
         Object durationObj = message.get("duration");
         if (durationObj instanceof Number) {
@@ -263,7 +263,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Handle text input
+     * handle text input
      */
     private void handleText(Map<String, Object> message) {
         String text = (String) message.get("text");
@@ -273,14 +273,14 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
         }
 
         log.debug("handleText: text length={}", text.length());
-        // Escape text for shell command
+        // escape text for shell command
         String escapedText = text.replace(" ", "%s");
         String command = String.format("input text \"%s\"", escapedText);
         deviceManager.runShell(device, command);
     }
 
     /**
-     * Handle keyevent input
+     * handle keyevent input
      */
     private void handleKeyEvent(Map<String, Object> message) {
         Object keycodeObj = message.get("keycode");
@@ -296,7 +296,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Start the screen capture loop
+     * start the screen capture loop
      */
     private void startCaptureLoop() {
         if (isRunning.get()) {
@@ -315,22 +315,22 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Capture screenshot and send to client
+     * capture screenshot and send to client
      */
     private void captureAndSendFrame() {
         try {
-            // Capture screenshot using adb
+            // capture screenshot using adb
             BufferedImage image = device.jadbDevice.screencap();
             if (image == null) {
                 log.warn("captureAndSendFrame: null image returned");
                 return;
             }
 
-            // Thumbnailator-based encoding (JPEG/PNG)
+            // thumbnailator-based encoding (JPEG/PNG)
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             String format;
             if (useCompression.get()) {
-                // JPEG doesn't support alpha channel; convert ARGB -> RGB
+                // jpeg doesn't support alpha channel; convert ARGB -> RGB
                 BufferedImage rgbImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
                 Graphics2D g = rgbImage.createGraphics();
                 g.drawImage(image, 0, 0, null);
@@ -352,7 +352,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             }
             byte[] imageBytes = baos.toByteArray();
 
-            // Create frame header
+            // create frame header
             long currentFrameId = frameId.incrementAndGet();
             Map<String, Object> header = new HashMap<>();
             header.put("type", "frame");
@@ -366,7 +366,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             String headerJson = GsonHelper.toJson(header);
             byte[] headerBytes = headerJson.getBytes(StandardCharsets.UTF_8);
 
-            // Send header length (4 bytes) + header + image data
+            // send header length (4 bytes) + header + image data
             ByteBuffer buffer = ByteBuffer.allocate(4 + headerBytes.length + imageBytes.length);
             buffer.putInt(headerBytes.length);
             buffer.put(headerBytes);
@@ -385,7 +385,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Set capture interval
+     * set capture interval
      */
     private void setInterval(int newIntervalMs) {
         if (newIntervalMs < 50 || newIntervalMs > 5000) {
@@ -396,7 +396,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
         log.info("setInterval: changing from {} to {}ms", intervalMs.get(), newIntervalMs);
         intervalMs.set(newIntervalMs);
 
-        // Restart capture task with new interval
+        // restart capture task with new interval
         if (captureTask != null) {
             captureTask.cancel(false);
         }
@@ -411,7 +411,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Set compression mode
+     * set compression mode
      */
     private void setCompression(boolean newCompression) {
         boolean currentCompression = useCompression.get();
@@ -428,7 +428,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Send status message to client
+     * send status message to client
      */
     private void sendStatusMessage(String status, String message) {
         try {
@@ -443,7 +443,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Send error message to client
+     * send error message to client
      */
     private void sendErrorMessage(String error) {
         try {
@@ -457,7 +457,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
-     * Cleanup resources
+     * cleanup resources
      */
     private void cleanup() {
         log.info("cleanup: device: {}", device.serial);
@@ -478,7 +478,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             Thread.currentThread().interrupt();
         }
 
-        // Reset screen stay-on setting
+        // reset screen stay-on setting
         deviceManager.runShell(device, "svc power stayon false");
     }
 }

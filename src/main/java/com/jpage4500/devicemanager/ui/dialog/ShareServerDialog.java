@@ -32,6 +32,7 @@ public class ShareServerDialog extends JPanel {
     private JTextField portField;
     private JTextField authTokenField;
     private ClientTableModel clientTableModel;
+    private JTable clientTable;
     private JButton toggleButton;
     private JButton copyButton;
     private JTextArea networkField;
@@ -107,7 +108,8 @@ public class ShareServerDialog extends JPanel {
 
         // Client table
         clientTableModel = new ClientTableModel();
-        JTable clientTable = new JTable(clientTableModel);
+        clientTable = new JTable(clientTableModel);
+        clientTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         clientTable.setRowHeight(25);
         JScrollPane scrollPane = new JScrollPane(clientTable);
         scrollPane.setPreferredSize(new Dimension(500, 150));
@@ -282,8 +284,14 @@ public class ShareServerDialog extends JPanel {
 
     private void refreshClientList() {
         if (serverManager.isRunning()) {
+            // Save current selection
+            int selectedRow = clientTable.getSelectedRow();
             List<RemoteClientInfo> clients = serverManager.getConnectedClients();
             clientTableModel.setClients(clients);
+            // Restore selection if valid
+            if (selectedRow >= 0 && selectedRow < clientTable.getRowCount()) {
+                clientTable.setRowSelectionInterval(selectedRow, selectedRow);
+            }
         } else {
             clientTableModel.setClients(new ArrayList<>());
         }
@@ -311,6 +319,7 @@ public class ShareServerDialog extends JPanel {
         private final String[] columnNames = {"Client Name", "IP Address", "Connected", "Last", "#"};
         private List<RemoteClientInfo> clients = new ArrayList<>();
         private final SimpleDateFormat sdf = new SimpleDateFormat("M/d @ h:mm aa");
+        private final SimpleDateFormat sdfTime = new SimpleDateFormat("h:mm aa");
 
         public void setClients(List<RemoteClientInfo> clients) {
             this.clients = clients != null ? clients : new ArrayList<>();
@@ -343,7 +352,7 @@ public class ShareServerDialog extends JPanel {
                 case 2:
                     return sdf.format(new Date(client.connectedAtMs));
                 case 3:
-                    return sdf.format(new Date(client.lastActivityMs));
+                    return sdfTime.format(new Date(client.lastActivityMs));
                 case 4:
                     return String.valueOf(client.requestCount);
                 default:
