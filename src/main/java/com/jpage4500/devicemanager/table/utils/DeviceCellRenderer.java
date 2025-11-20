@@ -80,7 +80,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     align = SwingConstants.RIGHT;
                     break;
                 case NAME:
-                    // Show device status icon with optional remote indicator
+                    // show device status icon with optional remote indicator
                     icon = getDeviceIcon(device, isSelectedAndFocused);
                     text = model.deviceValue(device, column);
                     if (device.remoteConnection != null) {

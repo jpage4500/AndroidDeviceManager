@@ -19,7 +19,7 @@ public class RemoteConnectionUtils {
     private static final String PREFIX = "adm://";
 
     public static String generateAuthToken() {
-        // Generate a new random token (16 characters)
+        // generate a new random token (16 characters)
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         StringBuilder token = new StringBuilder();
         for (int i = 0; i < 16; i++) {
@@ -76,7 +76,7 @@ public class RemoteConnectionUtils {
      * Get public IP address
      */
     public static String getPublicIpAddress() {
-        // Try to get public IP address first
+        // try to get public IP address first
         try {
             NetworkHelper networkHelper = new NetworkHelper();
             NetworkHelper.HttpResponse response = networkHelper.getRequest("https://api.ipify.org");
@@ -87,7 +87,7 @@ public class RemoteConnectionUtils {
             log.debug("Failed to get public IP, falling back to local: {}", e.getMessage());
         }
 
-        // Fall back to local IP
+        // fall back to local IP
         try {
             return InetAddress.getLocalHost().getHostAddress();
         } catch (Exception e) {
@@ -103,19 +103,19 @@ public class RemoteConnectionUtils {
 
     public static List<Network> getActiveNetworkInfo() {
         List<Network> networkList = new ArrayList<>();
-        // Get the actual LAN IP (not 127.0.0.1)
+        // get the actual LAN IP (not 127.0.0.1)
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
             while (interfaces.hasMoreElements()) {
                 NetworkInterface iface = interfaces.nextElement();
 
-                // Skip loopback and inactive interfaces
+                // skip loopback and inactive interfaces
                 if (iface.isLoopback() || !iface.isUp()) continue;
 
                 Enumeration<InetAddress> addresses = iface.getInetAddresses();
                 while (addresses.hasMoreElements()) {
                     InetAddress addr = addresses.nextElement();
-                    // We want IPv4 addresses only (skip IPv6)
+                    // we want IPv4 addresses only (skip IPv6)
                     if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
                         log.trace("getActiveNetworkInfo: {}, {}, {}", addr.getHostAddress(), addr.getHostName(), iface.getName());
                         Network network = new Network();
@@ -134,13 +134,13 @@ public class RemoteConnectionUtils {
     }
 
     public static String getDeviceName() {
-        // Try to get from preferences first
+        // try to get from preferences first
         String savedName = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_DEVICE_NAME);
         if (savedName != null && !savedName.isEmpty()) {
             return savedName;
         }
 
-        // Fall back to hostname
+        // fall back to hostname
         try {
             return InetAddress.getLocalHost().getHostName();
         } catch (Exception e) {

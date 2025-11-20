@@ -129,7 +129,7 @@ public class LogsCellRenderer extends CustomTextField implements TableCellRender
     }
 
     private void adjustCaretPosition() {
-        // Move the caret to the end so the right part is visible
+        // move the caret to the end so the right part is visible
         setCaretPosition(getDocument().getLength());
     }
 }

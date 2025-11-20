@@ -30,25 +30,25 @@ public class AddServerDialog {
     public RemoteServerConfig showDialog() {
         JPanel panel = new JPanel(new MigLayout("fillx", "[right]rel[grow,fill]"));
 
-        // Name
+        // name
         panel.add(new JLabel("Name:"));
         nameField = new JTextField(20);
         if (existingServer != null) nameField.setText(existingServer.name);
         panel.add(nameField, "wrap");
 
-        // Host
+        // host
         panel.add(new JLabel("Host/IP:"));
         hostField = new JTextField(20);
         if (existingServer != null) hostField.setText(existingServer.host);
         panel.add(hostField, "wrap");
 
-        // Port
+        // port
         panel.add(new JLabel("Port:"));
         portField = new JTextField(String.valueOf(RemoteServerManager.DEFAULT_PORT));
         if (existingServer != null) portField.setText(String.valueOf(existingServer.port));
         panel.add(portField, "wrap");
 
-        // Token
+        // token
         panel.add(new JLabel("Auth Token:"));
         tokenField = new JTextField(20);
         if (existingServer != null && existingServer.authToken != null) {
@@ -56,7 +56,7 @@ public class AddServerDialog {
         }
         panel.add(tokenField, "wrap");
 
-        // Enabled
+        // enabled
         enabledCheckbox = new JCheckBox("Enabled");
         enabledCheckbox.setSelected(existingServer == null || existingServer.enabled);
         panel.add(enabledCheckbox, "skip 1, wrap");
@@ -68,7 +68,7 @@ public class AddServerDialog {
             return null;
         }
 
-        // Validate
+        // validate
         String name = nameField.getText().trim();
         String host = hostField.getText().trim();
         String portStr = portField.getText().trim();
@@ -90,7 +90,7 @@ public class AddServerDialog {
             return null;
         }
 
-        // Create or update config
+        // create or update config
         RemoteServerConfig result = existingServer != null ? existingServer : new RemoteServerConfig();
         result.name = name;
         result.host = host;

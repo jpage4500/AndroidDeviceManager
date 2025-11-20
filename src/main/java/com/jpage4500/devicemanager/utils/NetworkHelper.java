@@ -69,7 +69,7 @@ public class NetworkHelper {
             HttpURLConnection conn = createPostConnection(urlStr);
             addHeaders(conn, headers);
 
-            // Send body
+            // send body
             try (OutputStream os = conn.getOutputStream()) {
                 byte[] input = body.getBytes(StandardCharsets.UTF_8);
                 os.write(input, 0, input.length);
@@ -160,7 +160,7 @@ public class NetworkHelper {
         try {
             HttpURLConnection conn = createPostConnection(urlStr);
 
-            // Set content type for file upload
+            // set content type for file upload
             String boundary = "===" + System.currentTimeMillis() + "===";
             conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
 
@@ -169,17 +169,17 @@ public class NetworkHelper {
             try (OutputStream os = conn.getOutputStream();
                  FileInputStream fis = new FileInputStream(file)) {
 
-                // Write multipart form data
+                // write multipart form data
                 PrintWriter writer = new PrintWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8), true);
 
-                // Add file part
+                // add file part
                 writer.append("--").append(boundary).append("\r\n");
                 writer.append("Content-Disposition: form-data; name=\"file\"; filename=\"").append(file.getName()).append("\"\r\n");
                 writer.append("Content-Type: application/octet-stream\r\n");
                 writer.append("\r\n");
                 writer.flush();
 
-                // Write file content
+                // write file content
                 byte[] buffer = new byte[4096];
                 int bytesRead;
                 while ((bytesRead = fis.read(buffer)) != -1) {
@@ -187,7 +187,7 @@ public class NetworkHelper {
                 }
                 os.flush();
 
-                // End of multipart/form-data
+                // end of multipart/form-data
                 writer.append("\r\n");
                 writer.append("--").append(boundary).append("--").append("\r\n");
                 writer.flush();
@@ -195,10 +195,10 @@ public class NetworkHelper {
 
             response.status = conn.getResponseCode();
             log.trace("upload: {}, http:{}, file:{}", urlStr, response.status, file.getName());
-            // Read response if available
+            // read response if available
             response.body = readResponse(conn);
 
-            // Log body if error
+            // log body if error
             if (response.status != 200 && response.body != null) {
                 log.trace("upload: {}", response.body);
             }

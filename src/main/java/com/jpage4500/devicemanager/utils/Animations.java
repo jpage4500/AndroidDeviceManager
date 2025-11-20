@@ -8,10 +8,10 @@ import java.awt.*;
  * Provides unified color scheme and base Animation lifecycle.
  */
 public final class Animations {
-    // Unified colors for all animations
+    // unified colors for all animations
     public static final Color MAIN_COLOR = new Color(0, 255, 180);
     public static final Color GLOW_COLOR = new Color(0, 255, 180, 80);
-    // Long press specific color (warmer to differentiate)
+    // long press specific color (warmer to differentiate)
     public static final Color LONG_PRESS_COLOR = new Color(255, 160, 0);
     public static final Color LONG_PRESS_GLOW = new Color(255, 160, 0, 70);
 
@@ -88,7 +88,7 @@ public final class Animations {
     // NEW: Long press animation: slower expanding dual-ring with pulsing inner fill
     public static class LongPressAnimation extends Animation {
         private final int x, y;
-        // Adjusted timing for a longer, smoother long-press visualization
+        // adjusted timing for a longer, smoother long-press visualization
         private static final int GROW_MS = 400;
         private static final int HOLD_MS = 400;
         private static final int FADE_MS = 600;
@@ -105,7 +105,7 @@ public final class Animations {
             long elapsed = System.currentTimeMillis() - startTime;
             if (elapsed >= durationMs) return;
 
-            // Alpha handling (same approach as Tap but longer)
+            // alpha handling (same approach as Tap but longer)
             float alpha;
             if (elapsed < GROW_MS + HOLD_MS) {
                 alpha = 1f;
@@ -115,12 +115,12 @@ public final class Animations {
             }
             if (alpha <= 0f) return;
 
-            // Growth progress for outer ring
+            // growth progress for outer ring
             double growProgress = Math.min(1.0, elapsed / (double) GROW_MS);
             int outerR = (int) (MAX_RADIUS * growProgress);
             if (outerR <= 0) outerR = 1;
 
-            // Lighter fill color derived from LONG_PRESS_COLOR
+            // lighter fill color derived from LONG_PRESS_COLOR
             int r = Math.min(255, LONG_PRESS_COLOR.getRed() + 25);
             int gCh = Math.min(255, LONG_PRESS_COLOR.getGreen() + 25);
             int b = Math.min(255, LONG_PRESS_COLOR.getBlue() + 25);
@@ -130,17 +130,17 @@ public final class Animations {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 
-            // Glow ring (like TapAnimation but thicker for emphasis)
+            // glow ring (like TapAnimation but thicker for emphasis)
             g2.setStroke(new BasicStroke(12f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             g2.setColor(LONG_PRESS_GLOW);
             g2.drawOval(x - outerR, y - outerR, outerR * 2, outerR * 2);
 
-            // Main ring
+            // main ring
             g2.setStroke(new BasicStroke(5f));
             g2.setColor(LONG_PRESS_COLOR);
             g2.drawOval(x - outerR, y - outerR, outerR * 2, outerR * 2);
 
-            // Filled inner circle (slightly smaller than outer ring to preserve outline)
+            // filled inner circle (slightly smaller than outer ring to preserve outline)
             int fillR = (int) (outerR * 0.65);
             g2.setColor(fillColor);
             g2.fillOval(x - fillR, y - fillR, fillR * 2, fillR * 2);

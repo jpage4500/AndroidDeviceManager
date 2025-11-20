@@ -63,19 +63,19 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     protected void onOpen() {
         log.info("onOpen: device: {}", device.serial);
 
-        // Send initial connection message
+        // send initial connection message
         sendMessage(TYPE_CONNECTED, Map.of(
             "device", device.serial,
             "message", "Connected to log stream"
         ));
 
-        // Start batching task
+        // start batching task
         startBatchTask();
 
-        // Start ping task for connection health
+        // start ping task for connection health
         startPingTask();
 
-        // Start logging from device
+        // start logging from device
         startLogging();
     }
 
@@ -134,16 +134,16 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
 
         synchronized (batchBuffer) {
             for (LogEntry entry : logEntryList) {
-                // Apply filter if set
+                // apply filter if set
                 if (filter != null && filter.filterList != null && !filter.filterList.isEmpty()) {
                     if (!filter.isMatch(entry)) {
                         continue;
                     }
                 }
 
-                // Check buffer size limit
+                // check buffer size limit
                 if (batchBuffer.size() >= MAX_BUFFER_SIZE) {
-                    // Drop oldest entries
+                    // drop oldest entries
                     int toDrop = Math.min(MAX_BATCH_SIZE, batchBuffer.size() - MAX_BUFFER_SIZE + MAX_BATCH_SIZE);
                     batchBuffer.subList(0, toDrop).clear();
                     droppedCount += toDrop;
@@ -162,7 +162,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
         sendMessage(TYPE_PROCESS_MAP, Map.of("map", processMap));
     }
 
-    // Private helper methods
+    // private helper methods
 
     private void startLogging() {
         if (isLogging.compareAndSet(false, true)) {
@@ -259,7 +259,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     }
 
     private void handlePing() {
-        // Respond to client heartbeat ping with pong
+        // respond to client heartbeat ping with pong
         log.trace("handlePing: device: {}", device.serial);
         sendMessage("pong", Map.of("timestamp", System.currentTimeMillis()));
     }

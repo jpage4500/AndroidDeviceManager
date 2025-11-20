@@ -53,13 +53,13 @@ public class RemoteFilterDialog extends JPanel {
                     "Please select or enter a valid filter.",
                     "Invalid Filter",
                     JOptionPane.WARNING_MESSAGE);
-                // Recursively show dialog again
+                // recursively show dialog again
                 return showFilterDialog(parent, device);
             }
             return built;
         } else if (rc == 1) { // New button
             dialog.handleNewFilter();
-            // Recursively show dialog again to continue selection
+            // recursively show dialog again to continue selection
             return showFilterDialog(parent, device);
         }
 
@@ -75,25 +75,25 @@ public class RemoteFilterDialog extends JPanel {
         setLayout(new BorderLayout(8, 8));
         setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        // Info label
+        // info label
         JLabel info = new JLabel("Remote log streaming requires a filter. Select existing or enter custom.");
         add(info, BorderLayout.NORTH);
 
-        // Build list of selectable filters (exclude 'All Messages' and separators)
+        // build list of selectable filters (exclude 'All Messages' and separators)
         selectableFilters = new ArrayList<>();
         rebuildFilterList();
 
-        // Filter list
+        // filter list
         filterList = new JList<>(selectableFilters.toArray(new LogFilter[0]));
         filterList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         filterList.setCellRenderer(new LogFilterRenderer());
         JScrollPane listScroll = new JScrollPane(filterList);
         listScroll.setPreferredSize(new Dimension(260, 180));
 
-        // Custom filter text field
+        // custom filter text field
         customField = new HintTextField("Custom filter (ex: tag:MyTag)", null);
 
-        // Center panel with list and custom field
+        // center panel with list and custom field
         JPanel center = new JPanel(new BorderLayout(5, 5));
         center.add(listScroll, BorderLayout.CENTER);
         center.add(customField, BorderLayout.SOUTH);
@@ -122,7 +122,7 @@ public class RemoteFilterDialog extends JPanel {
             rebuildFilterList();
             filterList.setListData(selectableFilters.toArray(new LogFilter[0]));
 
-            // Select the newly created filter
+            // select the newly created filter
             for (int i = 0; i < selectableFilters.size(); i++) {
                 if (TextUtils.equals(selectableFilters.get(i).name, created.name)) {
                     filterList.setSelectedIndex(i);
@@ -143,7 +143,7 @@ public class RemoteFilterDialog extends JPanel {
 
         StringBuilder sb = new StringBuilder();
 
-        // Add selected filter expressions
+        // add selected filter expressions
         if (selected != null) {
             for (LogFilter f : selected) {
                 if (f == null || f.filterList == null || f.filterList.isEmpty()) {
@@ -158,7 +158,7 @@ public class RemoteFilterDialog extends JPanel {
             }
         }
 
-        // Add custom text filter
+        // add custom text filter
         if (TextUtils.notEmpty(customText)) {
             LogFilter cf;
             if (TextUtils.indexOf(customText, ':') >= 0) {

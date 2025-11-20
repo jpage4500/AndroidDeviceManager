@@ -63,13 +63,13 @@ public class ShareServerDialog extends JPanel {
     private void initUI() {
         JPanel mainPanel = new JPanel(new MigLayout("fillx", "[right]rel[grow,fill]"));
 
-        // Status
+        // status
         mainPanel.add(new JLabel("Status:"));
         statusLabel = new JLabel();
         statusLabel.setFont(statusLabel.getFont().deriveFont(Font.BOLD));
         mainPanel.add(statusLabel, "wrap");
 
-        // Server Name
+        // server Name
         mainPanel.add(new JLabel("Server Name:"));
         deviceNameField = new JTextField();
         mainPanel.add(deviceNameField, "wrap");
@@ -87,26 +87,26 @@ public class ShareServerDialog extends JPanel {
         networkScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         mainPanel.add(networkScrollPane, "height 20:60:, wrap");
 
-        // Port
+        // port
         mainPanel.add(new JLabel("Port:"));
         portField = new JTextField();
         mainPanel.add(portField, "wrap");
 
-        // Auth Token
+        // auth Token
         mainPanel.add(new JLabel("Auth Token:"));
         authTokenField = new JTextField();
         mainPanel.add(authTokenField, "wrap");
 
-        // Copy button
+        // copy button
         copyButton = new JButton("Copy Connection String");
         copyButton.addActionListener(e -> copyConnectionString());
         copyButton.setEnabled(false); // Disabled until server starts
         mainPanel.add(copyButton, "skip 1, wrap");
 
-        // Connected Clients label
+        // connected Clients label
         mainPanel.add(new JLabel("Connected Clients:"), "wrap");
 
-        // Client table
+        // client table
         clientTableModel = new ClientTableModel();
         clientTable = new JTable(clientTableModel);
         clientTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
@@ -117,7 +117,7 @@ public class ShareServerDialog extends JPanel {
 
         add(mainPanel, BorderLayout.CENTER);
 
-        // Control buttons
+        // control buttons
         JPanel buttonPanel = new JPanel(new MigLayout("fillx"));
         toggleButton = new JButton();
         toggleButton.addActionListener(e -> toggleServer());
@@ -125,7 +125,7 @@ public class ShareServerDialog extends JPanel {
 
         add(buttonPanel, BorderLayout.SOUTH);
 
-        // Start auto-refresh timer
+        // start auto-refresh timer
         Timer refreshTimer = new Timer(2000, e -> refreshClientList());
         refreshTimer.start();
     }
@@ -133,7 +133,7 @@ public class ShareServerDialog extends JPanel {
     private void refreshUI() {
         boolean isRunning = serverManager.isRunning();
 
-        // Update status
+        // update status
         if (isRunning) {
             statusLabel.setText("Running");
             statusLabel.setForeground(new Color(0, 150, 0));
@@ -149,7 +149,7 @@ public class ShareServerDialog extends JPanel {
             if (networkList != null) {
                 StringBuilder networkSb = new StringBuilder();
                 for (RemoteConnectionUtils.Network network : networkList) {
-                    // Add line break for subsequent entries
+                    // add line break for subsequent entries
                     if (!networkSb.isEmpty()) networkSb.append("\n");
                     // IP address
                     networkSb.append(network.ip);
@@ -166,27 +166,27 @@ public class ShareServerDialog extends JPanel {
             }
         }
 
-        // Get device name and IP
+        // get device name and IP
         String deviceName = RemoteConnectionUtils.getDeviceName();
         int port = isRunning ? serverManager.getPort() : getDefaultPort();
         String authToken = isRunning ? serverManager.getAuthToken() : getDefaultOrGenerateAuthToken();
 
-        // Update fields
+        // update fields
         deviceNameField.setText(deviceName);
         portField.setText(String.valueOf(port));
         authTokenField.setText(authToken);
 
-        // Enable/disable editable fields based on server status
+        // enable/disable editable fields based on server status
         deviceNameField.setEditable(!isRunning);
         portField.setEditable(!isRunning);
         authTokenField.setEditable(!isRunning);
 
-        // Visual indication of editable state
+        // visual indication of editable state
         deviceNameField.setBackground(isRunning ? Color.LIGHT_GRAY : Color.WHITE);
         portField.setBackground(isRunning ? Color.LIGHT_GRAY : Color.WHITE);
         authTokenField.setBackground(isRunning ? Color.LIGHT_GRAY : Color.WHITE);
 
-        // Enable/disable copy button based on server status
+        // enable/disable copy button based on server status
         copyButton.setEnabled(isRunning);
 
         refreshClientList();
@@ -194,7 +194,7 @@ public class ShareServerDialog extends JPanel {
 
     private void toggleServer() {
         if (serverManager.isRunning()) {
-            // Stop server - update UI immediately and run stop in background
+            // stop server - update UI immediately and run stop in background
             statusLabel.setText("Stopping Server...");
             statusLabel.setForeground(Color.ORANGE);
             toggleButton.setEnabled(false);
@@ -210,17 +210,17 @@ public class ShareServerDialog extends JPanel {
                 });
             }, "StopServer").start();
         } else {
-            // Start server - use values from fields
+            // start server - use values from fields
             String deviceName = deviceNameField.getText().trim();
             String portStr = portField.getText().trim();
             String authToken = authTokenField.getText().trim();
 
-            // Save device name preference
+            // save device name preference
             if (!deviceName.isEmpty()) {
                 PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SERVER_DEVICE_NAME, deviceName);
             }
 
-            // Validate auth token
+            // validate auth token
             if (authToken.isEmpty()) {
                 authToken = RemoteConnectionUtils.generateAuthToken();
             }
@@ -284,11 +284,11 @@ public class ShareServerDialog extends JPanel {
 
     private void refreshClientList() {
         if (serverManager.isRunning()) {
-            // Save current selection
+            // save current selection
             int selectedRow = clientTable.getSelectedRow();
             List<RemoteClientInfo> clients = serverManager.getConnectedClients();
             clientTableModel.setClients(clients);
-            // Restore selection if valid
+            // restore selection if valid
             if (selectedRow >= 0 && selectedRow < clientTable.getRowCount()) {
                 clientTable.setRowSelectionInterval(selectedRow, selectedRow);
             }
@@ -302,7 +302,7 @@ public class ShareServerDialog extends JPanel {
     }
 
     private String getDefaultOrGenerateAuthToken() {
-        // Try to get saved token first
+        // try to get saved token first
         String savedToken = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
 
         if (savedToken != null && !savedToken.isEmpty()) {

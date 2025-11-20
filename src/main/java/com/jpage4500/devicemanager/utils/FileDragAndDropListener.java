@@ -35,30 +35,30 @@ public class FileDragAndDropListener implements DropTargetListener {
 
     @Override
     public void drop(DropTargetDropEvent event) {
-        // Accept copy drops
+        // accept copy drops
         event.acceptDrop(DnDConstants.ACTION_COPY);
 
-        // Get the transfer which can provide the dropped item data
+        // get the transfer which can provide the dropped item data
         Transferable transferable = event.getTransferable();
 
-        // Get the data formats of the dropped item
+        // get the data formats of the dropped item
         DataFlavor[] flavors = transferable.getTransferDataFlavors();
 
-        // Loop through the flavors
+        // loop through the flavors
         for (DataFlavor flavor : flavors) {
             try {
-                // If the drop items are files
+                // if the drop items are files
                 if (flavor.isFlavorJavaFileListType()) {
-                    // Get all of the dropped files
+                    // get all of the dropped files
                     List<File> files = (List<File>) transferable.getTransferData(flavor);
                     listener.onFileDropped(files);
                 }
             } catch (Exception e) {
-                // Print out the error stack
+                // print out the error stack
                 log.error("drop: {}", e.getMessage());
             }
         }
-        // Inform that the drop is complete
+        // inform that the drop is complete
         event.dropComplete(true);
         showDragExit();
     }

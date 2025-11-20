@@ -42,7 +42,7 @@ public class RemoteServerDialog extends JPanel {
     }
 
     private void initUI() {
-        // Table
+        // table
         tableModel = new ServerTableModel();
         serverTable = new JTable(tableModel);
         serverTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -53,14 +53,14 @@ public class RemoteServerDialog extends JPanel {
         serverTable.getColumnModel().getColumn(3).setPreferredWidth(60);  // Port
         serverTable.getColumnModel().getColumn(4).setPreferredWidth(80);  // Status
 
-        // Custom renderer for status column
+        // custom renderer for status column
         serverTable.getColumnModel().getColumn(0).setCellRenderer(new StatusCellRenderer());
         serverTable.getColumnModel().getColumn(4).setCellRenderer(new ConnectionStatusRenderer());
 
         JScrollPane scrollPane = new JScrollPane(serverTable);
         scrollPane.setPreferredSize(new Dimension(600, 300));
 
-        // Buttons panel
+        // buttons panel
         JPanel buttonPanel = new JPanel(new MigLayout("fillx"));
 
         JButton addButton = new JButton("Add Server");
@@ -230,7 +230,7 @@ public class RemoteServerDialog extends JPanel {
                 RemoteServerConfig server = servers.get(rowIndex);
                 server.enabled = (Boolean) value;
 
-                // Update server
+                // update server
                 DeviceManager.getInstance().getRemoteConnectionManager().updateServer(server);
 
                 fireTableCellUpdated(rowIndex, columnIndex);

@@ -188,7 +188,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         DeviceManager.getInstance().handleExit();
 
-        // Shutdown update executor service
+        // shutdown update executor service
         if (updateExecutorService != null) {
             updateExecutorService.shutdown();
             updateExecutorService = null;
@@ -202,7 +202,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
         }
 
-        // Shutdown file logging executor
+        // shutdown file logging executor
         try {
             AppLoggerFactory loggerFactory = (AppLoggerFactory) org.slf4j.LoggerFactory.getILoggerFactory();
             loggerFactory.shutdown();
@@ -487,7 +487,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void setupSystemTray() {
         if (!SystemTray.isSupported()) return;
 
-        // Linux system tray support isn't great.. keep it simple - open and exit
+        // linux system tray support isn't great.. keep it simple - open and exit
         if (Utils.isLinux()) {
             if (trayIcon != null) return;
             BufferedImage icon = UiUtils.getImage("system_tray.png", 16, 16, Color.BLACK);
@@ -551,7 +551,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         int h = baseImage.getHeight();
         if (count == 0) return baseImage;
 
-        // Measure text width
+        // measure text width
         BufferedImage tempImg = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = tempImg.createGraphics();
         Font font = new Font("Arial", Font.PLAIN, 16);
@@ -1255,11 +1255,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         toolbar.setRollover(true);
 
-        // Get ordered toolbar buttons
+        // get ordered toolbar buttons
         List<String> orderedList = SettingsDialog.getToolbarOrder();
         List<ToolbarButton> orderedButtons = new ArrayList<>();
 
-        // First add buttons in saved order (excluding right-side buttons)
+        // first add buttons in saved order (excluding right-side buttons)
         for (String label : orderedList) {
             ToolbarButton button = ToolbarButton.buttonFromLabel(label);
             if (button != null && !isRightSideButton(button)) {
@@ -1267,7 +1267,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
         }
 
-        // Then add any new buttons not in saved order (excluding right-side buttons)
+        // then add any new buttons not in saved order (excluding right-side buttons)
         ToolbarButton[] allButtons = ToolbarButton.values();
         for (ToolbarButton button : allButtons) {
             if (!isRightSideButton(button) && !orderedButtons.contains(button)) {
@@ -1275,7 +1275,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
         }
 
-        // Create toolbar buttons in order
+        // create toolbar buttons in order
         for (ToolbarButton button : orderedButtons) {
             JButton btn = null;
             switch (button) {
@@ -1318,7 +1318,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 case SCRIPTS:
                     loadCustomScripts(toolbar);
                     break;
-                // Right-side buttons are handled separately
+                // right-side buttons are handled separately
                 case FILTER:
                 case REFRESH:
                 case SHARE_SERVER:
@@ -1648,7 +1648,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             });
             return;
         }
-        // Jdeploy will auto-update app on start
+        // jdeploy will auto-update app on start
         String jdeployPath = System.getProperty("jdeploy.launcher.path");
         boolean isJdeploy = jdeployPath != null;
         int index = TextUtils.indexOf(jdeployPath, "/Contents/MacOS/Client4JLauncher");

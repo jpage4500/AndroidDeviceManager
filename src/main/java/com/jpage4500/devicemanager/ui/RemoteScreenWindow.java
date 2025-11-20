@@ -52,11 +52,11 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     private int frameCount;
     private double currentFps;
 
-    // Mouse drag tracking for swipe
+    // mouse drag tracking for swipe
     private Point dragStart;
     private boolean isDragging;
 
-    // Text input batching
+    // text input batching
     private final StringBuilder textBuffer = new StringBuilder();
     private Timer textBatchTimer;
 
@@ -94,25 +94,25 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     private void initUI() {
         setLayout(new BorderLayout());
 
-        // Screen panel
+        // screen panel
         screenPanel = new ScreenPanel();
         add(screenPanel, BorderLayout.CENTER);
 
-        // Status bar
+        // status bar
         JPanel statusBarPanel = new JPanel(new BorderLayout());
         UiUtils.setEmptyBorder(statusBarPanel, 0, 0);
 
-        // Left side - FPS
+        // left side - FPS
         fpsLabel = new JLabel("FPS: --");
         UiUtils.setEmptyBorder(fpsLabel, 5, 5);
         statusBarPanel.add(fpsLabel, BorderLayout.WEST);
 
-        // Center - Status
+        // center - Status
         statusBar = new StatusBar();
         statusBar.setCenterLabel("Connecting...");
         statusBarPanel.add(statusBar, BorderLayout.CENTER);
 
-        // Right side - Speed selector
+        // right side - Speed selector
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
         rightPanel.add(new JLabel("Speed:"));
         speedComboBox = new JComboBox<>(RefreshSpeed.values());
@@ -123,7 +123,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
         add(statusBarPanel, BorderLayout.SOUTH);
 
-        // Start FPS counter
+        // start FPS counter
         Timer fpsTimer = new Timer(1000, e -> updateFpsDisplay());
         fpsTimer.start();
     }
@@ -195,7 +195,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             deviceHeight = height;
             screenPanel.repaint();
 
-            // Update FPS
+            // update FPS
             long now = System.currentTimeMillis();
             if (lastFrameTime > 0) {
                 long elapsed = now - lastFrameTime;
@@ -240,15 +240,15 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     }
 
     // ========================================================================
-    // Screen Panel
+    // screen Panel
     // ========================================================================
 
     private class ScreenPanel extends JPanel {
-        // Animation handling
+        // animation handling
         private final java.util.List<Animations.Animation> animations = new java.util.ArrayList<>();
         private Timer animationTimer; // lazily created
 
-        // Long press handling
+        // long press handling
         private static final int LONG_PRESS_THRESHOLD_MS = 500; // hold duration before triggering
         private static final int LONG_PRESS_DURATION_MS = 650; // duration sent to device to simulate long press
         private static final int LONG_PRESS_MOVE_THRESHOLD_PX = 10; // cancel if moved more than this before trigger
@@ -261,7 +261,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             setFocusable(true);
             requestFocusInWindow();
 
-            // Removed always-on timer; will start when first animation is added
+            // removed always-on timer; will start when first animation is added
 
             addMouseListener(new MouseAdapter() {
                 @Override
@@ -292,10 +292,10 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                         int distance = (int) dragStart.distance(dragEnd);
 
                         if (distance > 10) {
-                            // Treat as swipe
+                            // treat as swipe
                             handleSwipe(dragStart, dragEnd);
                         } else {
-                            // Treat as tap
+                            // treat as tap
                             handleTap(e.getPoint());
                         }
                     }
@@ -344,21 +344,21 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             if (animationTimer != null) return;
             animationTimer = new Timer(30, e -> {
                 if (animations.isEmpty()) {
-                    // Nothing to animate; stop and cleanup
+                    // nothing to animate; stop and cleanup
                     animationTimer.stop();
                     animationTimer = null;
                     return;
                 }
-                // Remove finished animations first
+                // remove finished animations first
                 boolean removed = animations.removeIf(Animations.Animation::isFinished);
                 if (removed && animations.isEmpty()) {
-                    // All finished; stop loop
+                    // all finished; stop loop
                     animationTimer.stop();
                     animationTimer = null;
                     repaint(); // final repaint to clear
                     return;
                 }
-                // Active animations remain; repaint
+                // active animations remain; repaint
                 repaint();
             });
             animationTimer.start();
@@ -369,7 +369,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             super.paintComponent(g);
 
             if (currentImage == null) {
-                // Show loading message
+                // show loading message
                 g.setColor(Color.WHITE);
                 String msg = "Connecting to device...";
                 FontMetrics fm = g.getFontMetrics();
@@ -379,7 +379,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 return;
             }
 
-            // Calculate scaled dimensions maintaining aspect ratio
+            // calculate scaled dimensions maintaining aspect ratio
             int panelWidth = getWidth();
             int panelHeight = getHeight();
             double panelRatio = (double) panelWidth / panelHeight;
@@ -387,23 +387,23 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
             int drawWidth, drawHeight, drawX, drawY;
             if (panelRatio > imageRatio) {
-                // Panel is wider - fit to height
+                // panel is wider - fit to height
                 drawHeight = panelHeight;
                 drawWidth = (int) (drawHeight * imageRatio);
                 drawX = (panelWidth - drawWidth) / 2;
                 drawY = 0;
             } else {
-                // Panel is taller - fit to width
+                // panel is taller - fit to width
                 drawWidth = panelWidth;
                 drawHeight = (int) (drawWidth / imageRatio);
                 drawX = 0;
                 drawY = (panelHeight - drawHeight) / 2;
             }
 
-            // Draw image
+            // draw image
             g.drawImage(currentImage, drawX, drawY, drawWidth, drawHeight, null);
 
-            // Draw animations overlay
+            // draw animations overlay
             if (!animations.isEmpty()) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -440,12 +440,12 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             }
         }
 
-        // Long press helpers
+        // long press helpers
         private void startLongPressTimer() {
             stopLongPressTimer();
             longPressTimer = new Timer(LONG_PRESS_THRESHOLD_MS, e -> {
                 if (pressStartPoint == null || longPressTriggered) return;
-                // Check movement again (safety) - ensure still within threshold
+                // check movement again (safety) - ensure still within threshold
                 if (dragStart != null) {
                     int dist = (int) pressStartPoint.distance(dragStart);
                     if (dist > LONG_PRESS_MOVE_THRESHOLD_PX) {
@@ -495,24 +495,24 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 return; // Skip control characters
             }
 
-            // Add to text buffer for batching
+            // add to text buffer for batching
             textBuffer.append(ch);
 
-            // Start/reset batch timer
+            // start/reset batch timer
             if (textBatchTimer == null) {
                 textBatchTimer = new Timer(50, ae -> flushTextBuffer());
                 textBatchTimer.setRepeats(false);
             }
             textBatchTimer.restart();
 
-            // Animation for typed character
+            // animation for typed character
             addKeyAnimation(String.valueOf(ch));
         }
 
         private void handleKeyPressed(KeyEvent e) {
             int keyCode = e.getKeyCode();
             
-            // Check for CMD+C (Mac) or CTRL+C (other platforms) to copy image
+            // check for CMD+C (Mac) or CTRL+C (other platforms) to copy image
             boolean isMetaDown = e.isMetaDown() || e.isControlDown();
             if (isMetaDown && keyCode == KeyEvent.VK_C) {
                 copyImageToClipboard();
@@ -520,7 +520,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 return;
             }
             
-            // Check for CMD+S (Mac) or CTRL+S (other platforms) to save image
+            // check for CMD+S (Mac) or CTRL+S (other platforms) to save image
             if (isMetaDown && keyCode == KeyEvent.VK_S) {
                 saveImageToFile();
                 e.consume();
@@ -529,14 +529,14 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             
             if (!isInputAllowed()) return;
 
-            // Map to Android keycode
+            // map to Android keycode
             Integer androidKeyCode = AndroidKeyMapper.mapKeyCode(keyCode);
 
             if (androidKeyCode != null) {
                 log.debug("handleKeyPressed: Java keyCode={}, Android keyCode={}", keyCode, androidKeyCode);
-                // Flush any pending text first
+                // flush any pending text first
                 flushTextBuffer();
-                // Send keyevent
+                // send keyevent
                 remoteConnection.sendScreenInputKeyEvent(device.serial, androidKeyCode);
                 addKeyAnimation(KeyEvent.getKeyText(keyCode));
                 e.consume();
@@ -569,25 +569,25 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 return;
             }
             
-            // Create file chooser
+            // create file chooser
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setDialogTitle("Save Screenshot");
             
-            // Set default filename with timestamp
+            // set default filename with timestamp
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
             String defaultName = device.getDisplayName().replaceAll("[^a-zA-Z0-9.-]", "_") + "_" + sdf.format(new Date()) + ".png";
             fileChooser.setSelectedFile(new File(defaultName));
             
-            // Set file filter
+            // set file filter
             FileNameExtensionFilter filter = new FileNameExtensionFilter("PNG Images (*.png)", "png");
             fileChooser.setFileFilter(filter);
             
-            // Show save dialog
+            // show save dialog
             int result = fileChooser.showSaveDialog(RemoteScreenWindow.this);
             if (result == JFileChooser.APPROVE_OPTION) {
                 File file = fileChooser.getSelectedFile();
                 
-                // Ensure .png extension
+                // ensure .png extension
                 if (!file.getName().toLowerCase().endsWith(".png")) {
                     file = new File(file.getAbsolutePath() + ".png");
                 }
@@ -631,13 +631,13 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 drawY = (panelHeight - drawHeight) / 2;
             }
 
-            // Check if click is within image bounds
+            // check if click is within image bounds
             if (screenPoint.x < drawX || screenPoint.x >= drawX + drawWidth ||
                 screenPoint.y < drawY || screenPoint.y >= drawY + drawHeight) {
                 return null;
             }
 
-            // Convert to device coordinates
+            // convert to device coordinates
             int relativeX = screenPoint.x - drawX;
             int relativeY = screenPoint.y - drawY;
             int deviceX = (int) ((double) relativeX / drawWidth * deviceWidth);
@@ -646,7 +646,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             return new Point(deviceX, deviceY);
         }
 
-        // Animation helpers
+        // animation helpers
         private void addTapAnimation(Point p) {
             animations.add(new Animations.TapAnimation(p.x, p.y));
             startAnimationLoop();

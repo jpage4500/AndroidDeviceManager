@@ -88,9 +88,9 @@ public class DeviceManager {
 
     private JadbConnection connection;
 
-    // Remote connection manager
+    // remote connection manager
     private RemoteConnectionManager remoteConnectionManager;
-    // Remote server manager
+    // remote server manager
     private RemoteServerManager remoteServerManager;
 
     public interface DeviceListener {
@@ -140,7 +140,7 @@ public class DeviceManager {
             @Override
             public void onRemoteConnectionLost(RemoteConnection connection) {
                 log.trace("onConnectionLost: {}", connection);
-                // Remove devices from this server
+                // remove devices from this server
                 synchronized (deviceList) {
                     deviceList.removeIf(d -> d.remoteConnection == connection);
                 }
@@ -151,12 +151,12 @@ public class DeviceManager {
 
             @Override
             public void onRemoteDevicesUpdated(RemoteConnection connection, List<Device> devices) {
-                // Merge remote devices into device list
+                // merge remote devices into device list
                 synchronized (deviceList) {
                     // TODO: update instead of replace
-                    // Remove old devices from this server
+                    // remove old devices from this server
                     deviceList.removeIf(d -> d.remoteConnection == connection);
-                    // Add new devices
+                    // add new devices
                     deviceList.addAll(devices);
                 }
                 if (deviceListener != null) {
@@ -304,9 +304,9 @@ public class DeviceManager {
                     //  command failed: device offline
                     //  command failed: device still authorizing
                     //  command failed: device unauthorized.
-                    //  This adb server's $ADB_VENDOR_KEYS is not set
-                    //  Try 'adb kill-server' if that seems wrong.
-                    //  Otherwise check for a confirmation dialog on your device.
+                    //  this adb server's $ADB_VENDOR_KEYS is not set
+                    //  try 'adb kill-server' if that seems wrong.
+                    //  otherwise check for a confirmation dialog on your device.
                     log.debug("handleDeviceUpdate: NOT_READY_EXCEPTION: {} -> {}", addedDevice.serial, errMsg);
                     addedDevice.status = errMsg;
                     // TODO: check error message before setting device to offline?
@@ -503,11 +503,11 @@ public class DeviceManager {
                     if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_USB;
                     break;
                 case "Wireless powered":
-                    //  Wireless powered: false
+                    //  wireless powered: false
                     if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_WIRELESS;
                     break;
                 case "Dock powered":
-                    //  Dock powered: false
+                    //  dock powered: false
                     if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_DOCK;
                     break;
             }
@@ -769,7 +769,7 @@ public class DeviceManager {
             return device.remoteConnection.executeCommand(device.serial, command);
         }
 
-        // Local device execution
+        // local device execution
         ShellResult result = new ShellResult();
         result.resultList = new ArrayList<>();
         List<String> commandList = TextUtils.splitSafe(command);
@@ -815,7 +815,7 @@ public class DeviceManager {
      * run scrcpy app to mirror device
      */
     public void mirrorDevice(Device device, TaskListener listener) {
-        // Handle remote devices differently
+        // handle remote devices differently
         if (device.remoteConnection != null) {
             log.debug("mirrorDevice: remote device: {}", device.getDisplayName());
             RemoteScreenWindow window = new RemoteScreenWindow(device);
@@ -825,7 +825,7 @@ public class DeviceManager {
             return;
         }
 
-        // Local device - use scrcpy
+        // local device - use scrcpy
         commandExecutorService.submit(() -> {
             log.debug("mirrorDevice: {}", device.getDisplayName());
             AppResult appResult = null;
@@ -897,7 +897,7 @@ public class DeviceManager {
         String path = System.getenv("PATH");
         //log.trace("findApp: PATH:{}", path);
         String[] pathArr = path.split(File.pathSeparator);
-        // Windows-only - add .exe to app
+        // windows-only - add .exe to app
         if (Utils.isWindows() && !TextUtils.endsWith(".exe")) app += ".exe";
         for (String p : pathArr) {
             String fullPath = checkFile(p, app);
@@ -1010,11 +1010,11 @@ public class DeviceManager {
             } else {
                 log.trace("copyFilesInternal: FILE: {}", destFilename);
 
-                // Check if device is remote
+                // check if device is remote
                 if (device.remoteConnection != null) {
                     device.remoteConnection.uploadFile(device.serial, dest, filename, file);
                 } else {
-                    // Local device - use JADB
+                    // local device - use JADB
                     try {
                         RemoteFile remoteFile = new RemoteFileRecord(dest, filename, 0, 0, 0);
                         device.jadbDevice.push(file, remoteFile);
@@ -1135,7 +1135,7 @@ public class DeviceManager {
      * synchronous version of fetchFileList
      */
     protected FileResponse fetchFileListInternal(Device device, String path, boolean useRoot) {
-        // Check if device is remote - use remote API
+        // check if device is remote - use remote API
         if (device.remoteConnection != null) {
             // NOTE: root actions not supported remotely
             return device.remoteConnection.fetchFileList(device.serial, path);
@@ -1354,14 +1354,14 @@ public class DeviceManager {
     public void startLogging(Device device, String lastLogTime, String filterText, DeviceLogListener listener) {
         stopLogging(device);
 
-        // Handle remote device via WebSocket
+        // handle remote device via WebSocket
         if (device.remoteConnection != null) {
             log.debug("startLogging: REMOTE: device: {}, filter:{}", device.serial, filterText);
             device.remoteConnection.startLogging(device.serial, lastLogTime, filterText, listener);
             return;
         }
 
-        // Local device - existing implementation
+        // local device - existing implementation
         commandExecutorService.submit(() -> {
             String logStartTime = lastLogTime;
             log.debug("startLogging: {}, from:{}", device.serial, lastLogTime);
@@ -1513,13 +1513,13 @@ public class DeviceManager {
     }
 
     public void stopLogging(Device device) {
-        // Handle remote device
+        // handle remote device
         if (device.remoteConnection != null) {
             device.remoteConnection.stopLogging(device.serial);
             return;
         }
 
-        // Local device
+        // local device
         AtomicBoolean loggingState = getLoggingState(device.serial, false);
         if (loggingState != null && loggingState.get()) {
             log.debug("stopLogging: {}", device.serial);
@@ -1528,11 +1528,11 @@ public class DeviceManager {
     }
 
     public boolean isLogging(Device device) {
-        // Handle remote device
+        // handle remote device
         if (device.remoteConnection != null) {
             return device.remoteConnection.isLogging(device.serial);
         }
-        // Local device
+        // local device
         return isLogging(device.serial);
     }
 
@@ -1614,7 +1614,7 @@ public class DeviceManager {
     }
 
     private void copyResourceToFile(String name, InputStream is) {
-        //File.createTempFile(name);
+        //file.createTempFile(name);
         File tempFile = new File(tempFolder, name);
         //log.trace("copyResource: {} to {}", name, tempFile.getAbsolutePath());
         try {
@@ -1816,7 +1816,7 @@ public class DeviceManager {
      */
     public boolean wakeDevice(Device device) {
         log.debug("wakeDevice: {}", device.serial);
-        // Check if screen is awake
+        // check if screen is awake
         DeviceManager.ShellResult result = runShell(device, "dumpsys power");
         if (result.isSuccess && result.resultList != null) {
             boolean isScreenOn = true;
@@ -1831,13 +1831,13 @@ public class DeviceManager {
                 }
             }
             if (!isScreenOn) {
-                // Wake up the device
+                // wake up the device
                 runShell(device, "input keyevent " + AndroidKeyMapper.KEYCODE_WAKEUP);
                 Utils.sleep(1000);
-                // Keep screen on during mirroring
+                // keep screen on during mirroring
                 result = runShell(device, "svc power stayon true");
                 if (!result.isSuccess) {
-                    // Fallback: keep screen on while AC or USB (1|2 = 3)
+                    // fallback: keep screen on while AC or USB (1|2 = 3)
                     result = runShell(device, "settings put global stay_on_while_plugged_in 3");
                 }
             }

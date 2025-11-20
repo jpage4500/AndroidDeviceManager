@@ -42,9 +42,9 @@ public class RemoteConnection {
     private long lastHealthCheck = 0;
     private boolean isConnected = false;
 
-    // WebSocket log streaming
+    // webSocket log streaming
     private final Map<String, LogStreamSession> logStreamSessions = new ConcurrentHashMap<>();
-    // WebSocket screen streaming
+    // webSocket screen streaming
     private final Map<String, ScreenStreamSession> screenStreamSessions = new ConcurrentHashMap<>();
     private HttpClient httpClient;
 
@@ -265,15 +265,15 @@ public class RemoteConnection {
      * @param listener     Listener to receive log entries
      */
     public void startLogging(String deviceSerial, String lastLogTime, String filterText, DeviceManager.DeviceLogListener listener) {
-        // Stop any existing session
+        // stop any existing session
         stopLogging(deviceSerial);
 
         log.debug("startLogging: serial: {}, filter: {}", deviceSerial, filterText);
 
-        // Build WebSocket URL
+        // build WebSocket URL
         String wsUrl = buildWebSocketUrl(deviceSerial, filterText);
 
-        // Create WebSocket listener
+        // create WebSocket listener
         WebSocket.Listener wsListener = new WebSocket.Listener() {
             @Override
             public void onOpen(WebSocket webSocket) {
@@ -286,7 +286,7 @@ public class RemoteConnection {
                 LogStreamSession session = logStreamSessions.get(deviceSerial);
                 if (session != null) {
                     synchronized (session.messageBuffer) {
-                        // Accumulate message parts
+                        // accumulate message parts
                         session.messageBuffer.append(data);
 
                         if (log.isTraceEnabled()) {
@@ -295,7 +295,7 @@ public class RemoteConnection {
                         }
 
                         if (last) {
-                            // Complete message received
+                            // complete message received
                             String message = session.messageBuffer.toString();
                             int messageLength = message.length();
                             session.messageBuffer.setLength(0);
@@ -327,7 +327,7 @@ public class RemoteConnection {
             }
         };
 
-        // Connect WebSocket
+        // connect WebSocket
         try {
             CompletableFuture<WebSocket> wsFuture = httpClient.newWebSocketBuilder()
                 .buildAsync(URI.create(wsUrl), wsListener);
@@ -336,7 +336,7 @@ public class RemoteConnection {
                 if (throwable != null) {
                     log.error("startLogging: device: {} failed", deviceSerial, throwable);
                 } else {
-                    // Store session
+                    // store session
                     LogStreamSession session = new LogStreamSession(ws, listener, deviceSerial);
                     logStreamSessions.put(deviceSerial, session);
                     log.debug("startLogging: device: {} session created", deviceSerial);
@@ -407,20 +407,20 @@ public class RemoteConnection {
      * For now, this is handled via WebSocket processMap messages
      */
     public Map<String, String> getProcessMap(String deviceSerial) {
-        // Process map is received via WebSocket messages and forwarded to listener
-        // This method is a placeholder for API compatibility
+        // process map is received via WebSocket messages and forwarded to listener
+        // this method is a placeholder for API compatibility
         log.debug("getProcessMap: device: {}", deviceSerial);
         return new HashMap<>();
     }
 
-    // Private helper methods
+    // private helper methods
 
     private String buildWebSocketUrl(String deviceSerial, String filterText) {
-        // Convert http/https URL to ws/wss
+        // convert http/https URL to ws/wss
         String baseUrl = serverConfig.getUrl();
         String wsUrl = baseUrl.replace("http://", "ws://").replace("https://", "wss://");
 
-        // Build query parameters
+        // build query parameters
         StringBuilder url = new StringBuilder(wsUrl);
         url.append(RemoteHttpServer.WS_LOGS);
         url.append("?token=").append(URLEncoder.encode(serverConfig.authToken, StandardCharsets.UTF_8));
@@ -439,7 +439,7 @@ public class RemoteConnection {
             Map<String, Object> msg = GsonHelper.fromJson(message, Map.class);
 
             if (msg == null) {
-                // Log first and last 100 chars to help debug truncation
+                // log first and last 100 chars to help debug truncation
                 String preview = message.length() > 200 ?
                     message.substring(0, 100) + "..." + message.substring(message.length() - 100) :
                     message;
@@ -512,8 +512,8 @@ public class RemoteConnection {
 
     private LogEntry parseLogEntry(Map<String, Object> data) {
         try {
-            // Create a LogEntry from the JSON data
-            // The LogEntry constructor expects a formatted line, so we'll reconstruct it
+            // create a LogEntry from the JSON data
+            // the LogEntry constructor expects a formatted line, so we'll reconstruct it
             StringBuilder line = new StringBuilder();
 
             String date = (String) data.get("date");
@@ -523,7 +523,7 @@ public class RemoteConnection {
             String tag = (String) data.get("tag");
             String message = (String) data.get("message");
 
-            // Reconstruct logcat format: MM-DD HH:MM:SS.mmm  PID  TID LEVEL TAG: MESSAGE
+            // reconstruct logcat format: MM-DD HH:MM:SS.mmm  PID  TID LEVEL TAG: MESSAGE
             if (date != null) line.append(date).append("  ");
             if (pid != null) line.append(pid).append("  ");
             if (tid != null) line.append(tid).append(" ");
@@ -531,7 +531,7 @@ public class RemoteConnection {
             if (tag != null) line.append(tag).append(": ");
             if (message != null) line.append(message);
 
-            // Get ID (as Double from JSON, convert to long)
+            // get ID (as Double from JSON, convert to long)
             Object idObj = data.get("id");
             long id = 0;
             if (idObj instanceof Number) {
@@ -540,7 +540,7 @@ public class RemoteConnection {
 
             LogEntry entry = new LogEntry(line.toString(), id);
 
-            // Set app if provided
+            // set app if provided
             String app = (String) data.get("app");
             if (app != null) {
                 entry.app = app;
@@ -574,7 +574,7 @@ public class RemoteConnection {
     }
 
     // ========================================================================
-    // Screen Streaming
+    // screen Streaming
     // ========================================================================
 
     /**
@@ -613,15 +613,15 @@ public class RemoteConnection {
      * Start streaming screen from remote device
      */
     public void startScreenStream(String deviceSerial, int intervalMs, boolean useCompression, ScreenStreamListener listener) {
-        // Stop any existing session
+        // stop any existing session
         stopScreenStream(deviceSerial);
 
         log.debug("startScreenStream: serial: {}, intervalMs: {}, compress: {}", deviceSerial, intervalMs, useCompression);
 
-        // Build WebSocket URL
+        // build WebSocket URL
         String wsUrl = buildScreenStreamUrl(deviceSerial, intervalMs, useCompression);
 
-        // Create WebSocket listener
+        // create WebSocket listener
         WebSocket.Listener wsListener = new WebSocket.Listener() {
             @Override
             public void onOpen(WebSocket webSocket) {
@@ -672,7 +672,7 @@ public class RemoteConnection {
             }
         };
 
-        // Connect WebSocket
+        // connect WebSocket
         try {
             CompletableFuture<WebSocket> wsFuture = httpClient.newWebSocketBuilder()
                 .buildAsync(URI.create(wsUrl), wsListener);
@@ -682,7 +682,7 @@ public class RemoteConnection {
                     log.error("startScreenStream: device: {} failed", deviceSerial, throwable);
                     listener.onError("Failed to connect: " + throwable.getMessage());
                 } else {
-                    // Store session
+                    // store session
                     ScreenStreamSession session = new ScreenStreamSession(ws, listener, deviceSerial);
                     screenStreamSessions.put(deviceSerial, session);
                     log.debug("startScreenStream: device: {} session created", deviceSerial);
@@ -813,7 +813,7 @@ public class RemoteConnection {
 
     private void handleScreenStreamBinary(ByteBuffer data, boolean last, ScreenStreamSession session) {
         try {
-            // Append data to buffer
+            // append data to buffer
             byte[] bytes = new byte[data.remaining()];
             data.get(bytes);
             session.dataBuffer.write(bytes);
@@ -822,7 +822,7 @@ public class RemoteConnection {
                 return; // Wait for complete message
             }
 
-            // Complete binary message received
+            // complete binary message received
             byte[] fullData = session.dataBuffer.toByteArray();
             session.dataBuffer.reset();
 
@@ -831,7 +831,7 @@ public class RemoteConnection {
                 return;
             }
 
-            // Parse frame: 4-byte header length + header JSON + PNG image
+            // parse frame: 4-byte header length + header JSON + PNG image
             ByteBuffer buffer = ByteBuffer.wrap(fullData);
             int headerLength = buffer.getInt();
 
@@ -855,11 +855,11 @@ public class RemoteConnection {
             byte[] imageBytes = new byte[imageSize];
             buffer.get(imageBytes);
 
-            // Get format from header ("png" or "jpeg")
+            // get format from header ("png" or "jpeg")
             String format = (String) header.get("format");
             if (format == null) format = "png"; // default fallback
 
-            // Decode image bytes (ImageIO supports both PNG and JPEG)
+            // decode image bytes (ImageIO supports both PNG and JPEG)
             ByteArrayInputStream bais = new ByteArrayInputStream(imageBytes);
             BufferedImage image = ImageIO.read(bais);
 

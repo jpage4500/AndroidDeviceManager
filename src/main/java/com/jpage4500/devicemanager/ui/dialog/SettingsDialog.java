@@ -245,11 +245,11 @@ public class SettingsDialog extends JPanel {
         
         DraggableCheckBoxList checkBoxList = new DraggableCheckBoxList();
         
-        // Build ordered array of toolbar buttons
+        // build ordered array of toolbar buttons
         DeviceScreen.ToolbarButton[] allButtons = DeviceScreen.ToolbarButton.values();
         List<DeviceScreen.ToolbarButton> orderedButtons = new ArrayList<>();
         
-        // First add buttons in saved order
+        // first add buttons in saved order
         for (String label : orderedList) {
             DeviceScreen.ToolbarButton button = DeviceScreen.ToolbarButton.buttonFromLabel(label);
             if (button != null && button != DeviceScreen.ToolbarButton.SETTINGS) {
@@ -257,7 +257,7 @@ public class SettingsDialog extends JPanel {
             }
         }
         
-        // Then add any new buttons not in saved order
+        // then add any new buttons not in saved order
         for (DeviceScreen.ToolbarButton button : allButtons) {
             if (button == DeviceScreen.ToolbarButton.SETTINGS) continue;
             if (!orderedButtons.contains(button)) {
@@ -265,7 +265,7 @@ public class SettingsDialog extends JPanel {
             }
         }
         
-        // Add items to list with icons
+        // add items to list with icons
         for (DeviceScreen.ToolbarButton button : orderedButtons) {
             boolean isHidden = hiddenColList.contains(button.label);
             ImageIcon icon = null;
@@ -281,10 +281,10 @@ public class SettingsDialog extends JPanel {
         JScrollPane scroll = new JScrollPane(checkBoxList);
         panel.add(scroll, "grow, span, wrap");
 
-        // Add Restore Default button
+        // add Restore Default button
         JButton defaultButton = new JButton("Restore Default");
         defaultButton.addActionListener(e -> {
-            // Reset to default order and visibility
+            // reset to default order and visibility
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_TOOLBAR_ORDER, null);
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, null);
             deviceScreen.setupToolbar();
@@ -292,7 +292,7 @@ public class SettingsDialog extends JPanel {
         });
         panel.add(defaultButton, "span, align right, wrap");
         
-        // Add OK/Cancel buttons at bottom
+        // add OK/Cancel buttons at bottom
         JPanel buttonPanel = new JPanel(new MigLayout("fillx", "push[][]"));
         
         JButton cancelButton = new JButton("Cancel");
@@ -303,12 +303,12 @@ public class SettingsDialog extends JPanel {
         
         JButton okButton = new JButton("OK");
         okButton.addActionListener(e -> {
-            // Save order
+            // save order
             List<String> orderedItems = checkBoxList.getAllItems();
             log.debug("ORDER: {}", GsonHelper.toJson(orderedItems));
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_TOOLBAR_ORDER, GsonHelper.toJson(orderedItems));
             
-            // Save hidden items
+            // save hidden items
             List<String> hiddenItems = checkBoxList.getUnSelectedItems();
             log.debug("HIDDEN: {}", GsonHelper.toJson(hiddenItems));
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenItems));

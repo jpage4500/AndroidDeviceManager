@@ -25,10 +25,10 @@ public class RemoteServerManager {
     private String authToken;
     private boolean isRunning;
 
-    // Track connected clients
+    // track connected clients
     private final Map<String, RemoteClientInfo> connectedClients = new ConcurrentHashMap<>();
 
-    // Callback for UI updates
+    // callback for UI updates
     private ServerListener listener;
 
     public interface ServerListener {
@@ -53,14 +53,14 @@ public class RemoteServerManager {
      * Call this when the application starts
      */
     public void initialize() {
-        // Check if server was running when app last closed
+        // check if server was running when app last closed
         boolean wasEnabled = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED);
         if (wasEnabled) {
-            // Get saved port and auth token
+            // get saved port and auth token
             int savedPort = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, DEFAULT_PORT);
             String savedToken = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
             if (TextUtils.notEmpty(savedToken) && savedPort > 0) {
-                // Auto-start the server
+                // auto-start the server
                 startServer(savedPort, savedToken);
             }
         }
@@ -77,12 +77,12 @@ public class RemoteServerManager {
 
         try {
             httpServer = new RemoteHttpServer(port, this.authToken, this);
-            // Use longer timeout (60 seconds) to support WebSocket connections
-            // WebSocket connections are long-lived and need more time between client messages
+            // use longer timeout (60 seconds) to support WebSocket connections
+            // webSocket connections are long-lived and need more time between client messages
             httpServer.start(60000, false);
             isRunning = true;
 
-            // Save preferences
+            // save preferences
             PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED, true);
             PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, port);
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN, this.authToken);
@@ -113,7 +113,7 @@ public class RemoteServerManager {
         if (listener != null) listener.onServerStopped();
     }
 
-    // Getters
+    // getters
     public boolean isRunning() {
         return isRunning;
     }

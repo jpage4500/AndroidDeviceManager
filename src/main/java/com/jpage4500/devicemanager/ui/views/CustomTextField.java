@@ -14,16 +14,16 @@ public class CustomTextField extends JTextField {
     @Override
     protected void paintComponent(Graphics g) {
         if (!isTruncatedRight) {
-            // If not truncated, just use the default rendering
+            // if not truncated, just use the default rendering
             super.paintComponent(g);
             return;
         }
-        // Paint the background
+        // paint the background
         if (isOpaque()) {
             g.setColor(getBackground());
             g.fillRect(0, 0, getWidth(), getHeight());
         }
-        // Get the current text and font
+        // get the current text and font
         String text = getText();
         Font font = getFont();
         FontMetrics metrics = g.getFontMetrics(font);
@@ -34,7 +34,7 @@ public class CustomTextField extends JTextField {
 
         String visibleText = text;
         if (textWidth > availableWidth) {
-            // Start from the right side, chop off the left until it fits
+            // start from the right side, chop off the left until it fits
             int start = 1;
             int textLength = text.length();
             while (start < textLength - 1 && metrics.stringWidth(text.substring(start)) > availableWidth) {
@@ -43,18 +43,18 @@ public class CustomTextField extends JTextField {
             visibleText = text.substring(start + 1);
         }
 
-        // Set color and font
+        // set color and font
         g.setColor(getForeground());
         g.setFont(font);
 
-        // Compute baseline
+        // compute baseline
         int x = insets.left; // getWidth() - insets.right - metrics.stringWidth(visibleText);
         int y = (getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
 
-        // Draw the text
+        // draw the text
         g.drawString(visibleText, x, y);
 
-        // Draw the border if it exists
+        // draw the border if it exists
         if (getBorder() != null) {
             paintBorder(g);
         }

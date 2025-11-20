@@ -49,13 +49,13 @@ public class DialogHelper {
     public static int showOptionDialog(Component component, String title, String text, String[] choiceArr) {
         JPanel panel = new JPanel(new MigLayout("", "[grow]", "[]10[]"));
 
-        // Add text label if provided
+        // add text label if provided
         if (text != null && !text.isEmpty()) {
             JLabel label = new JLabel(text);
             panel.add(label, "wrap");
         }
 
-        // Create radio buttons
+        // create radio buttons
         ButtonGroup buttonGroup = new ButtonGroup();
         JRadioButton[] radioButtons = new JRadioButton[choiceArr.length];
 
@@ -65,16 +65,16 @@ public class DialogHelper {
             panel.add(radioButtons[i], "wrap");
         }
 
-        // Select first option by default
+        // select first option by default
         if (radioButtons.length > 0) {
             radioButtons[0].setSelected(true);
         }
 
-        // Show dialog with OK/Cancel buttons
+        // show dialog with OK/Cancel buttons
         int result = JOptionPane.showConfirmDialog(component, panel, title,
             JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
 
-        // Return -1 if cancelled, otherwise return index of selected radio button
+        // return -1 if cancelled, otherwise return index of selected radio button
         if (result != JOptionPane.OK_OPTION) {
             return -1;
         }

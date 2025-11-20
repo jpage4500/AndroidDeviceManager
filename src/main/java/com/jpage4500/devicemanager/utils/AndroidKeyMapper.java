@@ -10,7 +10,7 @@ import java.util.Map;
  */
 public class AndroidKeyMapper {
 
-    // Android keycodes
+    // android keycodes
     public static final int KEYCODE_BACK = 4;
     public static final int KEYCODE_HOME = 3;
     public static final int KEYCODE_MENU = 82;
@@ -50,13 +50,13 @@ public class AndroidKeyMapper {
     private static final Map<Integer, Integer> keyMap = new HashMap<>();
 
     static {
-        // Navigation keys
+        // navigation keys
         keyMap.put(KeyEvent.VK_UP, KEYCODE_DPAD_UP);
         keyMap.put(KeyEvent.VK_DOWN, KEYCODE_DPAD_DOWN);
         keyMap.put(KeyEvent.VK_LEFT, KEYCODE_DPAD_LEFT);
         keyMap.put(KeyEvent.VK_RIGHT, KEYCODE_DPAD_RIGHT);
 
-        // Special keys
+        // special keys
         keyMap.put(KeyEvent.VK_ENTER, KEYCODE_ENTER);
         keyMap.put(KeyEvent.VK_BACK_SPACE, KEYCODE_DEL);
         keyMap.put(KeyEvent.VK_DELETE, KEYCODE_FORWARD_DEL);
@@ -64,14 +64,14 @@ public class AndroidKeyMapper {
         keyMap.put(KeyEvent.VK_SPACE, KEYCODE_SPACE);
         keyMap.put(KeyEvent.VK_ESCAPE, KEYCODE_BACK);
 
-        // Page navigation
+        // page navigation
         keyMap.put(KeyEvent.VK_PAGE_UP, KEYCODE_PAGE_UP);
         keyMap.put(KeyEvent.VK_PAGE_DOWN, KEYCODE_PAGE_DOWN);
         keyMap.put(KeyEvent.VK_HOME, KEYCODE_MOVE_HOME);
         keyMap.put(KeyEvent.VK_END, KEYCODE_MOVE_END);
         keyMap.put(KeyEvent.VK_INSERT, KEYCODE_INSERT);
 
-        // Function keys
+        // function keys
         keyMap.put(KeyEvent.VK_F1, KEYCODE_F1);
         keyMap.put(KeyEvent.VK_F2, KEYCODE_F2);
         keyMap.put(KeyEvent.VK_F3, KEYCODE_F3);

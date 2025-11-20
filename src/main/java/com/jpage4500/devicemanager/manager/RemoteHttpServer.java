@@ -85,15 +85,15 @@ public class RemoteHttpServer extends NanoWSD {
         Map<String, String> headers = session.getHeaders();
         Map<String, String> params = session.getParms();
 
-        // Check if this is a WebSocket upgrade request
+        // check if this is a WebSocket upgrade request
         String upgradeHeader = headers.get("upgrade");
         if ("websocket".equalsIgnoreCase(upgradeHeader)) {
             log.debug("serve: WebSocket upgrade request detected: {}", uri);
-            // Let the parent class handle WebSocket upgrade which will call openWebSocket()
+            // let the parent class handle WebSocket upgrade which will call openWebSocket()
             return super.serve(session);
         }
 
-        // Regular HTTP request handling
+        // regular HTTP request handling
         // client provided IP and name
         String headerIp = safeHeader(headers.get(HEADER_IP));
         String headerName = safeHeader(headers.get(HEADER_NAME));
@@ -111,15 +111,15 @@ public class RemoteHttpServer extends NanoWSD {
 
         log.trace("serve: {} {}, ip:{}, name:{}, clientIP:{}", method, uri, clientIp, headerName, headerIp);
 
-        // Authenticate
+        // authenticate
         if (!authenticateClient(params, headers)) {
             return newFixedLengthResponse(Response.Status.UNAUTHORIZED, MIME_PLAINTEXT, "Unauthorized");
         }
 
-        // Track client (with optional name)
+        // track client (with optional name)
         serverManager.trackClient(clientIp, headerName);
 
-        // Route request
+        // route request
         try {
             if (uri.equals(API_INFO)) {
                 return handleServerInfo(session);
@@ -223,7 +223,7 @@ public class RemoteHttpServer extends NanoWSD {
             return createNotFoundResponse("Device not found");
         }
 
-        // Execute command
+        // execute command
         DeviceManager.ShellResult shellResult = DeviceManager.getInstance().runShell(device, command);
         return createJsonResponse(shellResult);
     }
@@ -263,17 +263,17 @@ public class RemoteHttpServer extends NanoWSD {
         BufferedImage bufferedImage = DeviceManager.getInstance().captureScreenshotInternal(device);
 
         try {
-            // Create a temporary file to download to
+            // create a temporary file to download to
             File tempFile = File.createTempFile("screenshot_" + device.serial, ".png");
             tempFile.deleteOnExit();
 
-            // Write the image to the file
+            // write the image to the file
             ImageIO.write(bufferedImage, "png", tempFile);
 
-            // Determine MIME type
+            // determine MIME type
             String mimeType = Utils.getMimeType(tempFile.getName());
 
-            // Stream the file to the client
+            // stream the file to the client
             FileInputStream fis = new FileInputStream(tempFile);
             Response response = newChunkedResponse(Response.Status.OK, mimeType, fis);
             response.addHeader("Content-Disposition", "attachment; filename=\"" + tempFile.getName() + "\"");
@@ -316,7 +316,7 @@ public class RemoteHttpServer extends NanoWSD {
         }
 
         try {
-            // Create a temporary file to download to
+            // create a temporary file to download to
             File tempFile = File.createTempFile("device_download_", "_" + filename);
             tempFile.deleteOnExit();
 
@@ -330,10 +330,10 @@ public class RemoteHttpServer extends NanoWSD {
                 return createNotFoundResponse("File not found on device");
             }
 
-            // Determine MIME type
+            // determine MIME type
             String mimeType = Utils.getMimeType(filename);
 
-            // Stream the file to the client
+            // stream the file to the client
             FileInputStream fis = new FileInputStream(tempFile);
             Response response = newChunkedResponse(Response.Status.OK, mimeType, fis);
             response.addHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
@@ -367,28 +367,28 @@ public class RemoteHttpServer extends NanoWSD {
         }
 
         try {
-            // Create a temporary file to receive the upload
+            // create a temporary file to receive the upload
             File tempFile = File.createTempFile("device_upload_", "_" + filename);
             tempFile.deleteOnExit();
 
-            // Parse the body and save to temp file
+            // parse the body and save to temp file
             Map<String, String> files = new HashMap<>();
             session.parseBody(files);
 
-            // The uploaded file data is in the postData
+            // the uploaded file data is in the postData
             String postData = files.get("postData");
             if (postData != null && !postData.isEmpty()) {
-                // Write the data to temp file
+                // write the data to temp file
                 try (FileOutputStream fos = new FileOutputStream(tempFile)) {
                     fos.write(postData.getBytes(StandardCharsets.ISO_8859_1));
                 }
             } else {
-                // Try to get the uploaded file from the files map
+                // try to get the uploaded file from the files map
                 String tmpFilePath = files.get("file");
                 if (tmpFilePath != null) {
                     File uploadedFile = new File(tmpFilePath);
                     if (uploadedFile.exists()) {
-                        // Copy to our temp file
+                        // copy to our temp file
                         Files.copy(uploadedFile.toPath(), tempFile.toPath(),
                             java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                     }
@@ -399,7 +399,7 @@ public class RemoteHttpServer extends NanoWSD {
                 return createBadResponse("No file data received");
             }
 
-            // Use jadb to push the file to the device
+            // use jadb to push the file to the device
             se.vidstige.jadb.RemoteFile remoteFile = new se.vidstige.jadb.RemoteFileRecord(path, filename, 0, 0, 0);
             device.jadbDevice.push(tempFile, remoteFile);
 
@@ -423,7 +423,7 @@ public class RemoteHttpServer extends NanoWSD {
         if (value == null) return null;
         value = value.trim();
         if (value.isEmpty()) return null;
-        // Basic sanitization: limit length and strip control chars
+        // basic sanitization: limit length and strip control chars
         value = value.replaceAll("[\r\n]", "");
         if (value.length() > 128) value = value.substring(0, 128);
         return value;
@@ -511,13 +511,13 @@ public class RemoteHttpServer extends NanoWSD {
 
         log.debug("openWebSocket: upgrade request: {}", uri);
 
-        // Authenticate via query parameter or header
+        // authenticate via query parameter or header
         if (!authenticateClient(params, headers)) {
             log.warn("openWebSocket: Unauthorized WebSocket connection attempt");
             return new RejectWebSocket(handshake, "Unauthorized", true);
         }
 
-        // Handle log streaming WebSocket
+        // handle log streaming WebSocket
         if (uri.equals(WS_LOGS)) {
             return handleLogStreamWebSocket(handshake, params);
         } else if (uri.equals(WS_SCREEN)) {
@@ -544,7 +544,7 @@ public class RemoteHttpServer extends NanoWSD {
             return new RejectWebSocket(handshake, "Device not found", true);
         }
 
-        // Get compression parameter (defaults to false)
+        // get compression parameter (defaults to false)
         boolean useCompression = "true".equalsIgnoreCase(params.get("compress"));
 
         log.info("handleScreenStreamWebSocket: Opening WebSocket screen stream for device: {}, compression: {}",

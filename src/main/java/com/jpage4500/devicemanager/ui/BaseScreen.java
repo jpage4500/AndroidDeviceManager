@@ -91,17 +91,17 @@ public class BaseScreen extends JFrame {
      * Handle window resize - show dimensions in title temporarily
      */
     private void handleResize() {
-        // Backup original title on first resize
+        // backup original title on first resize
         if (titleBackup == null) {
             titleBackup = getTitle();
         }
 
-        // Show current dimensions in title
+        // show current dimensions in title
         int width = getWidth();
         int height = getHeight();
         setTitle(width + "x" + height);
 
-        // Reset or start timer to restore original title after 1 second
+        // reset or start timer to restore original title after 1 second
         if (resizeTitleTimer != null) {
             resizeTitleTimer.restart();
         } else {

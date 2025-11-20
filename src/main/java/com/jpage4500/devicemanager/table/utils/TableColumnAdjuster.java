@@ -120,7 +120,7 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
             int preferredWidth = getCellDataWidth(row, column);
             maxDataWidth = Math.max(maxDataWidth, preferredWidth);
 
-            //  We've exceeded the maximum width, no need to check other rows
+            //  we've exceeded the maximum width, no need to check other rows
             if (maxDataWidth >= maxWidth) break;
         }
 
@@ -131,7 +131,7 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
      *  Get the preferred width for the specified cell
      */
     private int getCellDataWidth(int row, int column) {
-        //  Inovke the renderer for the cell to calculate the preferred width
+        //  inovke the renderer for the cell to calculate the preferred width
         TableCellRenderer cellRenderer = table.getCellRenderer(row, column);
         Component c = table.prepareRenderer(cellRenderer, row, column);
         return c.getPreferredSize().width + table.getIntercellSpacing().width;
@@ -150,7 +150,7 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
 
         width += spacing;
 
-        //  Don't shrink the column width
+        //  don't shrink the column width
         if (isOnlyAdjustLarger) {
             width = Math.max(width, tableColumn.getPreferredWidth());
         }
@@ -211,7 +211,7 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
      *  dynamically recalculated.
      */
     public void setDynamicAdjustment(boolean isDynamicAdjustment) {
-        //  May need to add or remove the TableModelListener when changed
+        //  may need to add or remove the TableModelListener when changed
 
         if (this.isDynamicAdjustment != isDynamicAdjustment) {
             if (isDynamicAdjustment) {
@@ -227,10 +227,10 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
     }
 
     //
-//  Implement the PropertyChangeListener
+//  implement the PropertyChangeListener
 //
     public void propertyChange(PropertyChangeEvent e) {
-        //  When the TableModel changes we need to update the listeners
+        //  when the TableModel changes we need to update the listeners
         //  and column widths
         log.debug("propertyChange: {}", e.getPropertyName());
         if ("model".equals(e.getPropertyName())) {
@@ -244,13 +244,13 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
     }
 
     //
-//  Implement the TableModelListener
+//  implement the TableModelListener
 //
     public void tableChanged(TableModelEvent e) {
         log.debug("tableChanged: {}", e);
         if (!isColumnDataIncluded) return;
 
-        //  Needed when table is sorted.
+        //  needed when table is sorted.
 
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
@@ -259,7 +259,7 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
                 int column = table.convertColumnIndexToView(e.getColumn());
 
                 if (e.getType() == TableModelEvent.UPDATE && column != -1) {
-                    //  Only need to worry about an increase in width for this cell
+                    //  only need to worry about an increase in width for this cell
 
                     if (isOnlyAdjustLarger) {
                         int row = e.getFirstRow();
@@ -271,14 +271,14 @@ public class TableColumnAdjuster implements PropertyChangeListener, TableModelLi
                         }
                     }
 
-                    //	Could be an increase of decrease so check all rows
+                    //	could be an increase of decrease so check all rows
 
                     else {
                         adjustColumn(column);
                     }
                 }
 
-                //  The update affected more than one column so adjust all columns
+                //  the update affected more than one column so adjust all columns
 
                 else {
                     adjustColumns();
