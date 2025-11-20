@@ -164,6 +164,7 @@ public class RemoteConnection {
         // all requests require authorization
         headers.put(RemoteHttpServer.HEADER_AUTHORIZATION, "Bearer " + serverConfig.authToken);
         headers.put("Accept", "application/json");
+        headers.put("User-Agent", "Android Device Manager");
         // add client info (name, IP)
         try {
             InetAddress localHost = InetAddress.getLocalHost();

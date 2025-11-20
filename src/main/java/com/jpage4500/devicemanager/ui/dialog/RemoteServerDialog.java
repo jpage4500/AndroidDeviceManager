@@ -24,22 +24,17 @@ import java.util.List;
 public class RemoteServerDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(RemoteServerDialog.class);
 
-    private final RemoteConnectionManager connectionManager;
     private final Component parent;
     private JTable serverTable;
     private ServerTableModel tableModel;
 
     public static void showRemoteServerDialog(Component parent) {
-        RemoteConnectionManager rcm = DeviceManager.getInstance().getRemoteConnectionManager();
-        RemoteServerDialog dialog = new RemoteServerDialog(parent, rcm);
-
+        RemoteServerDialog dialog = new RemoteServerDialog(parent);
         DialogHelper.showCustomDialog(parent, dialog, "Remote Servers", new String[]{});
     }
 
-    public RemoteServerDialog(Component parent, RemoteConnectionManager rcm) {
+    public RemoteServerDialog(Component parent) {
         this.parent = parent;
-        this.connectionManager = rcm;
-
         setLayout(new BorderLayout(10, 10));
         initUI();
         loadServers();
@@ -93,16 +88,19 @@ public class RemoteServerDialog extends JPanel {
     }
 
     private void loadServers() {
-        List<RemoteServerConfig> servers = connectionManager.getServers();
-        tableModel.setServers(servers);
+        RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager(false);
+        if (remoteConnectionManager != null) {
+            List<RemoteServerConfig> servers = remoteConnectionManager.getServers();
+            tableModel.setServers(servers);
+        }
     }
 
     private void showAddServerDialog() {
         AddServerDialog dialog = new AddServerDialog(parent, null);
         RemoteServerConfig config = dialog.showDialog();
-
         if (config != null) {
-            connectionManager.addServer(config);
+            RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager(true);
+            remoteConnectionManager.addServer(config);
             loadServers();
         }
     }
@@ -119,7 +117,8 @@ public class RemoteServerDialog extends JPanel {
         RemoteServerConfig updated = dialog.showDialog();
 
         if (updated != null) {
-            connectionManager.updateServer(updated);
+            RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager(true);
+            remoteConnectionManager.updateServer(updated);
             loadServers();
         }
     }
@@ -130,13 +129,10 @@ public class RemoteServerDialog extends JPanel {
             String connStr = (String) clipboard.getData(DataFlavor.stringFlavor);
 
             if (connStr != null && !connStr.trim().isEmpty()) {
-                try {
-                    RemoteServerConfig config = RemoteConnectionUtils.parseConnectionString(connStr.trim());
-                    connectionManager.addServer(config);
-                    loadServers();
-                } catch (Exception e) {
-                    log.error("Failed to parse connection string", e);
-                    DialogHelper.showDialog(this, "Error", "Invalid connection string: " + e.getMessage());
+                RemoteServerConfig config = RemoteConnectionUtils.parseConnectionString(connStr.trim());
+                if (config != null) {
+                    RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager(true);
+                    remoteConnectionManager.addServer(config);
                 }
             }
         } catch (Exception e) {
@@ -154,14 +150,17 @@ public class RemoteServerDialog extends JPanel {
 
         RemoteServerConfig server = tableModel.getServerAt(selectedRow);
         if (DialogHelper.showConfirmDialog(this, "Remove Server", "Remove server '" + server.name + "'?")) {
-            connectionManager.removeServer(server.id);
+            RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager(true);
+            remoteConnectionManager.removeServer(server.id);
             loadServers();
         }
     }
 
     private void refreshServers() {
-        connectionManager.refreshAllDevices();
-        loadServers();
+        RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager(false);
+        if (remoteConnectionManager != null) {
+            remoteConnectionManager.refreshAllDevices();
+        }
     }
 
     /**
@@ -235,8 +234,8 @@ public class RemoteServerDialog extends JPanel {
                 server.enabled = (Boolean) value;
 
                 // Update server
-                RemoteConnectionManager rcm = DeviceManager.getInstance().getRemoteConnectionManager();
-                rcm.updateServer(server);
+                RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager(true);
+                remoteConnectionManager.updateServer(server);
 
                 fireTableCellUpdated(rowIndex, columnIndex);
             }
@@ -245,8 +244,8 @@ public class RemoteServerDialog extends JPanel {
         private String getConnectionStatus(RemoteServerConfig server) {
             if (!server.enabled) return "Disabled";
 
-            RemoteConnectionManager rcm = DeviceManager.getInstance().getRemoteConnectionManager();
-            if (rcm.isConnected(server.id)) {
+            RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager(false);
+            if (remoteConnectionManager != null && remoteConnectionManager.isConnected(server.id)) {
                 return "Connected";
             } else {
                 return "Disconnected";

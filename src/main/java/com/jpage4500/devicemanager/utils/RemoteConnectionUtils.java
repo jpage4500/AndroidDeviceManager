@@ -50,7 +50,7 @@ public class RemoteConnectionUtils {
      */
     public static RemoteServerConfig parseConnectionString(String connectionString) {
         if (connectionString == null || !connectionString.startsWith(PREFIX)) {
-            throw new IllegalArgumentException("Invalid connection string format");
+            return null;
         }
 
         try {
@@ -68,7 +68,7 @@ public class RemoteConnectionUtils {
             return config;
         } catch (Exception e) {
             log.error("Failed to parse connection string", e);
-            throw new IllegalArgumentException("Invalid connection string data", e);
+            return null;
         }
     }
 

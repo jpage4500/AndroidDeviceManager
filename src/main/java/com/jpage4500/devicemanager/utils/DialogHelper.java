@@ -38,14 +38,50 @@ public class DialogHelper {
     }
 
     /**
-     * show a prompt dialog with custom buttons
+     * show a prompt dialog with radio buttons for choices
      *
      * @return index of selected button or -1 if cancelled
      */
     public static int showOptionDialog(Component component, String title, String text, String[] buttons) {
-        int rc = JOptionPane.showOptionDialog(component, text, title, JOptionPane.DEFAULT_OPTION,
-            JOptionPane.QUESTION_MESSAGE, null, buttons, null);
-        return rc;
+        JPanel panel = new JPanel(new MigLayout("", "[grow]", "[]10[]"));
+
+        // Add text label if provided
+        if (text != null && !text.isEmpty()) {
+            JLabel label = new JLabel(text);
+            panel.add(label, "wrap");
+        }
+
+        // Create radio buttons
+        ButtonGroup buttonGroup = new ButtonGroup();
+        JRadioButton[] radioButtons = new JRadioButton[buttons.length];
+
+        for (int i = 0; i < buttons.length; i++) {
+            radioButtons[i] = new JRadioButton(buttons[i]);
+            buttonGroup.add(radioButtons[i]);
+            panel.add(radioButtons[i], "wrap");
+        }
+
+        // Select first option by default
+        if (radioButtons.length > 0) {
+            radioButtons[0].setSelected(true);
+        }
+
+        // Show dialog with OK/Cancel buttons
+        int result = JOptionPane.showConfirmDialog(component, panel, title,
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+
+        // Return -1 if cancelled, otherwise return index of selected radio button
+        if (result != JOptionPane.OK_OPTION) {
+            return -1;
+        }
+
+        for (int i = 0; i < radioButtons.length; i++) {
+            if (radioButtons[i].isSelected()) {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     public static void showTextDialog(Component component, String title, String text) {

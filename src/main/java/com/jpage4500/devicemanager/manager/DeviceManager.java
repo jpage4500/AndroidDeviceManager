@@ -135,7 +135,7 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
         // remote connection manager
         String serverStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_CONNECTED_SERVERS);
         if (TextUtils.notEmpty(serverStr)) {
-            remoteConnectionManager = new RemoteConnectionManager(this);
+            getRemoteConnectionManager(true);
         }
 
         // Initialize remote server manager (auto-starts if previously enabled)
@@ -674,7 +674,10 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
     /**
      * Get remote connection manager
      */
-    public RemoteConnectionManager getRemoteConnectionManager() {
+    public RemoteConnectionManager getRemoteConnectionManager(boolean createIfNull) {
+        if (remoteConnectionManager == null && createIfNull) {
+            remoteConnectionManager = new RemoteConnectionManager(this);
+        }
         return remoteConnectionManager;
     }
 

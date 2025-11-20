@@ -9,10 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * Manages connections to remote ADB servers
@@ -20,8 +17,11 @@ import java.util.concurrent.TimeUnit;
 public class RemoteConnectionManager {
     private static final Logger log = LoggerFactory.getLogger(RemoteConnectionManager.class);
 
+    public static final int REFRESH_SECS = 30;
+
     private final Map<String, RemoteConnection> connections = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private Future<?> future;
     private final ConnectionListener listener;
 
     public interface ConnectionListener {
@@ -34,23 +34,44 @@ public class RemoteConnectionManager {
 
     public RemoteConnectionManager(ConnectionListener listener) {
         this.listener = listener;
-        initialize();
+
+        // load and connect to saved servers
+        List<RemoteServerConfig> configList = getServers();
+        for (RemoteServerConfig config : configList) {
+            if (config.enabled) {
+                RemoteConnection connection = new RemoteConnection(config);
+                connections.put(config.id, connection);
+            }
+        }
+
+        scheduleRefresh();
     }
 
-    /**
-     * Load saved servers and connect to enabled ones
-     */
-    public void initialize() {
-        // load and connect to saved servers
-        List<RemoteServerConfig> servers = getServers();
-        for (RemoteServerConfig server : servers) {
-            if (server.enabled) {
-                connectToServer(server);
+    private void scheduleRefresh() {
+        if (!connections.isEmpty()) {
+            // if a refresh is pending, stop it
+            if (future != null) future.cancel(false);
+            // refresh all devices NOW and again every 30 seconds
+            future = scheduler.scheduleWithFixedDelay(this::refreshAllDevices, 0, REFRESH_SECS, TimeUnit.SECONDS);
+        } else {
+            // no servers configured - stop refreshing
+            if (future != null) {
+                future.cancel(false);
+                future = null;
             }
         }
     }
 
-    private void checkConnection(String serverId, RemoteConnection connection) {
+    /**
+     * Refresh all servers
+     */
+    public void refreshAllDevices() {
+        for (Map.Entry<String, RemoteConnection> entry : connections.entrySet()) {
+            fetchServerInfo(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private void fetchServerInfo(String serverId, RemoteConnection connection) {
         // fetch server info
         RemoteHttpServer.ServerInfo serverInfo = connection.fetchServerInfo();
         if (serverInfo != null) {
@@ -60,12 +81,9 @@ public class RemoteConnectionManager {
             // check if device count has changed
             if (serverInfo.deviceCount != connection.getDeviceCount()) {
                 // run device list request after all connections have been checked
-                scheduler.submit(() -> fetchDevices(serverId));
-                return;
+                fetchDevices(serverId);
             }
         }
-        // schedule another check in 30 seconds
-        scheduler.schedule(() -> checkConnection(serverId, connection), 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -79,59 +97,22 @@ public class RemoteConnectionManager {
         if (listener != null) {
             listener.onRemoteDevicesUpdated(connection, deviceList);
         }
-
-        // schedule another check in 30 seconds
-        scheduler.schedule(() -> checkConnection(serverId, connection), 30, TimeUnit.SECONDS);
-    }
-
-    /**
-     * Connect to a remote server
-     */
-    public void connectToServer(RemoteServerConfig server) {
-        if (connections.containsKey(server.id)) {
-            log.warn("connectToServer: Already connected: {}, {}", server.id, server.name);
-            return;
-        }
-        log.trace("connectToServer: {}", server.name);
-
-        RemoteConnection connection = new RemoteConnection(server);
-        connections.put(server.id, connection);
-
-        scheduler.submit(() -> checkConnection(server.id, connection));
-    }
-
-    /**
-     * Disconnect from a server
-     */
-    public void disconnectFromServer(String serverId) {
-        RemoteConnection connection = connections.remove(serverId);
-        if (connection != null) {
-            connection.disconnect();
-            if (listener != null) {
-                listener.onRemoteConnectionLost(connection);
-            }
-        }
-    }
-
-    /**
-     * Refresh all servers
-     */
-    public void refreshAllDevices() {
-        for (String serverId : connections.keySet()) {
-            fetchDevices(serverId);
-        }
     }
 
     /**
      * Add a new server configuration
      */
-    public void addServer(RemoteServerConfig server) {
-        List<RemoteServerConfig> servers = getServers();
-        servers.add(server);
-        saveServers(servers);
+    public void addServer(RemoteServerConfig addConfig) {
+        List<RemoteServerConfig> configList = getServers();
+        configList.add(addConfig);
+        saveServers(configList);
 
-        if (server.enabled) {
-            connectToServer(server);
+        if (addConfig.enabled) {
+            RemoteConnection connection = new RemoteConnection(addConfig);
+            connections.put(addConfig.id, connection);
+
+            // refresh devices
+            scheduleRefresh();
         }
     }
 
@@ -141,31 +122,29 @@ public class RemoteConnectionManager {
     public void removeServer(String serverId) {
         disconnectFromServer(serverId);
 
-        List<RemoteServerConfig> servers = getServers();
-        servers.removeIf(s -> s.id.equals(serverId));
-        saveServers(servers);
+        List<RemoteServerConfig> configList = getServers();
+        configList.removeIf(config -> config.id.equals(serverId));
+        saveServers(configList);
     }
 
     /**
      * Update server configuration
      */
-    public void updateServer(RemoteServerConfig server) {
-        List<RemoteServerConfig> servers = getServers();
-        for (int i = 0; i < servers.size(); i++) {
-            if (servers.get(i).id.equals(server.id)) {
-                servers.set(i, server);
-                break;
-            }
-        }
-        saveServers(servers);
+    public void updateServer(RemoteServerConfig updateConfig) {
+        disconnectFromServer(updateConfig.id);
+        addServer(updateConfig);
+    }
 
-        // Reconnect if necessary
-        boolean wasConnected = connections.containsKey(server.id);
-        if (wasConnected) {
-            disconnectFromServer(server.id);
-        }
-        if (server.enabled) {
-            connectToServer(server);
+    /**
+     * Disconnect from a server
+     */
+    private void disconnectFromServer(String serverId) {
+        RemoteConnection connection = connections.remove(serverId);
+        if (connection != null) {
+            connection.disconnect();
+            if (listener != null) {
+                listener.onRemoteConnectionLost(connection);
+            }
         }
     }
 
@@ -186,7 +165,6 @@ public class RemoteConnectionManager {
     }
 
     public void shutdown() {
-        log.trace("shutdown: ");
         for (RemoteConnection connection : connections.values()) {
             connection.disconnect();
         }
