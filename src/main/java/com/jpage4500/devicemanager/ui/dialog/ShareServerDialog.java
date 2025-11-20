@@ -3,14 +3,13 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteServerManager;
-import com.jpage4500.devicemanager.utils.DialogHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
+import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -35,6 +34,7 @@ public class ShareServerDialog extends JPanel {
     private ClientTableModel clientTableModel;
     private JButton toggleButton;
     private JButton copyButton;
+    private JTextArea networkField;
     private List<RemoteConnectionUtils.Network> networkList;
 
     public static void showShareServerDialog(Component parent) {
@@ -49,6 +49,14 @@ public class ShareServerDialog extends JPanel {
         setLayout(new BorderLayout(10, 10));
         initUI();
         refreshUI();
+
+        // fetch network list in background
+        Utils.runBackground(() -> {
+            synchronized (this) {
+                networkList = RemoteConnectionUtils.getActiveNetworkInfo();
+            }
+            SwingUtilities.invokeLater(this::refreshUI);
+        });
     }
 
     private void initUI() {
@@ -65,16 +73,18 @@ public class ShareServerDialog extends JPanel {
         deviceNameField = new JTextField();
         mainPanel.add(deviceNameField, "wrap");
 
-        networkList = RemoteConnectionUtils.getActiveNetworkInfo();
-        for (RemoteConnectionUtils.Network network : networkList) {
-            // IP Address
-            mainPanel.add(new JLabel("Host / IP:"));
-            JTextField hostField = new JTextField();
-            hostField.setText(network.host);
-            hostField.setEditable(false);
-            hostField.setBackground(Color.LIGHT_GRAY);
-            mainPanel.add(hostField, "wrap");
-        }
+        // placeholder for network(s)
+        mainPanel.add(new JLabel("Host / IP:"), "aligny top");
+        networkField = new JTextArea();
+        networkField.setEditable(false);
+        networkField.setBackground(Color.LIGHT_GRAY);
+        networkField.setLineWrap(true);
+        networkField.setWrapStyleWord(true);
+        networkField.setRows(1);
+        JScrollPane networkScrollPane = new JScrollPane(networkField);
+        networkScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        networkScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        mainPanel.add(networkScrollPane, "height 20:60:, wrap");
 
         // Port
         mainPanel.add(new JLabel("Port:"));
@@ -130,6 +140,28 @@ public class ShareServerDialog extends JPanel {
             statusLabel.setText("Stopped");
             statusLabel.setForeground(Color.RED);
             toggleButton.setText("Start Server");
+        }
+
+        // get network(s)
+        synchronized (this) {
+            if (networkList != null) {
+                StringBuilder networkSb = new StringBuilder();
+                for (RemoteConnectionUtils.Network network : networkList) {
+                    // Add line break for subsequent entries
+                    if (!networkSb.isEmpty()) networkSb.append("\n");
+                    // IP address
+                    networkSb.append(network.ip);
+                    // hostname
+                    if (TextUtils.notEmpty(network.host) && !TextUtils.equals(network.host, network.ip)) {
+                        networkSb.append(" (");
+                        networkSb.append(network.host);
+                        networkSb.append(")");
+                    }
+                }
+                networkField.setText(networkSb.toString());
+            } else {
+                networkField.setText("fetching network info...");
+            }
         }
 
         // Get device name and IP
@@ -220,13 +252,17 @@ public class ShareServerDialog extends JPanel {
         String hostname = null;
         // if multiple networks listed, prompt which one to use
         if (networkList.size() > 1) {
-            String[] choices = new String[networkList.size()];
-            for (int i = 0; i < networkList.size(); i++) {
-                RemoteConnectionUtils.Network network = networkList.get(i);
-                choices[i] = network.host;
+            List<String> choices = new ArrayList<>();
+            for (RemoteConnectionUtils.Network network : networkList) {
+                choices.add(network.ip);
+                // if host is different than ip, add it as an option
+                if (TextUtils.notEmpty(network.host) && !TextUtils.equals(network.host, network.ip)) {
+                    choices.add(network.host);
+                }
             }
             int rc = DialogHelper.showOptionDialog(this, "Select hostname/IP", "Which hostname/IP address do you want to use?", choices);
-            if (rc >= 0) hostname = choices[rc];
+            if (rc < 0) return;
+            hostname = choices.get(rc);
         } else if (networkList.size() == 1) {
             hostname = networkList.get(0).host;
         }

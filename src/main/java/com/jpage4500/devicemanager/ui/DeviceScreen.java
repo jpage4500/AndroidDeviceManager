@@ -195,7 +195,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
 
         if (SystemTray.isSupported() && trayIcon != null) {
-            SystemTray.getSystemTray().remove(trayIcon);
+            try {
+                SystemTray.getSystemTray().remove(trayIcon);
+            } catch (Exception e) {
+                log.error("exitApp: Exception removing system tray: {}", e.getMessage());
+            }
         }
 
         // Shutdown file logging executor
@@ -501,6 +505,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 tray.add(trayIcon);
             } catch (Exception e) {
                 log.error("setupSystemTray: Exception: {}", e.getMessage());
+                trayIcon = null;
+                return;
             }
             return;
         }
@@ -531,6 +537,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 tray.add(trayIcon);
             } catch (Exception e) {
                 log.error("initializeUI: Exception: {}", e.getMessage());
+                trayIcon = null;
             }
         } else {
             trayIcon.setImage(trayIconImage);

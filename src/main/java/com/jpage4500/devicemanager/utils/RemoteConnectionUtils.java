@@ -97,6 +97,7 @@ public class RemoteConnectionUtils {
 
     public static class Network {
         public String label;
+        public String ip;
         public String host;
     }
 
@@ -104,30 +105,25 @@ public class RemoteConnectionUtils {
         List<Network> networkList = new ArrayList<>();
         // Get the actual LAN IP (not 127.0.0.1)
         try {
-            InetAddress localHost = InetAddress.getLocalHost();
-            String ip = localHost.getHostAddress();
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface iface = interfaces.nextElement();
 
-            // If it's localhost, try to find the real network interface
-            if (ip.equals("127.0.0.1") || ip.equals("0.0.0.0")) {
-                Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-                while (interfaces.hasMoreElements()) {
-                    NetworkInterface iface = interfaces.nextElement();
+                // Skip loopback and inactive interfaces
+                if (iface.isLoopback() || !iface.isUp()) continue;
 
-                    // Skip loopback and inactive interfaces
-                    if (iface.isLoopback() || !iface.isUp()) continue;
-
-                    Enumeration<InetAddress> addresses = iface.getInetAddresses();
-                    while (addresses.hasMoreElements()) {
-                        InetAddress addr = addresses.nextElement();
-                        // We want IPv4 addresses only (skip IPv6)
-                        if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
-                            log.trace("getActiveNetworkInfo: {}, {}, {}", addr.getHostAddress(), addr.getHostName(), iface.getName());
-                            Network network = new Network();
-                            network.label = iface.getName();
-                            network.host = addr.getHostName();
-                            networkList.add(network);
-                            //return addr.getHostAddress();
-                        }
+                Enumeration<InetAddress> addresses = iface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress addr = addresses.nextElement();
+                    // We want IPv4 addresses only (skip IPv6)
+                    if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
+                        log.trace("getActiveNetworkInfo: {}, {}, {}", addr.getHostAddress(), addr.getHostName(), iface.getName());
+                        Network network = new Network();
+                        network.label = iface.getName();
+                        network.ip = addr.getHostAddress();
+                        // NOTE: getHostName will do a reverse lookup and could take a while
+                        network.host = addr.getHostName();
+                        networkList.add(network);
                     }
                 }
             }

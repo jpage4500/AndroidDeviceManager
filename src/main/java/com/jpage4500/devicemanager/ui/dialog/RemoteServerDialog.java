@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteConnectionManager;
 import com.jpage4500.devicemanager.utils.DialogHelper;
+import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -128,6 +129,7 @@ public class RemoteServerDialog extends JPanel {
 
             if (connStr != null && !connStr.trim().isEmpty()) {
                 RemoteServerConfig config = RemoteConnectionUtils.parseConnectionString(connStr.trim());
+                log.trace("pasteConnectionString: {} -> {}", GsonHelper.toJson(config), connStr);
                 if (config != null) {
                     RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
                     remoteConnectionManager.addServer(config);

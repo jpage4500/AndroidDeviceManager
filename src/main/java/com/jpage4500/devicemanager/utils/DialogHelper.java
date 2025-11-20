@@ -37,12 +37,16 @@ public class DialogHelper {
         return (rc == JOptionPane.YES_OPTION);
     }
 
+    public static int showOptionDialog(Component component, String title, String text, List<String> choiceList) {
+        return showOptionDialog(component, title, text, choiceList.toArray(new String[0]));
+    }
+
     /**
      * show a prompt dialog with radio buttons for choices
      *
      * @return index of selected button or -1 if cancelled
      */
-    public static int showOptionDialog(Component component, String title, String text, String[] buttons) {
+    public static int showOptionDialog(Component component, String title, String text, String[] choiceArr) {
         JPanel panel = new JPanel(new MigLayout("", "[grow]", "[]10[]"));
 
         // Add text label if provided
@@ -53,10 +57,10 @@ public class DialogHelper {
 
         // Create radio buttons
         ButtonGroup buttonGroup = new ButtonGroup();
-        JRadioButton[] radioButtons = new JRadioButton[buttons.length];
+        JRadioButton[] radioButtons = new JRadioButton[choiceArr.length];
 
-        for (int i = 0; i < buttons.length; i++) {
-            radioButtons[i] = new JRadioButton(buttons[i]);
+        for (int i = 0; i < choiceArr.length; i++) {
+            radioButtons[i] = new JRadioButton(choiceArr[i]);
             buttonGroup.add(radioButtons[i]);
             panel.add(radioButtons[i], "wrap");
         }
