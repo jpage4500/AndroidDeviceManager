@@ -27,4 +27,9 @@ public class RemoteServerConfig {
         return String.format("%s:%d", host, port);
     }
 
+    public String getWebsocketUrl() {
+        String url = getUrl();
+        return url.replace("http://", "ws://").replace("https://", "wss://");
+    }
+
 }

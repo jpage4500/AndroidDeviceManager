@@ -179,7 +179,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     }
 
     private void startBatchTask() {
-        batchTask = scheduler.scheduleAtFixedRate(() -> {
+        batchTask = scheduler.scheduleWithFixedDelay(() -> {
             try {
                 sendBatch();
             } catch (Exception e) {
@@ -189,7 +189,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     }
 
     private void startPingTask() {
-        pingTask = scheduler.scheduleAtFixedRate(() -> {
+        pingTask = scheduler.scheduleWithFixedDelay(() -> {
             try {
                 if (isOpen()) {
                     ping("heartbeat".getBytes());

@@ -1,14 +1,13 @@
 package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.utils.*;
+import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import fi.iki.elonen.NanoWSD;
 import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.imageio.ImageIO;
-import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -23,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * websocket handler for streaming device screen as PNG images
@@ -36,6 +36,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     public static final String ACTION_RESUME = "resume";
     public static final String ACTION_SET_INTERVAL = "setInterval";
     public static final String ACTION_SET_COMPRESSION = "setCompression";
+    public static final String ACTION_SET_QUALITY = "setQuality";
     public static final String ACTION_INPUT = "input";
 
     // input types
@@ -47,6 +48,17 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     // default refresh interval in milliseconds
     private static final int DEFAULT_INTERVAL_MS = 250;
 
+    // Quality settings
+    private static final String QUALITY_HIGH = "high";
+    private static final String QUALITY_MEDIUM = "medium";
+    private static final String QUALITY_LOW = "low";
+    private static final float JPEG_QUALITY_HIGH = 0.70f;
+    private static final float JPEG_QUALITY_MEDIUM = 0.50f;
+    private static final float JPEG_QUALITY_LOW = 0.30f;
+    private static final double SCALE_HIGH = 1.0;
+    private static final double SCALE_MEDIUM = 0.75;
+    private static final double SCALE_LOW = 0.5;
+
     private final Device device;
     private final DeviceManager deviceManager;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -56,7 +68,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     private final AtomicInteger intervalMs = new AtomicInteger(DEFAULT_INTERVAL_MS);
     private final AtomicLong frameId = new AtomicLong(0);
     private final AtomicBoolean useCompression = new AtomicBoolean(false);
-    private static final float JPEG_QUALITY = 0.70f; // jpeg compression quality (0.0-1.0)
+    private final AtomicReference<String> quality = new AtomicReference<>(QUALITY_HIGH);
 
     public ScreenStreamWebSocket(NanoWSD.IHTTPSession handshakeRequest, Device device, boolean useCompression) {
         super(handshakeRequest);
@@ -146,22 +158,29 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
                 break;
 
             case ACTION_SET_INTERVAL:
-                Object intervalObj = message.get("intervalMs");
-                if (intervalObj instanceof Number) {
-                    int newInterval = ((Number) intervalObj).intValue();
-                    setInterval(newInterval);
+                Number interval = getValue(message, "intervalMs", Number.class);
+                if (interval != null) {
+                    setInterval(interval.intValue());
                 } else {
                     sendErrorMessage("Invalid intervalMs value");
                 }
                 break;
 
             case ACTION_SET_COMPRESSION:
-                Object compressionObj = message.get("useCompression");
-                if (compressionObj instanceof Boolean) {
-                    boolean newCompression = (Boolean) compressionObj;
-                    setCompression(newCompression);
+                Boolean useCompression = getValue(message, "useCompression", Boolean.class);
+                if (useCompression != null) {
+                    setCompression(useCompression);
                 } else {
                     sendErrorMessage("Invalid useCompression value");
+                }
+                break;
+
+            case ACTION_SET_QUALITY:
+                String quality = getValue(message, "quality", String.class);
+                if (quality != null) {
+                    setQuality(quality);
+                } else {
+                    sendErrorMessage("Invalid quality value");
                 }
                 break;
 
@@ -180,7 +199,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
      * handle input messages (tap, swipe, text, keyevent)
      */
     private void handleInputMessage(Map<String, Object> message) {
-        String type = (String) message.get("type");
+        String type = getValue(message, "type", String.class);
         if (type == null) {
             sendErrorMessage("Missing 'type' in input message");
             return;
@@ -214,19 +233,15 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
      * handle tap input
      */
     private void handleTap(Map<String, Object> message) {
-        Object xObj = message.get("x");
-        Object yObj = message.get("y");
-
-        if (!(xObj instanceof Number) || !(yObj instanceof Number)) {
+        Number x = getValue(message, "x", Number.class);
+        Number y = getValue(message, "y", Number.class);
+        if (x == null || y == null) {
             sendErrorMessage("Invalid tap coordinates");
             return;
         }
 
-        int x = ((Number) xObj).intValue();
-        int y = ((Number) yObj).intValue();
-
         log.debug("handleTap: x={}, y={}", x, y);
-        String command = String.format("input tap %d %d", x, y);
+        String command = String.format("input tap %d %d", x.intValue(), y.intValue());
         deviceManager.runShell(device, command);
     }
 
@@ -234,31 +249,24 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
      * handle swipe input
      */
     private void handleSwipe(Map<String, Object> message) {
-        Object x1Obj = message.get("x1");
-        Object y1Obj = message.get("y1");
-        Object x2Obj = message.get("x2");
-        Object y2Obj = message.get("y2");
-
-        if (!(x1Obj instanceof Number) || !(y1Obj instanceof Number) ||
-            !(x2Obj instanceof Number) || !(y2Obj instanceof Number)) {
+        Number x1 = getValue(message, "x1", Number.class);
+        Number y1 = getValue(message, "y1", Number.class);
+        Number x2 = getValue(message, "x2", Number.class);
+        Number y2 = getValue(message, "y2", Number.class);
+        if (x1 == null || y1 == null || x2 == null || y2 == null) {
             sendErrorMessage("Invalid swipe coordinates");
             return;
         }
 
-        int x1 = ((Number) x1Obj).intValue();
-        int y1 = ((Number) y1Obj).intValue();
-        int x2 = ((Number) x2Obj).intValue();
-        int y2 = ((Number) y2Obj).intValue();
-
         // optional duration parameter (default 300ms)
         int duration = 300;
-        Object durationObj = message.get("duration");
-        if (durationObj instanceof Number) {
-            duration = ((Number) durationObj).intValue();
+        Number durationNum = getValue(message, "duration", Number.class);
+        if (durationNum != null) {
+            duration = durationNum.intValue();
         }
 
         log.debug("handleSwipe: x1={}, y1={}, x2={}, y2={}, duration={}", x1, y1, x2, y2, duration);
-        String command = String.format("input swipe %d %d %d %d %d", x1, y1, x2, y2, duration);
+        String command = String.format("input swipe %d %d %d %d %d", x1.intValue(), y1.intValue(), x2.intValue(), y2.intValue(), duration);
         deviceManager.runShell(device, command);
     }
 
@@ -266,8 +274,8 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
      * handle text input
      */
     private void handleText(Map<String, Object> message) {
-        String text = (String) message.get("text");
-        if (text == null || text.isEmpty()) {
+        String text = getValue(message, "text", String.class);
+        if (TextUtils.isEmpty(text)) {
             sendErrorMessage("Missing or empty text");
             return;
         }
@@ -283,15 +291,14 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
      * handle keyevent input
      */
     private void handleKeyEvent(Map<String, Object> message) {
-        Object keycodeObj = message.get("keycode");
-        if (!(keycodeObj instanceof Number)) {
+        Number keycode = getValue(message, "keycode", Number.class);
+        if (keycode == null) {
             sendErrorMessage("Invalid keycode");
             return;
         }
 
-        int keycode = ((Number) keycodeObj).intValue();
         log.debug("handleKeyEvent: keycode={}", keycode);
-        String command = String.format("input keyevent %d", keycode);
+        String command = String.format("input keyevent %d", keycode.intValue());
         deviceManager.runShell(device, command);
     }
 
@@ -307,7 +314,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
         isRunning.set(true);
         log.info("startCaptureLoop: starting with interval {}ms", intervalMs.get());
 
-        captureTask = scheduler.scheduleAtFixedRate(() -> {
+        captureTask = scheduler.scheduleWithFixedDelay(() -> {
             if (!isPaused.get()) {
                 captureAndSendFrame();
             }
@@ -329,24 +336,26 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             // thumbnailator-based encoding (JPEG/PNG)
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             String format;
-            if (useCompression.get()) {
-                // jpeg doesn't support alpha channel; convert ARGB -> RGB
-                BufferedImage rgbImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
-                Graphics2D g = rgbImage.createGraphics();
-                g.drawImage(image, 0, 0, null);
-                g.dispose();
+            String currentQuality = quality.get();
+            double scale = getScale(currentQuality);
 
-                Thumbnails.of(rgbImage)
-                    .size(rgbImage.getWidth(), rgbImage.getHeight())
+            // calculate scaled dimensions
+            int scaledWidth = (int) (image.getWidth() * scale);
+            int scaledHeight = (int) (image.getHeight() * scale);
+
+            if (useCompression.get()) {
+                float jpegQuality = getJpegQuality(currentQuality);
+
+                Thumbnails.of(image)
+                    .size(scaledWidth, scaledHeight)
                     .outputFormat("jpg")
-                    .outputQuality(JPEG_QUALITY)
+                    .outputQuality(jpegQuality)
                     .toOutputStream(baos);
                 format = "jpeg";
             } else {
                 Thumbnails.of(image)
-                    .size(image.getWidth(), image.getHeight())
+                    .size(scaledWidth, scaledHeight)
                     .outputFormat("png")
-                    .scale(1.0)
                     .toOutputStream(baos);
                 format = "png";
             }
@@ -401,7 +410,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             captureTask.cancel(false);
         }
 
-        captureTask = scheduler.scheduleAtFixedRate(() -> {
+        captureTask = scheduler.scheduleWithFixedDelay(() -> {
             if (!isPaused.get()) {
                 captureAndSendFrame();
             }
@@ -428,6 +437,60 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     }
 
     /**
+     * set quality level
+     */
+    private void setQuality(String newQuality) {
+        if (!QUALITY_HIGH.equals(newQuality) &&
+            !QUALITY_MEDIUM.equals(newQuality) &&
+            !QUALITY_LOW.equals(newQuality)) {
+            sendErrorMessage("Quality must be 'high', 'medium', or 'low'");
+            return;
+        }
+
+        String currentQuality = quality.get();
+        if (currentQuality.equals(newQuality)) {
+            log.debug("setQuality: already set to {}", newQuality);
+            return;
+        }
+
+        log.info("setQuality: changing from {} to {}", currentQuality, newQuality);
+        quality.set(newQuality);
+        sendStatusMessage("quality_changed", "Quality set to " + newQuality);
+    }
+
+    /**
+     * get JPEG quality
+     */
+    private float getJpegQuality(String qualityLevel) {
+        switch (qualityLevel) {
+            case QUALITY_HIGH:
+                return JPEG_QUALITY_HIGH;
+            case QUALITY_MEDIUM:
+                return JPEG_QUALITY_MEDIUM;
+            case QUALITY_LOW:
+                return JPEG_QUALITY_LOW;
+            default:
+                return JPEG_QUALITY_HIGH;
+        }
+    }
+
+    /**
+     * get scale for quality level
+     */
+    private double getScale(String qualityLevel) {
+        switch (qualityLevel) {
+            case QUALITY_HIGH:
+                return SCALE_HIGH;
+            case QUALITY_MEDIUM:
+                return SCALE_MEDIUM;
+            case QUALITY_LOW:
+                return SCALE_LOW;
+            default:
+                return SCALE_HIGH;
+        }
+    }
+
+    /**
      * send status message to client
      */
     private void sendStatusMessage(String status, String message) {
@@ -436,7 +499,9 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             msg.put("type", "status");
             msg.put("status", status);
             msg.put("message", message);
-            send(GsonHelper.toJson(msg));
+            String json = GsonHelper.toJson(msg);
+            log.trace("sendStatusMessage: {}", json);
+            send(json);
         } catch (IOException e) {
             log.error("sendStatusMessage: error", e);
         }
@@ -450,7 +515,9 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             Map<String, Object> msg = new HashMap<>();
             msg.put("type", "error");
             msg.put("error", error);
-            send(GsonHelper.toJson(msg));
+            String json = GsonHelper.toJson(msg);
+            log.error("sendErrorMessage: {}", json);
+            send(json);
         } catch (IOException e) {
             log.error("sendErrorMessage: error: {}", e.getMessage());
         }
@@ -481,5 +548,15 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
         // reset screen stay-on setting
         deviceManager.runShell(device, "svc power stayon false");
     }
+
+    private <T> T getValue(Map<String, Object> message, String key, Class<T> classOfT) {
+        Object value = message.get(key);
+        if (classOfT.isInstance(value)) {
+            return classOfT.cast(value);
+        }
+        log.warn("getValue: invalid type: key:{}, val:{}, expected:{}", key, value, classOfT.getSimpleName());
+        return null;
+    }
+
 }
 

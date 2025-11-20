@@ -416,12 +416,9 @@ public class RemoteConnection {
     // private helper methods
 
     private String buildWebSocketUrl(String deviceSerial, String filterText) {
-        // convert http/https URL to ws/wss
-        String baseUrl = serverConfig.getUrl();
-        String wsUrl = baseUrl.replace("http://", "ws://").replace("https://", "wss://");
-
+        String baseUrl = serverConfig.getWebsocketUrl();
         // build query parameters
-        StringBuilder url = new StringBuilder(wsUrl);
+        StringBuilder url = new StringBuilder(baseUrl);
         url.append(RemoteHttpServer.WS_LOGS);
         url.append("?token=").append(URLEncoder.encode(serverConfig.authToken, StandardCharsets.UTF_8));
         url.append("&serial=").append(URLEncoder.encode(deviceSerial, StandardCharsets.UTF_8));
@@ -797,11 +794,22 @@ public class RemoteConnection {
         }
     }
 
-    private String buildScreenStreamUrl(String deviceSerial, int intervalMs, boolean useCompression) {
-        String baseUrl = serverConfig.getUrl();
-        String wsUrl = baseUrl.replace("http://", "ws://").replace("https://", "wss://");
+    /**
+     * Set quality level for screen stream
+     */
+    public void setScreenStreamQuality(String deviceSerial, String quality) {
+        ScreenStreamSession session = screenStreamSessions.get(deviceSerial);
+        if (session != null && session.webSocket != null) {
+            Map<String, Object> message = new HashMap<>();
+            message.put("action", ScreenStreamWebSocket.ACTION_SET_QUALITY);
+            message.put("quality", quality);
+            sendScreenControlMessage(session.webSocket, message);
+        }
+    }
 
-        StringBuilder url = new StringBuilder(wsUrl);
+    private String buildScreenStreamUrl(String deviceSerial, int intervalMs, boolean useCompression) {
+        String baseUrl = serverConfig.getWebsocketUrl();
+        StringBuilder url = new StringBuilder(baseUrl);
         url.append(RemoteHttpServer.WS_SCREEN);
         url.append("?token=").append(URLEncoder.encode(serverConfig.authToken, StandardCharsets.UTF_8));
         url.append("&serial=").append(URLEncoder.encode(deviceSerial, StandardCharsets.UTF_8));

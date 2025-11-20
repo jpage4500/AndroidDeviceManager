@@ -166,7 +166,14 @@ public class DeviceTableModel extends AbstractTableModel {
             DeviceTableModel.Columns colType = visibleColumns[column];
             return switch (colType) {
                 case SERIAL -> device.serial;
-                case NAME -> TextUtils.firstValid(device.nickname, device.model);
+                case NAME -> {
+                    String name = TextUtils.firstValid(device.nickname, device.model);
+                    if (device.remoteConnection != null) {
+                        yield device.remoteConnection.getServerConfig().name + " - " + name;
+                    } else{
+                        yield name;
+                    }
+                }
                 case MODEL -> device.model;
                 case OS -> device.os;
                 case CARRIER -> device.carrier;

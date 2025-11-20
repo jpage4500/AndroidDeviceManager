@@ -42,7 +42,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
     private ScreenPanel screenPanel;
     private StatusBar statusBar;
-    private JComboBox<RefreshSpeed> speedComboBox;
+    private JComboBox<Quality> qualityComboBox;
     private JLabel fpsLabel;
 
     private BufferedImage currentImage;
@@ -79,6 +79,25 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         }
     }
 
+    public enum Quality {
+        HIGH("High", "high"),
+        MEDIUM("Medium", "medium"),
+        LOW("Low", "low");
+
+        public final String label;
+        public final String value;
+
+        Quality(String label, String value) {
+            this.label = label;
+            this.value = value;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
     public RemoteScreenWindow(Device device) {
         super("RemoteScreenWindow", 600, 900);
 
@@ -102,7 +121,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         JPanel statusBarPanel = new JPanel(new BorderLayout());
         UiUtils.setEmptyBorder(statusBarPanel, 0, 0);
 
-        // left side - FPS
+        // left - FPS
         fpsLabel = new JLabel("FPS: --");
         UiUtils.setEmptyBorder(fpsLabel, 5, 5);
         statusBarPanel.add(fpsLabel, BorderLayout.WEST);
@@ -112,13 +131,13 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         statusBar.setCenterLabel("Connecting...");
         statusBarPanel.add(statusBar, BorderLayout.CENTER);
 
-        // right side - Speed selector
+        // right - Quality selector
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
-        rightPanel.add(new JLabel("Speed:"));
-        speedComboBox = new JComboBox<>(RefreshSpeed.values());
-        speedComboBox.setSelectedItem(RefreshSpeed.NORMAL);
-        speedComboBox.addActionListener(e -> handleSpeedChange());
-        rightPanel.add(speedComboBox);
+        rightPanel.add(new JLabel("Quality:"));
+        qualityComboBox = new JComboBox<>(Quality.values());
+        qualityComboBox.setSelectedItem(Quality.HIGH);
+        qualityComboBox.addActionListener(e -> handleQualityChange());
+        rightPanel.add(qualityComboBox);
         statusBarPanel.add(rightPanel, BorderLayout.EAST);
 
         add(statusBarPanel, BorderLayout.SOUTH);
@@ -133,12 +152,12 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         remoteConnection.startScreenStream(device.serial, speed.intervalMs, true, this);
     }
 
-    private void handleSpeedChange() {
-        RefreshSpeed speed = (RefreshSpeed) speedComboBox.getSelectedItem();
-        if (speed != null) {
-            log.debug("handleSpeedChange: {}", speed);
-            remoteConnection.setScreenStreamInterval(device.serial, speed.intervalMs);
-            statusBar.setCenterLabel("Speed: " + speed.label);
+    private void handleQualityChange() {
+        Quality quality = (Quality) qualityComboBox.getSelectedItem();
+        if (quality != null) {
+            log.debug("handleQualityChange: {}", quality);
+            remoteConnection.setScreenStreamQuality(device.serial, quality.value);
+            statusBar.setCenterLabel("Quality: " + quality.label);
         }
     }
 
@@ -599,8 +618,8 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 } catch (IOException ex) {
                     log.error("saveImageToFile: error saving image", ex);
                     statusBar.setCenterLabel("Error saving image");
-                    JOptionPane.showMessageDialog(RemoteScreenWindow.this, 
-                        "Failed to save image: " + ex.getMessage(), 
+                    JOptionPane.showMessageDialog(RemoteScreenWindow.this,
+                        "Failed to save image: " + ex.getMessage(),
                         "Save Error", 
                         JOptionPane.ERROR_MESSAGE);
                 }
@@ -685,7 +704,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             }
             log.info("Attempting to reconnect screen stream for {}", device.serial);
             connected = false; // will flip true on next frame
-            startScreenStream((RefreshSpeed) speedComboBox.getSelectedItem());
+            startScreenStream(RefreshSpeed.NORMAL);
             statusBar.setCenterLabel("Reconnecting...");
             reconnectTimer.stop();
         });

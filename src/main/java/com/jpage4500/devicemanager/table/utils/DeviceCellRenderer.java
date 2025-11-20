@@ -83,10 +83,6 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     // show device status icon with optional remote indicator
                     icon = getDeviceIcon(device, isSelectedAndFocused);
                     text = model.deviceValue(device, column);
-                    if (device.remoteConnection != null) {
-                        String serverName = device.remoteConnection.getServerConfig().name;
-                        text = serverName + " - " + text;
-                    }
                     break;
             }
         }
