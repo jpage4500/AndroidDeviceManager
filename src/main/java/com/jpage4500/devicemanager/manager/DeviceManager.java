@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.ui.RemoteScreenWindow;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
@@ -29,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-public class DeviceManager implements RemoteConnectionManager.ConnectionListener {
+public class DeviceManager {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
 
     // adb commands
@@ -92,6 +93,19 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
     // Remote server manager
     private RemoteServerManager remoteServerManager;
 
+    public interface DeviceListener {
+        // device list was refreshed
+        void handleDevicesUpdated(List<Device> deviceList);
+
+        // single device was updated
+        void handleDeviceUpdated(Device device);
+
+        // single device was removed
+        void handleDeviceRemoved(Device device);
+
+        void handleException(Exception e);
+    }
+
     public static DeviceManager getInstance() {
         if (instance == null) {
             synchronized (DeviceManager.class) {
@@ -114,33 +128,70 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
         copyResourcesToFiles();
     }
 
-    public void setDeviceListener(DeviceListener listener) {
+    public void initialize(DeviceListener listener) {
         this.deviceListener = listener;
-    }
 
-    public interface DeviceListener {
-        // device list was refreshed
-        void handleDevicesUpdated(List<Device> deviceList);
-
-        // single device was updated
-        void handleDeviceUpdated(Device device);
-
-        // single device was removed
-        void handleDeviceRemoved(Device device);
-
-        void handleException(Exception e);
-    }
-
-    public void initialize() {
         // remote connection manager
-        String serverStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_CONNECTED_SERVERS);
-        if (TextUtils.notEmpty(serverStr)) {
-            getRemoteConnectionManager(true);
-        }
+        remoteConnectionManager = new RemoteConnectionManager(new RemoteConnectionManager.ConnectionListener() {
+            @Override
+            public void onRemoteConnection(RemoteConnection connection) {
+            }
 
-        // Initialize remote server manager (auto-starts if previously enabled)
-        // TODO: only create if running
-        getRemoteServerManager().initialize();
+            @Override
+            public void onRemoteConnectionLost(RemoteConnection connection) {
+                log.trace("onConnectionLost: {}", connection);
+                // Remove devices from this server
+                synchronized (deviceList) {
+                    deviceList.removeIf(d -> d.remoteConnection == connection);
+                }
+                if (deviceListener != null) {
+                    deviceListener.handleDevicesUpdated(getDevices());
+                }
+            }
+
+            @Override
+            public void onRemoteDevicesUpdated(RemoteConnection connection, List<Device> devices) {
+                // Merge remote devices into device list
+                synchronized (deviceList) {
+                    // TODO: update instead of replace
+                    // Remove old devices from this server
+                    deviceList.removeIf(d -> d.remoteConnection == connection);
+                    // Add new devices
+                    deviceList.addAll(devices);
+                }
+                if (deviceListener != null) {
+                    deviceListener.handleDevicesUpdated(getDevices());
+                }
+            }
+        });
+
+        // remote server manager (auto-starts if previously enabled)
+        remoteServerManager = new RemoteServerManager(new RemoteServerManager.ServerListener() {
+            @Override
+            public void onServerStarted(int port) {
+
+            }
+
+            @Override
+            public void onServerStopped() {
+
+            }
+
+            @Override
+            public void onClientConnected(RemoteClientInfo client) {
+
+            }
+
+            @Override
+            public void onClientDisconnected(RemoteClientInfo client) {
+
+            }
+
+            @Override
+            public void onError(Exception e) {
+
+            }
+        });
     }
 
     public void connectAdbServer(boolean allowRetry) {
@@ -674,10 +725,7 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
     /**
      * Get remote connection manager
      */
-    public RemoteConnectionManager getRemoteConnectionManager(boolean createIfNull) {
-        if (remoteConnectionManager == null && createIfNull) {
-            remoteConnectionManager = new RemoteConnectionManager(this);
-        }
+    public RemoteConnectionManager getRemoteConnectionManager() {
         return remoteConnectionManager;
     }
 
@@ -685,9 +733,6 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
      * Get remote server manager
      */
     public RemoteServerManager getRemoteServerManager() {
-        if (remoteServerManager == null) {
-            remoteServerManager = new RemoteServerManager();
-        }
         return remoteServerManager;
     }
 
@@ -1813,37 +1858,6 @@ public class DeviceManager implements RemoteConnectionManager.ConnectionListener
             }
         }
         return null;
-    }
-
-    @Override
-    public void onRemoteConnection(RemoteConnection connection) {
-    }
-
-    @Override
-    public void onRemoteConnectionLost(RemoteConnection connection) {
-        log.trace("onConnectionLost: {}", connection);
-        // Remove devices from this server
-        synchronized (deviceList) {
-            deviceList.removeIf(d -> d.remoteConnection == connection);
-        }
-        if (deviceListener != null) {
-            deviceListener.handleDevicesUpdated(getDevices());
-        }
-    }
-
-    @Override
-    public void onRemoteDevicesUpdated(RemoteConnection connection, List<Device> devices) {
-        // Merge remote devices into device list
-        synchronized (deviceList) {
-            // TODO: update instead of replace
-            // Remove old devices from this server
-            deviceList.removeIf(d -> d.remoteConnection == connection);
-            // Add new devices
-            deviceList.addAll(devices);
-        }
-        if (deviceListener != null) {
-            deviceListener.handleDevicesUpdated(getDevices());
-        }
     }
 
 }

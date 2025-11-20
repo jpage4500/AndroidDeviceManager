@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
+import com.jpage4500.devicemanager.manager.RemoteServerManager;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import net.miginfocom.swing.MigLayout;
@@ -43,7 +44,7 @@ public class AddServerDialog {
 
         // Port
         panel.add(new JLabel("Port:"));
-        portField = new JTextField("8765");
+        portField = new JTextField(String.valueOf(RemoteServerManager.DEFAULT_PORT));
         if (existingServer != null) portField.setText(String.valueOf(existingServer.port));
         panel.add(portField, "wrap");
 

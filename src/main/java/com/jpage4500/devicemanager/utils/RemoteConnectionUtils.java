@@ -121,7 +121,7 @@ public class RemoteConnectionUtils {
                         InetAddress addr = addresses.nextElement();
                         // We want IPv4 addresses only (skip IPv6)
                         if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
-                            log.trace("getRealLocalIpAddress: {}, {}, {}", addr.getHostAddress(), addr.getHostName(), iface.getName());
+                            log.trace("getActiveNetworkInfo: {}, {}, {}", addr.getHostAddress(), addr.getHostName(), iface.getName());
                             Network network = new Network();
                             network.label = iface.getName();
                             network.host = addr.getHostName();
@@ -132,7 +132,7 @@ public class RemoteConnectionUtils {
                 }
             }
         } catch (Exception e) {
-            log.error("Failed to get local IP: {}", e.getMessage());
+            log.error("getActiveNetworkInfo: Exception: {}", e.getMessage());
         }
         return networkList;
     }

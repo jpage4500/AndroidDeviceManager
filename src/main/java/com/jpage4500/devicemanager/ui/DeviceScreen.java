@@ -90,9 +90,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public DeviceScreen() {
         super("main", 900, 300);
 
+        // create and initialize Device Manager
+        DeviceManager.getInstance().initialize(this);
+
         initalizeUi();
 
-        connectAdbServer();
+        DeviceManager.getInstance().connectAdbServer(true);
 
         scheduleUpdateChecks();
     }
@@ -138,31 +141,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         refreshUi();
         table.requestFocus();
-
-//        if (Desktop.isDesktopSupported()) {
-//            Desktop desktop = Desktop.getDesktop();
-//            if (desktop.isSupported(Desktop.Action.APP_QUIT_HANDLER)) {
-//                desktop.setQuitHandler((quitEvent, quitResponse) -> {
-//                    log.trace("initalizeUi: desktop:QUIT");
-//                    exitApp(true);
-//                    quitResponse.performQuit();
-//                });
-//            } else {
-//                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-//                    log.trace("initalizeUi: desktop:SHUTDOWN_HOOK");
-//                    if (!hasExited) {
-//                        DeviceManager.getInstance().handleExit();
-//                    }
-//                }, "ShutdownHook"));
-//            }
-//        } else {
-//            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-//                log.trace("initalizeUi: SHUTDOWN_HOOK");
-//                if (!hasExited) {
-//                    DeviceManager.getInstance().handleExit();
-//                }
-//            }, "ShutdownHook"));
-//        }
     }
 
     @Override
@@ -611,13 +589,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         trayPopupMenu.setVisible(true);
     }
 
-    private void connectAdbServer() {
-        DeviceManager deviceManager = DeviceManager.getInstance();
-        deviceManager.setDeviceListener(this);
-        deviceManager.initialize();
-        deviceManager.connectAdbServer(true);
-    }
-
     @Override
     public void handleDevicesUpdated(List<Device> deviceList) {
         SwingUtilities.invokeLater(() -> {
@@ -660,7 +631,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         SwingUtilities.invokeLater(() -> {
             String[] choices = {"Retry", "Cancel"};
             int rc = DialogHelper.showOptionDialog(this, "ADB Server", "Unable to connect to ADB server. Please check that it's running and re-try", choices);
-            if (rc == 0) connectAdbServer();
+            if (rc == 0) DeviceManager.getInstance().connectAdbServer(true);
         });
     }
 

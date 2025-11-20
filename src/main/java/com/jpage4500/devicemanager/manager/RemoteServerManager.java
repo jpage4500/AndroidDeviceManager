@@ -2,17 +2,14 @@ package com.jpage4500.devicemanager.manager;
 
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -46,6 +43,29 @@ public class RemoteServerManager {
         void onError(Exception e);
     }
 
+    public RemoteServerManager(ServerListener listener) {
+        this.listener = listener;
+        initialize();
+    }
+
+    /**
+     * Initialize the server manager and auto-start if previously enabled
+     * Call this when the application starts
+     */
+    public void initialize() {
+        // Check if server was running when app last closed
+        boolean wasEnabled = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED);
+        if (wasEnabled) {
+            // Get saved port and auth token
+            int savedPort = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, DEFAULT_PORT);
+            String savedToken = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
+            if (TextUtils.notEmpty(savedToken) && savedPort > 0) {
+                // Auto-start the server
+                startServer(savedPort, savedToken);
+            }
+        }
+    }
+
     public void startServer(int port, String authToken) {
         if (isRunning) {
             log.warn("startServer: already running on port: {}", this.port);
@@ -69,7 +89,6 @@ public class RemoteServerManager {
 
             log.info("startServer: port: {}", port);
             if (listener != null) listener.onServerStarted(port);
-
         } catch (IOException e) {
             log.error("startServer: error", e);
             if (listener != null) listener.onError(e);
@@ -92,36 +111,6 @@ public class RemoteServerManager {
 
         log.info("stopServer: stopped");
         if (listener != null) listener.onServerStopped();
-    }
-
-    /**
-     * Generate a random authentication token
-     */
-    private String generateAuthToken() {
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-    }
-
-    /**
-     * Get connection string for easy sharing
-     */
-    public String getConnectionString() {
-        String ipAddress = RemoteConnectionUtils.getPublicIpAddress();
-        return RemoteConnectionUtils.generateConnectionString(ipAddress, port, authToken, getDeviceName());
-    }
-
-    private String getDeviceName() {
-        // Try to get from preferences first
-        String savedName = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_DEVICE_NAME);
-        if (savedName != null && !savedName.isEmpty()) {
-            return savedName;
-        }
-
-        // Fall back to hostname
-        try {
-            return InetAddress.getLocalHost().getHostName();
-        } catch (Exception e) {
-            return "Unknown";
-        }
     }
 
     // Getters
@@ -156,29 +145,6 @@ public class RemoteServerManager {
         }
         client.lastActivityMs = System.currentTimeMillis();
         client.requestCount++;
-    }
-
-    public void setListener(ServerListener listener) {
-        this.listener = listener;
-    }
-
-    /**
-     * Initialize the server manager and auto-start if previously enabled
-     * Call this when the application starts
-     */
-    public void initialize() {
-        // Check if server was running when app last closed
-        boolean wasEnabled = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED);
-        if (wasEnabled) {
-            // Get saved port and auth token
-            int savedPort = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, DEFAULT_PORT);
-            String savedToken = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
-            if (TextUtils.notEmpty(savedToken) && savedPort > 0) {
-                // Auto-start the server
-                log.info("initialize: auto-starting server");
-                startServer(savedPort, savedToken);
-            }
-        }
     }
 
 }

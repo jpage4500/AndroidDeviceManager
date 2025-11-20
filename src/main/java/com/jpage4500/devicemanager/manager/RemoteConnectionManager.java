@@ -19,10 +19,11 @@ public class RemoteConnectionManager {
 
     public static final int REFRESH_SECS = 30;
 
+    private ConnectionListener listener;
+
     private final Map<String, RemoteConnection> connections = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private Future<?> future;
-    private final ConnectionListener listener;
 
     public interface ConnectionListener {
         void onRemoteConnection(RemoteConnection connection);
@@ -34,7 +35,10 @@ public class RemoteConnectionManager {
 
     public RemoteConnectionManager(ConnectionListener listener) {
         this.listener = listener;
+        initialize();
+    }
 
+    public void initialize() {
         // load and connect to saved servers
         List<RemoteServerConfig> configList = getServers();
         for (RemoteServerConfig config : configList) {
