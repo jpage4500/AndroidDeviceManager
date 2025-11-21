@@ -854,6 +854,11 @@ public class DeviceManager {
      * run scrcpy app to mirror device
      */
     public void recordScreen(Device device, TaskListener listener) {
+        if (device.remoteConnection != null) {
+            listener.onTaskComplete(false, "Remote devices not supported");
+            return;
+        }
+
         commandExecutorService.submit(() -> {
             String downloadFolder = Utils.getDownloadFolder();
             String prefix = new SimpleDateFormat("yyyy-MM-dd").format(new Date());

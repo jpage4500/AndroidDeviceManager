@@ -1,15 +1,14 @@
 package com.jpage4500.devicemanager.ui;
 
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.TextUtils;
-import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.util.prefs.Preferences;
 
 /**
@@ -139,9 +138,15 @@ public class BaseScreen extends JFrame {
     protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, int size, ActionListener listener) {
         JButton button = new JButton(label);
         if (imageName != null) {
-            ImageIcon icon = UiUtils.getImageIcon(imageName, size, size);
-            //image = replaceColor(image, new Color(0, 38, 255, 184));
-            button.setIcon(icon);
+            BufferedImage image = UiUtils.getImage(imageName, size, size);
+            if (image == null) {
+                // fall back to default image
+                image = UiUtils.getImage("android.png", size, size);
+            }
+            button.setIcon(new ImageIcon(image));
+
+            BufferedImage hoverImage = UiUtils.replaceColor(image, Colors.COLOR_TOOLBAR_HOVER);
+            button.setRolloverIcon(new ImageIcon(hoverImage));
         }
 
         button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));

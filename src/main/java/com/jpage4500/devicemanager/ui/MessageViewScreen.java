@@ -73,8 +73,8 @@ public class MessageViewScreen extends BaseScreen {
     private void setupToolbar(JToolBar toolbar) {
         //toolbar.add(Box.createHorizontalGlue());
 
-        jsonButton = createSmallToolbarButton(toolbar, "json.png", TEXT_FORMAT_JSON, "Format JSON text (pretty-print)", actionEvent -> toggleJson());
-        //xmlButton = createSmallToolbarButton(toolbar, "xml.png", TEXT_FORMAT_XML, "Format XML", actionEvent -> formatXml());
+        jsonButton = createSmallToolbarButton(toolbar, "file_json.png", TEXT_FORMAT_JSON, "Format JSON text (pretty-print)", actionEvent -> toggleJson());
+        //xmlButton = createSmallToolbarButton(toolbar, "file_xml.png", TEXT_FORMAT_XML, "Format XML", actionEvent -> formatXml());
         wrapButton = createSmallToolbarButton(toolbar, "wrap.png", TEXT_WRAP_ON, "Wrap text (line wrap)", actionEvent -> toggleWrap());
         autoFormatButton = createSmallToolbarButton(toolbar, "status_busy.png", TEXT_AUTO_FORMAT_ON, "Auto Format JSON text", actionEvent -> toggleAutoFormat());
         editButton = createSmallToolbarButton(toolbar, "icon_edit.png", "Edit", "Edit message in default editor", actionEvent -> editMessage());

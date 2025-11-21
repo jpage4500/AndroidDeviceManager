@@ -1210,31 +1210,43 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     // configurable toolbar buttons
     public enum ToolbarButton {
         CONNECT("icon_add.png", "Connect", "Connect Device"),
-        BROWSE("icon_browse.png", "Browse", "File Explorer"),
-        LOGS("icon_logs.png", "View Logs", "Log Viewer"),
-        SAVE_LOGS("icon_save.png", "Save Logs", "Save Logs to Disk"),
-        INPUT("keyboard.png", "Input", "Enter text"),
-        MIRROR("icon_scrcpy.png", "Mirror", "Mirror Device (scrcpy)"),
-        RECORD("record.png", "Record", "Record Device (scrcpy)"),
-        SCREENSHOT("icon_screenshot.png", "Screenshot", "Screenshot"),
-        INSTALL("icon_install.png", "Install", "Install / Copy file"),
-        TERMINAL("icon_terminal.png", "Terminal", "Open Terminal"),
-        ADB("icon_adb.png", "ADB", "Run custom adb command"),
-        SCRIPTS("icon_custom.png", "Scripts", "Run custom scripts"),
+        BROWSE("browse.png", "Browse", "File Explorer"),
+        LOGS("file_logs.png", "View Logs", "Log Viewer"),
+        SAVE_LOGS("file_save.png", "Save Logs", "Save Logs to Disk", false, false),
+        INPUT("keyboard.png", "Input", "Enter text", false, false),
+        MIRROR("mirror.png", "Mirror", "Mirror Device (scrcpy)"),
+        RECORD("screen_record.png", "Record", "Record Device (scrcpy)", false, false),
+        SCREENSHOT("screenshot.png", "Screenshot", "Screenshot"),
+        INSTALL("file_apk.png", "Install", "Install / Copy file"),
+        TERMINAL("icon_terminal.png", "Terminal", "Open Terminal", false, false),
+        ADB("adb.png", "ADB", "Run custom adb command"),
+        SCRIPTS("file_script.png", "Scripts", "Run custom scripts"),
         FILTER(null, "Filter", "Filter devices..."),
-        REFRESH("icon_refresh.png", "Refresh", "Refresh Devices"),
-        SHARE_SERVER("share_off.png", "Share", "Share Devices"),
+        REFRESH("refresh.png", "Refresh", "Refresh Devices"),
+        SHARE_SERVER("server.png", "Server", "Share Devices"),
         SETTINGS("icon_settings.png", "Settings", "Settings"),
         ;
 
         public final String image;
         public final String label;
         public final String tooltip;
+        public final boolean showDefault;
+        public final boolean rightAlign;
 
         ToolbarButton(String image, String label, String tooltip) {
             this.image = image;
             this.label = label;
             this.tooltip = tooltip;
+            this.showDefault = true;
+            this.rightAlign = false;
+        }
+
+        ToolbarButton(String image, String label, String tooltip, boolean showDefault, boolean rightAlign) {
+            this.image = image;
+            this.label = label;
+            this.tooltip = tooltip;
+            this.showDefault = showDefault;
+            this.rightAlign = rightAlign;
         }
 
         public static ToolbarButton buttonFromLabel(String label) {
@@ -1422,7 +1434,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             List<File> list = getCustomScripts();
             for (File script : list) {
                 String name = FileUtils.getNameNoExt(script).replaceAll("_", " ");
-                JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon("icon_custom.png", UiUtils.IMG_SIZE_SMALL));
+                JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon("file_script.png", UiUtils.IMG_SIZE_SMALL));
                 item.addActionListener(e2 -> handleCustomScriptClicked(script, name));
                 popupMenu.add(item);
             }

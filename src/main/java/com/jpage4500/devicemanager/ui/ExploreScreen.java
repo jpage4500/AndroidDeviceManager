@@ -500,7 +500,7 @@ public class ExploreScreen extends BaseScreen {
         filterTextField.setMaximumSize(new Dimension(200, 40));
         toolbar.add(filterTextField);
 
-        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Files", actionEvent -> refreshFiles());
+        createToolbarButton(toolbar, "refresh.png", "Refresh", "Refresh Files", actionEvent -> refreshFiles());
 
         // root toolbar button
         useRoot = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_USE_ROOT, false);

@@ -20,6 +20,8 @@ public class Colors {
     public static final Color COLOR_SUCCESS = new Color(24, 134, 0);
     public static final Color COLOR_ERROR = new Color(255, 0, 0);
 
+    public static final Color COLOR_TOOLBAR_HOVER = new Color(8, 48, 251);
+
     // log recording state
     public static final Color COLOR_START_RECORDING = COLOR_ONLINE;
     public static final Color COLOR_STOP_RECORDING = COLOR_BUSY;
