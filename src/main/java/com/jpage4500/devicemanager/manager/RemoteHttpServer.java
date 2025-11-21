@@ -8,15 +8,12 @@ import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.Utils;
 import fi.iki.elonen.NanoWSD;
+import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.HashMap;
@@ -254,30 +251,32 @@ public class RemoteHttpServer extends NanoWSD {
         // wake device
         DeviceManager.getInstance().wakeDevice(device);
 
+        // capture screenshot
         BufferedImage bufferedImage = DeviceManager.getInstance().captureScreenshotInternal(device);
 
         try {
-            // create a temporary file to download to
-            File tempFile = File.createTempFile("screenshot_" + device.serial, ".png");
-            tempFile.deleteOnExit();
+            // compress image
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            Thumbnails.of(bufferedImage)
+                .scale(1.0)
+                .outputFormat("png")
+                .outputQuality(0.85)
+                .toOutputStream(baos);
 
-            // write the image to the file
-            ImageIO.write(bufferedImage, "png", tempFile);
+            byte[] imageBytes = baos.toByteArray();
+            String filename = "screenshot_" + device.serial + ".png";
 
-            // determine MIME type
-            String mimeType = Utils.getMimeType(tempFile.getName());
-
-            // stream the file to the client
-            FileInputStream fis = new FileInputStream(tempFile);
-            Response response = newChunkedResponse(Response.Status.OK, mimeType, fis);
-            response.addHeader("Content-Disposition", "attachment; filename=\"" + tempFile.getName() + "\"");
-            response.addHeader("Content-Length", String.valueOf(tempFile.length()));
+            // stream compressed image to client
+            ByteArrayInputStream bais = new ByteArrayInputStream(imageBytes);
+            Response response = newChunkedResponse(Response.Status.OK, "image/png", bais);
+            response.addHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+            response.addHeader("Content-Length", String.valueOf(imageBytes.length));
 
             return response;
         } catch (Exception e) {
-            log.error("handleScreenshot: Failed to download file", e);
+            log.error("handleScreenshot: Failed to process screenshot", e);
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT,
-                "Error downloading file: " + e.getMessage());
+                "Error processing screenshot: " + e.getMessage());
         }
     }
 

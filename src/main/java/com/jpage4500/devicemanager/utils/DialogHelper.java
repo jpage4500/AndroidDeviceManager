@@ -92,8 +92,35 @@ public class DialogHelper {
         // display results in dialog
         JTextArea textArea = new JTextArea(text);
         textArea.setEditable(false);
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        
+        // calculate preferred size based on text content
+        FontMetrics fm = textArea.getFontMetrics(textArea.getFont());
+        String[] lines = text.split("\n");
+        int maxLineWidth = 0;
+        for (String line : lines) {
+            int lineWidth = fm.stringWidth(line);
+            if (lineWidth > maxLineWidth) {
+                maxLineWidth = lineWidth;
+            }
+        }
+        
+        // calculate dimensions with constraints
+        int screenWidth = Utils.getScreenWidth();
+        int screenHeight = Utils.getScreenHeight();
+        int maxWidth = Math.min(screenWidth * 3 / 4, 1200);
+        int maxHeight = screenHeight - 200;
+        
+        int preferredWidth = Math.min(maxLineWidth + 50, maxWidth);
+        int preferredHeight = Math.min(lines.length * fm.getHeight() + 50, maxHeight);
+        
+        // ensure minimum size
+        preferredWidth = Math.max(preferredWidth, 400);
+        preferredHeight = Math.max(preferredHeight, 200);
+        
         JScrollPane scrollPane = new JScrollPane(textArea);
-        scrollPane.setPreferredSize(new Dimension(Utils.getScreenWidth() / 2, Utils.getScreenHeight() - 200));
+        scrollPane.setPreferredSize(new Dimension(preferredWidth, preferredHeight));
         JOptionPane.showMessageDialog(component, scrollPane, title, JOptionPane.PLAIN_MESSAGE);
     }
 

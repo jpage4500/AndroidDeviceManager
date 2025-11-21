@@ -466,18 +466,20 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", "copy.png", actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
 
+            // device details
+            UiUtils.addPopupMenuItem(popupMenu, "Device Details", "icon_logs.png", actionEvent -> handleDeviceDetails(device));
+
             List<ToolbarButton> toolbarButtons = new ArrayList<>(List.of(ToolbarButton.values()));
+
             // remove any non-device specific actions
             toolbarButtons.removeAll(List.of(ToolbarButton.CONNECT, ToolbarButton.SCRIPTS, ToolbarButton.FILTER,
                 ToolbarButton.ADB, ToolbarButton.REFRESH, ToolbarButton.SERVER, ToolbarButton.SETTINGS));
+
             for (ToolbarButton toolbarButton : toolbarButtons) {
                 UiUtils.addPopupMenuItem(popupMenu, toolbarButton.label, toolbarButton.image, e -> {
                     handleButtonClicked(toolbarButton);
                 });
             }
-
-            // TODO
-            // UiUtils.addPopupMenuItem(popupMenu, "Restart Device", actionEvent -> handleRestartCommand());
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();

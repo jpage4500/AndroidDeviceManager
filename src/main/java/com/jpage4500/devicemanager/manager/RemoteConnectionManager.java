@@ -87,6 +87,10 @@ public class RemoteConnectionManager {
                 // run device list request after all connections have been checked
                 fetchDevices(serverId);
             }
+        } else {
+            if (listener != null) {
+                listener.onRemoteConnectionLost(connection);
+            }
         }
     }
 

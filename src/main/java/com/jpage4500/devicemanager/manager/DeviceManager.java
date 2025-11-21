@@ -140,10 +140,21 @@ public class DeviceManager {
             @Override
             public void onRemoteConnectionLost(RemoteConnection connection) {
                 log.trace("onConnectionLost: {}", connection);
-                // remove devices from this server
+                // mark remote devices as offline
                 synchronized (deviceList) {
-                    deviceList.removeIf(d -> d.remoteConnection == connection);
+                    for (Device device : deviceList) {
+                        if (device.remoteConnection == connection) {
+                            device.isOnline = false;
+                        }
+                    }
                 }
+
+                // TODO: save this logic.. will need to remove devices eventually
+                // remove devices from this server
+//                synchronized (deviceList) {
+//                    deviceList.removeIf(d -> d.remoteConnection == connection);
+//                }
+
                 if (deviceListener != null) {
                     deviceListener.handleDevicesUpdated(getDevices());
                 }
