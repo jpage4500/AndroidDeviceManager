@@ -41,6 +41,7 @@ public class RemoteHttpServer extends NanoWSD {
     public static final String API_INFO = "/api/info";
     public static final String API_DEVICES = "/api/devices";
     public static final String API_DEVICE_PROPERTIES = "/api/properties";
+    public static final String API_DEVICE_SET_PROPERTY = "/api/setproperty";
     public static final String API_EXECUTE = "/api/execute";
     public static final String API_FILES_LIST = "/api/files/list";
     public static final String API_FILES_DOWNLOAD = "/api/files/download";
@@ -109,7 +110,8 @@ public class RemoteHttpServer extends NanoWSD {
             }
         }
 
-        if (log.isTraceEnabled()) log.trace("serve: {} {}, {}/{}, {}", method, uri, TextUtils.firstValid(headerIp, clientIp), headerName, GsonHelper.toJson(params));
+        if (log.isTraceEnabled())
+            log.trace("serve: {} {}, {}/{}, {}", method, uri, TextUtils.firstValid(headerIp, clientIp), headerName, GsonHelper.toJson(params));
 
         // authenticate
         if (!authenticateClient(params, headers)) {
@@ -127,6 +129,8 @@ public class RemoteHttpServer extends NanoWSD {
                 return handleGetDevices(session);
             } else if (uri.equals(API_DEVICE_PROPERTIES)) {
                 return handleGetProperties(session);
+            } else if (uri.equals(API_DEVICE_SET_PROPERTY)) {
+                return handleSetProperty(session);
             } else if (uri.equals(API_EXECUTE)) {
                 return handleExecuteCommand(session);
             } else if (uri.startsWith(API_FILES_LIST)) {
@@ -201,19 +205,9 @@ public class RemoteHttpServer extends NanoWSD {
      * Body: {"serial": "xxx", "command": "shell ls"}
      */
     private Response handleExecuteCommand(IHTTPSession session) throws IOException, ResponseException {
-        Map<String, String> files = new HashMap<>();
-        session.parseBody(files);
-        String body = files.get("postData");
-
-        if (body == null || body.isEmpty()) {
-            return createBadResponse("Missing request body");
-        }
-
-        @SuppressWarnings("unchecked")
-        Map<String, String> request = GsonHelper.fromJson(body, Map.class);
-        String serial = request.get("serial");
-        String command = request.get("command");
-
+        Map<String, String> postMap = getPostBodyMap(session);
+        String serial = postMap.get("serial");
+        String command = postMap.get("command");
         if (serial == null || command == null) {
             return createBadResponse("Missing serial or command");
         }
@@ -287,15 +281,29 @@ public class RemoteHttpServer extends NanoWSD {
         }
     }
 
-    private Device getDeviceParam(Map<String, String> params) {
-        String serial = params.get("serial");
-        Device device = DeviceManager.getInstance().getDevice(serial);
-        if (device == null) {
-            log.warn("getDeviceParam: device not found: {}", serial);
-        } else if (device.remoteConnection != null) {
-            log.warn("getDeviceParam: remote device not supported: {}", serial);
+    /**
+     * POST /api/setproperty - set custom property on device
+     * Body: {"serial": "xxx", "key": "key", "value": "value"}
+     */
+    private Response handleSetProperty(IHTTPSession session) throws IOException, ResponseException {
+        Map<String, String> postMap = getPostBodyMap(session);
+        String serial = postMap.get("serial");
+        String key = postMap.get("key");
+        String value = postMap.get("value");
+        if (serial == null || key == null || value == null) {
+            return createBadResponse("Missing data");
         }
-        return device;
+
+        Device device = DeviceManager.getInstance().getDevice(serial);
+        if (device == null || device.remoteConnection != null) {
+            return createNotFoundResponse("Device not found");
+        }
+
+        // execute command
+        boolean isOk = DeviceManager.getInstance().setPropertyInternal(device, key, value);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", isOk);
+        return createJsonResponse(response);
     }
 
     /**
@@ -417,6 +425,28 @@ public class RemoteHttpServer extends NanoWSD {
             String json = GsonHelper.toJson(response);
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_JSON, json);
         }
+    }
+
+    private Map<String, String> getPostBodyMap(IHTTPSession session) throws ResponseException, IOException {
+        String body = getPostBody(session);
+        return GsonHelper.stringToMap(body, String.class, String.class);
+    }
+
+    private String getPostBody(IHTTPSession session) throws ResponseException, IOException {
+        Map<String, String> files = new HashMap<>();
+        session.parseBody(files);
+        return files.get("postData");
+    }
+
+    private Device getDeviceParam(Map<String, String> params) {
+        String serial = params.get("serial");
+        Device device = DeviceManager.getInstance().getDevice(serial);
+        if (device == null) {
+            log.warn("getDeviceParam: device not found: {}", serial);
+        } else if (device.remoteConnection != null) {
+            log.warn("getDeviceParam: remote device not supported: {}", serial);
+        }
+        return device;
     }
 
     private String safeHeader(String value) {

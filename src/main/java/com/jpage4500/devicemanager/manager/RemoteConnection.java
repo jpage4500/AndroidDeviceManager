@@ -140,6 +140,20 @@ public class RemoteConnection {
         }
     }
 
+    public boolean setProperty(String deviceSerial, String key, String value) {
+        String url = serverConfig.getUrl() + RemoteHttpServer.API_DEVICE_SET_PROPERTY;
+        Map<String, String> headers = getDefaultHeaders();
+
+        Map<String, String> request = new HashMap<>();
+        request.put("serial", deviceSerial);
+        request.put("key", key);
+        request.put("value", value);
+
+        NetworkHelper.HttpResponse response = networkHelper.postRequest(url, GsonHelper.toJson(request), headers);
+        log.trace("setProperty: response: {}", GsonHelper.toJson(response));
+        return response.status == 200;
+    }
+
     /**
      * capture screenshot
      */

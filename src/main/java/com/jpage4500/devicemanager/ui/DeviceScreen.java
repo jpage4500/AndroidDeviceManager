@@ -443,9 +443,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
             return popupMenu;
         }
+
+        // device popup
         Device device = model.getDeviceAtRow(row);
         if (device == null) return null;
-
         JPopupMenu popupMenu = new JPopupMenu();
 
         if (device.isOnline) {
@@ -461,15 +462,22 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 popupMenu.addSeparator();
             }
 
-            UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", actionEvent -> handleCopyClipboardFieldCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", actionEvent -> handleCopyClipboardCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", "copy.png", actionEvent -> handleCopyClipboardFieldCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", "copy.png", actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
-            UiUtils.addPopupMenuItem(popupMenu, "Device Details", actionEvent -> handleDeviceDetails(device));
-            UiUtils.addPopupMenuItem(popupMenu, "Mirror Device", actionEvent -> handleMirrorCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Record Device", actionEvent -> handleRecordCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Capture Screenshot", actionEvent -> handleScreenshotCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Restart Device", actionEvent -> handleRestartCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Open Terminal", actionEvent -> handleTermCommand());
+
+            List<ToolbarButton> toolbarButtons = new ArrayList<>(List.of(ToolbarButton.values()));
+            // remove any non-device specific actions
+            toolbarButtons.removeAll(List.of(ToolbarButton.CONNECT, ToolbarButton.SCRIPTS, ToolbarButton.FILTER,
+                ToolbarButton.ADB, ToolbarButton.REFRESH, ToolbarButton.SERVER, ToolbarButton.SETTINGS));
+            for (ToolbarButton toolbarButton : toolbarButtons) {
+                UiUtils.addPopupMenuItem(popupMenu, toolbarButton.label, toolbarButton.image, e -> {
+                    handleButtonClicked(toolbarButton);
+                });
+            }
+
+            // TODO
+            // UiUtils.addPopupMenuItem(popupMenu, "Restart Device", actionEvent -> handleRestartCommand());
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
@@ -1215,10 +1223,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         LOGS("file_logs.png", "View Logs", "Log Viewer"),
         SAVE_LOGS("file_save.png", "Save Logs", "Save Logs to Disk"),
         INPUT("keyboard.png", "Input", "Enter text"),
-        MIRROR("mirror.png", "Mirror", "Mirror Device (scrcpy)"),
+        MIRROR("mirror.png", "Mirror", "Remote Control / Mirror Device"),
         RECORD("screen_record.png", "Record", "Record Device (scrcpy)"),
         SCREENSHOT("screenshot.png", "Screenshot", "Screenshot"),
         INSTALL("file_apk.png", "Install", "Install / Copy file"),
+        RESTART("restart.png", "Reboot", "Reboot Device"),
         TERMINAL("icon_terminal.png", "Terminal", "Open Terminal"),
         ADB("adb.png", "ADB", "Run custom adb command"),
         SCRIPTS("file_script.png", "Scripts", "Run custom scripts"),
@@ -1243,7 +1252,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
          */
         public boolean hideByDefault() {
             return switch (this) {
-                case SAVE_LOGS, INPUT, RECORD, TERMINAL, ADB -> true;
+                case SAVE_LOGS, INPUT, RECORD, TERMINAL, RESTART, ADB -> true;
                 default -> false;
             };
         }
@@ -1304,27 +1313,31 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                     continue;
             }
 
-            JButton button = createToolbarButton(toolbar, toolbarButton, null);
-            button.addActionListener(e -> {
-                switch (toolbarButton) {
-                    case CONNECT -> handleConnectDevice();
-                    case BROWSE -> handleBrowseCommand(null);
-                    case LOGS -> handleViewLogsCommand(null);
-                    case SAVE_LOGS -> handleSaveLogsCommand();
-                    case INPUT -> handleInputCommand();
-                    case MIRROR -> handleMirrorCommand();
-                    case RECORD -> handleRecordCommand();
-                    case SCREENSHOT -> handleScreenshotCommand();
-                    case INSTALL -> handleInstallCommand();
-                    case TERMINAL -> handleTermCommand();
-                    case ADB -> handleRunCustomCommand();
-                    case REFRESH -> refreshDevices();
-                    case SERVER -> ShareServerDialog.showShareServerDialog(this);
-                    case SETTINGS -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this);
-                }
+            createToolbarButton(toolbar, toolbarButton, e -> {
+                handleButtonClicked(toolbarButton);
             });
-
             if (toolbarButton == ToolbarButton.CONNECT) toolbar.addSeparator();
+        }
+    }
+
+    private void handleButtonClicked(ToolbarButton toolbarButton) {
+        switch (toolbarButton) {
+            case CONNECT -> handleConnectDevice();
+            case BROWSE -> handleBrowseCommand(null);
+            case LOGS -> handleViewLogsCommand(null);
+            case SAVE_LOGS -> handleSaveLogsCommand();
+            case INPUT -> handleInputCommand();
+            case MIRROR -> handleMirrorCommand();
+            case RECORD -> handleRecordCommand();
+            case SCREENSHOT -> handleScreenshotCommand();
+            case INSTALL -> handleInstallCommand();
+            case RESTART -> handleRestartCommand();
+            case TERMINAL -> handleTermCommand();
+            case ADB -> handleRunCustomCommand();
+            case REFRESH -> refreshDevices();
+            case SERVER -> ShareServerDialog.showShareServerDialog(this);
+            case SETTINGS -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this);
+            default -> log.warn("handleButtonClicked: unhandled button: {}", toolbarButton);
         }
     }
 

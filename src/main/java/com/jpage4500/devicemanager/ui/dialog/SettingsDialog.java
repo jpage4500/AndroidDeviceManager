@@ -223,6 +223,8 @@ public class SettingsDialog extends JPanel {
 
     public static void showManageToolbar(DeviceScreen deviceScreen, Component component) {
         DraggableCheckBoxList checkBoxList = new DraggableCheckBoxList();
+        // TODO: support re-ordering
+        checkBoxList.setDragEnabled(false);
 
         // build ordered array of toolbar buttons
         DeviceScreen.ToolbarButton[] toolbarArr = DeviceScreen.ToolbarButton.values();
@@ -231,21 +233,19 @@ public class SettingsDialog extends JPanel {
         // add items to list with icons
         for (DeviceScreen.ToolbarButton button : toolbarArr) {
             boolean isHidden = hiddenList.contains(button);
-            ImageIcon icon = null;
-            if (button.image != null) {
-                icon = UiUtils.getImageIcon(button.image, 32);
-            }
+            ImageIcon icon = UiUtils.getImageIcon(button.image, 32);
             checkBoxList.addItem(button.label, !isHidden, icon);
         }
 
         JPanel panel = new JPanel(new MigLayout("fillx"));
-        panel.add(new JLabel("<html>Select buttons to SHOW<br>Drag to reorder</html>"), "span");
+        panel.add(new JLabel("☑ Check items to SHOW"), "span, wrap");
+        panel.add(new JLabel("☐ Uncheck items to HIDE"), "span, wrap 20px");
 
         JScrollPane scroll = new JScrollPane(checkBoxList);
         panel.add(scroll, "grow, span, wrap");
 
         // add Restore Default button
-        JButton defaultButton = new JButton("Restore Default");
+        HoverLabel defaultButton = new HoverLabel("Reset to defaults", UiUtils.getImageIcon("icon_trash.png", UiUtils.IMG_SIZE_SMALL));
         defaultButton.addActionListener(e -> {
             // reset to default order and visibility
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, null);

@@ -964,27 +964,35 @@ public class DeviceManager {
 
     public void setProperty(Device device, String key, String value, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
-            // update property
-            if (TextUtils.isEmpty(value)) device.customPropertyMap.remove(key);
-            else device.customPropertyMap.put(key, value);
-            // turn into key=value string
-            StringBuilder sb = new StringBuilder();
-            for (Map.Entry<String, String> entry : device.customPropertyMap.entrySet()) {
-                sb.append(entry.getKey()).append("=").append(entry.getValue()).append("\n");
-            }
-            RemoteFile remote = new RemoteFile(FILE_CUSTOM_PROP);
-            // write to properties file on device
-            try {
-                InputStream stream = new ByteArrayInputStream(sb.toString().getBytes(StandardCharsets.UTF_8));
-                device.jadbDevice.push(stream, System.currentTimeMillis() / 1000, JadbDevice.DEFAULT_MODE, remote);
-                log.debug("setProperty: {}, key:{}, value:{}, DONE", device.serial, key, value);
-                if (listener != null) listener.onTaskComplete(true, null);
-            } catch (Exception e) {
-                log.error("setProperty: {}, {}={}, Exception:{}", device.serial, key, value, e.getMessage());
-                if (listener != null) listener.onTaskComplete(false, e.getMessage());
-            }
+            boolean isOk = setPropertyInternal(device, key, value);
+            listener.onTaskComplete(isOk, null);
         });
+    }
+
+    public boolean setPropertyInternal(Device device, String key, String value) {
+        if (device.remoteConnection != null) {
+            return device.remoteConnection.setProperty(device.serial, key, value);
+        }
+        if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
+        // update property
+        if (TextUtils.isEmpty(value)) device.customPropertyMap.remove(key);
+        else device.customPropertyMap.put(key, value);
+        // turn into key=value string
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : device.customPropertyMap.entrySet()) {
+            sb.append(entry.getKey()).append("=").append(entry.getValue()).append("\n");
+        }
+        RemoteFile remote = new RemoteFile(FILE_CUSTOM_PROP);
+        // write to properties file on device
+        try {
+            InputStream stream = new ByteArrayInputStream(sb.toString().getBytes(StandardCharsets.UTF_8));
+            device.jadbDevice.push(stream, System.currentTimeMillis() / 1000, JadbDevice.DEFAULT_MODE, remote);
+            log.debug("setProperty: {}, key:{}, value:{}, DONE", device.serial, key, value);
+            return true;
+        } catch (Exception e) {
+            log.error("setProperty: {}, {}={}, Exception:{}", device.serial, key, value, e.getMessage());
+            return false;
+        }
     }
 
     public void installApp(Device device, File file, TaskListener listener) {

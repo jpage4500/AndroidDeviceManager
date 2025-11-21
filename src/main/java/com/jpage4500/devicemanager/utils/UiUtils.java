@@ -32,6 +32,7 @@ public class UiUtils {
     }
 
     public static BufferedImage getImage(String path, int w, int h, Color color) {
+        if (path == null) return null;
         try {
             // library offers MUCH better image scaling than ImageIO
             Thumbnails.Builder<URL> imageBuilder = Thumbnails.of(UiUtils.class.getResource("/images/" + path));
