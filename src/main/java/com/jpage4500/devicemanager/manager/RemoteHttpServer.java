@@ -109,7 +109,7 @@ public class RemoteHttpServer extends NanoWSD {
             }
         }
 
-        log.trace("serve: {} {}, ip:{}, name:{}, clientIP:{}", method, uri, clientIp, headerName, headerIp);
+        if (log.isTraceEnabled()) log.trace("serve: {} {}, {}/{}, {}", method, uri, TextUtils.firstValid(headerIp, clientIp), headerName, GsonHelper.toJson(params));
 
         // authenticate
         if (!authenticateClient(params, headers)) {

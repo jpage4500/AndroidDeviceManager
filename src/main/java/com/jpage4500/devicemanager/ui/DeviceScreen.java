@@ -122,6 +122,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         // -- toolbar --
         toolbar = new JToolBar("Applications");
+        filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
         setupToolbar();
         panel.add(toolbar, BorderLayout.NORTH);
 
@@ -1212,41 +1213,49 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         CONNECT("icon_add.png", "Connect", "Connect Device"),
         BROWSE("browse.png", "Browse", "File Explorer"),
         LOGS("file_logs.png", "View Logs", "Log Viewer"),
-        SAVE_LOGS("file_save.png", "Save Logs", "Save Logs to Disk", false, false),
-        INPUT("keyboard.png", "Input", "Enter text", false, false),
+        SAVE_LOGS("file_save.png", "Save Logs", "Save Logs to Disk"),
+        INPUT("keyboard.png", "Input", "Enter text"),
         MIRROR("mirror.png", "Mirror", "Mirror Device (scrcpy)"),
-        RECORD("screen_record.png", "Record", "Record Device (scrcpy)", false, false),
+        RECORD("screen_record.png", "Record", "Record Device (scrcpy)"),
         SCREENSHOT("screenshot.png", "Screenshot", "Screenshot"),
         INSTALL("file_apk.png", "Install", "Install / Copy file"),
-        TERMINAL("icon_terminal.png", "Terminal", "Open Terminal", false, false),
+        TERMINAL("icon_terminal.png", "Terminal", "Open Terminal"),
         ADB("adb.png", "ADB", "Run custom adb command"),
         SCRIPTS("file_script.png", "Scripts", "Run custom scripts"),
-        FILTER(null, "Filter", "Filter devices..."),
+        FILTER("clear_filter.png", "Filter", "Filter devices..."),
         REFRESH("refresh.png", "Refresh", "Refresh Devices"),
-        SHARE_SERVER("server.png", "Server", "Share Devices"),
+        SERVER("server.png", "Server", "Start server to share devices"),
         SETTINGS("icon_settings.png", "Settings", "Settings"),
         ;
 
         public final String image;
         public final String label;
         public final String tooltip;
-        public final boolean showDefault;
-        public final boolean rightAlign;
 
         ToolbarButton(String image, String label, String tooltip) {
             this.image = image;
             this.label = label;
             this.tooltip = tooltip;
-            this.showDefault = true;
-            this.rightAlign = false;
         }
 
-        ToolbarButton(String image, String label, String tooltip, boolean showDefault, boolean rightAlign) {
-            this.image = image;
-            this.label = label;
-            this.tooltip = tooltip;
-            this.showDefault = showDefault;
-            this.rightAlign = rightAlign;
+        /**
+         * HIDE these icons by default
+         */
+        public boolean hideByDefault() {
+            return switch (this) {
+                case SAVE_LOGS, INPUT, RECORD, TERMINAL, ADB -> true;
+                default -> false;
+            };
+        }
+
+        /**
+         * right-align these toolbar buttons
+         */
+        public boolean isRightAlign() {
+            return switch (this) {
+                case FILTER, REFRESH, SERVER, SETTINGS -> true;
+                default -> false;
+            };
         }
 
         public static ToolbarButton buttonFromLabel(String label) {
@@ -1260,132 +1269,127 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public void setupToolbar() {
         if (toolbar.getComponentCount() > 0) {
             toolbar.removeAll();
+            // TODO: not sure this is necessary
             toolbar.revalidate();
             toolbar.doLayout();
             toolbar.repaint();
         }
-
         toolbar.setRollover(true);
 
-        // get ordered toolbar buttons
-        List<String> orderedList = SettingsDialog.getToolbarOrder();
-        List<ToolbarButton> orderedButtons = new ArrayList<>();
+        // get list of all toolbar buttons in default order
+        List<ToolbarButton> toolbarButtons = new ArrayList<>(List.of(ToolbarButton.values()));
 
-        // first add buttons in saved order (excluding right-side buttons)
-        for (String label : orderedList) {
-            ToolbarButton button = ToolbarButton.buttonFromLabel(label);
-            if (button != null && !isRightSideButton(button)) {
-                orderedButtons.add(button);
+        // get and remove hidden toolbar buttons
+        List<ToolbarButton> hiddenList = getHiddenToolbarButtons();
+        // remove hidden buttons
+        toolbarButtons.removeAll(hiddenList);
+
+        // TODO: allow re-ordering toolbar
+        // List<ToolbarButton> orderList = getToolbarOrder();
+
+        boolean hasRightAlignButtons = false;
+        for (ToolbarButton toolbarButton : toolbarButtons) {
+            // check if button should be right-aligned
+            if (toolbarButton.isRightAlign() && !hasRightAlignButtons) {
+                hasRightAlignButtons = true;
+                toolbar.add(Box.createHorizontalGlue());
             }
-        }
-
-        // then add any new buttons not in saved order (excluding right-side buttons)
-        ToolbarButton[] allButtons = ToolbarButton.values();
-        for (ToolbarButton button : allButtons) {
-            if (!isRightSideButton(button) && !orderedButtons.contains(button)) {
-                orderedButtons.add(button);
-            }
-        }
-
-        // create toolbar buttons in order
-        for (ToolbarButton button : orderedButtons) {
-            JButton btn = null;
-            switch (button) {
-                case CONNECT:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleConnectDevice());
-                    if (btn != null) {
-                        toolbar.addSeparator();
-                    }
-                    break;
-                case BROWSE:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleBrowseCommand(null));
-                    break;
-                case LOGS:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleViewLogsCommand(null));
-                    break;
-                case SAVE_LOGS:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleSaveLogsCommand());
-                    break;
-                case INPUT:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleInputCommand());
-                    break;
-                case MIRROR:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleMirrorCommand());
-                    break;
-                case RECORD:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleRecordCommand());
-                    break;
-                case SCREENSHOT:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleScreenshotCommand());
-                    break;
-                case INSTALL:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleInstallCommand());
-                    break;
-                case TERMINAL:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleTermCommand());
-                    break;
-                case ADB:
-                    btn = createToolbarButton(toolbar, button, actionEvent -> handleRunCustomCommand());
-                    break;
-                case SCRIPTS:
-                    loadCustomScripts(toolbar);
-                    break;
-                // right-side buttons are handled separately
+            // special toobar buttons
+            switch (toolbarButton) {
                 case FILTER:
-                case REFRESH:
-                case SHARE_SERVER:
-                case SETTINGS:
-                    break;
+                    addToolbarFilter();
+                    continue;
+                case SCRIPTS:
+                    loadCustomScripts();
+                    continue;
             }
-        }
 
-        // -- right side toolbar buttons --
-        toolbar.add(Box.createHorizontalGlue());
-
-        filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
-        if (!isToobarHidden(ToolbarButton.FILTER)) {
-            filterTextField.setPreferredSize(new Dimension(150, UiUtils.IMG_SIZE_TOOLBAR));
-            filterTextField.setMinimumSize(new Dimension(10, UiUtils.IMG_SIZE_TOOLBAR));
-            filterTextField.setMaximumSize(new Dimension(200, UiUtils.IMG_SIZE_TOOLBAR));
-            UiUtils.addRightClickListener(filterTextField, e -> {
-                JPopupMenu popupMenu = new JPopupMenu();
-                JMenuItem hideItem = new JMenuItem("Hide " + ToolbarButton.FILTER.label);
-                hideItem.addActionListener(actionEvent -> {
-                    popupMenu.setVisible(false);
-                    SettingsDialog.addHiddenToolbarItem(ToolbarButton.FILTER.label);
-                    setupToolbar();
-                });
-                popupMenu.add(hideItem);
-                UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
-                popupMenu.show(e.getComponent(), e.getX(), e.getY());
+            JButton button = createToolbarButton(toolbar, toolbarButton, null);
+            button.addActionListener(e -> {
+                switch (toolbarButton) {
+                    case CONNECT -> handleConnectDevice();
+                    case BROWSE -> handleBrowseCommand(null);
+                    case LOGS -> handleViewLogsCommand(null);
+                    case SAVE_LOGS -> handleSaveLogsCommand();
+                    case INPUT -> handleInputCommand();
+                    case MIRROR -> handleMirrorCommand();
+                    case RECORD -> handleRecordCommand();
+                    case SCREENSHOT -> handleScreenshotCommand();
+                    case INSTALL -> handleInstallCommand();
+                    case TERMINAL -> handleTermCommand();
+                    case ADB -> handleRunCustomCommand();
+                    case REFRESH -> refreshDevices();
+                    case SERVER -> ShareServerDialog.showShareServerDialog(this);
+                    case SETTINGS -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this);
+                }
             });
-            toolbar.add(filterTextField);
+
+            if (toolbarButton == ToolbarButton.CONNECT) toolbar.addSeparator();
         }
-
-        createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
-
-        // start/stop server
-        JButton serverButton = createToolbarButton(toolbar, ToolbarButton.SHARE_SERVER, actionEvent -> ShareServerDialog.showShareServerDialog(this));
-        boolean isServerRunning = DeviceManager.getInstance().getRemoteServerManager().isRunning();
-        if (isServerRunning) {
-            serverButton.setIcon(UiUtils.getImageIcon("share_on.png", UiUtils.IMG_SIZE_TOOLBAR));
-            int numConnected = DeviceManager.getInstance().getRemoteServerManager().getConnectedClients().size();
-            if (numConnected > 0) {
-                serverButton.setText(String.format("#%d", numConnected));
-            }
-        }
-
-        createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(this));
     }
 
-    private boolean isRightSideButton(ToolbarButton button) {
-        return button == ToolbarButton.FILTER || button == ToolbarButton.REFRESH ||
-            button == ToolbarButton.SHARE_SERVER || button == ToolbarButton.SETTINGS;
+    private void addToolbarFilter() {
+        filterTextField.setPreferredSize(new Dimension(150, UiUtils.IMG_SIZE_TOOLBAR));
+        filterTextField.setMinimumSize(new Dimension(10, UiUtils.IMG_SIZE_TOOLBAR));
+        filterTextField.setMaximumSize(new Dimension(200, UiUtils.IMG_SIZE_TOOLBAR));
+        UiUtils.addRightClickListener(filterTextField, e -> {
+            JPopupMenu popupMenu = new JPopupMenu();
+            JMenuItem hideItem = new JMenuItem("Hide " + ToolbarButton.FILTER.label);
+            hideItem.addActionListener(actionEvent -> {
+                popupMenu.setVisible(false);
+                hideToobarButton(ToolbarButton.FILTER);
+                setupToolbar();
+            });
+            popupMenu.add(hideItem);
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
+            popupMenu.show(e.getComponent(), e.getX(), e.getY());
+        });
+        toolbar.add(filterTextField);
+    }
+
+    /**
+     * @return list of hidden toolbar buttons
+     */
+    public List<ToolbarButton> getHiddenToolbarButtons() {
+        List<ToolbarButton> hiddenList = getToolbarList(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS);
+        if (hiddenList == null) {
+            // populate list with default hidden buttons
+            hiddenList = new ArrayList<>();
+            for (ToolbarButton button : ToolbarButton.values()) {
+                if (button.hideByDefault()) hiddenList.add(button);
+            }
+        }
+        return hiddenList;
+    }
+
+    private static List<ToolbarButton> getToolbarList(PreferenceUtils.Pref pref) {
+        String prefStr = PreferenceUtils.getPreference(pref);
+        if (prefStr == null) return null;
+        List<String> prefList = GsonHelper.stringToList(prefStr, String.class);
+        List<ToolbarButton> list = new ArrayList<>();
+        for (String item : prefList) {
+            try {
+                list.add(ToolbarButton.valueOf(item));
+            } catch (IllegalArgumentException e) {
+                log.warn("getToolbarList: invalid: {}, {}", item, pref);
+            }
+        }
+        return list;
+    }
+
+    /**
+     * hide toolbar button
+     */
+    public void hideToobarButton(ToolbarButton toolbarButton) {
+        List<ToolbarButton> hiddenList = getHiddenToolbarButtons();
+        hiddenList.add(toolbarButton);
+        // convert enum list to string list
+        List<String> hiddenListStr = new ArrayList<>();
+        for (ToolbarButton button : hiddenList) hiddenListStr.add(button.name());
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenListStr));
     }
 
     protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {
-        if (isToobarHidden(toolbarButton)) return null;
-
         String imageName = toolbarButton.image;
         String label = toolbarButton.label;
         String tooltip = toolbarButton.tooltip;
@@ -1395,7 +1399,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             if (toolbarButton == ToolbarButton.SETTINGS) return;
             JPopupMenu popupMenu = new JPopupMenu();
             UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
-                SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
+                hideToobarButton(toolbarButton);
                 setupToolbar();
             });
             UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
@@ -1403,11 +1407,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         });
 
         return button;
-    }
-
-    private boolean isToobarHidden(ToolbarButton toolbarButton) {
-        List<String> hiddenToolbarList = SettingsDialog.getHiddenToolbarList();
-        return hiddenToolbarList.contains(toolbarButton.label);
     }
 
     private List<File> getCustomScripts() {
@@ -1424,7 +1423,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         return scriptList;
     }
 
-    private void loadCustomScripts(JToolBar toolbar) {
+    /**
+     * add scripts toolbar button if any custom scripts exist
+     */
+    private void loadCustomScripts() {
         List<File> scriptList = getCustomScripts();
         if (scriptList == null || scriptList.isEmpty()) return;
         JButton scriptButton = createToolbarButton(toolbar, ToolbarButton.SCRIPTS, null);
@@ -1464,7 +1466,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void refreshDevices() {
+        // refresh local devices
         DeviceManager.getInstance().refreshDevices();
+        // refresh remote devices
+        DeviceManager.getInstance().getRemoteConnectionManager().refreshAllDevices();
     }
 
     private void handleRunCustomCommand() {

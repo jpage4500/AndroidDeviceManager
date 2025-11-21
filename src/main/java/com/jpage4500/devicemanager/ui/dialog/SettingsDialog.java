@@ -221,53 +221,16 @@ public class SettingsDialog extends JPanel {
         }
     }
 
-    public static List<String> getHiddenToolbarList() {
-        String hiddenStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS);
-        return GsonHelper.stringToList(hiddenStr, String.class);
-    }
-
-    public static void addHiddenToolbarItem(String item) {
-        List<String> hiddenToolbarList = SettingsDialog.getHiddenToolbarList();
-        if (!hiddenToolbarList.contains(item)) hiddenToolbarList.add(item);
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenToolbarList));
-    }
-
-    public static List<String> getToolbarOrder() {
-        String orderStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_TOOLBAR_ORDER);
-        List<String> orderList = GsonHelper.stringToList(orderStr, String.class);
-        if (orderList == null) orderList = new ArrayList<>();
-        return orderList;
-    }
-
     public static void showManageToolbar(DeviceScreen deviceScreen, Component component) {
-        List<String> hiddenColList = getHiddenToolbarList();
-        List<String> orderedList = getToolbarOrder();
-        
         DraggableCheckBoxList checkBoxList = new DraggableCheckBoxList();
-        
+
         // build ordered array of toolbar buttons
-        DeviceScreen.ToolbarButton[] allButtons = DeviceScreen.ToolbarButton.values();
-        List<DeviceScreen.ToolbarButton> orderedButtons = new ArrayList<>();
-        
-        // first add buttons in saved order
-        for (String label : orderedList) {
-            DeviceScreen.ToolbarButton button = DeviceScreen.ToolbarButton.buttonFromLabel(label);
-            if (button != null && button != DeviceScreen.ToolbarButton.SETTINGS) {
-                orderedButtons.add(button);
-            }
-        }
-        
-        // then add any new buttons not in saved order
-        for (DeviceScreen.ToolbarButton button : allButtons) {
-            if (button == DeviceScreen.ToolbarButton.SETTINGS) continue;
-            if (!orderedButtons.contains(button)) {
-                orderedButtons.add(button);
-            }
-        }
-        
+        DeviceScreen.ToolbarButton[] toolbarArr = DeviceScreen.ToolbarButton.values();
+        List<DeviceScreen.ToolbarButton> hiddenList = deviceScreen.getHiddenToolbarButtons();
+
         // add items to list with icons
-        for (DeviceScreen.ToolbarButton button : orderedButtons) {
-            boolean isHidden = hiddenColList.contains(button.label);
+        for (DeviceScreen.ToolbarButton button : toolbarArr) {
+            boolean isHidden = hiddenList.contains(button);
             ImageIcon icon = null;
             if (button.image != null) {
                 icon = UiUtils.getImageIcon(button.image, 32);
@@ -285,40 +248,44 @@ public class SettingsDialog extends JPanel {
         JButton defaultButton = new JButton("Restore Default");
         defaultButton.addActionListener(e -> {
             // reset to default order and visibility
-            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_TOOLBAR_ORDER, null);
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, null);
             deviceScreen.setupToolbar();
             UiUtils.closeWindow(panel);
         });
         panel.add(defaultButton, "span, align right, wrap");
-        
+
         // add OK/Cancel buttons at bottom
         JPanel buttonPanel = new JPanel(new MigLayout("fillx", "push[][]"));
-        
+
         JButton cancelButton = new JButton("Cancel");
         cancelButton.addActionListener(e -> {
             UiUtils.closeWindow(panel);
         });
         buttonPanel.add(cancelButton, "");
-        
+
         JButton okButton = new JButton("OK");
         okButton.addActionListener(e -> {
+            // TODO: save order
             // save order
-            List<String> orderedItems = checkBoxList.getAllItems();
-            log.debug("ORDER: {}", GsonHelper.toJson(orderedItems));
-            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_TOOLBAR_ORDER, GsonHelper.toJson(orderedItems));
-            
+            // List<String> orderedItems = checkBoxList.getAllItems();
+
             // save hidden items
             List<String> hiddenItems = checkBoxList.getUnSelectedItems();
-            log.debug("HIDDEN: {}", GsonHelper.toJson(hiddenItems));
-            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenItems));
-            
+            // convert strings to enum values
+            List<String> enumList = new ArrayList<>();
+            for (String item : hiddenItems) {
+                DeviceScreen.ToolbarButton toolbarButton = DeviceScreen.ToolbarButton.buttonFromLabel(item);
+                if (toolbarButton != null) {
+                    enumList.add(toolbarButton.name());
+                }
+            }
+            log.trace("HIDDEN: {}", GsonHelper.toJson(enumList));
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(enumList));
             deviceScreen.setupToolbar();
-            
             UiUtils.closeWindow(panel);
         });
         buttonPanel.add(okButton, "");
-        
+
         panel.add(buttonPanel, "span, align right");
 
         DialogHelper.showCustomDialog(component, panel, "Toolbar Buttons", new String[]{});

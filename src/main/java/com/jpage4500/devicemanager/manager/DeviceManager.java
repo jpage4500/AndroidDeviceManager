@@ -339,7 +339,9 @@ public class DeviceManager {
     public void refreshDevices() {
         synchronized (deviceList) {
             for (Device device : deviceList) {
-                fetchDeviceDetails(device, true);
+                if (device.remoteConnection == null) {
+                    fetchDeviceDetails(device, true);
+                }
             }
         }
     }

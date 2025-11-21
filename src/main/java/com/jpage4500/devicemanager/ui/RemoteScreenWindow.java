@@ -81,7 +81,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
     public enum Quality {
         HIGH("High", "high"),
-        MEDIUM("Medium", "medium"),
+        MEDIUM("Mid", "medium"),
         LOW("Low", "low");
 
         public final String label;
@@ -131,14 +131,13 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         statusBar.setCenterLabel("Connecting...");
         statusBarPanel.add(statusBar, BorderLayout.CENTER);
 
-        // right - Quality selector
-        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
-        rightPanel.add(new JLabel("Quality:"));
+        // quality selector
         qualityComboBox = new JComboBox<>(Quality.values());
+        qualityComboBox.setToolTipText("Quality of image: high, medium, low");
         qualityComboBox.setSelectedItem(Quality.HIGH);
+        qualityComboBox.setPrototypeDisplayValue(Quality.HIGH);
         qualityComboBox.addActionListener(e -> handleQualityChange());
-        rightPanel.add(qualityComboBox);
-        statusBarPanel.add(rightPanel, BorderLayout.EAST);
+        statusBarPanel.add(qualityComboBox, BorderLayout.EAST);
 
         add(statusBarPanel, BorderLayout.SOUTH);
 
