@@ -135,29 +135,24 @@ public class DeviceManager {
         remoteConnectionManager = new RemoteConnectionManager(new RemoteConnectionManager.ConnectionListener() {
             @Override
             public void onRemoteConnection(RemoteConnection connection) {
+                List<Device> deviceList = getDeviceForConnection(connection);
+                deviceList.forEach(device -> {
+                    device.isOnline = true;
+                });
+                notifyDevicesUpdated();
             }
 
             @Override
             public void onRemoteConnectionLost(RemoteConnection connection) {
-                log.trace("onConnectionLost: {}", connection);
                 // mark remote devices as offline
-                synchronized (deviceList) {
-                    for (Device device : deviceList) {
-                        if (device.remoteConnection == connection) {
-                            device.isOnline = false;
-                        }
-                    }
-                }
-
+                List<Device> deviceList = getDeviceForConnection(connection);
+                deviceList.forEach(device -> device.isOnline = false);
                 // TODO: save this logic.. will need to remove devices eventually
                 // remove devices from this server
 //                synchronized (deviceList) {
 //                    deviceList.removeIf(d -> d.remoteConnection == connection);
 //                }
-
-                if (deviceListener != null) {
-                    deviceListener.handleDevicesUpdated(getDevices());
-                }
+                notifyDevicesUpdated();
             }
 
             @Override
@@ -166,13 +161,11 @@ public class DeviceManager {
                 synchronized (deviceList) {
                     // TODO: update instead of replace
                     // remove old devices from this server
-                    deviceList.removeIf(d -> d.remoteConnection == connection);
+                    deviceList.removeIf(device -> device.remoteConnection == connection);
                     // add new devices
                     deviceList.addAll(devices);
                 }
-                if (deviceListener != null) {
-                    deviceListener.handleDevicesUpdated(getDevices());
-                }
+                notifyDevicesUpdated();
             }
         });
 
@@ -205,6 +198,24 @@ public class DeviceManager {
         });
     }
 
+    private void notifyDevicesUpdated() {
+        if (deviceListener != null) {
+            deviceListener.handleDevicesUpdated(getDevices());
+        }
+    }
+
+    private List<Device> getDeviceForConnection(RemoteConnection connection) {
+        List<Device> list = new ArrayList<>();
+        synchronized (deviceList) {
+            for (Device device : deviceList) {
+                if (device.remoteConnection == connection) {
+                    list.add(device);
+                }
+            }
+        }
+        return list;
+    }
+
     public void connectAdbServer(boolean allowRetry) {
         connection = new JadbConnection();
         commandExecutorService.submit(() -> {
@@ -221,7 +232,11 @@ public class DeviceManager {
                     public void onException(Exception e) {
                         log.error("connectAdbServer: onException: {}", e.getMessage());
                         // change all devices to offline
-                        for (Device device : deviceList) device.isOnline = false;
+                        synchronized (deviceList) {
+                            deviceList.forEach(device -> {
+                                if (device.remoteConnection == null) device.isOnline = false;
+                            });
+                        }
                         if (deviceListener != null) deviceListener.handleException(e);
                     }
                 }).run();
@@ -232,7 +247,11 @@ public class DeviceManager {
                     if (isSuccess && allowRetry) connectAdbServer(false);
                     else {
                         // change all devices to offline
-                        for (Device device : deviceList) device.isOnline = false;
+                        synchronized (deviceList) {
+                            deviceList.forEach(device -> {
+                                if (device.remoteConnection == null) device.isOnline = false;
+                            });
+                        }
                         if (deviceListener != null) deviceListener.handleException(e);
                     }
                 });
@@ -269,30 +288,32 @@ public class DeviceManager {
         }
 
         // 2) look for devices that are now offline
-        for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
-            Device device = iterator.next();
-            // ignore remote devices
-            if (device.remoteConnection != null) continue;
-            boolean isFound = false;
-            for (JadbDevice jadbDevice : devices) {
-                if (device.serial.equals(jadbDevice.getSerial())) {
-                    isFound = true;
-                    break;
+        synchronized (deviceList) {
+            for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
+                Device device = iterator.next();
+                // ignore remote devices
+                if (device.remoteConnection != null) continue;
+                boolean isFound = false;
+                for (JadbDevice jadbDevice : devices) {
+                    if (device.serial.equals(jadbDevice.getSerial())) {
+                        isFound = true;
+                        break;
+                    }
                 }
-            }
-            if (!isFound) {
-                if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_OFFLINE: {}", device.getDisplayName());
-                iterator.remove();
-                // -- DEVICE REMOVED --
-                device.isOnline = false;
-                device.lastUpdateMs = System.currentTimeMillis();
-                if (deviceListener != null) deviceListener.handleDeviceRemoved(device);
+                if (!isFound) {
+                    if (log.isTraceEnabled()) log.trace("handleDeviceUpdate: DEVICE_OFFLINE: {}", device.getDisplayName());
+                    iterator.remove();
+                    // -- DEVICE REMOVED --
+                    device.isOnline = false;
+                    device.lastUpdateMs = System.currentTimeMillis();
+                    if (deviceListener != null) deviceListener.handleDeviceRemoved(device);
+                }
             }
         }
 
         if (!addedDeviceList.isEmpty()) {
             // notify listener that device list changed
-            if (deviceListener != null) deviceListener.handleDevicesUpdated(deviceList);
+            notifyDevicesUpdated();
 
             for (Device addedDevice : addedDeviceList) {
                 // fetch more details for these devices
@@ -340,18 +361,15 @@ public class DeviceManager {
         // run periodic task to update device state
         log.debug("updateRefreshTime: schedule refresh every {} mins", refreshTimeMins);
         deviceRefreshRuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
-            log.trace("handleDeviceUpdate: REFRESH");
-            for (Device device : deviceList) {
-                fetchDeviceDetails(device, false);
-            }
+            refreshDevices(false);
         }, refreshTimeMins, refreshTimeMins, TimeUnit.MINUTES);
     }
 
-    public void refreshDevices() {
+    public void refreshDevices(boolean fullRefresh) {
         synchronized (deviceList) {
             for (Device device : deviceList) {
                 if (device.remoteConnection == null) {
-                    fetchDeviceDetails(device, true);
+                    fetchDeviceDetails(device, fullRefresh);
                 }
             }
         }

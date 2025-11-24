@@ -266,6 +266,10 @@ public class RemoteConnection {
         return serverConfig.id;
     }
 
+    public String getName() {
+        return serverConfig.name;
+    }
+
     public String toString() {
         return GsonHelper.toJson(serverConfig);
     }

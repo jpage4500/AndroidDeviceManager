@@ -810,6 +810,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void handleTermCommand() {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
+        else if (checkRemoteDevices(selectedDeviceList, true)) return;
 
         if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
@@ -821,6 +822,36 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
             });
         }
+    }
+
+    /**
+     * check if any devices in the list is a remote device
+     *
+     * @param list
+     * @param showWarning        - true to show a warning if 1 or more devices are remote
+     * @return true if any are remote; however if showWarning is true and the user chooses to continue, false is returned
+     */
+    private boolean checkRemoteDevices(List<Device> list, boolean showWarning) {
+        int numRemote = 0;
+        for (Device device : list) {
+            if (device.remoteConnection != null) {
+                numRemote++;
+            }
+        }
+        if (numRemote > 0 && showWarning) {
+            boolean isYes = DialogHelper.showConfirmDialog(this, "Remote Devices", "Remote Devices aren't supported with this feature. Continue anyway?");
+            if (isYes) {
+                // remove remote devices
+                list.removeIf(device -> device.remoteConnection != null);
+                // return false to continue
+                return false;
+            } else {
+                return true;
+            }
+        } else if (numRemote > 0) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -1482,7 +1513,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void refreshDevices() {
         // refresh local devices
-        DeviceManager.getInstance().refreshDevices();
+        DeviceManager.getInstance().refreshDevices(true);
         // refresh remote devices
         DeviceManager.getInstance().getRemoteConnectionManager().refreshAllDevices();
     }

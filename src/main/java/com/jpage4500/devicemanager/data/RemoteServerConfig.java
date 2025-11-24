@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.data;
 
+import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
 
 import java.util.UUID;
@@ -32,4 +33,8 @@ public class RemoteServerConfig {
         return url.replace("http://", "ws://").replace("https://", "wss://");
     }
 
+    @Override
+    public String toString() {
+        return GsonHelper.toJson(this);
+    }
 }
