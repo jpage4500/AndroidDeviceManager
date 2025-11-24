@@ -143,6 +143,8 @@ public class RemoteConnection {
     public boolean setProperty(String deviceSerial, String key, String value) {
         String url = serverConfig.getUrl() + RemoteHttpServer.API_DEVICE_SET_PROPERTY;
         Map<String, String> headers = getDefaultHeaders();
+        // required for JSON payload
+        headers.put("Content-Type", "application/json");
 
         Map<String, String> request = new HashMap<>();
         request.put("serial", deviceSerial);
@@ -150,7 +152,6 @@ public class RemoteConnection {
         request.put("value", value);
 
         NetworkHelper.HttpResponse response = networkHelper.postRequest(url, GsonHelper.toJson(request), headers);
-        log.trace("setProperty: response: {}", GsonHelper.toJson(response));
         return response.status == 200;
     }
 
@@ -202,13 +203,15 @@ public class RemoteConnection {
      * Execute command on remote device
      */
     public DeviceManager.ShellResult executeCommand(String deviceSerial, String command) {
+        Map<String, String> headers = getDefaultHeaders();
+        // required for JSON payload
+        headers.put("Content-Type", "application/json");
+        String url = serverConfig.getUrl() + RemoteHttpServer.API_EXECUTE;
+
         Map<String, String> request = new HashMap<>();
         request.put("serial", deviceSerial);
         request.put("command", command);
 
-        Map<String, String> headers = getDefaultHeaders();
-        headers.put("Content-Type", "application/json");
-        String url = serverConfig.getUrl() + RemoteHttpServer.API_EXECUTE;
         NetworkHelper.HttpResponse response = networkHelper.postRequest(url, GsonHelper.toJson(request), headers);
 
         if (response.status == 200) {

@@ -157,7 +157,7 @@ public class RemoteServerDialog extends JPanel {
     }
 
     private void refreshServers() {
-        DeviceManager.getInstance().getRemoteConnectionManager().refreshAllDevices();
+        DeviceManager.getInstance().getRemoteConnectionManager().refreshAllDevices(true);
     }
 
     /**

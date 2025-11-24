@@ -56,7 +56,7 @@ public class RemoteConnectionManager {
             // if a refresh is pending, stop it
             if (future != null) future.cancel(false);
             // refresh all devices NOW and again every 30 seconds
-            future = scheduler.scheduleWithFixedDelay(this::refreshAllDevices, 0, REFRESH_SECS, TimeUnit.SECONDS);
+            future = scheduler.scheduleWithFixedDelay(() -> refreshAllDevices(false), 0, REFRESH_SECS, TimeUnit.SECONDS);
         } else {
             // no servers configured - stop refreshing
             if (future != null) {
@@ -69,13 +69,13 @@ public class RemoteConnectionManager {
     /**
      * Refresh all servers
      */
-    public void refreshAllDevices() {
+    public void refreshAllDevices(boolean fullRefresh) {
         for (Map.Entry<String, RemoteConnection> entry : connections.entrySet()) {
-            fetchServerInfo(entry.getKey(), entry.getValue());
+            fetchServerInfo(entry.getKey(), entry.getValue(), fullRefresh);
         }
     }
 
-    private void fetchServerInfo(String serverId, RemoteConnection connection) {
+    private void fetchServerInfo(String serverId, RemoteConnection connection, boolean fullRefresh) {
         // fetch server info
         RemoteHttpServer.ServerInfo serverInfo = connection.fetchServerInfo();
         if (serverInfo != null) {
@@ -83,7 +83,7 @@ public class RemoteConnectionManager {
                 listener.onRemoteConnection(connection);
             }
             // check if device count has changed
-            if (serverInfo.deviceCount != connection.getDeviceCount()) {
+            if (fullRefresh || serverInfo.deviceCount != connection.getDeviceCount()) {
                 // run device list request after all connections have been checked
                 fetchDevices(serverId);
             }

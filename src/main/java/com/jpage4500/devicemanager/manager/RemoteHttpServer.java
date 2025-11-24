@@ -107,8 +107,9 @@ public class RemoteHttpServer extends NanoWSD {
             }
         }
 
-        if (log.isTraceEnabled())
+        if (log.isTraceEnabled()) {
             log.trace("serve: {} {}, {}/{}, {}", method, uri, TextUtils.firstValid(headerIp, clientIp), headerName, GsonHelper.toJson(params));
+        }
 
         // authenticate
         if (!authenticateClient(params, headers)) {
@@ -142,7 +143,7 @@ public class RemoteHttpServer extends NanoWSD {
                 return createNotFoundResponse("Not found");
             }
         } catch (Exception e) {
-            log.error("Error handling request", e);
+            log.error("Error handling request: {}", e.getMessage());
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT,
                 "Error: " + e.getMessage());
         }
@@ -290,6 +291,7 @@ public class RemoteHttpServer extends NanoWSD {
         String key = postMap.get("key");
         String value = postMap.get("value");
         if (serial == null || key == null || value == null) {
+            log.trace("handleSetProperty: missing data: {}", GsonHelper.toJson(postMap));
             return createBadResponse("Missing data");
         }
 

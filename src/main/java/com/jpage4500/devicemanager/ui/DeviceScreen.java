@@ -828,7 +828,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
      * check if any devices in the list is a remote device
      *
      * @param list
-     * @param showWarning        - true to show a warning if 1 or more devices are remote
+     * @param showWarning - true to show a warning if 1 or more devices are remote
      * @return true if any are remote; however if showWarning is true and the user chooses to continue, false is returned
      */
     private boolean checkRemoteDevices(List<Device> list, boolean showWarning) {
@@ -965,7 +965,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().setProperty(device, property, result, (isSuccess, error) -> {
-
+                handleDeviceUpdated(device);
             });
         }
     }
@@ -1369,7 +1369,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             case ADB -> handleRunCustomCommand();
             case REFRESH -> refreshDevices();
             case SERVER -> ShareServerDialog.showShareServerDialog(this);
-            case SETTINGS -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this);
+            case SETTINGS -> SettingsDialog.showSettings(DeviceScreen.this);
             default -> log.warn("handleButtonClicked: unhandled button: {}", toolbarButton);
         }
     }
@@ -1515,7 +1515,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // refresh local devices
         DeviceManager.getInstance().refreshDevices(true);
         // refresh remote devices
-        DeviceManager.getInstance().getRemoteConnectionManager().refreshAllDevices();
+        DeviceManager.getInstance().getRemoteConnectionManager().refreshAllDevices(true);
     }
 
     private void handleRunCustomCommand() {

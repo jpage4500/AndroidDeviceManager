@@ -383,6 +383,7 @@ public class DeviceManager {
     public void fetchDeviceDetails(Device device, boolean fullRefresh) {
         if (!device.isOnline) return;
         else if (!addDeviceToQueue(device)) return;
+
         scheduledExecutorService.submit(() -> {
             Timer timer = new Timer();
             // show device as 'busy'
@@ -1000,8 +1001,17 @@ public class DeviceManager {
 
     public boolean setPropertyInternal(Device device, String key, String value) {
         if (device.remoteConnection != null) {
-            return device.remoteConnection.setProperty(device.serial, key, value);
+            boolean isOk = device.remoteConnection.setProperty(device.serial, key, value);
+            if (isOk) {
+                if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
+                // update property
+                if (TextUtils.isEmpty(value)) device.customPropertyMap.remove(key);
+                else device.customPropertyMap.put(key, value);
+            }
+            return isOk;
         }
+
+        // local device
         if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
         // update property
         if (TextUtils.isEmpty(value)) device.customPropertyMap.remove(key);
