@@ -42,6 +42,14 @@ public class RemoteServerDialog extends JPanel {
     }
 
     private void initUI() {
+        // text
+//        String msg = "<html>" +
+//            "To add a remote server, run Device Manager and open the 'Server' dialog and hit 'Start Server'<br><br>" +
+//            "Once running, copy the connection string from the 'Server' dialog and paste it using the 'Paste Connection' button below<br><br>" +
+//            "</html>";
+//        JLabel titleLabel = new JLabel(msg);
+//        add(titleLabel, BorderLayout.NORTH);
+
         // table
         tableModel = new ServerTableModel();
         serverTable = new JTable(tableModel);
@@ -59,6 +67,7 @@ public class RemoteServerDialog extends JPanel {
 
         JScrollPane scrollPane = new JScrollPane(serverTable);
         scrollPane.setPreferredSize(new Dimension(600, 300));
+        add(scrollPane, BorderLayout.CENTER);
 
         // buttons panel
         JPanel buttonPanel = new JPanel(new MigLayout("fillx"));
@@ -84,7 +93,6 @@ public class RemoteServerDialog extends JPanel {
         buttonPanel.add(removeButton);
         buttonPanel.add(refreshButton);
 
-        add(scrollPane, BorderLayout.CENTER);
         add(buttonPanel, BorderLayout.SOUTH);
     }
 

@@ -10,10 +10,7 @@ import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
-import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
-import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
-import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
-import com.jpage4500.devicemanager.ui.dialog.ShareServerDialog;
+import com.jpage4500.devicemanager.ui.dialog.*;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
@@ -292,7 +289,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         createCmdMenuItem(deviceMenu, "Filter", KeyEvent.VK_F, e -> filterTextField.requestFocus());
 
         // [CMD + N] = connect device
-        createCmdMenuItem(deviceMenu, "Connect Device", KeyEvent.VK_N, e -> handleConnectDevice());
+        createCmdMenuItem(deviceMenu, "Connect to Device", KeyEvent.VK_N, e -> showConnectAdbWirelessDialog());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -416,27 +413,27 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             DeviceTableModel.Columns columnType = model.getColumnType(column);
             if (columnType != null) {
                 // standard columns (all others are custom)
-                UiUtils.addPopupMenuItem(popupMenu, "Hide " + columnType.name(), actionEvent -> handleHideColumn(column));
+                UiUtils.addPopupMenuItem(popupMenu, "Hide " + columnType.name(), "eye_closed.png", actionEvent -> handleHideColumn(column));
             }
-            UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
+            UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", "size.png", actionEvent -> {
                 TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                 adjuster.adjustColumn(column);
             });
 
             popupMenu.addSeparator();
 
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this, this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", "icon_settings.png", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this, this));
 
             boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
             String resizeDesc = autoResize ? "ON" : "OFF";
-            UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, actionEvent -> {
+            UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, "size.png", actionEvent -> {
                 boolean update = !autoResize;
                 PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, update);
                 int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
                 table.setAutoResizeMode(flag);
             });
             if (!autoResize) {
-                UiUtils.addPopupMenuItem(popupMenu, "Size ALL to Fit", actionEvent -> {
+                UiUtils.addPopupMenuItem(popupMenu, "Size ALL to Fit", "size.png", actionEvent -> {
                     TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                     adjuster.adjustColumns();
                 });
@@ -477,7 +474,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
             for (ToolbarButton toolbarButton : toolbarButtons) {
                 UiUtils.addPopupMenuItem(popupMenu, toolbarButton.label, toolbarButton.image, e -> {
-                    handleButtonClicked(toolbarButton);
+                    handleButtonClicked(toolbarButton, null);
                 });
             }
 
@@ -1029,7 +1026,27 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         });
     }
 
-    private void handleConnectDevice() {
+    private void handleConnectButtonClicked(MouseEvent mouseEvent) {
+        JPopupMenu popupMenu = new JPopupMenu();
+
+        // adb wireless
+        JMenuItem adbItem = new JMenuItem("Connect to ADB Wireless Device", UiUtils.getImageIcon("icon_adb.png", UiUtils.IMG_SIZE_SMALL));
+        adbItem.addActionListener(e -> {
+            showConnectAdbWirelessDialog();
+        });
+        popupMenu.add(adbItem);
+
+        // connect to server
+        JMenuItem serverItem = new JMenuItem("Connect to Remote Server", UiUtils.getImageIcon("server.png", UiUtils.IMG_SIZE_SMALL));
+        serverItem.addActionListener(e -> {
+            RemoteServerDialog.showRemoteServerDialog(this);
+        });
+        popupMenu.add(serverItem);
+
+        popupMenu.show(mouseEvent.getComponent(), mouseEvent.getX(), mouseEvent.getY());
+    }
+
+    private void showConnectAdbWirelessDialog() {
         ConnectDialog.showConnectDialog(this, (isSuccess, error) -> {
             log.debug("handleConnectDevice: {}", isSuccess);
             if (!isSuccess) {
@@ -1339,23 +1356,26 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             // special toobar buttons
             switch (toolbarButton) {
                 case FILTER:
+                    // not a toolbar button
                     addToolbarFilter();
                     continue;
                 case SCRIPTS:
-                    loadCustomScripts();
+                    // this toolbar button only shows up if a script exists
+                    addScriptsToolbarButton();
                     continue;
             }
 
             createToolbarButton(toolbar, toolbarButton, e -> {
-                handleButtonClicked(toolbarButton);
+                handleButtonClicked(toolbarButton, e);
             });
+
             if (toolbarButton == ToolbarButton.CONNECT) toolbar.addSeparator();
         }
     }
 
-    private void handleButtonClicked(ToolbarButton toolbarButton) {
+    private void handleButtonClicked(ToolbarButton toolbarButton, MouseEvent mouseEvent) {
         switch (toolbarButton) {
-            case CONNECT -> handleConnectDevice();
+            case CONNECT -> handleConnectButtonClicked(mouseEvent);
             case BROWSE -> handleBrowseCommand(null);
             case LOGS -> handleViewLogsCommand(null);
             case SAVE_LOGS -> handleSaveLogsCommand();
@@ -1380,14 +1400,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         filterTextField.setMaximumSize(new Dimension(200, UiUtils.IMG_SIZE_TOOLBAR));
         UiUtils.addRightClickListener(filterTextField, e -> {
             JPopupMenu popupMenu = new JPopupMenu();
-            JMenuItem hideItem = new JMenuItem("Hide " + ToolbarButton.FILTER.label);
-            hideItem.addActionListener(actionEvent -> {
+            // hide column
+            UiUtils.addPopupMenuItem(popupMenu, "Hide " + ToolbarButton.FILTER.label, "eye_closed.png", actionEvent -> {
                 popupMenu.setVisible(false);
                 hideToobarButton(ToolbarButton.FILTER);
                 setupToolbar();
             });
-            popupMenu.add(hideItem);
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
+            // manage toolbar
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", "icon_settings.png", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
+
             popupMenu.show(e.getComponent(), e.getX(), e.getY());
         });
         toolbar.add(filterTextField);
@@ -1435,7 +1456,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenListStr));
     }
 
-    protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {
+    protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ClickListener listener) {
         String imageName = toolbarButton.image;
         String label = toolbarButton.label;
         String tooltip = toolbarButton.tooltip;
@@ -1444,11 +1465,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         UiUtils.addRightClickListener(button, e -> {
             if (toolbarButton == ToolbarButton.SETTINGS) return;
             JPopupMenu popupMenu = new JPopupMenu();
-            UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
+            UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, "eye_closed.png", actionEvent -> {
                 hideToobarButton(toolbarButton);
                 setupToolbar();
             });
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", "icon_settings.png", actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
             popupMenu.show(e.getComponent(), e.getX(), e.getY());
         });
 
@@ -1472,12 +1493,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     /**
      * add scripts toolbar button if any custom scripts exist
      */
-    private void loadCustomScripts() {
+    private void addScriptsToolbarButton() {
         List<File> scriptList = getCustomScripts();
         if (scriptList == null || scriptList.isEmpty()) return;
-        JButton scriptButton = createToolbarButton(toolbar, ToolbarButton.SCRIPTS, null);
-        if (scriptButton == null) return;
-        UiUtils.addLeftClickListener(scriptButton, e -> {
+        createToolbarButton(toolbar, ToolbarButton.SCRIPTS, e -> {
             JPopupMenu popupMenu = new JPopupMenu();
             List<File> list = getCustomScripts();
             for (File script : list) {

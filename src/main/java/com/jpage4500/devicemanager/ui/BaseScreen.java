@@ -124,18 +124,18 @@ public class BaseScreen extends JFrame {
         }
     }
 
-    protected JButton createSmallToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
+    protected JButton createSmallToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ClickListener listener) {
         return createToolbarButton(toolbar, imageName, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR_SMALL, listener);
     }
 
     /**
      * create a 'standard' toolbar button with 40x40 image and label below
      */
-    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
+    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ClickListener listener) {
         return createToolbarButton(toolbar, imageName, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
     }
 
-    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, int size, ActionListener listener) {
+    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, int size, ClickListener listener) {
         JButton button = new JButton(label);
         if (imageName != null) {
             BufferedImage image = UiUtils.getImage(imageName, size, size);
@@ -153,7 +153,8 @@ public class BaseScreen extends JFrame {
         if (tooltip != null) button.setToolTipText(tooltip);
         button.setVerticalTextPosition(SwingConstants.BOTTOM);
         button.setHorizontalTextPosition(SwingConstants.CENTER);
-        button.addActionListener(listener);
+        UiUtils.addLeftClickListener(button, listener);
+        //button.addActionListener(listener);
         toolbar.add(button);
         return button;
     }
