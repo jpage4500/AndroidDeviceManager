@@ -249,6 +249,14 @@ public class RemoteConnection {
         return response.status == 200;
     }
 
+    public boolean installApp(String deviceSerial, File localFile) {
+        String url = serverConfig.getUrl() + RemoteHttpServer.API_INSTALL + "?serial=" + deviceSerial;
+
+        Map<String, String> headers = getDefaultHeaders();
+        NetworkHelper.HttpResponse response = networkHelper.upload(url, localFile, headers);
+        return response.status == 200;
+    }
+
     public RemoteServerConfig getServerConfig() {
         return serverConfig;
     }

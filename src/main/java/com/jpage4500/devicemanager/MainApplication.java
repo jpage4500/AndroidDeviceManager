@@ -67,6 +67,9 @@ public class MainApplication {
         DeviceManager deviceManager = DeviceManager.getInstance();
         // server will automatically start
         deviceManager.initialize(null);
+
+        deviceManager.connectAdbServer(true);
+
     }
 
     public static void main(String[] args) {

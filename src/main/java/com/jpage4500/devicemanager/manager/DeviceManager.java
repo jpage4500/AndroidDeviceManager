@@ -1036,15 +1036,39 @@ public class DeviceManager {
 
     public void installApp(Device device, File file, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            try {
-                PackageManager packageManager = new PackageManager(device.jadbDevice);
-                packageManager.install(file);
-                if (listener != null) listener.onTaskComplete(true, null);
-            } catch (Exception e) {
-                log.error("installApp: ERROR: {}, file:{}", e.getMessage(), file.getAbsolutePath());
-                device.status = "failed: " + e.getMessage();
-                if (listener != null) listener.onTaskComplete(false, e.getMessage());
-            }
+            boolean isOk = installAppInternal(device, file);
+            if (listener != null) listener.onTaskComplete(isOk, null);
+        });
+    }
+
+    public boolean installAppInternal(Device device, File file) {
+        if (device.remoteConnection != null) {
+            return device.remoteConnection.installApp(device.serial, file);
+        }
+        Timer timer = new Timer();
+        log.trace("installAppInternal: file:{}, size:{}", file.getName(), file.length());
+        try {
+            PackageManager packageManager = new PackageManager(device.jadbDevice);
+            packageManager.install(file);
+            log.trace("installAppInternal: DONE:{}", timer);
+            return true;
+        } catch (Exception e) {
+            log.error("installApp: {}: ERROR: {}, file:{}", timer, e.getMessage(), file.getAbsolutePath());
+            device.status = "failed: " + e.getMessage();
+            return false;
+        }
+    }
+
+    public void copyFiles(Device device, List<File> fileList, String dest, ProgressListener progressListener, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            // come up with total files to copy
+            FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
+            AtomicInteger count = new AtomicInteger();
+            copyFilesInternal(device, fileList, dest, (numCompleted, numTotal, msg) -> {
+                int i = count.incrementAndGet();
+                progressListener.onProgress(i, stats.numTotal, msg);
+            });
+            listener.onTaskComplete(true, null);
         });
     }
 
@@ -1078,19 +1102,6 @@ public class DeviceManager {
                 }
             }
         }
-    }
-
-    public void copyFiles(Device device, List<File> fileList, String dest, ProgressListener progressListener, TaskListener listener) {
-        commandExecutorService.submit(() -> {
-            // come up with total files to copy
-            FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
-            AtomicInteger count = new AtomicInteger();
-            copyFilesInternal(device, fileList, dest, (numCompleted, numTotal, msg) -> {
-                int i = count.incrementAndGet();
-                progressListener.onProgress(i, stats.numTotal, msg);
-            });
-            listener.onTaskComplete(true, null);
-        });
     }
 
     public void restartDevice(Device device, TaskListener listener) {

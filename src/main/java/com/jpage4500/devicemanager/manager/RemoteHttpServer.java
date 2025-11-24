@@ -40,6 +40,7 @@ public class RemoteHttpServer extends NanoWSD {
     public static final String API_DEVICE_PROPERTIES = "/api/properties";
     public static final String API_DEVICE_SET_PROPERTY = "/api/setproperty";
     public static final String API_EXECUTE = "/api/execute";
+    public static final String API_INSTALL = "/api/install";
     public static final String API_FILES_LIST = "/api/files/list";
     public static final String API_FILES_DOWNLOAD = "/api/files/download";
     public static final String API_FILES_UPLOAD = "/api/files/upload";
@@ -131,6 +132,8 @@ public class RemoteHttpServer extends NanoWSD {
                 return handleSetProperty(session);
             } else if (uri.equals(API_EXECUTE)) {
                 return handleExecuteCommand(session);
+            } else if (uri.startsWith(API_INSTALL)) {
+                return handleInstallFile(session);
             } else if (uri.startsWith(API_FILES_LIST)) {
                 return handleListFiles(session);
             } else if (uri.startsWith(API_FILES_DOWNLOAD)) {
@@ -140,6 +143,7 @@ public class RemoteHttpServer extends NanoWSD {
             } else if (uri.startsWith(API_SCREENSHOT)) {
                 return handleScreenshot(session);
             } else {
+                log.warn("serve: not handled: {}", uri);
                 return createNotFoundResponse("Not found");
             }
         } catch (Exception e) {
@@ -420,6 +424,69 @@ public class RemoteHttpServer extends NanoWSD {
             return createJsonResponse(response);
         } catch (Exception e) {
             log.error("handleUploadFile: Failed to upload file", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", "Error uploading file: " + e.getMessage());
+            String json = GsonHelper.toJson(response);
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_JSON, json);
+        }
+    }
+
+    /**
+     * POST /api/install?serial=xxx
+     * Install file
+     * Body: raw file data
+     */
+    private Response handleInstallFile(IHTTPSession session) {
+        Map<String, String> params = session.getParms();
+        Device device = getDeviceParam(params);
+        if (device == null) {
+            return createNotFoundResponse("Device not found");
+        }
+
+        try {
+            // create a temporary file to receive the upload
+            File tempFile = File.createTempFile("install", ".apk");
+            tempFile.deleteOnExit();
+
+            // parse the body and save to temp file
+            Map<String, String> files = new HashMap<>();
+            session.parseBody(files);
+
+            // the uploaded file data is in the postData
+            String postData = files.get("postData");
+            if (postData != null && !postData.isEmpty()) {
+                // write the data to temp file
+                try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                    fos.write(postData.getBytes(StandardCharsets.ISO_8859_1));
+                }
+            } else {
+                // try to get the uploaded file from the files map
+                String tmpFilePath = files.get("file");
+                if (tmpFilePath != null) {
+                    File uploadedFile = new File(tmpFilePath);
+                    if (uploadedFile.exists()) {
+                        // copy to our temp file
+                        Files.copy(uploadedFile.toPath(), tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+            }
+
+            if (!tempFile.exists() || tempFile.length() == 0) {
+                return createBadResponse("No file data received");
+            }
+
+            boolean isOk = DeviceManager.getInstance().installAppInternal(device, tempFile);
+            if (!isOk) {
+                return createBadResponse("Failed to install app");
+            } else {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", true);
+                response.put("message", "App installed successfully");
+                return createJsonResponse(response);
+            }
+        } catch (Exception e) {
+            log.error("handleInstallFile: Failed to upload file", e);
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("error", "Error uploading file: " + e.getMessage());
