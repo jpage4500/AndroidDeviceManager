@@ -22,6 +22,8 @@ public class Colors {
 
     public static final Color COLOR_TOOLBAR_HOVER = new Color(8, 48, 251);
 
+    public static final Color COLOR_SERVER_RUNNING = new Color(24, 134, 0);
+
     // log recording state
     public static final Color COLOR_START_RECORDING = COLOR_ONLINE;
     public static final Color COLOR_STOP_RECORDING = COLOR_BUSY;

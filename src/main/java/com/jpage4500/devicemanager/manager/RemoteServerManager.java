@@ -87,7 +87,7 @@ public class RemoteServerManager {
             PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, port);
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN, this.authToken);
 
-            log.info("startServer: port: {}", port);
+            log.info("startServer: port: {}, token: {}", port, authToken);
             if (listener != null) listener.onServerStarted(port);
         } catch (IOException e) {
             log.error("startServer: error", e);

@@ -6,6 +6,7 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.GithubRelease;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.manager.RemoteServerManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
@@ -1370,7 +1371,32 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             });
 
             if (toolbarButton == ToolbarButton.CONNECT) toolbar.addSeparator();
+            else if (toolbarButton == ToolbarButton.SERVER) updateServerButton();
         }
+    }
+
+    private void updateServerButton() {
+        // find SERVER toolbar button
+        JButton button = getToolbarButton(ToolbarButton.SERVER);
+        if (button != null) {
+            RemoteServerManager server = DeviceManager.getInstance().getRemoteServerManager();
+            BufferedImage image = UiUtils.getImage(ToolbarButton.SERVER.image, UiUtils.IMG_SIZE_TOOLBAR);
+            if (image != null) {
+                if (server.isRunning()) {
+                    image = UiUtils.replaceColor(image, Colors.COLOR_SERVER_RUNNING);
+                }
+                button.setIcon(new ImageIcon(image));
+            }
+        }
+    }
+
+    private JButton getToolbarButton(ToolbarButton toolbarButton) {
+        for (Component component : toolbar.getComponents()) {
+            if (component instanceof JButton button && button.getText().equals(toolbarButton.label)) {
+                return button;
+            }
+        }
+        return null;
     }
 
     private void handleButtonClicked(ToolbarButton toolbarButton, MouseEvent mouseEvent) {
@@ -1388,7 +1414,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             case TERMINAL -> handleTermCommand();
             case ADB -> handleRunCustomCommand();
             case REFRESH -> refreshDevices();
-            case SERVER -> ShareServerDialog.showShareServerDialog(this);
+            case SERVER -> {
+                ShareServerDialog.showShareServerDialog(this);
+                updateServerButton();
+            }
             case SETTINGS -> SettingsDialog.showSettings(DeviceScreen.this);
             default -> log.warn("handleButtonClicked: unhandled button: {}", toolbarButton);
         }

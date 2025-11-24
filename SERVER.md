@@ -12,7 +12,7 @@ server and manage them just like they were physically attached. This includes:
 - Execute ADB shell commands
 - Get and set custom device properties
 - Stream real-time device logs
-
+----
 ## Starting the Server
 
 The server is started from within the app. Click on the SERVER toolbar button and select "Start Server".
@@ -22,6 +22,26 @@ You can change the port and auth token before starting the server or just use th
 
 Once started, the easiest way to connect from another client is to use the "Copy Connection String" button which will
 copy the IP/port/auth token to the clipboard.
+----
+## Running the server in headless mode
+The server can also be run in headless mode from the command line.
+
+```
+java -jar AndroidDeviceManager.jar --server --port 5555 --auth-token "HELLO WORLD"
+```
+
+port and auth token are optional. If not passed, the previously saved values will be used.
+
+If you install Android Device Manager via JDeploy (recommended), here's how to run the server via command line:
+```
+ADM=$(find "$HOME/.jdeploy" -type f -name "AndroidDeviceManager.jar" -printf "%T@ %p\n" \
+    | sort -nr \
+    | head -n 1 \
+    | awk '{print $2}')
+
+java -jar $ADM --server --port 5555 --auth-token "HELLO WORLD"
+```
+----
 
 ## Connecting to the Server
 
