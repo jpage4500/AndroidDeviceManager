@@ -14,9 +14,9 @@ import java.util.zip.InflaterInputStream;
 public class NetworkHelper {
     private static final Logger log = LoggerFactory.getLogger(NetworkHelper.class);
 
-    private static final int CONNECT_TIMEOUT = 5000;
-    private static final int READ_TIMEOUT = 5000;
-    private static final int UPLOAD_TIMEOUT = 1200000; // 2 minute upload timeout since installing files can take a while
+    private static final int CONNECT_TIMEOUT = 10000;   // default connection timeout (10 secs)
+    private static final int READ_TIMEOUT = 20000;      // default read timeout (20 secs)
+    private static final int UPLOAD_TIMEOUT = 1200000;  // longer timeout for actions like uploading files or downloading screenshots
 
     public static class HttpResponse {
         public int status;                          // -1 for error
@@ -101,6 +101,8 @@ public class NetworkHelper {
         Timer timer = new Timer();
         try {
             HttpURLConnection conn = createConnection(urlStr);
+            // wait longer for actions such as screenshot
+            conn.setReadTimeout(UPLOAD_TIMEOUT);
             addHeaders(conn, headers);
 
             response.status = conn.getResponseCode();

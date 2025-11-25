@@ -1072,7 +1072,7 @@ public class DeviceManager {
             PackageManager packageManager = new PackageManager(device.jadbDevice);
             packageManager.install(file);
             log.trace("installAppInternal: DONE:{}", timer);
-            return new Result(true, "success");
+            return new Result(true, null);
         } catch (Exception e) {
             log.error("installAppInternal: {}: ERROR: {}, file:{}", timer, e.getMessage(), file.getAbsolutePath());
             device.status = "failed: " + e.getMessage();

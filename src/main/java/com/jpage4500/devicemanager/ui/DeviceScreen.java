@@ -946,17 +946,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         resultWatcher.showProgressDialog("Installing Apps", desc);
 
         for (File file : fileList) {
-            String filename = file.getName();
             // install on local devices first
             for (Device device : localDeviceList) {
                 setDeviceBusy(device, true);
                 DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
                     setDeviceBusy(device, false);
-                    String msg = String.format("%s: %s -> %s", isSuccess ? "SUCCESS" : "FAILED", filename, device.getDisplayName());
-                    if (!isSuccess && TextUtils.notEmpty(error)) {
-                        msg += " - " + error;
-                    }
-                    resultWatcher.handleResult(device.getDisplayName(), isSuccess, msg);
+                    resultWatcher.handleResult(device.getDisplayName(), isSuccess, error);
                     // if app was installed, refresh device info which might include custom app version column
                     if (isSuccess) DeviceManager.getInstance().fetchDeviceDetails(device, true);
                 });
@@ -966,11 +961,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 deviceList.forEach(device -> setDeviceBusy(device, true));
                 DeviceManager.getInstance().installApp(remoteConnection, deviceList, file, (isSuccess, error) -> {
                     deviceList.forEach(device -> setDeviceBusy(device, false));
-                    String msg = String.format("%s: %s -> %s, %d device(s)", isSuccess ? "SUCCESS" : "FAILED", filename, remoteConnection.getName(), deviceList.size());
-                    if (!isSuccess && TextUtils.notEmpty(error)) {
-                        msg += " - " + error;
-                    }
-                    resultWatcher.handleResult(remoteConnection.getName(), isSuccess, msg);
+                    String label = remoteConnection.getName() + " - " + deviceList.size() + " device(s)";
+                    resultWatcher.handleResult(label, isSuccess, isSuccess ? null : error);
                     // TODO: refresh remote connection's devices
                 });
             });
