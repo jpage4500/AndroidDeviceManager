@@ -6,6 +6,7 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.GithubRelease;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.manager.RemoteConnection;
 import com.jpage4500.devicemanager.manager.RemoteServerManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
@@ -916,27 +917,64 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void installFiles(List<Device> selectedDeviceList, List<File> apkList) {
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size() * apkList.size(), (isSuccess, error) -> {
-            if (isSuccess) {
-                // TODO: prompt to open app
-                // - requires figuring out the package name from .apk (aapt2?)
-            } else {
-                DialogHelper.showDialog(this, "Install Failed", error);
-            }
-        });
+        if (apkList.isEmpty() || selectedDeviceList.isEmpty()) return;
+        // separate out all remote devices so we run 1 install action per remote server/connection
+        Map<RemoteConnection, List<Device>> remoteDeviceMap = new HashMap<>();
+        List<Device> localDeviceList = new ArrayList<>();
         for (Device device : selectedDeviceList) {
-            for (File file : apkList) {
-                String filename = file.getName();
+            if (device.remoteConnection != null) {
+                List<Device> remoteDeviceList = remoteDeviceMap.computeIfAbsent(device.remoteConnection, k -> new ArrayList<>());
+                remoteDeviceList.add(device);
+            } else {
+                localDeviceList.add(device);
+            }
+        }
+
+        int totalActions = localDeviceList.size() * apkList.size(); // # of local installs
+        totalActions += remoteDeviceMap.size() * apkList.size(); // # of remote installs
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), totalActions);
+        String desc = "Installing ";
+        if (apkList.size() > 1) {
+            // multiple files
+            desc += apkList.size() + " files";
+        } else {
+            // 1 file
+            desc += apkList.get(0).getName();
+            //desc = String.format("Installing %s to %d device(s)", apkList.get(0).getName(), selectedDeviceList.size());
+        }
+        if (selectedDeviceList.size() > 1) {
+            // multiple devices
+            desc += " to " + selectedDeviceList.size() + " devices";
+        } else {
+            // single device
+            desc += " to " + selectedDeviceList.get(0).getDisplayName();
+        }
+        resultWatcher.setDesc(desc);
+        resultWatcher.showProgressDialog("Installing Apps", desc);
+
+        for (File file : apkList) {
+            String filename = file.getName();
+            // install on local devices first
+            for (Device device : localDeviceList) {
                 setDeviceBusy(device, true);
                 DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
                     setDeviceBusy(device, false);
-                    resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? filename : error);
-                    if (isSuccess) {
-                        // update device details after installing an app
-                        DeviceManager.getInstance().fetchDeviceDetails(device, true);
-                    }
+                    String msg = String.format("%s: %s -> %s", isSuccess ? "SUCCESS" : "FAILED", filename, device.getDisplayName());
+                    resultWatcher.handleResult(device.serial, isSuccess, msg);
+                    // if app was installed, refresh device info which might include custom app version column
+                    if (isSuccess) DeviceManager.getInstance().fetchDeviceDetails(device, true);
                 });
             }
+            // install on remote devices
+            remoteDeviceMap.forEach((remoteConnection, deviceList) -> {
+                deviceList.forEach(device -> setDeviceBusy(device, true));
+                DeviceManager.getInstance().installApp(remoteConnection, deviceList, file, (isSuccess, error) -> {
+                    deviceList.forEach(device -> setDeviceBusy(device, false));
+                    String msg = String.format("%s: %s -> %s, %d device(s)", isSuccess ? "SUCCESS" : "FAILED", filename, remoteConnection.getName(), deviceList.size());
+                    resultWatcher.handleResult(remoteConnection.getName(), isSuccess, msg);
+                    // TODO: refresh remote connection's devices
+                });
+            });
         }
     }
 

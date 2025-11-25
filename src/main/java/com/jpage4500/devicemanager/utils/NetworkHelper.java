@@ -16,6 +16,7 @@ public class NetworkHelper {
 
     private static final int CONNECT_TIMEOUT = 5000;
     private static final int READ_TIMEOUT = 5000;
+    private static final int UPLOAD_TIMEOUT = 1200000; // 2 minute upload timeout since installing files can take a while
 
     public static class HttpResponse {
         public int status;                          // -1 for error
@@ -38,15 +39,16 @@ public class NetworkHelper {
      */
     public HttpResponse getRequest(String urlStr, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
+        Timer timer = new Timer();
         try {
             HttpURLConnection conn = createConnection(urlStr);
             addHeaders(conn, headers);
 
             response.status = conn.getResponseCode();
             response.body = readResponse(conn);
-            log.trace("getRequest: {}, http:{}", urlStr, response.status);
+            log.trace("getRequest: {}: {}, http:{}", timer, urlStr, response.status);
         } catch (Exception e) {
-            log.error("getRequest: error connecting to hub: {}, {}", urlStr, e.getMessage());
+            log.error("getRequest: {}: Exception: {}, {}", timer, urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
         }
@@ -65,6 +67,7 @@ public class NetworkHelper {
      */
     public HttpResponse postRequest(String urlStr, String body, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
+        Timer timer = new Timer();
         try {
             HttpURLConnection conn = createPostConnection(urlStr);
             addHeaders(conn, headers);
@@ -76,14 +79,14 @@ public class NetworkHelper {
             }
 
             response.status = conn.getResponseCode();
-            log.trace("postRequest: {}, http:{}, body:{}", urlStr, response.status, body);
+            log.trace("postRequest: {}: {}, http:{}, body:{}", timer, urlStr, response.status, body);
             response.body = readResponse(conn);
             // only log body if error
             if (response.status != 200) {
                 log.trace("postRequest: {}", response.body);
             }
         } catch (Exception e) {
-            log.error("postRequest: error connecting to hub: {}, {}", urlStr, e.getMessage());
+            log.error("postRequest: {}: Exception: {}, {}", timer, urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
         }
@@ -95,6 +98,7 @@ public class NetworkHelper {
      */
     public HttpDataResponse download(String urlStr, Map<String, String> headers) {
         HttpDataResponse response = new HttpDataResponse();
+        Timer timer = new Timer();
         try {
             HttpURLConnection conn = createConnection(urlStr);
             addHeaders(conn, headers);
@@ -111,13 +115,13 @@ public class NetworkHelper {
                 }
                 response.data = baos.toByteArray();
                 inputStream.close();
-                log.trace("download: {}, http:{}, size:{} bytes", urlStr, response.status, response.data.length);
+                log.trace("download: {}: {}, http:{}, size:{} bytes", timer, urlStr, response.status, response.data.length);
             } else {
                 log.warn("download: failed, status: {}", response.status);
                 response.body = readResponse(conn);
             }
         } catch (Exception e) {
-            log.error("download: error connecting to hub: {}, {}", urlStr, e.getMessage());
+            log.error("download: {}: Exception: {}, {}", timer, urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
         }
@@ -129,6 +133,7 @@ public class NetworkHelper {
      */
     public HttpResponse downloadFile(String urlStr, File file, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
+        Timer timer = new Timer();
         try {
             HttpURLConnection conn = createConnection(urlStr);
             addHeaders(conn, headers);
@@ -144,8 +149,9 @@ public class NetworkHelper {
             fos.close();
             dis.close();
             response.status = conn.getResponseCode();
+            log.warn("downloadFile: {}: status: {}, file:{}, len:{}", timer, response.status, file.getAbsolutePath(), file.length());
         } catch (Exception e) {
-            log.error("download: error connecting to hub: {}, {}", urlStr, e.getMessage());
+            log.error("download: {}: Exception: {}, {}", timer, urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
         }
@@ -157,8 +163,10 @@ public class NetworkHelper {
      */
     public HttpResponse upload(String urlStr, File file, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
+        Timer timer = new Timer();
         try {
             HttpURLConnection conn = createPostConnection(urlStr);
+            conn.setReadTimeout(UPLOAD_TIMEOUT);
 
             // set content type for file upload
             String boundary = "===" + System.currentTimeMillis() + "===";
@@ -194,7 +202,7 @@ public class NetworkHelper {
             }
 
             response.status = conn.getResponseCode();
-            log.trace("upload: {}, http:{}, file:{}", urlStr, response.status, file.getName());
+            log.trace("upload: {}: {}, http:{}, file:{}", timer, urlStr, response.status, file.getName());
             // read response if available
             response.body = readResponse(conn);
 
@@ -203,7 +211,7 @@ public class NetworkHelper {
                 log.trace("upload: {}", response.body);
             }
         } catch (Exception e) {
-            log.error("upload: error uploading file: {}, {}", urlStr, e.getMessage());
+            log.error("upload: {}: Exception: {}, {}", timer, urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
         }

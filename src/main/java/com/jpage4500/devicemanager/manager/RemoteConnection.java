@@ -6,7 +6,6 @@ import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.NetworkHelper;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -249,8 +248,14 @@ public class RemoteConnection {
         return response.status == 200;
     }
 
-    public boolean installApp(String deviceSerial, File localFile) {
-        String url = serverConfig.getUrl() + RemoteHttpServer.API_INSTALL + "?serial=" + deviceSerial;
+    public boolean installApp(List<String> serialList, File localFile) {
+        String url = serverConfig.getUrl() + RemoteHttpServer.API_INSTALL;
+        for (int i = 0; i < serialList.size(); i++) {
+            String serial = serialList.get(i);
+            if (i == 0) url += "?";
+            else url += "&";
+            url += "serial=" + serial;
+        }
 
         Map<String, String> headers = getDefaultHeaders();
         NetworkHelper.HttpResponse response = networkHelper.upload(url, localFile, headers);

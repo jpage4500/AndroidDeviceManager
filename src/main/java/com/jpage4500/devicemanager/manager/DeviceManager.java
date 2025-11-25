@@ -1034,6 +1034,9 @@ public class DeviceManager {
         }
     }
 
+    /**
+     * install file to given device
+     */
     public void installApp(Device device, File file, TaskListener listener) {
         commandExecutorService.submit(() -> {
             boolean isOk = installAppInternal(device, file);
@@ -1041,12 +1044,25 @@ public class DeviceManager {
         });
     }
 
+    /**
+     * special version of installApp which can install 1 file to multiple devices remotely without needing to upload the file multiple times
+     */
+    public void installApp(RemoteConnection connection, List<Device> deviceList, File file, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            // convert list to serials
+            List<String> serialList = new ArrayList<>();
+            for (Device device : deviceList) serialList.add(device.serial);
+            boolean isOk = connection.installApp(serialList, file);
+            if (listener != null) listener.onTaskComplete(isOk, null);
+        });
+    }
+
     public boolean installAppInternal(Device device, File file) {
         if (device.remoteConnection != null) {
-            return device.remoteConnection.installApp(device.serial, file);
+            return device.remoteConnection.installApp(List.of(device.serial), file);
         }
         Timer timer = new Timer();
-        log.trace("installAppInternal: file:{}, size:{}", file.getName(), file.length());
+        log.trace("installAppInternal: file:{}, size:{}", file.getName(), Utils.bytesToDisplayString(file.length()));
         try {
             PackageManager packageManager = new PackageManager(device.jadbDevice);
             packageManager.install(file);

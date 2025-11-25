@@ -16,6 +16,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -438,11 +439,22 @@ public class RemoteHttpServer extends NanoWSD {
      * Body: raw file data
      */
     private Response handleInstallFile(IHTTPSession session) {
-        Map<String, String> params = session.getParms();
-        Device device = getDeviceParam(params);
-        if (device == null) {
+        // NOTE: same key is used multiple times to need to use getParameters()
+        Map<String, List<String>> paramMap = session.getParameters();
+        List<String> deviceIdList = paramMap.get("serial");
+        if (deviceIdList == null || deviceIdList.isEmpty()) {
             return createNotFoundResponse("Device not found");
         }
+        // convert to list of Device's
+        List<Device> devices = new ArrayList<>();
+        for (String deviceId : deviceIdList) {
+            Device device = DeviceManager.getInstance().getDevice(deviceId);
+            if (device != null) devices.add(device);
+        }
+        if (devices.isEmpty()) {
+            return createNotFoundResponse("Device not found");
+        }
+        log.trace("handleInstallFile: devices:{}", GsonHelper.toJson(deviceIdList));
 
         try {
             // create a temporary file to receive the upload
@@ -476,8 +488,14 @@ public class RemoteHttpServer extends NanoWSD {
                 return createBadResponse("No file data received");
             }
 
-            boolean isOk = DeviceManager.getInstance().installAppInternal(device, tempFile);
-            if (!isOk) {
+            // install to all devices
+            List<Boolean> results = new ArrayList<>();
+            for (Device device : devices) {
+                boolean isOk = DeviceManager.getInstance().installAppInternal(device, tempFile);
+                results.add(isOk);
+            }
+            boolean isAnyErrors = results.contains(false);
+            if (isAnyErrors) {
                 return createBadResponse("Failed to install app");
             } else {
                 Map<String, Object> response = new HashMap<>();
