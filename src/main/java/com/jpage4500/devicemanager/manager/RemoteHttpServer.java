@@ -3,10 +3,7 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogFilter;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
-import com.jpage4500.devicemanager.utils.TextUtils;
-import com.jpage4500.devicemanager.utils.Utils;
+import com.jpage4500.devicemanager.utils.*;
 import fi.iki.elonen.NanoWSD;
 import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
@@ -380,39 +377,20 @@ public class RemoteHttpServer extends NanoWSD {
             return createBadResponse("Missing path, or file parameter");
         }
 
+        Timer timer = new Timer();
         try {
             // create a temporary file to receive the upload
             File tempFile = File.createTempFile("device_upload_", "_" + filename);
             tempFile.deleteOnExit();
 
-            // parse the body and save to temp file
-            Map<String, String> files = new HashMap<>();
-            session.parseBody(files);
-
-            // the uploaded file data is in the postData
-            String postData = files.get("postData");
-            if (postData != null && !postData.isEmpty()) {
-                // write the data to temp file
-                try (FileOutputStream fos = new FileOutputStream(tempFile)) {
-                    fos.write(postData.getBytes(StandardCharsets.ISO_8859_1));
-                }
-            } else {
-                // try to get the uploaded file from the files map
-                String tmpFilePath = files.get("file");
-                if (tmpFilePath != null) {
-                    File uploadedFile = new File(tmpFilePath);
-                    if (uploadedFile.exists()) {
-                        // copy to our temp file
-                        Files.copy(uploadedFile.toPath(), tempFile.toPath(),
-                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    }
-                }
-            }
-
+            downloadFile(session, tempFile);
             if (!tempFile.exists() || tempFile.length() == 0) {
                 return createBadResponse("No file data received");
             }
 
+            log.trace("handleUploadFile: {}: file:{}, path:{}, size:{}", timer, filename, path, tempFile.length());
+
+            // TODO: move jadbDevice to DeviceManager
             // use jadb to push the file to the device
             se.vidstige.jadb.RemoteFile remoteFile = new se.vidstige.jadb.RemoteFileRecord(path, filename, 0, 0, 0);
             device.jadbDevice.push(tempFile, remoteFile);
@@ -421,15 +399,10 @@ public class RemoteHttpServer extends NanoWSD {
             response.put("success", true);
             response.put("message", "File uploaded successfully");
             response.put("path", path + "/" + filename);
-
             return createJsonResponse(response);
         } catch (Exception e) {
             log.error("handleUploadFile: Failed to upload file", e);
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("error", "Error uploading file: " + e.getMessage());
-            String json = GsonHelper.toJson(response);
-            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_JSON, json);
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "Error uploading file: " + e.getMessage());
         }
     }
 
@@ -461,55 +434,53 @@ public class RemoteHttpServer extends NanoWSD {
             File tempFile = File.createTempFile("install", ".apk");
             tempFile.deleteOnExit();
 
-            // parse the body and save to temp file
-            Map<String, String> files = new HashMap<>();
-            session.parseBody(files);
-
-            // the uploaded file data is in the postData
-            String postData = files.get("postData");
-            if (postData != null && !postData.isEmpty()) {
-                // write the data to temp file
-                try (FileOutputStream fos = new FileOutputStream(tempFile)) {
-                    fos.write(postData.getBytes(StandardCharsets.ISO_8859_1));
-                }
-            } else {
-                // try to get the uploaded file from the files map
-                String tmpFilePath = files.get("file");
-                if (tmpFilePath != null) {
-                    File uploadedFile = new File(tmpFilePath);
-                    if (uploadedFile.exists()) {
-                        // copy to our temp file
-                        Files.copy(uploadedFile.toPath(), tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    }
-                }
-            }
+            downloadFile(session, tempFile);
 
             if (!tempFile.exists() || tempFile.length() == 0) {
                 return createBadResponse("No file data received");
             }
 
             // install to all devices
-            List<Boolean> results = new ArrayList<>();
+            List<DeviceManager.Result> results = new ArrayList<>();
+            boolean isSuccess = true;
             for (Device device : devices) {
-                boolean isOk = DeviceManager.getInstance().installAppInternal(device, tempFile);
-                results.add(isOk);
+                DeviceManager.Result result = DeviceManager.getInstance().installAppInternal(device, tempFile);
+                if (!result.isSuccess) isSuccess = false;
+                results.add(result);
             }
-            boolean isAnyErrors = results.contains(false);
-            if (isAnyErrors) {
-                return createBadResponse("Failed to install app");
+            if (!isSuccess) {
+                return createBadResponse("Failed to install app: " + GsonHelper.toJson(results));
             } else {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", true);
-                response.put("message", "App installed successfully");
-                return createJsonResponse(response);
+                return createJsonResponse(results);
             }
         } catch (Exception e) {
-            log.error("handleInstallFile: Failed to upload file", e);
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("error", "Error uploading file: " + e.getMessage());
-            String json = GsonHelper.toJson(response);
-            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_JSON, json);
+            log.error("handleInstallFile: Exception: {}", e.getMessage());
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, e.getMessage());
+        }
+    }
+
+    private void downloadFile(IHTTPSession session, File file) throws ResponseException, IOException {
+        // parse the body and save to temp file
+        Map<String, String> files = new HashMap<>();
+        session.parseBody(files);
+
+        // the uploaded file data is in the postData
+        String postData = files.get("postData");
+        if (postData != null && !postData.isEmpty()) {
+            // write the data to temp file
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(postData.getBytes(StandardCharsets.ISO_8859_1));
+            }
+        } else {
+            // try to get the uploaded file from the files map
+            String tmpFilePath = files.get("file");
+            if (tmpFilePath != null) {
+                File uploadedFile = new File(tmpFilePath);
+                if (uploadedFile.exists()) {
+                    // copy to our temp file
+                    Files.copy(uploadedFile.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
         }
     }
 

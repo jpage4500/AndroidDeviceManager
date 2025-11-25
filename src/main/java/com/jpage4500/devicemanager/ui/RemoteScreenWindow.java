@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteConnection;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.AndroidKeyMapper;
@@ -35,6 +36,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
     private final Device device;
     private final RemoteConnection remoteConnection;
+    private DeviceManager.TaskListener listener;
     // Connection state + reconnect
     private boolean connected = false;     // true after first frame arrives
     private Timer reconnectTimer;          // schedules a reconnect attempt
@@ -98,10 +100,11 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         }
     }
 
-    public RemoteScreenWindow(Device device) {
+    public RemoteScreenWindow(Device device, DeviceManager.TaskListener listener) {
         super("RemoteScreenWindow", 600, 900);
 
         this.device = device;
+        this.listener = listener;
         this.remoteConnection = device.remoteConnection;
 
         setTitle("Mirror: " + device.getDisplayName());
@@ -179,6 +182,8 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             cleanup();
             saveFrameSize();
             dispose();
+
+            listener.onTaskComplete(true, null);
         }
     }
 
@@ -529,7 +534,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
         private void handleKeyPressed(KeyEvent e) {
             int keyCode = e.getKeyCode();
-            
+
             // check for CMD+C (Mac) or CTRL+C (other platforms) to copy image
             boolean isMetaDown = e.isMetaDown() || e.isControlDown();
             if (isMetaDown && keyCode == KeyEvent.VK_C) {
@@ -537,14 +542,14 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 e.consume();
                 return;
             }
-            
+
             // check for CMD+S (Mac) or CTRL+S (other platforms) to save image
             if (isMetaDown && keyCode == KeyEvent.VK_S) {
                 saveImageToFile();
                 e.consume();
                 return;
             }
-            
+
             if (!isInputAllowed()) return;
 
             // map to Android keycode
@@ -567,7 +572,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 statusBar.setCenterLabel("No image to copy");
                 return;
             }
-            
+
             try {
                 Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                 ImageTransferable transferable = new ImageTransferable(currentImage);
@@ -586,30 +591,30 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 statusBar.setCenterLabel("No image to save");
                 return;
             }
-            
+
             // create file chooser
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setDialogTitle("Save Screenshot");
-            
+
             // set default filename with timestamp
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
             String defaultName = device.getDisplayName().replaceAll("[^a-zA-Z0-9.-]", "_") + "_" + sdf.format(new Date()) + ".png";
             fileChooser.setSelectedFile(new File(defaultName));
-            
+
             // set file filter
             FileNameExtensionFilter filter = new FileNameExtensionFilter("PNG Images (*.png)", "png");
             fileChooser.setFileFilter(filter);
-            
+
             // show save dialog
             int result = fileChooser.showSaveDialog(RemoteScreenWindow.this);
             if (result == JFileChooser.APPROVE_OPTION) {
                 File file = fileChooser.getSelectedFile();
-                
+
                 // ensure .png extension
                 if (!file.getName().toLowerCase().endsWith(".png")) {
                     file = new File(file.getAbsolutePath() + ".png");
                 }
-                
+
                 try {
                     ImageIO.write(currentImage, "png", file);
                     log.debug("saveImageToFile: image saved to {}", file.getAbsolutePath());
@@ -619,7 +624,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                     statusBar.setCenterLabel("Error saving image");
                     JOptionPane.showMessageDialog(RemoteScreenWindow.this,
                         "Failed to save image: " + ex.getMessage(),
-                        "Save Error", 
+                        "Save Error",
                         JOptionPane.ERROR_MESSAGE);
                 }
             }

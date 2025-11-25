@@ -17,18 +17,30 @@ public class ResultWatcher {
     private final int numResults;
     private AtomicInteger counter = new AtomicInteger();
     private DeviceManager.TaskListener listener;
-    private String desc;
     private final List<Result> resultList = new ArrayList<>();
 
     static class Result {
         String device;
-        boolean isSucess;
+        boolean isSuccess;
         String message;
 
-        public Result(String device, boolean isSucess, String message) {
+        public Result(String device, boolean isSuccess, String message) {
             this.device = device;
-            this.isSucess = isSucess;
+            this.isSuccess = isSuccess;
             this.message = message;
+        }
+
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(isSuccess ? "✅" : "❌").append(" ");
+            if (TextUtils.notEmpty(device)) {
+                sb.append(device);
+            }
+            if (TextUtils.notEmpty(message)) {
+                sb.append(": ");
+                sb.append(message);
+            }
+            return sb.toString();
         }
     }
 
@@ -36,8 +48,8 @@ public class ResultWatcher {
     private JDialog progressDialog;
     private JProgressBar progressBar;
     private JLabel progressLabel;
-    private JTextArea failureArea;
-    private JScrollPane failureScroll;
+    private JTextArea descArea;
+    private JScrollPane descScroll;
     private JButton closeButton;
     private boolean showProgress;
 
@@ -56,10 +68,6 @@ public class ResultWatcher {
         this.component = component;
         this.numResults = numResults;
         this.listener = listener;
-    }
-
-    public void setDesc(String desc) {
-        this.desc = desc;
     }
 
     /**
@@ -97,14 +105,14 @@ public class ResultWatcher {
             panel.add(progressLabel);
             panel.add(Box.createVerticalStrut(10));
 
-            failureArea = new JTextArea(6, 50);
-            failureArea.setEditable(false);
-            failureArea.setLineWrap(true);
-            failureArea.setWrapStyleWord(true);
-            failureScroll = new JScrollPane(failureArea, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-            failureScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-            failureScroll.setVisible(false); // only visible when failures happen
-            panel.add(failureScroll);
+            descArea = new JTextArea(6, 50);
+            descArea.setEditable(false);
+            descArea.setLineWrap(true);
+            descArea.setWrapStyleWord(true);
+            descScroll = new JScrollPane(descArea, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+            descScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+            descScroll.setVisible(false);
+            panel.add(descScroll);
 
             closeButton = new JButton("Close");
             closeButton.setEnabled(false);
@@ -126,7 +134,6 @@ public class ResultWatcher {
                 progressDialog.setLocationRelativeTo(null);
             }
             progressDialog.setResizable(false);
-            progressDialog.setAlwaysOnTop(true);
             progressDialog.setVisible(true);
         });
     }
@@ -136,8 +143,9 @@ public class ResultWatcher {
     }
 
     public boolean handleResult(String device, boolean isSuccess, String message) {
+        Result result = new Result(device, isSuccess, message);
         synchronized (resultList) {
-            resultList.add(new Result(device, isSuccess, message));
+            resultList.add(result);
         }
         int count = counter.incrementAndGet();
 
@@ -145,21 +153,15 @@ public class ResultWatcher {
             SwingUtilities.invokeLater(() -> {
                 if (progressBar != null) progressBar.setValue(count);
                 if (progressLabel != null) progressLabel.setText(formatProgressText(count));
-                if (!isSuccess) {
-                    // show failure details
-                    if (failureArea != null && failureScroll != null) {
-                        if (!failureScroll.isVisible()) {
-                            failureScroll.setVisible(true);
-                            // repack dialog to show new area
-                            if (progressDialog != null) progressDialog.pack();
-                        }
-                        StringBuilder sb = new StringBuilder();
-                        sb.append(device != null ? device + ": " : "");
-                        if (message != null) sb.append(message);
-                        else sb.append("Error");
-                        sb.append("\n");
-                        failureArea.append(sb.toString());
+                // show failure details
+                if (descArea != null && descScroll != null) {
+                    if (!descScroll.isVisible()) {
+                        descScroll.setVisible(true);
+                        if (progressDialog != null) progressDialog.pack();
+                    } else {
+                        descArea.append("\n");
                     }
+                    descArea.append(result.toString());
                 }
             });
         }
@@ -167,47 +169,25 @@ public class ResultWatcher {
         if (count == numResults) {
             // DONE!
             SwingUtilities.invokeLater(() -> {
-                boolean isError = false;
-                StringBuilder sb = new StringBuilder();
-                if (desc != null) sb.append(desc).append("\n\n");
-                for (int i = 0; i < resultList.size(); i++) {
-                    Result result = resultList.get(i);
-                    if (!result.isSucess) {
-                        isError = true;
-                        // collect only failures for summary per requirement
-                        sb.append(result.device != null ? result.device + ": " : "");
-                        if (result.message != null) sb.append(result.message);
-                        else sb.append("Error");
-                        sb.append("\n");
-                    }
-                }
-
+                boolean isError = resultList.stream().anyMatch(r -> !r.isSuccess);
                 if (showProgress) {
                     if (progressDialog != null) {
-                        if (!isError) {
-                            // auto-close if no errors
-                            progressDialog.dispose();
-                        } else {
-                            progressDialog.setAlwaysOnTop(false);
-                            progressDialog.setTitle("Completed with Errors");
-                            progressLabel.setText("Completed: " + formatProgressText(count));
-                            closeButton.setEnabled(true);
-                            // if failures already shown leave dialog open
-                            if (failureArea != null && failureScroll != null && !failureScroll.isVisible()) {
-                                failureScroll.setVisible(true);
-                                failureArea.append(sb.toString());
-                                progressDialog.pack();
-                            }
-                        }
+                        progressDialog.setTitle("DONE: " + progressDialog.getTitle());
+                        closeButton.setEnabled(true);
                     }
-                }
-
-                if (listener != null) {
-                    // pass either success or error details (only failures listed)
-                    listener.onTaskComplete(!isError, isError ? sb.toString() : null);
-                } else if (isError && !showProgress) {
-                    // show error if no progress dialog
-                    if (!sb.isEmpty()) DialogHelper.showTextDialog(component, "Results", sb.toString());
+                } else {
+                    // not showing progress - only show dialog if error and no listener
+                    StringBuilder sb = new StringBuilder();
+                    for (Result r : resultList) {
+                        sb.append(r.toString()).append("\n");
+                    }
+                    if (listener != null) {
+                        // pass either success or error details (only failures listed)
+                        listener.onTaskComplete(!isError, sb.toString());
+                    } else if (isError && !showProgress) {
+                        // show error if no progress dialog
+                        if (!sb.isEmpty()) DialogHelper.showTextDialog(component, "Results", sb.toString());
+                    }
                 }
             });
             return true;

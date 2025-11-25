@@ -162,7 +162,6 @@ public class CommandDialog extends JPanel {
             resultsLabel.setText(msg);
             resultsMsg = error;
         });
-        resultWatcher.setDesc("-- COMMAND -- \n" + command);
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().runCustomCommand(device, command, (result) -> {
                 String displayStr = TextUtils.join(result.resultList, "\n");

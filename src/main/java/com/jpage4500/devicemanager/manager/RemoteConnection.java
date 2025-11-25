@@ -248,8 +248,9 @@ public class RemoteConnection {
         return response.status == 200;
     }
 
-    public boolean installApp(List<String> serialList, File localFile) {
+    public DeviceManager.Result installApp(List<String> serialList, File localFile) {
         String url = serverConfig.getUrl() + RemoteHttpServer.API_INSTALL;
+        // support multiple devices
         for (int i = 0; i < serialList.size(); i++) {
             String serial = serialList.get(i);
             if (i == 0) url += "?";
@@ -259,7 +260,7 @@ public class RemoteConnection {
 
         Map<String, String> headers = getDefaultHeaders();
         NetworkHelper.HttpResponse response = networkHelper.upload(url, localFile, headers);
-        return response.status == 200;
+        return new DeviceManager.Result(response.status == 200, response.body);
     }
 
     public RemoteServerConfig getServerConfig() {

@@ -28,7 +28,10 @@ import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -898,26 +901,28 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void copyFiles(List<Device> selectedDeviceList, List<File> fileList) {
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
+        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), null);
+        String desc = "Copying ";
+        if (fileList.size() > 1) desc += fileList.size() + " files";
+        else desc += fileList.get(0).getName();
+        if (selectedDeviceList.size() > 1) desc += " to " + selectedDeviceList.size() + " devices";
+        else desc += " to " + selectedDeviceList.get(0).getDisplayName();
+        resultWatcher.showProgressDialog("Copying Files", desc);
 
-        });
-        String desc = String.format("Copying %d file(s) to %d device(s)", fileList.size(), selectedDeviceList.size());
-        resultWatcher.setDesc(desc);
         // TODO: where to put files on device?
         String destFolder = "/sdcard/Download/";
         for (Device device : selectedDeviceList) {
             setDeviceBusy(device, true);
             DeviceManager.getInstance().copyFiles(device, fileList, destFolder, (numCompleted, numTotal, msg) -> {
-                // TOOD: show progress
             }, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.serial, isSuccess, error);
+                resultWatcher.handleResult(device.getDisplayName(), isSuccess, error);
             });
         }
     }
 
-    private void installFiles(List<Device> selectedDeviceList, List<File> apkList) {
-        if (apkList.isEmpty() || selectedDeviceList.isEmpty()) return;
+    private void installFiles(List<Device> selectedDeviceList, List<File> fileList) {
+        if (fileList.isEmpty() || selectedDeviceList.isEmpty()) return;
         // separate out all remote devices so we run 1 install action per remote server/connection
         Map<RemoteConnection, List<Device>> remoteDeviceMap = new HashMap<>();
         List<Device> localDeviceList = new ArrayList<>();
@@ -930,29 +935,17 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
         }
 
-        int totalActions = localDeviceList.size() * apkList.size(); // # of local installs
-        totalActions += remoteDeviceMap.size() * apkList.size(); // # of remote installs
+        int totalActions = localDeviceList.size() * fileList.size(); // # of local installs
+        totalActions += remoteDeviceMap.size() * fileList.size(); // # of remote installs
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), totalActions);
         String desc = "Installing ";
-        if (apkList.size() > 1) {
-            // multiple files
-            desc += apkList.size() + " files";
-        } else {
-            // 1 file
-            desc += apkList.get(0).getName();
-            //desc = String.format("Installing %s to %d device(s)", apkList.get(0).getName(), selectedDeviceList.size());
-        }
-        if (selectedDeviceList.size() > 1) {
-            // multiple devices
-            desc += " to " + selectedDeviceList.size() + " devices";
-        } else {
-            // single device
-            desc += " to " + selectedDeviceList.get(0).getDisplayName();
-        }
-        resultWatcher.setDesc(desc);
+        if (fileList.size() > 1) desc += fileList.size() + " files";
+        else desc += fileList.get(0).getName();
+        if (selectedDeviceList.size() > 1) desc += " to " + selectedDeviceList.size() + " devices";
+        else desc += " to " + selectedDeviceList.get(0).getDisplayName();
         resultWatcher.showProgressDialog("Installing Apps", desc);
 
-        for (File file : apkList) {
+        for (File file : fileList) {
             String filename = file.getName();
             // install on local devices first
             for (Device device : localDeviceList) {
@@ -960,7 +953,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
                     setDeviceBusy(device, false);
                     String msg = String.format("%s: %s -> %s", isSuccess ? "SUCCESS" : "FAILED", filename, device.getDisplayName());
-                    resultWatcher.handleResult(device.serial, isSuccess, msg);
+                    if (!isSuccess && TextUtils.notEmpty(error)) {
+                        msg += " - " + error;
+                    }
+                    resultWatcher.handleResult(device.getDisplayName(), isSuccess, msg);
                     // if app was installed, refresh device info which might include custom app version column
                     if (isSuccess) DeviceManager.getInstance().fetchDeviceDetails(device, true);
                 });
@@ -971,6 +967,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 DeviceManager.getInstance().installApp(remoteConnection, deviceList, file, (isSuccess, error) -> {
                     deviceList.forEach(device -> setDeviceBusy(device, false));
                     String msg = String.format("%s: %s -> %s, %d device(s)", isSuccess ? "SUCCESS" : "FAILED", filename, remoteConnection.getName(), deviceList.size());
+                    if (!isSuccess && TextUtils.notEmpty(error)) {
+                        msg += " - " + error;
+                    }
                     resultWatcher.handleResult(remoteConnection.getName(), isSuccess, msg);
                     // TODO: refresh remote connection's devices
                 });
@@ -1049,7 +1048,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                         log.error("captureScreenshot: {}", e.getMessage());
                     }
                 }
-                resultWatcher.handleResult(device.serial, isSuccess, null);
+                resultWatcher.handleResult(device.getDisplayName(), isSuccess, null);
             });
         }
     }
@@ -1247,7 +1246,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             setDeviceBusy(device, true);
             DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
+                resultWatcher.handleResult(device.getDisplayName(), isSuccess, isSuccess ? null : error);
             });
         }
     }
@@ -1269,7 +1268,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             setDeviceBusy(device, true);
             DeviceManager.getInstance().recordScreen(device, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
+                resultWatcher.handleResult(device.getDisplayName(), isSuccess, isSuccess ? null : error);
             });
         }
     }

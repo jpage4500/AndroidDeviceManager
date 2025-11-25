@@ -768,6 +768,16 @@ public class DeviceManager {
         return remoteServerManager;
     }
 
+    public static class Result {
+        public boolean isSuccess;
+        public String result;
+
+        public Result(boolean isSuccess, String result) {
+            this.isSuccess = isSuccess;
+            this.result = result;
+        }
+    }
+
     public static class ShellResult {
         public boolean isSuccess;
         public List<String> resultList;
@@ -847,18 +857,13 @@ public class DeviceManager {
      * run scrcpy app to mirror device
      */
     public void mirrorDevice(Device device, TaskListener listener) {
-        // handle remote devices differently
-        if (device.remoteConnection != null) {
-            log.debug("mirrorDevice: remote device: {}", device.getDisplayName());
-            RemoteScreenWindow window = new RemoteScreenWindow(device);
-            window.setVisible(true);
-            // TODO: wait for window to close before calling listener.onTaskComplete()
-            listener.onTaskComplete(true, null);
-            return;
-        }
-
-        // local device - use scrcpy
         commandExecutorService.submit(() -> {
+            // handle remote devices differently
+            if (device.remoteConnection != null) {
+                RemoteScreenWindow window = new RemoteScreenWindow(device, listener);
+                window.setVisible(true);
+                return;
+            }
             log.debug("mirrorDevice: {}", device.getDisplayName());
             AppResult appResult = null;
             File scriptFile = getScriptFile(SCRIPT_MIRROR);
@@ -1039,8 +1044,8 @@ public class DeviceManager {
      */
     public void installApp(Device device, File file, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            boolean isOk = installAppInternal(device, file);
-            if (listener != null) listener.onTaskComplete(isOk, null);
+            Result result = installAppInternal(device, file);
+            if (listener != null) listener.onTaskComplete(result.isSuccess, result.result);
         });
     }
 
@@ -1052,12 +1057,12 @@ public class DeviceManager {
             // convert list to serials
             List<String> serialList = new ArrayList<>();
             for (Device device : deviceList) serialList.add(device.serial);
-            boolean isOk = connection.installApp(serialList, file);
-            if (listener != null) listener.onTaskComplete(isOk, null);
+            Result result = connection.installApp(serialList, file);
+            if (listener != null) listener.onTaskComplete(result.isSuccess, result.result);
         });
     }
 
-    public boolean installAppInternal(Device device, File file) {
+    public Result installAppInternal(Device device, File file) {
         if (device.remoteConnection != null) {
             return device.remoteConnection.installApp(List.of(device.serial), file);
         }
@@ -1067,11 +1072,11 @@ public class DeviceManager {
             PackageManager packageManager = new PackageManager(device.jadbDevice);
             packageManager.install(file);
             log.trace("installAppInternal: DONE:{}", timer);
-            return true;
+            return new Result(true, "success");
         } catch (Exception e) {
-            log.error("installApp: {}: ERROR: {}, file:{}", timer, e.getMessage(), file.getAbsolutePath());
+            log.error("installAppInternal: {}: ERROR: {}, file:{}", timer, e.getMessage(), file.getAbsolutePath());
             device.status = "failed: " + e.getMessage();
-            return false;
+            return new Result(false, e.getMessage());
         }
     }
 
