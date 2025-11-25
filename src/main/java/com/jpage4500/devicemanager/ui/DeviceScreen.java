@@ -1694,7 +1694,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             logsScreen = new ViewLogsScreen(this, selectedDevice);
             logsViewMap.put(selectedDevice.serial, logsScreen);
         }
-        logsScreen.show();
+        logsScreen.setVisible(true);
     }
 
     private void handleSaveLogsCommand() {

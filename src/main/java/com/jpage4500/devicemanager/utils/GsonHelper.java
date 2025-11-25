@@ -50,8 +50,8 @@ public class GsonHelper {
                 ListType<T> list = new ListType<>(classOfT);
                 return getInstance().fromJson(string, list);
             } catch (Exception e) {
-                //log.error("stringToList: JsonSyntaxException: {}, {}", string, e.getMessage());
-                log.error("stringToList: JsonSyntaxException: {}, {}", string, e.getMessage());
+                log.error("stringToList: {}", e.getMessage());
+                if (log.isTraceEnabled()) log.trace("stringToList: {}", string);
             }
         }
         // create new list
@@ -68,7 +68,8 @@ public class GsonHelper {
                 SetType<T> list = new SetType<>(classOfT);
                 return getInstance().fromJson(string, list);
             } catch (Exception e) {
-                log.error("stringToList: JsonSyntaxException: {}, {}", string, e.getMessage());
+                log.error("stringToSet: {}", e.getMessage());
+                if (log.isTraceEnabled()) log.trace("stringToSet: {}", string);
             }
         }
         // create new set
@@ -85,7 +86,8 @@ public class GsonHelper {
                 MapType<T, K> list = new MapType<>(keyClass, valueClass);
                 return getInstance().fromJson(string, list);
             } catch (Exception e) {
-                log.error("stringToMap: JsonSyntaxException: {}, {}", string, e.getMessage());
+                log.error("stringToMap: {}", e.getMessage());
+                if (log.isTraceEnabled()) log.trace("stringToMap: {}", string);
             }
         }
         // create new list
@@ -96,13 +98,14 @@ public class GsonHelper {
      * @return Object of class T, re-created from JSON string
      * NOTE: **can** be null
      */
-    public static <T> T fromJson(String json, Class<T> classOfT) {
-        if (json == null || json.isEmpty()) return null;
+    public static <T> T fromJson(String string, Class<T> classOfT) {
+        if (string == null || string.isEmpty()) return null;
         try {
-            Object object = getInstance().fromJson(json, (Type) classOfT);
+            Object object = getInstance().fromJson(string, (Type) classOfT);
             return Primitives.wrap(classOfT).cast(object);
         } catch (Exception e) {
-            log.error("fromJson: {}, {}", json, e.getMessage());
+            log.error("fromJson: {}", e.getMessage());
+            if (log.isTraceEnabled()) log.trace("fromJson: {}", string);
             return null;
         }
     }

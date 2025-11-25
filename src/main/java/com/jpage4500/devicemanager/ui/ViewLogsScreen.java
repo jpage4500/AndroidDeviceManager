@@ -11,7 +11,6 @@ import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
-import com.jpage4500.devicemanager.ui.dialog.RemoteFilterDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
@@ -72,16 +71,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public JButton quickViewButton;
     public boolean isQuickViewEnabled; // true when user clicks on 'quick view'
 
-    private boolean loggingRequested; // guard against duplicate startLogging calls
-
-    private JPanel leftPanel; // reference to left filter panel for show/hide
-    private JSplitPane splitPane; // main split pane
-
     public ViewLogsScreen(DeviceScreen deviceScreen, Device device) {
         super("logs-" + device.serial, 1100, 800);
         this.deviceScreen = deviceScreen;
         this.device = device;
-        //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initalizeUi();
         updateDevice(device);
@@ -90,7 +83,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public void updateDevice(Device device) {
         this.device = device;
         log.trace("updateDeviceState: ONLINE:{}", device.isOnline);
-        hideFilterPanel();
         if (device.isOnline) {
             setTitle("Logs: [" + device.getDisplayName() + "]");
             startLogging();
@@ -113,7 +105,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         mainPanel.add(toolbar, BorderLayout.NORTH);
 
         // ** left panel **
-        leftPanel = new JPanel(new BorderLayout());
+        JPanel leftPanel = new JPanel(new BorderLayout());
 
         // -- filter text --
         filterField = new HintTextField(HINT_FILTER, this::doFilter);
@@ -142,7 +134,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         setupStatusBar();
         mainPanel.add(statusBar, BorderLayout.SOUTH);
 
-        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         splitPane.setLeftComponent(leftPanel);
         splitPane.setRightComponent(rightPanel);
         mainPanel.add(splitPane, BorderLayout.CENTER);
@@ -738,38 +730,19 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void stopLogging() {
-        deviceScreen.setDeviceBusy(device, false);
         DeviceManager.getInstance().stopLogging(device);
-        loggingRequested = false; // allow future start attempts
     }
 
     private void startLogging() {
         if (!device.isOnline) return;
-        // prevent duplicate invocations while setup/filter dialog in progress
-        if (loggingRequested) {
-            log.trace("startLogging: already requested; ignoring");
-            return;
-        }
         // if already actively logging, skip
         if (DeviceManager.getInstance().isLogging(device)) {
             log.trace("startLogging: already logging; ignoring");
             return;
         }
-        loggingRequested = true;
         String lastLogTime = model.getLastLogTime();
-        String filterText = null;
 
-        if (device.remoteConnection != null) {
-            filterText = RemoteFilterDialog.showFilterDialog(this, device);
-            if (TextUtils.isEmpty(filterText)) {
-                log.debug("startLogging: remote filter canceled/empty");
-                //loggingRequested = false;
-                closeWindow();
-                return;
-            }
-        }
-        deviceScreen.setDeviceBusy(device, true);
-        DeviceManager.getInstance().startLogging(device, lastLogTime, filterText, this);
+        DeviceManager.getInstance().startLogging(device, lastLogTime, null, this);
     }
 
     private void refreshUi() {
@@ -1152,24 +1125,4 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         SwingUtilities.invokeLater(() -> model.setProcessMap(processMap));
     }
 
-    /**
-     * show/hide filter panel; not showing for remote devices
-     */
-    private void hideFilterPanel() {
-        if (leftPanel == null || splitPane == null) return;
-        boolean isRemote = device != null && device.remoteConnection != null;
-        if (isRemote) {
-            leftPanel.setVisible(false);
-            leftPanel.setPreferredSize(new Dimension(0, 0));
-            splitPane.setDividerSize(0);
-            splitPane.setDividerLocation(0);
-        } else {
-            leftPanel.setVisible(true);
-            splitPane.setDividerSize(8);
-            // only set if divider currently collapsed
-            if (splitPane.getDividerLocation() < 50) {
-                splitPane.setDividerLocation(250);
-            }
-        }
-    }
 }
