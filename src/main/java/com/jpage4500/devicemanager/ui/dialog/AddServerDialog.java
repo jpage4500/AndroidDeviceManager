@@ -64,44 +64,45 @@ public class AddServerDialog {
         panel.add(enabledCheckbox, "skip 1, wrap");
 
         String title = existingServer == null ? "Add Server" : "Edit Server";
-        boolean confirmed = DialogHelper.showCustomDialog(parent, panel, title, null);
-        if (!confirmed) return null;
+        String actionButton = existingServer == null ? "Add" : "Save";
 
-        // validate
-        String name = nameField.getText().trim();
-        String host = hostField.getText().trim();
-        String portStr = portField.getText().trim();
-        String token = tokenField.getText().trim();
+        // Loop until valid input or user cancels
+        while (true) {
+            int result = JOptionPane.showOptionDialog(parent, panel, title, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE, null, new Object[]{actionButton, "Cancel"}, actionButton);
+            if (result != JOptionPane.OK_OPTION) return null;
 
-        if (name.isEmpty() || host.isEmpty() || portStr.isEmpty()) {
-            DialogHelper.showDialog(parent, "Validation Error", "Please fill in all required fields");
-            return null;
-        }
+            // Validate input
+            String name = nameField.getText().trim();
+            String host = hostField.getText().trim();
+            String portStr = portField.getText().trim();
+            String token = tokenField.getText().trim();
 
-        int port;
-        try {
-            port = Integer.parseInt(portStr);
-            if (port < 1 || port > 65535) {
-                throw new NumberFormatException("Port out of range");
+            if (name.isEmpty() || host.isEmpty() || portStr.isEmpty()) {
+                DialogHelper.showDialog(parent, "Validation Error", "Please fill in all required fields");
+                continue;
             }
-        } catch (NumberFormatException e) {
-            DialogHelper.showDialog(parent, "Validation Error", "Invalid port number");
-            return null;
+
+            int port = TextUtils.getNumber(portStr, -1);
+            if (port < 0 || port > 65535) {
+                DialogHelper.showDialog(parent, "Validation Error", "Invalid port number (1-65535)");
+                continue;
+            }
+
+            // Validation passed - create or update config
+            RemoteServerConfig config = existingServer != null ? existingServer : new RemoteServerConfig();
+            config.name = name;
+            config.host = host;
+            config.port = port;
+            config.authToken = token.isEmpty() ? null : token;
+            config.enabled = enabledCheckbox.isSelected();
+
+            // prevent duplicates by host/port
+            RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
+            String id = existingServer != null ? existingServer.id : null;
+            if (remoteConnectionManager.isServerExist(config.host, config.port, id)) continue;
+
+            return config;
         }
-
-        // create or update config
-        RemoteServerConfig config = existingServer != null ? existingServer : new RemoteServerConfig();
-        config.name = name;
-        config.host = host;
-        config.port = port;
-        config.authToken = token.isEmpty() ? null : token;
-        config.enabled = enabledCheckbox.isSelected();
-
-        // TODO: prevent duplicates by host/port
-        //RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
-        //if (remoteConnectionManager.isServerExist(config.host, config.port, null)) return;
-
-        return config;
     }
 }
 
