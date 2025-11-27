@@ -27,6 +27,6 @@ public class Timer {
 
     @Override
     public String toString() {
-        return System.currentTimeMillis() - startTimeMs + "ms";
+        return Utils.formatTime(System.currentTimeMillis() - startTimeMs);
     }
 }

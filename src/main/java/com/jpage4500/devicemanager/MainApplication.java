@@ -61,15 +61,38 @@ public class MainApplication {
             }
         }
 
+        // generate auth token if one isn't set
+        String authToken = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
+        if (TextUtils.isEmpty(authToken)) {
+            authToken = RemoteConnectionUtils.generateAuthToken();
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN, authToken);
+        }
+
+        int port = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, RemoteServerManager.DEFAULT_PORT);
+
         // auto connect to server
         PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED, true);
+
+        // fetch network info in background
+        Utils.runBackground(() -> {
+            List<RemoteConnectionUtils.Network> networkList = RemoteConnectionUtils.getActiveNetworkInfo();
+            String token = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
+            log.info("***********************************************************");
+            log.info("Connect to server using:");
+            log.info("Token: {}", token);
+            log.info("Port: {}", port);
+            for (RemoteConnectionUtils.Network network : networkList) {
+                log.info("Network: {}: {}, {}", network.label, network.ip, network.host);
+                log.info("  > {}", RemoteConnectionUtils.generateConnectionString(network.ip, port, token, network.label));
+            }
+            log.info("***********************************************************");
+        });
 
         DeviceManager deviceManager = DeviceManager.getInstance();
         // server will automatically start
         deviceManager.initialize(null);
 
         deviceManager.connectAdbServer(true);
-
     }
 
     public static void main(String[] args) {

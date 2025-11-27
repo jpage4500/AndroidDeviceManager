@@ -8,6 +8,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
 
@@ -18,9 +19,19 @@ public class NetworkHelper {
     private static final int READ_TIMEOUT = 20000;      // default read timeout (20 secs)
     private static final int UPLOAD_TIMEOUT = 1200000;  // longer timeout for actions like uploading files or downloading screenshots
 
+    // track network requests for matching up request/response when logging
+    private static final AtomicInteger requestNumber = new AtomicInteger();
+
     public static class HttpResponse {
         public int status;                          // -1 for error
         public String body;                         // response body or error message
+        public int requestNumber;
+        public Timer timer;
+
+        public HttpResponse() {
+            requestNumber = NetworkHelper.requestNumber.incrementAndGet();
+            timer = new Timer();
+        }
     }
 
     public static class HttpDataResponse extends HttpResponse {
@@ -39,18 +50,17 @@ public class NetworkHelper {
      */
     public HttpResponse getRequest(String urlStr, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
-        Timer timer = new Timer();
         try {
             HttpURLConnection conn = createConnection(urlStr);
             addHeaders(conn, headers);
-
+            logRequest(conn, response, null);
             response.status = conn.getResponseCode();
             response.body = readResponse(conn);
-            log.trace("getRequest: {}: {}, http:{}", timer, urlStr, response.status);
+            logResponse(conn, response);
         } catch (Exception e) {
-            log.error("getRequest: {}: Exception: {}, {}", timer, urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
+            logError(urlStr, response);
         }
         return response;
     }
@@ -67,10 +77,10 @@ public class NetworkHelper {
      */
     public HttpResponse postRequest(String urlStr, String body, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
-        Timer timer = new Timer();
         try {
             HttpURLConnection conn = createPostConnection(urlStr);
             addHeaders(conn, headers);
+            logRequest(conn, response, body);
 
             // send body
             try (OutputStream os = conn.getOutputStream()) {
@@ -79,16 +89,12 @@ public class NetworkHelper {
             }
 
             response.status = conn.getResponseCode();
-            log.trace("postRequest: {}: {}, http:{}, body:{}", timer, urlStr, response.status, body);
             response.body = readResponse(conn);
-            // only log body if error
-            if (response.status != 200) {
-                log.trace("postRequest: {}", response.body);
-            }
+            logResponse(conn, response);
         } catch (Exception e) {
-            log.error("postRequest: {}: Exception: {}, {}", timer, urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
+            logError(urlStr, response);
         }
         return response;
     }
@@ -98,12 +104,12 @@ public class NetworkHelper {
      */
     public HttpDataResponse download(String urlStr, Map<String, String> headers) {
         HttpDataResponse response = new HttpDataResponse();
-        Timer timer = new Timer();
         try {
             HttpURLConnection conn = createConnection(urlStr);
             // wait longer for actions such as screenshot
             conn.setReadTimeout(UPLOAD_TIMEOUT);
             addHeaders(conn, headers);
+            logRequest(conn, response, null);
 
             response.status = conn.getResponseCode();
 
@@ -117,15 +123,14 @@ public class NetworkHelper {
                 }
                 response.data = baos.toByteArray();
                 inputStream.close();
-                log.trace("download: {}: {}, http:{}, size:{} bytes", timer, urlStr, response.status, response.data.length);
             } else {
-                log.warn("download: failed, status: {}", response.status);
                 response.body = readResponse(conn);
             }
+            logResponse(conn, response);
         } catch (Exception e) {
-            log.error("download: {}: Exception: {}, {}", timer, urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
+            logError(urlStr, response);
         }
         return response;
     }
@@ -135,10 +140,10 @@ public class NetworkHelper {
      */
     public HttpResponse downloadFile(String urlStr, File file, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
-        Timer timer = new Timer();
         try {
             HttpURLConnection conn = createConnection(urlStr);
             addHeaders(conn, headers);
+            logRequest(conn, response, null);
 
             DataInputStream dis = new DataInputStream(conn.getInputStream());
             byte[] buffer = new byte[1024];
@@ -151,11 +156,11 @@ public class NetworkHelper {
             fos.close();
             dis.close();
             response.status = conn.getResponseCode();
-            log.warn("downloadFile: {}: status: {}, file:{}, len:{}", timer, response.status, file.getAbsolutePath(), file.length());
+            logResponse(conn, response);
         } catch (Exception e) {
-            log.error("download: {}: Exception: {}, {}", timer, urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
+            logError(urlStr, response);
         }
         return response;
     }
@@ -165,7 +170,6 @@ public class NetworkHelper {
      */
     public HttpResponse upload(String urlStr, File file, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
-        Timer timer = new Timer();
         try {
             HttpURLConnection conn = createPostConnection(urlStr);
             conn.setReadTimeout(UPLOAD_TIMEOUT);
@@ -175,6 +179,7 @@ public class NetworkHelper {
             conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
 
             addHeaders(conn, headers);
+            logRequest(conn, response, null);
 
             try (OutputStream os = conn.getOutputStream();
                  FileInputStream fis = new FileInputStream(file)) {
@@ -204,18 +209,13 @@ public class NetworkHelper {
             }
 
             response.status = conn.getResponseCode();
-            log.trace("upload: {}: {}, http:{}, file:{}", timer, urlStr, response.status, file.getName());
             // read response if available
             response.body = readResponse(conn);
-
-            // log body if error
-            if (response.status != 200 && response.body != null) {
-                log.trace("upload: {}", response.body);
-            }
+            logResponse(conn, response);
         } catch (Exception e) {
-            log.error("upload: {}: Exception: {}, {}", timer, urlStr, e.getMessage());
             response.status = -1;
             response.body = e.getMessage();
+            logError(urlStr, response);
         }
         return response;
     }
@@ -277,6 +277,63 @@ public class NetworkHelper {
                 conn.setRequestProperty(key, value);
             }
         }
+    }
+
+    /**
+     * log request:
+     * >> 1) INFO: GET http://192.168.0.95:8766/api/info
+     * >> 2) INFO: GET https://server-name.dev:443/api/info
+     * >> 3) INFO: POST http://192.168.0.95:8766/api/info "{key:value}"
+     */
+    private void logRequest(HttpURLConnection connection, HttpResponse response, String body) {
+        String url = connection.getURL().toString();
+        String lastPath = getLastPath(url);
+        String method = connection.getRequestMethod();
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format(">> %d) %s: %s %s", response.requestNumber, lastPath, method, url));
+        if (body != null) {
+            sb.append(String.format(" \"%s\"", body));
+        }
+        log.trace(sb.toString());
+    }
+
+    /**
+     * log response:
+     * << 1) INFO: 200ms, OK: GET http://192.168.0.95:8766/api/info, "{key:value}"
+     * << 2) INFO: 20s, ERROR:401, "Connection Failed", GET http://192.168.0.95:8766/api/info
+     */
+    private void logResponse(HttpURLConnection connection, HttpResponse response) {
+        String url = connection.getURL().toString();
+        String lastPath = getLastPath(url);
+        String method = connection.getRequestMethod();
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("<< %d) %s: %s", response.requestNumber, lastPath, response.timer));
+        if (response.status == 200) {
+            sb.append(" OK: ");
+            //log.trace("{}) {}: OK: {}, \"{}\"", response.requestNumber, response.timer, url, response.body);
+        } else {
+            sb.append(String.format(" ERROR:%d, \"%s\"", response.status, response.body));
+            //log.error("{}) {}: ERROR:{}: {}, \"{}\"", response.requestNumber, response.timer, response.status, url, response.body);
+        }
+        sb.append(String.format("%s %s", method, url));
+        if (response.body != null) {
+            sb.append(String.format(", \"%s\"", response.body));
+        }
+        log.trace(sb.toString());
+    }
+
+    private void logError(String url, HttpResponse response) {
+        String lastPath = getLastPath(url);
+        log.error("<< {}) {}: {}: ERROR: \"{}\": {}", response.requestNumber, lastPath, response.timer, response.body, url);
+    }
+
+    private String getLastPath(String url) {
+        if (url == null) return null;
+        String[] splitArr = url.split("/");
+        String lastPath = splitArr[splitArr.length - 1];
+        int pos = TextUtils.indexOf(lastPath, '?');
+        if (pos > 0) lastPath = lastPath.substring(0, pos);
+        return lastPath.toUpperCase();
     }
 
 }

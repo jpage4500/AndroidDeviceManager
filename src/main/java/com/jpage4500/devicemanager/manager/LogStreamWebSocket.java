@@ -38,7 +38,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
 
     private static final int BATCH_INTERVAL_MS = 500;
     private static final int MAX_BATCH_SIZE = 50;
-    private static final int MAX_BUFFER_SIZE = 1000;
+    private static final int MAX_BUFFER_SIZE = 1000;    // # of log entries to buffer before dropping oldest
     private static final long PING_INTERVAL_MS = 30000; // 30 seconds
 
     private final Device device;
@@ -219,9 +219,13 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
             droppedCount = 0;
         }
 
-        if (!toSend.isEmpty()) {
-            //log.trace("sendBatch: sending: {}", toSend.size());
-            sendMessage(TYPE_LOGS, Map.of("entries", toSend));
+        // send in chunks to avoid oversized frames/messages
+        int total = toSend.size();
+        for (int start = 0; start < total; start += MAX_BATCH_SIZE) {
+            int end = Math.min(start + MAX_BATCH_SIZE, total);
+            List<LogEntry> chunk = toSend.subList(start, end);
+            log.trace("sendBatch: sending chunk: {}-{}", start, end);
+            sendMessage(TYPE_LOGS, Map.of("entries", new ArrayList<>(chunk)));
         }
 
         if (dropped > 0) {

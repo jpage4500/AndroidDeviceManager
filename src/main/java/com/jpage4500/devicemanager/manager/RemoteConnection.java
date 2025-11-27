@@ -57,10 +57,10 @@ public class RemoteConnection {
      * Represents an active log streaming session
      */
     private static class LogStreamSession {
-        WebSocket webSocket;
-        DeviceManager.DeviceLogListener listener;
-        String deviceSerial;
-        StringBuilder messageBuffer = new StringBuilder();
+        final WebSocket webSocket;
+        final DeviceManager.DeviceLogListener listener;
+        final String deviceSerial;
+        final StringBuilder messageBuffer = new StringBuilder();
 
         LogStreamSession(WebSocket ws, DeviceManager.DeviceLogListener listener, String serial) {
             this.webSocket = ws;
@@ -312,8 +312,9 @@ public class RemoteConnection {
         WebSocket.Listener wsListener = new WebSocket.Listener() {
             @Override
             public void onOpen(WebSocket webSocket) {
-                log.info("onOpen: device: {}", deviceSerial);
                 WebSocket.Listener.super.onOpen(webSocket);
+                log.info("onOpen: device: {}", deviceSerial);
+                webSocket.request(1);
             }
 
             @Override
@@ -323,27 +324,20 @@ public class RemoteConnection {
                     synchronized (session.messageBuffer) {
                         // accumulate message parts
                         session.messageBuffer.append(data);
+                    }
 
-                        if (log.isTraceEnabled()) {
-                            log.trace("onText: device: {}, chunkSize: {}, last: {}, bufferSize: {}",
-                                deviceSerial, data.length(), last, session.messageBuffer.length());
-                        }
-
-                        if (last) {
+                    if (last) {
+                        String message;
+                        synchronized (session.messageBuffer) {
                             // complete message received
-                            String message = session.messageBuffer.toString();
-                            int messageLength = message.length();
+                            message = session.messageBuffer.toString();
                             session.messageBuffer.setLength(0);
-
-                            if (log.isDebugEnabled()) {
-                                log.debug("onText: device: {}, complete message received, size: {}",
-                                    deviceSerial, messageLength);
-                            }
-
-                            handleWebSocketMessage(message, session);
                         }
+
+                        handleWebSocketMessage(message, session);
                     }
                 }
+                webSocket.request(1);
                 return WebSocket.Listener.super.onText(webSocket, data, last);
             }
 
@@ -356,7 +350,7 @@ public class RemoteConnection {
 
             @Override
             public void onError(WebSocket webSocket, Throwable error) {
-                log.error("onError: device: {}", deviceSerial, error);
+                log.error("onError: device: {}, {}", deviceSerial, error.getMessage());
                 logStreamSessions.remove(deviceSerial);
                 WebSocket.Listener.super.onError(webSocket, error);
             }
@@ -657,8 +651,8 @@ public class RemoteConnection {
         WebSocket.Listener wsListener = new WebSocket.Listener() {
             @Override
             public void onOpen(WebSocket webSocket) {
-                log.info("onOpen: screen stream device: {}", deviceSerial);
                 WebSocket.Listener.super.onOpen(webSocket);
+                log.info("onOpen: screen stream device: {}", deviceSerial);
             }
 
             @Override

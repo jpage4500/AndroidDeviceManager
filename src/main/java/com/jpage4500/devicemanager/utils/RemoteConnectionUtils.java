@@ -40,7 +40,6 @@ public class RemoteConnectionUtils {
         config.put("name", name);
 
         String json = GsonHelper.toJson(config);
-        log.trace("generateConnectionString: {}", json);
         String encoded = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
         return PREFIX + encoded;
     }
