@@ -147,11 +147,15 @@ public class DeviceManager {
                 // mark remote devices as offline
                 List<Device> deviceList = getDeviceForConnection(connection);
                 deviceList.forEach(device -> device.isOnline = false);
-                // TODO: save this logic.. will need to remove devices eventually
-                // remove devices from this server
-//                synchronized (deviceList) {
-//                    deviceList.removeIf(d -> d.remoteConnection == connection);
-//                }
+                notifyDevicesUpdated();
+            }
+
+            @Override
+            public void onRemoteServerRemoved(RemoteConnection connection) {
+                // remove all devices from this server
+                synchronized (deviceList) {
+                    deviceList.removeIf(device -> device.remoteConnection == connection);
+                }
                 notifyDevicesUpdated();
             }
 

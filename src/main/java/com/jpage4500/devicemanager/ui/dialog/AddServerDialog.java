@@ -1,6 +1,8 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
+import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.manager.RemoteConnectionManager;
 import com.jpage4500.devicemanager.manager.RemoteServerManager;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.TextUtils;
@@ -63,10 +65,7 @@ public class AddServerDialog {
 
         String title = existingServer == null ? "Add Server" : "Edit Server";
         boolean confirmed = DialogHelper.showCustomDialog(parent, panel, title, null);
-
-        if (!confirmed) {
-            return null;
-        }
+        if (!confirmed) return null;
 
         // validate
         String name = nameField.getText().trim();
@@ -91,14 +90,18 @@ public class AddServerDialog {
         }
 
         // create or update config
-        RemoteServerConfig result = existingServer != null ? existingServer : new RemoteServerConfig();
-        result.name = name;
-        result.host = host;
-        result.port = port;
-        result.authToken = token.isEmpty() ? null : token;
-        result.enabled = enabledCheckbox.isSelected();
+        RemoteServerConfig config = existingServer != null ? existingServer : new RemoteServerConfig();
+        config.name = name;
+        config.host = host;
+        config.port = port;
+        config.authToken = token.isEmpty() ? null : token;
+        config.enabled = enabledCheckbox.isSelected();
 
-        return result;
+        // TODO: prevent duplicates by host/port
+        //RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
+        //if (remoteConnectionManager.isServerExist(config.host, config.port, null)) return;
+
+        return config;
     }
 }
 

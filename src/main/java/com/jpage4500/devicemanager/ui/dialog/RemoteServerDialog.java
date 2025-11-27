@@ -24,6 +24,7 @@ import java.util.List;
  */
 public class RemoteServerDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(RemoteServerDialog.class);
+    private static final int REFRESH_INTERVAL_MS = 2000; // 2 seconds
 
     private final Component parent;
     private JTable serverTable;
@@ -39,6 +40,19 @@ public class RemoteServerDialog extends JPanel {
         setLayout(new BorderLayout(10, 10));
         initUI();
         loadServers();
+
+        // start auto-refresh timer
+        Timer refreshTimer = new Timer(1000, e -> refreshStatus());
+        refreshTimer.start();
+    }
+
+    private void refreshStatus() {
+        int selectedRow = serverTable.getSelectedRow();
+        tableModel.fireTableDataChanged();
+        // restore selection if valid
+        if (selectedRow >= 0 && selectedRow < serverTable.getRowCount()) {
+            serverTable.setRowSelectionInterval(selectedRow, selectedRow);
+        }
     }
 
     private void initUI() {
@@ -84,14 +98,10 @@ public class RemoteServerDialog extends JPanel {
         JButton removeButton = new JButton("Remove");
         removeButton.addActionListener(e -> removeSelectedServer());
 
-        JButton refreshButton = new JButton("Refresh");
-        refreshButton.addActionListener(e -> refreshServers());
-
         buttonPanel.add(addButton);
         buttonPanel.add(pasteButton);
         buttonPanel.add(editButton);
         buttonPanel.add(removeButton);
-        buttonPanel.add(refreshButton);
 
         add(buttonPanel, BorderLayout.SOUTH);
     }
@@ -107,6 +117,8 @@ public class RemoteServerDialog extends JPanel {
         RemoteServerConfig config = dialog.showDialog();
         if (config != null) {
             RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
+            // prevent duplicates by host/port
+            if (remoteConnectionManager.isServerExist(config.host, config.port, null)) return;
             remoteConnectionManager.addServer(config);
             loadServers();
         }
@@ -124,6 +136,8 @@ public class RemoteServerDialog extends JPanel {
         RemoteServerConfig updated = dialog.showDialog();
         if (updated != null) {
             RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
+            // prevent duplicates when updating (exclude current server ID)
+            if (remoteConnectionManager.isServerExist(updated.host, updated.port, updated.id)) return;
             remoteConnectionManager.updateServer(updated);
             loadServers();
         }
@@ -142,6 +156,8 @@ public class RemoteServerDialog extends JPanel {
                     RemoteServerConfig updated = dialog.showDialog();
                     if (updated != null) {
                         RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
+                        // prevent duplicates by host/port
+                        if (remoteConnectionManager.isServerExist(updated.host, updated.port, null)) return;
                         remoteConnectionManager.addServer(updated);
                         loadServers();
                     }
@@ -170,10 +186,6 @@ public class RemoteServerDialog extends JPanel {
             remoteConnectionManager.removeServer(server.id);
             loadServers();
         }
-    }
-
-    private void refreshServers() {
-        DeviceManager.getInstance().getRemoteConnectionManager().refreshAllDevices(true);
     }
 
     /**
@@ -276,9 +288,7 @@ public class RemoteServerDialog extends JPanel {
         }
 
         @Override
-        public Component getTableCellRendererComponent(JTable table, Object value,
-                                                       boolean isSelected, boolean hasFocus,
-                                                       int row, int column) {
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
             checkbox.setSelected(value != null && (Boolean) value);
             checkbox.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
             return checkbox;
@@ -290,22 +300,22 @@ public class RemoteServerDialog extends JPanel {
      */
     private static class ConnectionStatusRenderer extends DefaultTableCellRenderer {
         @Override
-        public Component getTableCellRendererComponent(JTable table, Object value,
-                                                       boolean isSelected, boolean hasFocus,
-                                                       int row, int column) {
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
-            String status = (String) value;
-            if ("Connected".equals(status)) {
-                setForeground(new Color(0, 150, 0)); // Green
-            } else if ("Disconnected".equals(status)) {
-                setForeground(Color.RED);
-            } else {
-                setForeground(Color.GRAY);
+            boolean isSelectedAndFocused = isSelected && table.hasFocus();
+            if (!isSelectedAndFocused) {
+                String status = (String) value;
+                if ("Connected".equals(status)) {
+                    setForeground(new Color(0, 150, 0)); // Green
+                } else if ("Disconnected".equals(status)) {
+                    setForeground(Color.RED);
+                } else {
+                    setForeground(Color.GRAY);
+                }
             }
 
             return this;
         }
     }
 }
-
