@@ -25,9 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 /**
  * Represents a connection to a single remote ADB server
@@ -35,7 +33,15 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RemoteConnection {
     private static final Logger log = LoggerFactory.getLogger(RemoteConnection.class);
 
+    public static final int REFRESH_SECS = 30;
+
     private final RemoteServerConfig serverConfig;
+    private final RemoteConnectionManager.RemoteConnectionListener listener;
+
+    // each connection is responsible for it's own connection and refreshing data from the server
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private Future<?> future;
+
     private NetworkHelper networkHelper;
     private final List<Device> deviceList = new ArrayList<>();
     private long lastHealthCheck = 0;
@@ -47,10 +53,56 @@ public class RemoteConnection {
     private final Map<String, ScreenStreamSession> screenStreamSessions = new ConcurrentHashMap<>();
     private HttpClient httpClient;
 
-    public RemoteConnection(RemoteServerConfig config) {
+    public RemoteConnection(RemoteServerConfig config, RemoteConnectionManager.RemoteConnectionListener listener) {
         this.serverConfig = config;
+        this.listener = listener;
         networkHelper = new NetworkHelper();
         httpClient = HttpClient.newHttpClient();
+        scheduleRefresh();
+    }
+
+    public void scheduleRefresh() {
+        // if a refresh is pending, stop it
+        cancelFuture();
+        // refresh all devices NOW and again every 30 seconds
+        future = scheduler.scheduleWithFixedDelay(() -> refresh(false), 0, REFRESH_SECS, TimeUnit.SECONDS);
+    }
+
+    /**
+     * refresh devices
+     *
+     * @param isFullRefresh true to fetch all devices; false to just check server info
+     */
+    private void refresh(boolean isFullRefresh) {
+        RemoteHttpServer.ServerInfo serverInfo = fetchServerInfo();
+        if (serverInfo != null) {
+            listener.onRemoteConnection(this);
+            // check if device count has changed
+            if (isFullRefresh || serverInfo.deviceCount != getDeviceCount()) {
+                // run device list request after all connections have been checked
+                List<Device> deviceList = fetchDevices();
+                listener.onRemoteDevicesUpdated(this, deviceList);
+            }
+        } else {
+            listener.onRemoteConnectionLost(this);
+        }
+    }
+
+    private void cancelFuture() {
+        if (future != null) {
+            future.cancel(false);
+            future = null;
+        }
+    }
+
+    /**
+     * Disconnect from server
+     */
+    public void disconnect() {
+        // if a refresh is pending, stop it
+        cancelFuture();
+        scheduler.shutdownNow();
+        isConnected = false;
     }
 
     /**
@@ -189,13 +241,6 @@ public class RemoteConnection {
         }
 
         return headers;
-    }
-
-    /**
-     * Disconnect from server
-     */
-    public void disconnect() {
-        isConnected = false;
     }
 
     /**

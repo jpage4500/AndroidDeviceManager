@@ -132,7 +132,7 @@ public class DeviceManager {
         this.deviceListener = listener;
 
         // remote connection manager
-        remoteConnectionManager = new RemoteConnectionManager(new RemoteConnectionManager.ConnectionListener() {
+        remoteConnectionManager = new RemoteConnectionManager(new RemoteConnectionManager.RemoteConnectionListener() {
             @Override
             public void onRemoteConnection(RemoteConnection connection) {
                 List<Device> deviceList = getDeviceForConnection(connection);

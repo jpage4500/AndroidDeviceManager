@@ -122,7 +122,6 @@ public class RemoteServerDialog extends JPanel {
         RemoteServerConfig server = tableModel.getServerAt(selectedRow);
         AddServerDialog dialog = new AddServerDialog(parent, server);
         RemoteServerConfig updated = dialog.showDialog();
-
         if (updated != null) {
             RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
             remoteConnectionManager.updateServer(updated);
@@ -134,17 +133,26 @@ public class RemoteServerDialog extends JPanel {
         try {
             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
             String connStr = (String) clipboard.getData(DataFlavor.stringFlavor);
-
             if (connStr != null && !connStr.trim().isEmpty()) {
                 RemoteServerConfig config = RemoteConnectionUtils.parseConnectionString(connStr.trim());
-                log.trace("pasteConnectionString: {} -> {}", GsonHelper.toJson(config), connStr);
+                log.trace("pasteConnectionString: {} -> {}", connStr, GsonHelper.toJson(config));
                 if (config != null) {
-                    RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
-                    remoteConnectionManager.addServer(config);
+                    // Open Add Server dialog with pre-filled values
+                    AddServerDialog dialog = new AddServerDialog(parent, config);
+                    RemoteServerConfig updated = dialog.showDialog();
+                    if (updated != null) {
+                        RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
+                        remoteConnectionManager.addServer(updated);
+                        loadServers();
+                    }
+                } else {
+                    DialogHelper.showDialog(this, "Error", "Invalid connection string");
                 }
+            } else {
+                DialogHelper.showDialog(this, "Error", "Clipboard is empty");
             }
         } catch (Exception e) {
-            log.error("Failed to paste from clipboard", e);
+            log.error("pasteConnectionString: {}", e.getMessage());
             DialogHelper.showDialog(this, "Error", "Failed to paste from clipboard");
         }
     }

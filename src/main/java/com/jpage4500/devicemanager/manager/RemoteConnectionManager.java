@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages connections to remote ADB servers
@@ -17,15 +17,12 @@ import java.util.concurrent.*;
 public class RemoteConnectionManager {
     private static final Logger log = LoggerFactory.getLogger(RemoteConnectionManager.class);
 
-    public static final int REFRESH_SECS = 30;
+    private final RemoteConnectionListener listener;
 
-    private ConnectionListener listener;
-
+    // each entry is a remote server connection
     private final Map<String, RemoteConnection> connections = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    private Future<?> future;
 
-    public interface ConnectionListener {
+    public interface RemoteConnectionListener {
         void onRemoteConnection(RemoteConnection connection);
 
         void onRemoteConnectionLost(RemoteConnection connection);
@@ -33,7 +30,7 @@ public class RemoteConnectionManager {
         void onRemoteDevicesUpdated(RemoteConnection connection, List<Device> devices);
     }
 
-    public RemoteConnectionManager(ConnectionListener listener) {
+    public RemoteConnectionManager(RemoteConnectionListener listener) {
         this.listener = listener;
         initialize();
     }
@@ -41,27 +38,12 @@ public class RemoteConnectionManager {
     public void initialize() {
         // load and connect to saved servers
         List<RemoteServerConfig> configList = getServers();
+        log.debug("initialize: loaded {} servers", configList.size());
         for (RemoteServerConfig config : configList) {
+            log.trace("initialize: {}", config);
             if (config.enabled) {
-                RemoteConnection connection = new RemoteConnection(config);
+                RemoteConnection connection = new RemoteConnection(config, listener);
                 connections.put(config.id, connection);
-            }
-        }
-
-        scheduleRefresh();
-    }
-
-    private void scheduleRefresh() {
-        if (!connections.isEmpty()) {
-            // if a refresh is pending, stop it
-            if (future != null) future.cancel(false);
-            // refresh all devices NOW and again every 30 seconds
-            future = scheduler.scheduleWithFixedDelay(() -> refreshAllDevices(false), 0, REFRESH_SECS, TimeUnit.SECONDS);
-        } else {
-            // no servers configured - stop refreshing
-            if (future != null) {
-                future.cancel(false);
-                future = null;
             }
         }
     }
@@ -116,11 +98,8 @@ public class RemoteConnectionManager {
         saveServers(configList);
 
         if (addConfig.enabled) {
-            RemoteConnection connection = new RemoteConnection(addConfig);
+            RemoteConnection connection = new RemoteConnection(addConfig, listener);
             connections.put(addConfig.id, connection);
-
-            // refresh devices
-            scheduleRefresh();
         }
     }
 
@@ -177,11 +156,11 @@ public class RemoteConnectionManager {
             connection.disconnect();
         }
         connections.clear();
-        scheduler.shutdownNow();
     }
 
     public boolean isConnected(String serverId) {
         RemoteConnection connection = connections.get(serverId);
         return connection != null && connection.isConnected();
     }
+
 }
