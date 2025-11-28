@@ -35,6 +35,7 @@ public class NetworkHelper {
     }
 
     public static class HttpDataResponse extends HttpResponse {
+        public long dataSize;
         public byte[] data;
     }
 
@@ -122,6 +123,7 @@ public class NetworkHelper {
                     baos.write(buffer, 0, bytesRead);
                 }
                 response.data = baos.toByteArray();
+                response.dataSize = response.data.length;
                 inputStream.close();
             } else {
                 response.body = readResponse(conn);
@@ -139,7 +141,7 @@ public class NetworkHelper {
      * download file from URL
      */
     public HttpResponse downloadFile(String urlStr, File file, Map<String, String> headers) {
-        HttpResponse response = new HttpResponse();
+        HttpDataResponse response = new HttpDataResponse();
         try {
             HttpURLConnection conn = createConnection(urlStr);
             addHeaders(conn, headers);
@@ -155,6 +157,7 @@ public class NetworkHelper {
             }
             fos.close();
             dis.close();
+            response.dataSize = file.length();
             response.status = conn.getResponseCode();
             logResponse(conn, response);
         } catch (Exception e) {
@@ -281,8 +284,8 @@ public class NetworkHelper {
 
     /**
      * log request:
-     * >> 1) INFO: GET http://192.168.0.95:8766/api/info
-     * >> 2) INFO: GET https://server-name.dev:443/api/info
+     * >> 1) INFO: http://192.168.0.95:8766/api/info
+     * >> 2) INFO: https://server-name.dev:443/api/info
      * >> 3) INFO: POST http://192.168.0.95:8766/api/info "{key:value}"
      */
     private void logRequest(HttpURLConnection connection, HttpResponse response, String body) {
@@ -290,7 +293,11 @@ public class NetworkHelper {
         String lastPath = getLastPath(url);
         String method = connection.getRequestMethod();
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format(">> %d) %s: %s %s", response.requestNumber, lastPath, method, url));
+        sb.append(String.format(">> %d) %s: ", response.requestNumber, lastPath));
+        if (!TextUtils.equalsIgnoreCase(method, "GET")) {
+            sb.append(method + " ");
+        }
+        sb.append(url);
         if (body != null) {
             sb.append(String.format(" \"%s\"", body));
         }
@@ -299,25 +306,30 @@ public class NetworkHelper {
 
     /**
      * log response:
-     * << 1) INFO: 200ms, OK: GET http://192.168.0.95:8766/api/info, "{key:value}"
-     * << 2) INFO: 20s, ERROR:401, "Connection Failed", GET http://192.168.0.95:8766/api/info
+     * << 1) INFO: 200ms, OK: http://192.168.0.95:8766/api/info, "{key:value}"
+     * << 2) INFO: 20s, ERROR:401, "Connection Failed", http://192.168.0.95:8766/api/info
      */
     private void logResponse(HttpURLConnection connection, HttpResponse response) {
         String url = connection.getURL().toString();
         String lastPath = getLastPath(url);
         String method = connection.getRequestMethod();
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("<< %d) %s: %s", response.requestNumber, lastPath, response.timer));
+        sb.append(String.format("<< %d) %s: %s, ", response.requestNumber, lastPath, response.timer));
         if (response.status == 200) {
-            sb.append(" OK: ");
-            //log.trace("{}) {}: OK: {}, \"{}\"", response.requestNumber, response.timer, url, response.body);
+            if (response.body != null) {
+                sb.append(Utils.bytesToDisplayString(response.body.length())).append(", ");
+            } else if (response instanceof HttpDataResponse dataResponse && dataResponse.dataSize > 0) {
+                sb.append(Utils.bytesToDisplayString(dataResponse.dataSize)).append(", ");
+            }
         } else {
-            sb.append(String.format(" ERROR:%d, \"%s\"", response.status, response.body));
-            //log.error("{}) {}: ERROR:{}: {}, \"{}\"", response.requestNumber, response.timer, response.status, url, response.body);
+            sb.append(String.format("ERROR:%d, \"%s\", ", response.status, response.body));
         }
-        sb.append(String.format("%s %s", method, url));
-        if (response.body != null) {
-            sb.append(String.format(", \"%s\"", response.body));
+        if (!TextUtils.equalsIgnoreCase(method, "GET")) {
+            sb.append(method);
+        }
+        sb.append(" ").append(url);
+        if (response.body != null && response.status == 200) {
+            sb.append(String.format(", \"%s\"", TextUtils.truncate(response.body, 1000)));
         }
         log.trace(sb.toString());
     }

@@ -1281,7 +1281,7 @@ public class DeviceManager {
      * download a file or folder from device
      */
     public void downloadFile(Device device, String path, DeviceFile file, File saveFile, TaskListener listener) {
-        log.debug("downloadFile: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
+        //log.debug("downloadFile: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
         commandExecutorService.submit(() -> {
             boolean isOk = downloadFileInternal(device, path, file, saveFile);
             // test if file was created

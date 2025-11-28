@@ -206,7 +206,6 @@ public class ExploreScreen extends BaseScreen {
     @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
-        log.trace("onWindowStateChanged: {}", state);
         if (state == WindowState.CLOSING) {
             closeWindow();
         }

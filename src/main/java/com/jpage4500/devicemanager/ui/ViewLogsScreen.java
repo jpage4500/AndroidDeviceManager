@@ -404,21 +404,30 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void setupTable() {
         model = new LogsTableModel();
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
         table.setModel(model);
         table.setDefaultRenderer(LogEntry.class, new LogsCellRenderer());
 
         // restore user-defined column sizes
-        if (!table.restoreTable()) {
-            // use some default column sizes
-            table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
-            table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
-            table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
-            table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
-            table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
-            table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
-            table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
-        }
+//        if (!table.restoreTable()) {
+//            // use some default column sizes
+//            table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
+//            table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
+//            table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
+//            table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
+//            table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
+//            table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
+//            table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
+//        }
+
+        // use some default column sizes
+        table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
+        table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
+        table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
+        table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
+        table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
+        table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
+        table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
 
         table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
         table.setMaxColWidth(LogsTableModel.Columns.PID.toString(), 100);
