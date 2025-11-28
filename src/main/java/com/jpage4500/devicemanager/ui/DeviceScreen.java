@@ -725,9 +725,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void addTrayMenuItem(Device device) {
-        BufferedImage image = UiUtils.getImage("device_status.png", 20, 20);
+        boolean isRemote = device.remoteConnection != null;
+        String imageName = isRemote ? "device_remote.png" : "device_local.png";
+        BufferedImage image = UiUtils.getImage(imageName, UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON);
         if (device.isOnline) {
-            image = UiUtils.replaceColor(image, new Color(24, 134, 0));
+            image = UiUtils.replaceColor(image, Colors.COLOR_ONLINE);
         }
 
         TrayMenuItem item = new TrayMenuItem(device.getDisplayName(), new ImageIcon(image));

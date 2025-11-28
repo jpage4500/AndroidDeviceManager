@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Android Device Manager - Log Stream Test</title>
+    <!-- Optional pako fallback for gzip decompression in browsers without DecompressionStream -->
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
     <style>
         body {
             font-family: 'Courier New', monospace;
@@ -173,6 +175,8 @@
         let isPaused = false;
         let statsInterval = null;
         let heartbeatInterval = null;
+        let compressedBytes = 0;
+        let decompressedBytes = 0;
 
         function connect() {
             const serverUrl = document.getElementById('serverUrl').value;
@@ -194,6 +198,7 @@
             showMessage('info', `Connecting to ${serverUrl}...`);
 
             ws = new WebSocket(url);
+            ws.binaryType = 'arraybuffer'; // receive binary frames as ArrayBuffer
 
             ws.onopen = () => {
                 isConnected = true;
@@ -205,12 +210,48 @@
                 startHeartbeat();
             };
 
-            ws.onmessage = (event) => {
+            ws.onmessage = async (event) => {
                 try {
-                    const message = JSON.parse(event.data);
+                    if (typeof event.data === 'string') {
+                        // text JSON frame
+                        const message = JSON.parse(event.data);
+                        handleMessage(message);
+                        return;
+                    }
+
+                    // binary frame (ArrayBuffer or Blob)
+                    let arrayBuffer;
+                    if (event.data instanceof ArrayBuffer) {
+                        arrayBuffer = event.data;
+                    } else if (event.data instanceof Blob) {
+                        arrayBuffer = await event.data.arrayBuffer();
+                    } else {
+                        console.warn('Unknown WebSocket data type', typeof event.data);
+                        return;
+                    }
+
+                    compressedBytes += arrayBuffer.byteLength;
+
+                    let jsonStr = await gunzipToString(arrayBuffer);
+                    if (!jsonStr) {
+                        showMessage('warning', 'Failed to decompress binary log frame');
+                        return;
+                    }
+
+                    decompressedBytes += jsonStr.length;
+
+                    let message;
+                    try {
+                        message = JSON.parse(jsonStr);
+                    } catch (e) {
+                        console.error('Binary frame JSON parse error:', e, jsonStr.slice(0, 200));
+                        showMessage('error', 'Binary frame parse error');
+                        return;
+                    }
                     handleMessage(message);
                 } catch (e) {
-                    console.error('Error parsing message:', e);
+                    console.error('onmessage error:', e);
+                    showMessage('error', 'Message handling error: ' + e.message);
                 }
             };
 
@@ -228,6 +269,35 @@
                 stopHeartbeat();
                 ws = null;
             };
+        }
+
+        async function gunzipToString(arrayBuffer) {
+            try {
+                // Check gzip magic bytes (1F 8B)
+                const bytes = new Uint8Array(arrayBuffer);
+                const isGzip = bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+                if (!isGzip) {
+                    // treat as plain UTF-8 JSON
+                    return new TextDecoder('utf-8').decode(bytes);
+                }
+
+                if (typeof DecompressionStream !== 'undefined') {
+                    const ds = new DecompressionStream('gzip');
+                    const decompressedStream = new Blob([bytes]).stream().pipeThrough(ds);
+                    const decompressedResponse = new Response(decompressedStream);
+                    const text = await decompressedResponse.text();
+                    return text;
+                } else if (window.pako && window.pako.ungzip) {
+                    const text = window.pako.ungzip(bytes, { to: 'string' });
+                    return text;
+                } else {
+                    console.warn('No gzip decompression available in this browser');
+                    return null;
+                }
+            } catch (e) {
+                console.error('gunzipToString error:', e);
+                return null;
+            }
         }
 
         function disconnect() {
@@ -384,16 +454,20 @@
 
         function updateStats() {
             document.getElementById('totalLogs').textContent = logCount;
-
             const rate = logCount - lastLogCount;
             document.getElementById('logRate').textContent = rate;
             lastLogCount = logCount;
-
             if (connectTime) {
                 const elapsed = Math.floor((new Date() - connectTime) / 1000);
                 const minutes = Math.floor(elapsed / 60);
                 const seconds = elapsed % 60;
                 document.getElementById('connTime').textContent = `${minutes}m ${seconds}s`;
+            }
+            // Optionally log compression metrics
+            if (compressedBytes > 0) {
+                const ratio = (compressedBytes / Math.max(1, decompressedBytes)).toFixed(2);
+                // Could display in UI; for now log to console
+                console.debug(`Compression: compressed=${compressedBytes}B decompressed=${decompressedBytes} chars ratio=${ratio}`);
             }
         }
 
@@ -402,4 +476,3 @@
     </script>
 </body>
 </html>
-

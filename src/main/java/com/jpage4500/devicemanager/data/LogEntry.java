@@ -50,21 +50,17 @@ public class LogEntry {
         }
     }
 
+    /**
+     * convert back to original log line format:
+     * 10-16 11:34:17.824  2063  2063 D PluginAODManager: onNotificationInfoUpdated() 0|com.test.pm|2000|null|10400
+     * 10-16 11:34:17.825  2063  2063 I AODNotificationManager: updateVisibleNotifications: 4
+     * 10-16 11:34:17.858  2063  2063 D QS      : setQSExpansion 0.0 -588.0
+     * 10-16 11:34:18.310  1142  1853 D SemNscXgbMsL1: Probability - Non real time: [0.79989874]
+     * 05-13 15:20:12.334  1195  1195 W adbd    : timeout expired while flushing socket, closing
+     * 05-13 15:20:12.876  3192  4081 D ModemODPMPoller: Current Modem ODPM (mw): 69, threshold: 800
+     */
     @Override
     public String toString() {
-        // NOTE: toString() is called when pressing CMD+C on JTable
-        return date +
-            ", " +
-            app +
-            ", " +
-            tid +
-            ", " +
-            pid +
-            ", " +
-            level +
-            ", " +
-            tag +
-            ", " +
-            message;
+        return date + " " + pid + " " + tid + " " + level + " " + tag + ": " + message;
     }
 }

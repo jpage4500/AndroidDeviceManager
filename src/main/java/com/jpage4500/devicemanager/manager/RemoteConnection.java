@@ -14,6 +14,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -21,11 +22,10 @@ import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.zip.GZIPInputStream;
 
 /**
  * Represents a connection to a single remote ADB server
@@ -47,9 +47,11 @@ public class RemoteConnection {
     private long lastHealthCheck = 0;
     private boolean isConnected = false;
 
-    // webSocket log streaming
+    // log streaming
+    private final Map<String, AtomicBoolean> loggingStateMap = new HashMap<>();
     private final Map<String, LogStreamSession> logStreamSessions = new ConcurrentHashMap<>();
-    // webSocket screen streaming
+
+    // screen streaming
     private final Map<String, ScreenStreamSession> screenStreamSessions = new ConcurrentHashMap<>();
     private HttpClient httpClient;
 
@@ -113,6 +115,7 @@ public class RemoteConnection {
         final DeviceManager.DeviceLogListener listener;
         final String deviceSerial;
         final StringBuilder messageBuffer = new StringBuilder();
+        final ByteArrayOutputStream binaryBuffer = new ByteArrayOutputStream();
 
         LogStreamSession(WebSocket ws, DeviceManager.DeviceLogListener listener, String serial) {
             this.webSocket = ws;
@@ -350,6 +353,10 @@ public class RemoteConnection {
 
         log.debug("startLogging: serial: {}, filter: {}", deviceSerial, filterText);
 
+        // prevent another logging instance for this device
+        AtomicBoolean isLoggingBoolean = new AtomicBoolean(true);
+        loggingStateMap.put(deviceSerial, isLoggingBoolean);
+
         // build WebSocket URL
         String wsUrl = buildWebSocketUrl(deviceSerial, filterText);
 
@@ -387,8 +394,30 @@ public class RemoteConnection {
             }
 
             @Override
+            public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
+                LogStreamSession session = logStreamSessions.get(deviceSerial);
+                if (session != null) {
+                    synchronized (session.binaryBuffer) {
+                        if (data.hasRemaining()) {
+                            byte[] tmp = new byte[data.remaining()];
+                            data.get(tmp);
+                            session.binaryBuffer.write(tmp, 0, tmp.length);
+                        }
+                        if (last) {
+                            byte[] full = session.binaryBuffer.toByteArray();
+                            session.binaryBuffer.reset();
+                            handleBinaryLogFrame(full, session);
+                        }
+                    }
+                }
+                webSocket.request(1);
+                return WebSocket.Listener.super.onBinary(webSocket, data, last);
+            }
+
+            @Override
             public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
                 log.info("onClose: device: {}, code: {}, reason: {}", deviceSerial, statusCode, reason);
+                loggingStateMap.remove(deviceSerial);
                 logStreamSessions.remove(deviceSerial);
                 return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
             }
@@ -396,6 +425,7 @@ public class RemoteConnection {
             @Override
             public void onError(WebSocket webSocket, Throwable error) {
                 log.error("onError: device: {}, {}", deviceSerial, error.getMessage());
+                loggingStateMap.remove(deviceSerial);
                 logStreamSessions.remove(deviceSerial);
                 WebSocket.Listener.super.onError(webSocket, error);
             }
@@ -421,10 +451,42 @@ public class RemoteConnection {
         }
     }
 
+    private void handleBinaryLogFrame(byte[] payload, LogStreamSession session) {
+        if (payload == null || payload.length == 0) {
+            log.warn("handleBinaryLogFrame: empty payload device:{}", session.deviceSerial);
+            return;
+        }
+        try {
+            byte[] decompressed = decompressGzip(payload);
+            String json = new String(decompressed, StandardCharsets.UTF_8);
+            List<String> logEntryList = GsonHelper.stringToList(json, String.class);
+            List<LogEntry> logEntries = new ArrayList<>(logEntryList.size());
+            for (String logEntryJson : logEntryList) {
+                LogEntry entry = new LogEntry(logEntryJson, 0);
+                logEntries.add(entry);
+            }
+            session.listener.handleLogEntries(logEntries);
+        } catch (Exception e) {
+            log.error("handleBinaryLogFrame: device:{} decompress error", session.deviceSerial, e);
+        }
+    }
+
+    private byte[] decompressGzip(byte[] input) throws IOException {
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(input); GZIPInputStream gzip = new GZIPInputStream(bais); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            byte[] buf = new byte[4096];
+            int read;
+            while ((read = gzip.read(buf)) != -1) {
+                baos.write(buf, 0, read);
+            }
+            return baos.toByteArray();
+        }
+    }
+
     /**
      * Stop streaming logs from remote device
      */
     public void stopLogging(String deviceSerial) {
+        loggingStateMap.remove(deviceSerial);
         LogStreamSession session = logStreamSessions.remove(deviceSerial);
         if (session != null && session.webSocket != null) {
             log.debug("stopLogging: device: {}", deviceSerial);
@@ -441,7 +503,10 @@ public class RemoteConnection {
      * Check if currently streaming logs for a device
      */
     public boolean isLogging(String deviceSerial) {
-        return logStreamSessions.containsKey(deviceSerial);
+        AtomicBoolean isLoggingBoolean = loggingStateMap.get(deviceSerial);
+        if (isLoggingBoolean == null) return false;
+        else return isLoggingBoolean.get();
+        //return logStreamSessions.containsKey(deviceSerial);
     }
 
     /**
@@ -900,9 +965,7 @@ public class RemoteConnection {
             data.get(bytes);
             session.dataBuffer.write(bytes);
 
-            if (!last) {
-                return; // Wait for complete message
-            }
+            if (!last) return;
 
             // complete binary message received
             byte[] fullData = session.dataBuffer.toByteArray();

@@ -736,12 +736,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private void startLogging() {
         if (!device.isOnline) return;
         // if already actively logging, skip
-        if (DeviceManager.getInstance().isLogging(device)) {
-            log.trace("startLogging: already logging; ignoring");
-            return;
-        }
-        String lastLogTime = model.getLastLogTime();
+        if (DeviceManager.getInstance().isLogging(device)) return;
 
+        String lastLogTime = model.getLastLogTime();
         DeviceManager.getInstance().startLogging(device, lastLogTime, null, this);
     }
 
@@ -1052,7 +1049,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void doFilter(String text) {
         // remote device doesn't filter locally
-        if (device.remoteConnection != null) return;
+//        if (device.remoteConnection != null) {
+//            device.remoteConnection.updateLogFilter(device.serial, text);
+//            return;
+//        }
+
         if (sorter == null) return;
         List<LogFilter> list = new ArrayList<>();
 

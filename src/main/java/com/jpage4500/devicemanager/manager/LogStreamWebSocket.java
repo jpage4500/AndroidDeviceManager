@@ -8,6 +8,7 @@ import fi.iki.elonen.NanoWSD;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -15,6 +16,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * WebSocket handler for streaming device logs in real-time
@@ -37,8 +39,6 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     public static final String ACTION_PING = "ping";
 
     private static final int BATCH_INTERVAL_MS = 500;
-    private static final int MAX_BATCH_SIZE = 50;
-    private static final int MAX_BUFFER_SIZE = 1000;    // # of log entries to buffer before dropping oldest
     private static final long PING_INTERVAL_MS = 30000; // 30 seconds
 
     private final Device device;
@@ -50,7 +50,6 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> batchTask;
     private ScheduledFuture<?> pingTask;
-    private int droppedCount = 0;
 
     public LogStreamWebSocket(NanoWSD.IHTTPSession handshakeRequest, Device device, LogFilter filter) {
         super(handshakeRequest);
@@ -128,27 +127,14 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
 
     @Override
     public void handleLogEntries(List<LogEntry> logEntryList) {
-        if (isPaused.get() || !isOpen()) {
-            return;
-        }
+        if (isPaused.get() || !isOpen()) return;
 
         synchronized (batchBuffer) {
             for (LogEntry entry : logEntryList) {
                 // apply filter if set
                 if (filter != null && filter.filterList != null && !filter.filterList.isEmpty()) {
-                    if (!filter.isMatch(entry)) {
-                        continue;
-                    }
+                    if (!filter.isMatch(entry)) continue;
                 }
-
-                // check buffer size limit
-                if (batchBuffer.size() >= MAX_BUFFER_SIZE) {
-                    // drop oldest entries
-                    int toDrop = Math.min(MAX_BATCH_SIZE, batchBuffer.size() - MAX_BUFFER_SIZE + MAX_BATCH_SIZE);
-                    batchBuffer.subList(0, toDrop).clear();
-                    droppedCount += toDrop;
-                }
-
                 batchBuffer.add(entry);
             }
         }
@@ -156,9 +142,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
 
     @Override
     public void handleProcessMap(Map<String, String> processMap) {
-        if (!isOpen()) {
-            return;
-        }
+        if (!isOpen()) return;
         sendMessage(TYPE_PROCESS_MAP, Map.of("map", processMap));
     }
 
@@ -179,13 +163,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     }
 
     private void startBatchTask() {
-        batchTask = scheduler.scheduleWithFixedDelay(() -> {
-            try {
-                sendBatch();
-            } catch (Exception e) {
-                log.error("batchTask: device: {} error", device.serial, e);
-            }
-        }, BATCH_INTERVAL_MS, BATCH_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        batchTask = scheduler.scheduleWithFixedDelay(this::sendBatch, BATCH_INTERVAL_MS, BATCH_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
     private void startPingTask() {
@@ -201,36 +179,30 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     }
 
     private void sendBatch() {
-        if (!isOpen() || isPaused.get()) {
-            return;
-        }
+        if (!isOpen() || isPaused.get()) return;
 
         List<LogEntry> toSend;
-        int dropped;
 
         synchronized (batchBuffer) {
-            if (batchBuffer.isEmpty() && droppedCount == 0) {
-                return;
-            }
-
+            if (batchBuffer.isEmpty()) return;
             toSend = new ArrayList<>(batchBuffer);
             batchBuffer.clear();
-            dropped = droppedCount;
-            droppedCount = 0;
         }
 
-        // send in chunks to avoid oversized frames/messages
-        int total = toSend.size();
-        for (int start = 0; start < total; start += MAX_BATCH_SIZE) {
-            int end = Math.min(start + MAX_BATCH_SIZE, total);
-            List<LogEntry> chunk = toSend.subList(start, end);
-            log.trace("sendBatch: sending chunk: {}-{}", start, end);
-            sendMessage(TYPE_LOGS, Map.of("entries", new ArrayList<>(chunk)));
+        // convert from List<LogEntry> to List<String>
+        List<String> logStrList = new ArrayList<>(toSend.size());
+        for (LogEntry entry : toSend) {
+            logStrList.add(entry.toString());
         }
+        String json = GsonHelper.toJson(logStrList);
 
-        if (dropped > 0) {
-            log.trace("sendBatch: dropped: {}", dropped);
-            sendMessage(TYPE_WARNING, Map.of("message", "Dropped " + dropped + " log entries due to buffer overflow"));
+        try {
+            byte[] compressed = gzipCompress(json);
+            //log.trace("sendBatch: compressed:{} decompressed:{} ratio:{}", compressed.length, json.length(), String.format("%.2f", (double) compressed.length / (double) json.length()));
+            send(compressed);
+        } catch (IOException e) {
+            log.error("sendBatch: gzip error device:{} size:{}", device.serial, logStrList.size(), e);
+            log.trace("sendBatch: {}", json);
         }
     }
 
@@ -269,9 +241,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
     }
 
     private void sendMessage(String type, Map<String, Object> data) {
-        if (!isOpen()) {
-            return;
-        }
+        if (!isOpen()) return;
 
         try {
             Map<String, Object> message = new HashMap<>();
@@ -307,5 +277,12 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
 
         log.trace("cleanup: device: {}", device.serial);
     }
-}
 
+    private byte[] gzipCompress(String text) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(baos)) {
+            gzip.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        return baos.toByteArray();
+    }
+}
