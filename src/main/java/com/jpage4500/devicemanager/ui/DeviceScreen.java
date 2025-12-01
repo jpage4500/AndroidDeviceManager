@@ -536,7 +536,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             trayIcon.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    log.trace("mouseClicked: tray:{}", trayPopupMenu);
                     if (trayPopupMenu != null) {
                         trayPopupMenu.setVisible(false);
                         trayPopupMenu = null;

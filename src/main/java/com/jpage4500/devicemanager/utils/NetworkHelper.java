@@ -325,9 +325,9 @@ public class NetworkHelper {
             sb.append(String.format("ERROR:%d, \"%s\", ", response.status, response.body));
         }
         if (!TextUtils.equalsIgnoreCase(method, "GET")) {
-            sb.append(method);
+            sb.append(method).append(" ");
         }
-        sb.append(" ").append(url);
+        sb.append(url);
         if (response.body != null && response.status == 200) {
             sb.append(String.format(", \"%s\"", TextUtils.truncate(response.body, 1000)));
         }

@@ -38,8 +38,6 @@ public class RemoteServerManager {
 
         void onClientConnected(RemoteClientInfo client);
 
-        void onClientDisconnected(RemoteClientInfo client);
-
         void onError(Exception e);
     }
 

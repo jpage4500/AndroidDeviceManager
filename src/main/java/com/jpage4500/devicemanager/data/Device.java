@@ -149,7 +149,8 @@ public class Device {
 
     public void setCustomProperty(String key, String value) {
         if (customPropertyMap == null) customPropertyMap = new HashMap<>();
-        customPropertyMap.put(key, value);
+        if (TextUtils.isEmpty(value)) customPropertyMap.remove(key);
+        else customPropertyMap.put(key, value);
     }
 
     public boolean isBusy() {

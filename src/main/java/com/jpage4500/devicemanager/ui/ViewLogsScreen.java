@@ -82,13 +82,12 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     public void updateDevice(Device device) {
         this.device = device;
-        log.trace("updateDeviceState: ONLINE:{}", device.isOnline);
         if (device.isOnline) {
             setTitle("Logs: [" + device.getDisplayName() + "]");
-            startLogging();
+            if (!isLoggedPaused) startLogging();
         } else {
             setTitle("OFFLINE [" + device.getDisplayName() + "]");
-            stopLogging();
+            if (!isLoggedPaused) stopLogging();
         }
     }
 

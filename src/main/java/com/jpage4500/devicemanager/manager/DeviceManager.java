@@ -3,7 +3,6 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.ui.RemoteScreenWindow;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
@@ -30,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-public class DeviceManager {
+public class DeviceManager implements RemoteConnectionManager.RemoteConnectionListener {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DeviceManager.class);
 
     // adb commands
@@ -132,74 +131,10 @@ public class DeviceManager {
         this.deviceListener = listener;
 
         // remote connection manager
-        remoteConnectionManager = new RemoteConnectionManager(new RemoteConnectionManager.RemoteConnectionListener() {
-            @Override
-            public void onRemoteConnection(RemoteConnection connection) {
-                List<Device> deviceList = getDeviceForConnection(connection);
-                deviceList.forEach(device -> {
-                    device.isOnline = true;
-                });
-                notifyDevicesUpdated();
-            }
-
-            @Override
-            public void onRemoteConnectionLost(RemoteConnection connection) {
-                // mark remote devices as offline
-                List<Device> deviceList = getDeviceForConnection(connection);
-                deviceList.forEach(device -> device.isOnline = false);
-                notifyDevicesUpdated();
-            }
-
-            @Override
-            public void onRemoteServerRemoved(RemoteConnection connection) {
-                // remove all devices from this server
-                synchronized (deviceList) {
-                    deviceList.removeIf(device -> device.remoteConnection == connection);
-                }
-                notifyDevicesUpdated();
-            }
-
-            @Override
-            public void onRemoteDevicesUpdated(RemoteConnection connection, List<Device> devices) {
-                // merge remote devices into device list
-                synchronized (deviceList) {
-                    // TODO: update instead of replace
-                    // remove old devices from this server
-                    deviceList.removeIf(device -> device.remoteConnection == connection);
-                    // add new devices
-                    deviceList.addAll(devices);
-                }
-                notifyDevicesUpdated();
-            }
-        });
+        remoteConnectionManager = new RemoteConnectionManager(this);
 
         // remote server manager (auto-starts if previously enabled)
-        remoteServerManager = new RemoteServerManager(new RemoteServerManager.ServerListener() {
-            @Override
-            public void onServerStarted(int port) {
-
-            }
-
-            @Override
-            public void onServerStopped() {
-
-            }
-
-            @Override
-            public void onClientConnected(RemoteClientInfo client) {
-
-            }
-
-            @Override
-            public void onClientDisconnected(RemoteClientInfo client) {
-
-            }
-
-            @Override
-            public void onError(Exception e) {
-
-            }
-        });
+        remoteServerManager = new RemoteServerManager(null);
     }
 
     private void notifyDevicesUpdated() {
@@ -555,8 +490,8 @@ public class DeviceManager {
         List<String> entryList = SettingsDialog.getCustomColumns();
         if (entryList.isEmpty()) return;
 
-        // schedule these commands to be run after all other device details are fetched
         scheduledExecutorService.submit(() -> {
+            // schedule these commands to be run after all other device details are fetched
             Timer timer = new Timer();
             device.setBusy(true);
             notifyDeviceUpdated(device);
@@ -649,6 +584,7 @@ public class DeviceManager {
             device.setBusy(false);
             notifyDeviceUpdated(device);
         });
+
     }
 
     private void fetchFreeDiskSpace(Device device) {
@@ -687,8 +623,7 @@ public class DeviceManager {
                 String propValue = propArr[1];
                 // old versions replaced spaces with "~"
                 propValue = propValue.replaceAll("~", " ");
-                if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
-                device.customPropertyMap.put(propKey, propValue);
+                device.setCustomProperty(propKey, propValue);
             }
         } catch (Exception e) {
             // NOTE: this is normal as file won't exist unless set
@@ -1012,19 +947,13 @@ public class DeviceManager {
         if (device.remoteConnection != null) {
             boolean isOk = device.remoteConnection.setProperty(device.serial, key, value);
             if (isOk) {
-                if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
-                // update property
-                if (TextUtils.isEmpty(value)) device.customPropertyMap.remove(key);
-                else device.customPropertyMap.put(key, value);
+                device.setCustomProperty(key, value);
             }
             return isOk;
         }
 
         // local device
-        if (device.customPropertyMap == null) device.customPropertyMap = new HashMap<>();
-        // update property
-        if (TextUtils.isEmpty(value)) device.customPropertyMap.remove(key);
-        else device.customPropertyMap.put(key, value);
+        device.setCustomProperty(key, value);
         // turn into key=value string
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, String> entry : device.customPropertyMap.entrySet()) {
@@ -1925,6 +1854,7 @@ public class DeviceManager {
                 runShell(device, "input keyevent " + AndroidKeyMapper.KEYCODE_WAKEUP);
                 Utils.sleep(1000);
                 // keep screen on during mirroring
+                // NOTE: keeps the device's screen on as long as it is plugged into a power source
                 result = runShell(device, "svc power stayon true");
                 if (!result.isSuccess) {
                     // fallback: keep screen on while AC or USB (1|2 = 3)
@@ -1950,4 +1880,43 @@ public class DeviceManager {
         return null;
     }
 
+    @Override
+    public void onRemoteConnection(RemoteConnection connection) {
+        List<Device> deviceList = getDeviceForConnection(connection);
+        deviceList.forEach(device -> device.isOnline = true);
+        notifyDevicesUpdated();
+    }
+
+    @Override
+    public void onRemoteConnectionLost(RemoteConnection connection) {
+        // mark remote devices as offline
+        List<Device> deviceList = getDeviceForConnection(connection);
+        deviceList.forEach(device -> device.isOnline = false);
+        notifyDevicesUpdated();
+    }
+
+    @Override
+    public void onRemoteServerRemoved(RemoteConnection connection) {
+        // remove all devices from this server
+        synchronized (deviceList) {
+            deviceList.removeIf(device -> device.remoteConnection == connection);
+        }
+        notifyDevicesUpdated();
+    }
+
+    @Override
+    public void onRemoteDevicesUpdated(RemoteConnection connection, List<Device> devices) {
+        // merge remote devices into device list
+        synchronized (deviceList) {
+            // TODO: update instead of replace
+            // remove old devices from this server
+            deviceList.removeIf(device -> device.remoteConnection == connection);
+            // add new devices
+            deviceList.addAll(devices);
+        }
+        notifyDevicesUpdated();
+
+        // fetch any custom properties
+        devices.forEach(this::fetchCustomColumns);
+    }
 }
