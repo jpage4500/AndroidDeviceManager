@@ -69,7 +69,7 @@ public class ExploreScreen extends BaseScreen {
         super("browse-" + device.serial, 500, 500);
         this.deviceScreen = deviceScreen;
         this.device = device;
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         initializeUi();
         updateDevice(device);
     }
@@ -206,7 +206,7 @@ public class ExploreScreen extends BaseScreen {
     @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSED) {
+        if (state == WindowState.CLOSING) {
             closeWindow();
         }
     }
@@ -387,7 +387,7 @@ public class ExploreScreen extends BaseScreen {
 
     private void refreshFiles() {
         if (!device.isOnline) return;
-        DeviceManager.getInstance().listFiles(device, selectedPath, useRoot, (fileList, error) -> SwingUtilities.invokeLater(() -> {
+        DeviceManager.getInstance().fetchFileList(device, selectedPath, useRoot, (fileList, error) -> SwingUtilities.invokeLater(() -> {
             if (error != null) {
                 errorMessage = error;
                 boolean doRefresh = false;
@@ -499,7 +499,7 @@ public class ExploreScreen extends BaseScreen {
         filterTextField.setMaximumSize(new Dimension(200, 40));
         toolbar.add(filterTextField);
 
-        createToolbarButton(toolbar, "icon_refresh.png", "Refresh", "Refresh Files", actionEvent -> refreshFiles());
+        createToolbarButton(toolbar, "refresh.png", "Refresh", "Refresh Files", actionEvent -> refreshFiles());
 
         // root toolbar button
         useRoot = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_USE_ROOT, false);

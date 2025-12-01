@@ -177,6 +177,8 @@ public class CustomTable extends JTable {
                     int imgH = emptyImage.getHeight(null);
                     double aspectRatio = width / (double) imgW;
                     double drawImageH = imgH * aspectRatio;
+                    int height = getHeight() - headerH;
+                    if (drawImageH < height) drawImageH = height;
                     // make image semi-transparent
                     Graphics2D g2d = (Graphics2D) graphics.create();
                     g2d.setComposite(AlphaComposite.SrcOver.derive(0.2f));
@@ -415,7 +417,7 @@ public class CustomTable extends JTable {
         }
 
         if (!needsReorder) {
-            if (log.isTraceEnabled()) log.trace("restoreTable: columns already in correct order for {}", prefKey);
+            //if (log.isTraceEnabled()) log.trace("restoreTable: columns already in correct order for {}", prefKey);
             // Still apply widths even if order is correct
             applyColumnWidths(detailsList);
             return true;
@@ -426,7 +428,7 @@ public class CustomTable extends JTable {
         while (columns.hasMoreElements()) {
             TableColumn column = columns.nextElement();
             if (!orderedColumns.contains(column)) {
-                log.trace("restoreColumnOrder: adding: {}", column.getHeaderValue());
+                //log.trace("restoreColumnOrder: adding: {}", column.getHeaderValue());
                 orderedColumns.add(column);
             }
         }
@@ -442,7 +444,7 @@ public class CustomTable extends JTable {
         }
 
         applyColumnWidths(detailsList);
-        log.debug("restoreTable: restored {} columns for {}", orderedColumns.size(), prefKey);
+        //log.trace("restoreTable: restored {} columns for {}", orderedColumns.size(), prefKey);
         return true;
     }
 
@@ -451,7 +453,7 @@ public class CustomTable extends JTable {
             if (details.name == null) continue;
             TableColumn column = getColumnByName(details.name);
             if (column != null && details.width >= MIN_COLUMN_WIDTH && details.width <= MAX_COLUMN_WIDTH) {
-                log.trace("applyColumnWidths: setting width {} for column '{}'", details.width, details.name);
+                //log.trace("applyColumnWidths: setting width {} for column '{}'", details.width, details.name);
                 column.setPreferredWidth(details.width);
             }
         }
@@ -517,8 +519,7 @@ public class CustomTable extends JTable {
             Preferences prefs = Preferences.userRoot();
             prefs.put(prefKey + "-details", GsonHelper.toJson(detailList));
             prefs.flush(); // Ensure written to disk
-            if (log.isTraceEnabled()) log.trace("saveTable: successfully saved {} columns for {}", detailList.size(), prefKey);
-
+            //if (log.isTraceEnabled()) log.trace("saveTable: successfully saved {} columns for {}", detailList.size(), prefKey);
         } catch (Exception e) {
             log.error("saveTable: failed to save state for {}: {}", prefKey, e.getMessage());
         }

@@ -36,7 +36,7 @@ public class InputScreen extends BaseScreen {
         super("input-" + device.serial, 300, 300);
         this.deviceScreen = deviceScreen;
         this.device = device;
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initalizeUi();
         updateDevice(device);
@@ -132,7 +132,7 @@ public class InputScreen extends BaseScreen {
     @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSED) {
+        if (state == WindowState.CLOSING) {
             closeWindow();
         }
     }

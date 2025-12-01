@@ -22,11 +22,14 @@ public class PreferenceUtils {
         PREF_CUSTOM_COMMAND_LIST,
         PREF_RECENT_INPUT,
         PREF_MESSAGE_FILTERS,
-        PREF_HIDDEN_TOOLBAR_ITEMS,
+        PREF_HIDDEN_TOOLBAR_ITEMS,            // hidden toolbar items (enum name)
         PREF_LOGS_HIDDEN_COLUMNS,
         PREF_LOGS_CUSTOM_FILTER,              // logs: last custom filter
         PREF_LOGS_SELECTED_FILTERS,           // logs: last selected filters
         PREF_LOGS_FONT_NAME,
+        PREF_SERVER_AUTH_TOKEN,               // remote server: authentication token
+        PREF_SERVER_DEVICE_NAME,              // remote server: device name
+        PREF_CONNECTED_SERVERS,               // connected servers: List<RemoteServerConfig>
     }
 
     /**
@@ -42,10 +45,11 @@ public class PreferenceUtils {
         PREF_EXIT_TO_TRAY,
         PREF_DEVICE_AUTO_RESIZE,
         PREF_LOGS_AUTO_RESIZE,
+        PREF_SERVER_ENABLED,
     }
 
     /**
-     * Boolean value preferences
+     * Integer value preferences
      */
     public enum PrefInt {
         PREF_LOG_LEVEL,
@@ -55,6 +59,7 @@ public class PreferenceUtils {
         PREF_LOGS_FONT_STYLE,
         PREF_LOGS_MAX_LINES,
         PREF_REFRESH_TIME_MINS,
+        PREF_SERVER_PORT,                      // remote server: port
     }
 
     public static String getPreference(Pref pref) {

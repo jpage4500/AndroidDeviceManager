@@ -57,7 +57,7 @@ public class SaveLogsScreen extends BaseScreen {
         //setAlwaysOnTop(true);
         setTitle("Save Device Logs");
         this.deviceScreen = deviceScreen;
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         BufferedImage startImg = UiUtils.getImage("icon_play.png", UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
         BufferedImage greenStartImg = UiUtils.replaceColor(startImg, Colors.COLOR_START_RECORDING);
@@ -113,7 +113,7 @@ public class SaveLogsScreen extends BaseScreen {
             entry.saveFile = new File(lastLogsFolder, entry.device.serial + ".txt");
 
             deviceScreen.setDeviceBusy(entry.device, true);
-            DeviceManager.getInstance().startLogging(entry.device, null, new DeviceManager.DeviceLogListener() {
+            DeviceManager.getInstance().startLogging(entry.device, null, null, new DeviceManager.DeviceLogListener() {
                 @Override
                 public void handleLogEntries(List<LogEntry> logEntryList) {
                     if (!isRecording) return;
@@ -367,7 +367,7 @@ public class SaveLogsScreen extends BaseScreen {
     private void deleteLogs() {
         if (lastLogsFolder == null) return;
         String msg = String.format("Delete last log folder: %s?", lastLogsFolder.getAbsolutePath());
-        boolean isDelete = DialogHelper.showOptionDialog(this, "Delete Logs", msg, new String[]{"Yes", "No"});
+        boolean isDelete = DialogHelper.showConfirmDialog(this, "Delete Logs", msg);
         if (isDelete) {
             log.trace("deleteLogs: {}", lastLogsFolder.getAbsolutePath());
             FileUtils.deleteFolder(lastLogsFolder);
@@ -384,7 +384,7 @@ public class SaveLogsScreen extends BaseScreen {
     @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSED) {
+        if (state == WindowState.CLOSING) {
             closeWindow();
         }
     }

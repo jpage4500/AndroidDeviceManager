@@ -37,23 +37,90 @@ public class DialogHelper {
         return (rc == JOptionPane.YES_OPTION);
     }
 
+    public static int showOptionDialog(Component component, String title, String text, List<String> choiceList) {
+        return showOptionDialog(component, title, text, choiceList.toArray(new String[0]));
+    }
+
     /**
-     * show a prompt dialog with custom buttons
+     * show a prompt dialog with radio buttons for choices
      *
-     * @return true if YES is selected
+     * @return index of selected button or -1 if cancelled
      */
-    public static boolean showOptionDialog(Component component, String title, String text, String[] buttons) {
-        int rc = JOptionPane.showOptionDialog(component, text, title, JOptionPane.DEFAULT_OPTION,
-            JOptionPane.QUESTION_MESSAGE, null, buttons, null);
-        return (rc == JOptionPane.YES_OPTION);
+    public static int showOptionDialog(Component component, String title, String text, String[] choiceArr) {
+        JPanel panel = new JPanel(new MigLayout("", "[grow]", "[]10[]"));
+
+        // add text label if provided
+        if (text != null && !text.isEmpty()) {
+            JLabel label = new JLabel(text);
+            panel.add(label, "wrap");
+        }
+
+        // create radio buttons
+        ButtonGroup buttonGroup = new ButtonGroup();
+        JRadioButton[] radioButtons = new JRadioButton[choiceArr.length];
+
+        for (int i = 0; i < choiceArr.length; i++) {
+            radioButtons[i] = new JRadioButton(choiceArr[i]);
+            buttonGroup.add(radioButtons[i]);
+            panel.add(radioButtons[i], "wrap");
+        }
+
+        // select first option by default
+        if (radioButtons.length > 0) {
+            radioButtons[0].setSelected(true);
+        }
+
+        // show dialog with OK/Cancel buttons
+        int result = JOptionPane.showConfirmDialog(component, panel, title,
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+
+        // return -1 if cancelled, otherwise return index of selected radio button
+        if (result != JOptionPane.OK_OPTION) {
+            return -1;
+        }
+
+        for (int i = 0; i < radioButtons.length; i++) {
+            if (radioButtons[i].isSelected()) {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     public static void showTextDialog(Component component, String title, String text) {
         // display results in dialog
         JTextArea textArea = new JTextArea(text);
         textArea.setEditable(false);
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        
+        // calculate preferred size based on text content
+        FontMetrics fm = textArea.getFontMetrics(textArea.getFont());
+        String[] lines = text.split("\n");
+        int maxLineWidth = 0;
+        for (String line : lines) {
+            int lineWidth = fm.stringWidth(line);
+            if (lineWidth > maxLineWidth) {
+                maxLineWidth = lineWidth;
+            }
+        }
+        
+        // calculate dimensions with constraints
+        int screenWidth = Utils.getScreenWidth();
+        int screenHeight = Utils.getScreenHeight();
+        int maxWidth = Math.min(screenWidth * 3 / 4, 1200);
+        int maxHeight = screenHeight - 200;
+        
+        int preferredWidth = Math.min(maxLineWidth + 50, maxWidth);
+        int preferredHeight = Math.min(lines.length * fm.getHeight() + 50, maxHeight);
+        
+        // ensure minimum size
+        preferredWidth = Math.max(preferredWidth, 400);
+        preferredHeight = Math.max(preferredHeight, 200);
+        
         JScrollPane scrollPane = new JScrollPane(textArea);
-        scrollPane.setPreferredSize(new Dimension(Utils.getScreenWidth() / 2, Utils.getScreenHeight() - 200));
+        scrollPane.setPreferredSize(new Dimension(preferredWidth, preferredHeight));
         JOptionPane.showMessageDialog(component, scrollPane, title, JOptionPane.PLAIN_MESSAGE);
     }
 

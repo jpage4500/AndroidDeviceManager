@@ -4,7 +4,6 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.ui.views.ComboIcon;
 import com.jpage4500.devicemanager.ui.views.IconTextField;
-import com.jpage4500.devicemanager.ui.views.NumberCircleIcon;
 import com.jpage4500.devicemanager.utils.Colors;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
@@ -23,8 +22,16 @@ import java.util.Map;
 public class DeviceCellRenderer extends IconTextField implements TableCellRenderer {
     private static final Logger log = LoggerFactory.getLogger(DeviceCellRenderer.class);
 
-    // icon for device status (busy, online, offline, not ready)
-    private final NumberCircleIcon deviceIcon;
+    private enum DeviceState {
+        OFFLINE,
+        ONLINE,
+        BUSY,
+        REMOTE_OFFLINE,
+        REMOTE_ONLINE,
+        REMOTE_BUSY,
+    }
+
+    private final Map<String, Icon> deviceIconMap;
 
     // battery state icons
     private final Map<String, Icon> chargingIconMap;
@@ -34,8 +41,8 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
     private boolean isHighlighted = false;
 
     public DeviceCellRenderer() {
-        deviceIcon = new NumberCircleIcon(0, UiUtils.IMG_SIZE_ICON, Colors.COLOR_ONLINE, Color.BLACK);
         chargingIconMap = new HashMap<>();
+        deviceIconMap = new HashMap<>();
 
         setOpaque(true);
         UiUtils.setEmptyBorder(this, 5, 5);
@@ -47,6 +54,9 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
         // convert table column to model column
         column = table.convertColumnIndexToModel(column);
         DeviceTableModel.Columns columnType = model.getColumnType(column);
+
+        // hasFocus is for the cell only (not entire row)
+        boolean isSelectedAndFocused = isSelected && table.hasFocus();
 
         Icon icon = null;
         String text = null;
@@ -70,23 +80,10 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     align = SwingConstants.RIGHT;
                     break;
                 case NAME:
-                    icon = deviceIcon;
-                    int busyCount = device.getBusyCount();
-                    deviceIcon.setNumber(0);
-                    if (busyCount > 0) {
-                        deviceIcon.setCircleColor(Colors.COLOR_BUSY);
-                        if (busyCount > 1) {
-                            deviceIcon.setNumber(busyCount);
-                        }
-                    } else if (device.isOnline) {
-                        if (!device.isBooted) {
-                            deviceIcon.setCircleColor(Colors.COLOR_NOT_READY);
-                        } else {
-                            deviceIcon.setCircleColor(Colors.COLOR_ONLINE);
-                        }
-                    } else {
-                        deviceIcon.setCircleColor(Color.GRAY);
-                    }
+                    // show device status icon with optional remote indicator
+                    icon = getDeviceIcon(device, isSelectedAndFocused);
+                    text = model.deviceValue(device, column);
+                    break;
             }
         }
 
@@ -105,11 +102,10 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
         setIcon(icon);
         setText(text);
 
-        boolean isTableFocused = table.hasFocus();
-        Color textColor = isSelected && isTableFocused ? Color.WHITE : Color.BLACK;
+        Color textColor = isSelectedAndFocused ? Color.WHITE : Color.BLACK;
         Color backgroundColor = isSelected ? table.getSelectionBackground() : table.getBackground();
         if (!device.isOnline) {
-            textColor = isSelected && isTableFocused ? Color.WHITE : Color.GRAY;
+            textColor = isSelectedAndFocused ? Color.WHITE : Color.GRAY;
         }
 
         int highlightStartPos = -1;
@@ -130,7 +126,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     highlightPainter = new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW);
                     highlightPainter2 = new DefaultHighlighter.DefaultHighlightPainter(new Color(251, 109, 8));
                 }
-                Highlighter.HighlightPainter highlight = isSelected ? highlightPainter2 : highlightPainter;
+                Highlighter.HighlightPainter highlight = isSelectedAndFocused ? highlightPainter2 : highlightPainter;
                 try {
                     highlighter.addHighlight(highlightStartPos, highlightStartPos + searchText.length(), highlight);
                 } catch (BadLocationException e) {
@@ -142,6 +138,32 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
         setBackground(backgroundColor);
 
         return this;
+    }
+
+    private Icon getDeviceIcon(Device device, boolean isSelected) {
+        boolean isRemote = device.remoteConnection != null;
+        boolean isBusy = device.getBusyCount() > 0;
+        DeviceState state;
+        Color color;
+        if (!device.isOnline) {
+            state = isRemote ? DeviceState.REMOTE_OFFLINE : DeviceState.OFFLINE;
+            color = Colors.COLOR_OFFLINE;
+        } else if (isBusy) {
+            state = isRemote ? DeviceState.REMOTE_BUSY : DeviceState.BUSY;
+            color = Colors.COLOR_BUSY;
+        } else {
+            state = isRemote ? DeviceState.REMOTE_ONLINE : DeviceState.ONLINE;
+            color = Colors.COLOR_ONLINE;
+        }
+        String key = state + "-" + isSelected;
+        Icon icon = deviceIconMap.get(key);
+        if (icon == null) {
+            // create icon
+            String imageName = isRemote ? "device_remote.png" : "device_local.png";
+            icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON, isSelected ? Color.WHITE : color);
+            deviceIconMap.put(key, icon);
+        }
+        return icon;
     }
 
     /**

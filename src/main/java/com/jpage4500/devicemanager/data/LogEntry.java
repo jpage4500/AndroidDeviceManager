@@ -35,7 +35,8 @@ public class LogEntry {
         String dayStr = lineArr[0];
         String timeStr = lineArr[1];
         // remove micro-seconds (could be useful to parse but not necessary to display today)
-        if (timeStr.length() > 4) timeStr = timeStr.substring(0, timeStr.length() - 4);
+        // "10-16 11:34:17.824" -> "10-16 11:34:17"
+        if (timeStr.length() >= 14) timeStr = timeStr.substring(0, timeStr.length() - 4);
         date = dayStr + " " + timeStr;
 
         pid = lineArr[2];
@@ -49,21 +50,17 @@ public class LogEntry {
         }
     }
 
+    /**
+     * convert back to original log line format:
+     * 10-16 11:34:17.824  2063  2063 D PluginAODManager: onNotificationInfoUpdated() 0|com.test.pm|2000|null|10400
+     * 10-16 11:34:17.825  2063  2063 I AODNotificationManager: updateVisibleNotifications: 4
+     * 10-16 11:34:17.858  2063  2063 D QS      : setQSExpansion 0.0 -588.0
+     * 10-16 11:34:18.310  1142  1853 D SemNscXgbMsL1: Probability - Non real time: [0.79989874]
+     * 05-13 15:20:12.334  1195  1195 W adbd    : timeout expired while flushing socket, closing
+     * 05-13 15:20:12.876  3192  4081 D ModemODPMPoller: Current Modem ODPM (mw): 69, threshold: 800
+     */
     @Override
     public String toString() {
-        // NOTE: toString() is called when pressing CMD+C on JTable
-        return date +
-            ", " +
-            app +
-            ", " +
-            tid +
-            ", " +
-            pid +
-            ", " +
-            level +
-            ", " +
-            tag +
-            ", " +
-            message;
+        return date + " " + pid + " " + tid + " " + level + " " + tag + ": " + message;
     }
 }

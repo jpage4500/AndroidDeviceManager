@@ -69,11 +69,11 @@ public class NumberCircleIcon implements Icon {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // Draw the circle
+        // draw the circle
         g2.setColor(isHovered ? hoverColor : circleColor);
         g2.fillOval(x, y, diameter, diameter);
 
-        // Draw the text
+        // draw the text
         if (number > 0) {
             g2.setColor(textColor);
             g2.setFont(c.getFont().deriveFont(Font.BOLD, diameter * 0.5f));

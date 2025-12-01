@@ -1,14 +1,14 @@
 package com.jpage4500.devicemanager.ui;
 
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.util.prefs.Preferences;
 
 /**
@@ -18,12 +18,15 @@ public class BaseScreen extends JFrame {
     private static final Logger log = LoggerFactory.getLogger(BaseScreen.class);
 
     private String prefKey;
+    private String titleBackup;
+    private Timer resizeTitleTimer;
 
     public BaseScreen(String prefKey, int defaultWidth, int defaultHeight) {
         this.prefKey = prefKey;
         restoreFrameSize(defaultWidth, defaultHeight);
 
-        setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        // by default do nothing on exit - each screen needs to handle onWindowStateChanged(CLOSING)
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -52,13 +55,13 @@ public class BaseScreen extends JFrame {
             }
         });
 
-        // TODO: handle window resizing
-        //addComponentListener(new ComponentAdapter() {
-        //    @Override
-        //    public void componentResized(ComponentEvent componentEvent) {
-        //        log.trace("componentResized: {}: W:{}, H:{}", prefKey, getWidth(), getHeight());
-        //    }
-        //});
+        // handle window resizing by changing title to "WxH"
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent componentEvent) {
+                handleResize();
+            }
+        });
 
         // NOTE: this breaks dragging the scrollbar on Mac
         // getRootPane().putClientProperty("apple.awt.draggableWindowBackground", true);
@@ -83,30 +86,75 @@ public class BaseScreen extends JFrame {
         //log.trace("onWindowStateChanged: {}: {}", prefKey, state);
     }
 
-    protected JButton createSmallToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
+    /**
+     * Handle window resize - show dimensions in title temporarily
+     */
+    private void handleResize() {
+        // backup original title on first resize
+        if (titleBackup == null) {
+            titleBackup = getTitle();
+        }
+
+        // show current dimensions in title
+        int width = getWidth();
+        int height = getHeight();
+        setTitle(width + "x" + height);
+
+        // reset or start timer to restore original title after 1 second
+        if (resizeTitleTimer != null) {
+            resizeTitleTimer.restart();
+        } else {
+            resizeTitleTimer = new Timer(1000, e -> restoreTitle());
+            resizeTitleTimer.setRepeats(false);
+            resizeTitleTimer.start();
+        }
+    }
+
+    /**
+     * Restore original title after resize completes
+     */
+    private void restoreTitle() {
+        if (titleBackup != null) {
+            setTitle(titleBackup);
+            titleBackup = null;
+        }
+        if (resizeTitleTimer != null) {
+            resizeTitleTimer.stop();
+            resizeTitleTimer = null;
+        }
+    }
+
+    protected JButton createSmallToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ClickListener listener) {
         return createToolbarButton(toolbar, imageName, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR_SMALL, listener);
     }
 
     /**
      * create a 'standard' toolbar button with 40x40 image and label below
      */
-    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {
+    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ClickListener listener) {
         return createToolbarButton(toolbar, imageName, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
     }
 
-    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, int size, ActionListener listener) {
+    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, int size, ClickListener listener) {
         JButton button = new JButton(label);
         if (imageName != null) {
-            ImageIcon icon = UiUtils.getImageIcon(imageName, size, size);
-            //image = replaceColor(image, new Color(0, 38, 255, 184));
-            button.setIcon(icon);
+            BufferedImage image = UiUtils.getImage(imageName, size, size);
+            if (image == null) {
+                // fall back to default image
+                image = UiUtils.getImage("android.png", size, size);
+            }
+            button.setIcon(new ImageIcon(image));
+
+            BufferedImage hoverImage = UiUtils.replaceColor(image, Colors.COLOR_TOOLBAR_HOVER);
+            button.setRolloverIcon(new ImageIcon(hoverImage));
         }
 
         button.setFont(new Font(Font.SERIF, Font.PLAIN, 10));
         if (tooltip != null) button.setToolTipText(tooltip);
         button.setVerticalTextPosition(SwingConstants.BOTTOM);
         button.setHorizontalTextPosition(SwingConstants.CENTER);
-        button.addActionListener(listener);
+        UiUtils.addLeftClickListener(button, listener);
+        //button.addActionListener(listener);
         toolbar.add(button);
         return button;
     }
@@ -152,7 +200,7 @@ public class BaseScreen extends JFrame {
     protected void saveFrameSize() {
         Preferences prefs = Preferences.userRoot();
         Rectangle rect = getBounds();
-        log.trace("saveFrameSize: {}, w:{}, h:{}", prefKey, rect.width, rect.height);
+        //log.trace("saveFrameSize: {}, w:{}, h:{}", prefKey, rect.width, rect.height);
         prefs.put(prefKey, GsonHelper.toJson(rect));
     }
 

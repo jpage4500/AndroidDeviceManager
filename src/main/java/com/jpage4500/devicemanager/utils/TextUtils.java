@@ -128,7 +128,7 @@ public class TextUtils {
         final char firstUp = Character.toUpperCase(searchText.charAt(0));
 
         for (int i = src.length() - searchText.length(); i >= 0; i--) {
-            // Quick check before calling the more expensive regionMatches() method:
+            // quick check before calling the more expensive regionMatches() method:
             final char ch = src.charAt(i);
             if (ch != firstLo && ch != firstUp) continue;
 
@@ -236,12 +236,12 @@ public class TextUtils {
         else if (searchFor.isEmpty() || value.isEmpty()) return -1;
 
         for (int i = 0; i < value.length(); ++i) {
-            // Early out, if possible.
+            // early out, if possible.
             if (i + searchFor.length() > value.length()) {
                 return -1;
             }
 
-            // Attempt to match substring starting at position i of haystack.
+            // attempt to match substring starting at position i of haystack.
             int j = 0;
             int ii = i;
             while (ii < value.length() && j < searchFor.length()) {
@@ -253,7 +253,7 @@ public class TextUtils {
                 j++;
                 ii++;
             }
-            // Walked all the way to the end of the needle, return the start
+            // walked all the way to the end of the needle, return the start
             // position that this was found.
             if (j == searchFor.length()) {
                 return i;

@@ -3,8 +3,8 @@ package com.jpage4500.devicemanager.utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.swing.Timer;
 import javax.swing.*;
+import javax.swing.Timer;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
@@ -119,6 +119,54 @@ public class Utils {
             downloadFolder = getUserHomeFolder() + "/Downloads";
         }
         return downloadFolder;
+    }
+
+    public static void sleep(int ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * format time
+     * examples: 500 -> 500ms, 1000 -> 1s, 35000 -> 35s, 60000 -> 1m, 70000 -> 1m:10s, 3600000 -> 1h
+     */
+    public static String formatTime(long ms) {
+        if (ms < 1000) {
+            return ms + "ms";
+        }
+
+        long seconds = ms / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+        long days = hours / 24;
+
+        if (days > 0) {
+            long remainingHours = hours % 24;
+            if (remainingHours > 0) {
+                return days + "d:" + remainingHours + "h";
+            }
+            return days + "d";
+        }
+
+        if (hours > 0) {
+            long remainingMinutes = minutes % 60;
+            if (remainingMinutes > 0) {
+                return hours + "h:" + remainingMinutes + "m";
+            }
+            return hours + "h";
+        }
+
+        if (minutes > 0) {
+            long remainingSeconds = seconds % 60;
+            if (remainingSeconds > 0) {
+                return minutes + "m:" + remainingSeconds + "s";
+            }
+            return minutes + "m";
+        }
+
+        return seconds + "s";
     }
 
     public enum CompareResult {
@@ -244,6 +292,24 @@ public class Utils {
         if (sizeInBytes <= 0) return String.valueOf(sizeInBytes);
         int digitGroups = (int) (Math.log10(sizeInBytes) / Math.log10(1024));
         return sizeDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + SIZE_UNITS[digitGroups];
+    }
+
+    /**
+     * Determine MIME type from filename
+     */
+    public static String getMimeType(String filename) {
+        if (filename == null) return null;
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".txt")) return "text/plain";
+        if (lower.endsWith(".json")) return "application/json";
+        if (lower.endsWith(".xml")) return "application/xml";
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        if (lower.endsWith(".zip")) return "application/zip";
+        if (lower.endsWith(".apk")) return "application/vnd.android.package-archive";
+        return "application/octet-stream";
     }
 
 }

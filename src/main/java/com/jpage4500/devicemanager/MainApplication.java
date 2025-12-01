@@ -3,13 +3,14 @@ package com.jpage4500.devicemanager;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
+import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.manager.RemoteServerManager;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.UiUtils;
-import com.jpage4500.devicemanager.utils.Utils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Text;
 
 import javax.swing.*;
 import java.awt.*;
@@ -28,11 +29,70 @@ public class MainApplication {
 
     public static String version;
 
-    public MainApplication() {
+    public MainApplication(String[] args) {
         setupLogging();
-        handleLaunchParams();
-        SwingUtilities.invokeLater(this::initializeUI);
         log.debug("APP START: {}, java:{}, os:{}", version, Runtime.version(), System.getProperty("os.name"));
+
+        // handle command-line args
+        for (String arg : args) {
+            if (TextUtils.equalsIgnoreCase(arg, "--server")) {
+                SwingUtilities.invokeLater(() -> runServerMode(args));
+                return;
+            }
+        }
+
+        registerFileHandler();
+        SwingUtilities.invokeLater(this::initializeUI);
+    }
+
+    private void runServerMode(String[] args) {
+        log.trace("runServerMode: SERVER MODE (headless)");
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            if (TextUtils.equalsIgnoreCase(arg, "--port") && i + 1 < args.length) {
+                int port = TextUtils.getNumber(args[i + 1], 0);
+                if (port > 0) {
+                    // save port so server uses it
+                    PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, port);
+                }
+            } else if (TextUtils.equalsIgnoreCase(arg, "--token") && i + 1 < args.length) {
+                String token = args[i + 1];
+                PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN, token);
+            }
+        }
+
+        // generate auth token if one isn't set
+        String authToken = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
+        if (TextUtils.isEmpty(authToken)) {
+            authToken = RemoteConnectionUtils.generateAuthToken();
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN, authToken);
+        }
+
+        int port = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_SERVER_PORT, RemoteServerManager.DEFAULT_PORT);
+
+        // auto connect to server
+        PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_SERVER_ENABLED, true);
+
+        // fetch network info in background
+        Utils.runBackground(() -> {
+            List<RemoteConnectionUtils.Network> networkList = RemoteConnectionUtils.getActiveNetworkInfo();
+            String token = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SERVER_AUTH_TOKEN);
+            log.info("***********************************************************");
+            log.info("Connect to server using:");
+            log.info("Token: {}", token);
+            log.info("Port: {}", port);
+            for (RemoteConnectionUtils.Network network : networkList) {
+                log.info("Network: {}: {}, {}", network.label, network.ip, network.host);
+                log.info("  > {}", RemoteConnectionUtils.generateConnectionString(network.ip, port, token, network.label));
+            }
+            log.info("***********************************************************");
+        });
+
+        DeviceManager deviceManager = DeviceManager.getInstance();
+        // server will automatically start
+        deviceManager.initialize(null);
+
+        deviceManager.connectAdbServer(true);
     }
 
     public static void main(String[] args) {
@@ -50,7 +110,7 @@ public class MainApplication {
         } catch (IOException ex) {
             System.out.println("Failed to load app.properties");
         }
-        new MainApplication();
+        new MainApplication(args);
     }
 
     /**
@@ -98,7 +158,7 @@ public class MainApplication {
         sendFilesToDevice();
     }
 
-    private void handleLaunchParams() {
+    private void registerFileHandler() {
         Desktop desktop = Desktop.getDesktop();
         if (desktop.isSupported(Desktop.Action.APP_OPEN_FILE)) {
             desktop.setOpenFileHandler(e -> {

@@ -21,6 +21,7 @@
                 "editor": false
             }
         ],
+        "urlSchemes" : ["adm"],
         "jar": "target/AndroidDeviceManager.jar",
         "javafx": false,
         "title": "Android Device Manager"

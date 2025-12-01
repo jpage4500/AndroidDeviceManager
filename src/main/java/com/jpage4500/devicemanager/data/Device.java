@@ -1,23 +1,23 @@
 package com.jpage4500.devicemanager.data;
 
+import com.jpage4500.devicemanager.manager.RemoteConnection;
 import com.jpage4500.devicemanager.utils.ExcludeFromSerialization;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import se.vidstige.jadb.JadbDevice;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Device {
     // common device properties
-    public final static String PROP_SDK = "ro.build.version.sdk";
-    public final static String PROP_MODEL = "ro.product.model";
-    public final static String PROP_OS = "ro.build.version.release";
+    private final static String PROP_SDK = "ro.build.version.sdk";
+    private final static String PROP_MODEL = "ro.product.model";
+    private final static String PROP_OS = "ro.build.version.release";
     private final static String PROP_CARRIER = "gsm.sim.operator.alpha";
     private final static String PROP_CARRIER_2 = "gsm.operator.alpha";
-    public final static String PROP_BRAND = "ro.product.brand";
-    public final static String PROP_NAME = "ro.product.name";
+    private final static String PROP_BRAND = "ro.product.brand";
+    private final static String PROP_NAME = "ro.product.name";
 
     public final static String CUSTOM_PROP_X = "custom";
     public final static String CUST_PROP_1 = "custom1";
@@ -39,6 +39,10 @@ public class Device {
     public Long freeSpace;
     public Integer batteryLevel;
     public PowerStatus powerStatus = PowerStatus.POWER_NONE;
+    public String model;
+    public String os;
+    public String sdk;
+    public String carrier;
 
     // optional status description (error message, etc)
     public String status;
@@ -49,38 +53,46 @@ public class Device {
     // true when device is fully booted
     public boolean isBooted;
 
+    // last time device was seen (online or offline)
+    public Long lastUpdateMs;
+
+    // custom properties (saved on a file on device)
+    public Map<String, String> customPropertyMap;
+
+    // user-defined map of applications and versions
+    public Map<String, String> customAppVersionList;
+
+    // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+
     // counter of running tasks like mirroring a device; used to show a 'busy' icon
     @ExcludeFromSerialization
     private final AtomicInteger busyCounter = new AtomicInteger(0);
 
-    // last time device was seen (online or offline)
-    public Long lastUpdateMs;
-
-    // map of property name -> key
-    @ExcludeFromSerialization
-    public Map<String, String> propMap;
-
-    // custom properties (saved on a file on device)
-    @ExcludeFromSerialization
-    public Map<String, String> customPropertyMap;
-
-    // user-defined map of applications and versions
-    @ExcludeFromSerialization
-    public Map<String, String> customAppVersionList;
-
     @ExcludeFromSerialization
     public JadbDevice jadbDevice;
+
+    // set if device is part of a remote server
+    @ExcludeFromSerialization
+    public RemoteConnection remoteConnection;
 
     /**
      * @return best available device name
      */
     public String getDisplayName() {
         StringBuilder sb = new StringBuilder();
-        if (TextUtils.notEmpty(nickname)) sb.append(nickname);
-        else {
-            String model = getProperty(PROP_MODEL);
-            if (model != null) sb.append(model);
+        if (remoteConnection != null) {
+            sb.append(remoteConnection.getServerConfig().name);
         }
+
+        if (TextUtils.notEmpty(nickname)) {
+            if (!sb.isEmpty()) sb.append(" - ");
+            sb.append(nickname);
+        } else if (model != null) {
+            if (!sb.isEmpty()) sb.append(" - ");
+            sb.append(model);
+        }
+
         if (phone != null) {
             if (!sb.isEmpty()) sb.append(" - ");
             sb.append(phone);
@@ -98,26 +110,25 @@ public class Device {
         return serial.indexOf(':') > 0;
     }
 
-    public String getProperty(String key) {
-        if (propMap == null) return null;
-        else return propMap.get(key);
-    }
-
     /**
-     * get phone carrier (ie: T-Mobile)
+     * parse all device properties to pick out any we're interested in saving
      */
-    public String getCarrier() {
-        String prop = getProperty(Device.PROP_CARRIER);
+    public void parseProperties(Map<String, String> propMap) {
+        // model (SM-2389)
+        model = propMap.get(PROP_MODEL);
+        // sdk (29)
+        sdk = propMap.get(PROP_SDK);
+        // os (14)
+        os = propMap.get(PROP_OS);
+
+        // carrier
+        carrier = propMap.get(Device.PROP_CARRIER);
         // often we just get "," for the carrier
-        prop = cleanCarrierString(prop);
-        if (TextUtils.isEmpty(prop)) {
-            prop = getProperty(Device.PROP_CARRIER_2);
-            prop = cleanCarrierString(prop);
-            if (TextUtils.isEmpty(prop)) {
-                // TODO: try some other properties..
-            }
+        carrier = cleanCarrierString(carrier);
+        if (TextUtils.isEmpty(carrier)) {
+            carrier = propMap.get(Device.PROP_CARRIER_2);
+            carrier = cleanCarrierString(carrier);
         }
-        return prop;
     }
 
     /**
@@ -138,7 +149,8 @@ public class Device {
 
     public void setCustomProperty(String key, String value) {
         if (customPropertyMap == null) customPropertyMap = new HashMap<>();
-        customPropertyMap.put(key, value);
+        if (TextUtils.isEmpty(value)) customPropertyMap.remove(key);
+        else customPropertyMap.put(key, value);
     }
 
     public boolean isBusy() {
@@ -166,16 +178,4 @@ public class Device {
         return newValue > 0;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Device device = (Device) o;
-        return Objects.equals(serial, device.serial) && Objects.equals(phone, device.phone) && Objects.equals(imei, device.imei) && Objects.equals(freeSpace, device.freeSpace) && Objects.equals(propMap, device.propMap) && Objects.equals(customPropertyMap, device.customPropertyMap) && Objects.equals(customAppVersionList, device.customAppVersionList);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(serial, phone, imei, freeSpace, propMap, customPropertyMap, customAppVersionList);
-    }
 }

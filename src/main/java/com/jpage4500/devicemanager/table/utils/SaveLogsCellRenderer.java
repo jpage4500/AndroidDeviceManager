@@ -26,7 +26,7 @@ public class SaveLogsCellRenderer extends JLabel implements TableCellRenderer {
 
         UiUtils.setEmptyBorder(this, 10, 10);
 
-        BufferedImage image = UiUtils.getImage("device_status.png", UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON);
+        BufferedImage image = UiUtils.getImage("device_local.png", UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON);
 
         BufferedImage offlineImage = UiUtils.replaceColor(image, Color.GRAY);
         statusOfflineIcon = new ImageIcon(offlineImage);

@@ -4,12 +4,9 @@ import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import java.awt.*;
 
 /**
  *
@@ -48,6 +45,10 @@ public class StatusBar extends JPanel {
             add(centerLabel, BorderLayout.CENTER);
         }
         centerLabel.setText(text);
+    }
+
+    public String getCenterLabelText() {
+        return centerLabel != null ? centerLabel.getText() : null;
     }
 
     public void setRightLabel(String text) {

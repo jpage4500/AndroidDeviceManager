@@ -32,6 +32,7 @@ public class UiUtils {
     }
 
     public static BufferedImage getImage(String path, int w, int h, Color color) {
+        if (path == null) return null;
         try {
             // library offers MUCH better image scaling than ImageIO
             Thumbnails.Builder<URL> imageBuilder = Thumbnails.of(UiUtils.class.getResource("/images/" + path));
@@ -54,6 +55,12 @@ public class UiUtils {
 
     public static ImageIcon getImageIcon(String imageName, int w, int h) {
         Image image = getImage(imageName, w, h);
+        if (image != null) return new ImageIcon(image);
+        else return null;
+    }
+
+    public static ImageIcon getImageIcon(String imageName, int w, int h, Color color) {
+        Image image = getImage(imageName, w, h, color);
         if (image != null) return new ImageIcon(image);
         else return null;
     }
@@ -202,5 +209,11 @@ public class UiUtils {
             if (listener != null) listener.onChecked(selected);
         });
         return checkbox;
+    }
+
+    public static boolean closeWindow(Component component) {
+        Window window = SwingUtilities.getWindowAncestor(component);
+        if (window != null) window.dispose();
+        return window != null;
     }
 }
