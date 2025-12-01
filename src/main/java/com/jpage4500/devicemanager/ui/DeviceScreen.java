@@ -169,6 +169,17 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
         boolean exitToTray = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY);
         log.debug("exitApp: force:{} exitToTray:{}", forceQuit, exitToTray);
+
+        // Check if server is running and prompt user before exiting
+        if (!forceQuit && !exitToTray) {
+            RemoteServerManager serverManager = DeviceManager.getInstance().getRemoteServerManager();
+            if (serverManager != null && serverManager.isRunning()) {
+                boolean shouldExit = DialogHelper.showConfirmDialog(this, "Server Running",
+                    "The remote server is currently running. Exiting will stop the server.\n\nDo you want to exit?");
+                if (!shouldExit) return;
+            }
+        }
+
         setVisible(false);
         if (!forceQuit && exitToTray) {
             log.trace("exitApp: exit-to-tray preference active -> keeping process running");
