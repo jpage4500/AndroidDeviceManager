@@ -2,7 +2,7 @@ package com.jpage4500.devicemanager.table.utils;
 
 import com.jpage4500.devicemanager.data.SaveLogEntry;
 import com.jpage4500.devicemanager.table.SaveLogsTableModel;
-import com.jpage4500.devicemanager.utils.Colors;
+import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;

@@ -311,6 +311,7 @@ public class RemoteConnection {
 
         Map<String, String> headers = getDefaultHeaders();
         NetworkHelper.HttpResponse response = networkHelper.upload(url, localFile, headers);
+        // ERROR:400, "Failed to install app: [{"isSuccess":false,"result":"Could not install install3221640277660015459.apk: Failure [INSTALL_FAILED_VERSION_DOWNGRADE: Downgrade detected: Update version code 251124191 is older than current 251126203]\n"}]", POST http://192.168.0.160:8766/api/install?serial=32020DLH20045R
         return new DeviceManager.Result(response.status == 200, response.body);
     }
 

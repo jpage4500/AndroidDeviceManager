@@ -226,6 +226,9 @@ public class ExploreScreen extends BaseScreen {
         // [CMD + 3] = show logs
         createCmdMenuItem(windowMenu, DeviceScreen.SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
 
+        // [CMD + 4] = show activities
+        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_ACTIVITIES, KeyEvent.VK_4, e -> deviceScreen.showActivityDialog());
+
         // [CMD + T] = hide toolbar
         createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
@@ -536,13 +539,13 @@ public class ExploreScreen extends BaseScreen {
 
         boolean isSingleFile = selectedFileList.size() == 1;
         String msg = isSingleFile ?
-                selectedFileList.get(0).name :
-                selectedFileList.size() + " files(s)";
+            selectedFileList.get(0).name :
+            selectedFileList.size() + " files(s)";
 
         // prompt to install/copy
         int rc = JOptionPane.showConfirmDialog(this,
-                "Download " + msg + "?",
-                "Download?", JOptionPane.YES_NO_OPTION);
+            "Download " + msg + "?",
+            "Download?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         String downloadFolder = Utils.getDownloadFolder();
@@ -576,8 +579,8 @@ public class ExploreScreen extends BaseScreen {
         }
 
         int rc = JOptionPane.showConfirmDialog(this,
-                "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
-                "Delete Files?", JOptionPane.YES_NO_OPTION);
+            "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
+            "Delete Files?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (DeviceFile file : selectedFileList) {

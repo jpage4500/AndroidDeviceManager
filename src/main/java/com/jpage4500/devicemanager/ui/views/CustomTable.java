@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui.views;
 
+import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

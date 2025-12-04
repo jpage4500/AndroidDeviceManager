@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
+import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;

@@ -972,8 +972,15 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * install file to given device
      */
     public void installApp(Device device, File file, TaskListener listener) {
+        installApp(device, file, null, listener);
+    }
+
+    /**
+     * install file to given device with progress updates
+     */
+    public void installApp(Device device, File file, ProgressListener progressListener, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            Result result = installAppInternal(device, file);
+            Result result = installAppInternal(device, file, progressListener);
             if (listener != null) listener.onTaskComplete(result.isSuccess, result.result);
         });
     }
@@ -992,6 +999,10 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     public Result installAppInternal(Device device, File file) {
+        return installAppInternal(device, file, null);
+    }
+
+    public Result installAppInternal(Device device, File file, ProgressListener progressListener) {
         if (device.remoteConnection != null) {
             return device.remoteConnection.installApp(List.of(device.serial), file);
         }
@@ -999,7 +1010,11 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         log.trace("installAppInternal: file:{}, size:{}", file.getName(), Utils.bytesToDisplayString(file.length()));
         try {
             PackageManager packageManager = new PackageManager(device.jadbDevice);
-            packageManager.install(file);
+            packageManager.install(file, (currentStep, totalSteps, message) -> {
+                if (progressListener != null) {
+                    progressListener.onProgress(currentStep, totalSteps, message);
+                }
+            });
             log.trace("installAppInternal: DONE:{}", timer);
             return new Result(true, null);
         } catch (Exception e) {

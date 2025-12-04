@@ -1,7 +1,6 @@
 package com.jpage4500.devicemanager.table.utils;
 
 import com.jpage4500.devicemanager.data.LogFilter;
-import com.jpage4500.devicemanager.utils.Colors;
 import com.jpage4500.devicemanager.utils.UiUtils;
 
 import javax.swing.*;

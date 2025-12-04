@@ -1,6 +1,6 @@
 package com.jpage4500.devicemanager.table.utils;
 
-import com.jpage4500.devicemanager.utils.Colors;
+import com.jpage4500.devicemanager.data.Colors;
 
 import javax.swing.*;
 import java.awt.*;

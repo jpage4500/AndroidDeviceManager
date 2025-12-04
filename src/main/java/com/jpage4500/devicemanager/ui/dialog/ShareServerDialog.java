@@ -319,7 +319,6 @@ public class ShareServerDialog extends JPanel {
         private final String[] columnNames = {"Client Name", "IP Address", "Connected", "Last", "#"};
         private List<RemoteClientInfo> clients = new ArrayList<>();
         private final SimpleDateFormat sdf = new SimpleDateFormat("M/d @ h:mm aa");
-        private final SimpleDateFormat sdfTime = new SimpleDateFormat("h:mm aa");
 
         public void setClients(List<RemoteClientInfo> clients) {
             this.clients = clients != null ? clients : new ArrayList<>();
@@ -352,7 +351,7 @@ public class ShareServerDialog extends JPanel {
                 case 2:
                     return sdf.format(new Date(client.connectedAtMs));
                 case 3:
-                    return sdfTime.format(new Date(client.lastActivityMs));
+                    return sdf.format(new Date(client.lastActivityMs));
                 case 4:
                     return String.valueOf(client.requestCount);
                 default:

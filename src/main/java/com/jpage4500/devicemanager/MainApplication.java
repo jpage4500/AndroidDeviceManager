@@ -34,15 +34,23 @@ public class MainApplication {
         log.debug("APP START: {}, java:{}, os:{}", version, Runtime.version(), System.getProperty("os.name"));
 
         // handle command-line args
+        boolean serverMode = false;
         for (String arg : args) {
             if (TextUtils.equalsIgnoreCase(arg, "--server")) {
-                SwingUtilities.invokeLater(() -> runServerMode(args));
-                return;
+                serverMode = true;
             }
         }
 
-        registerFileHandler();
-        SwingUtilities.invokeLater(this::initializeUI);
+        // if run in a headless session this method will throw an exception..
+        try {
+            registerFileHandler();
+        } catch (Exception e) {
+            log.info("registerFileHandler: running in headless environment.. starting in server mode");
+            serverMode = true;
+        }
+
+        if (serverMode) SwingUtilities.invokeLater(() -> runServerMode(args));
+        else SwingUtilities.invokeLater(this::initializeUI);
     }
 
     private void runServerMode(String[] args) {

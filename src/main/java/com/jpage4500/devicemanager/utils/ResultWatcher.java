@@ -142,6 +142,26 @@ public class ResultWatcher {
         return String.format("Progress: %d / %d", completed, numResults);
     }
 
+    /**
+     * Update progress label with detailed installation progress for a specific device
+     * @param deviceName name of device being updated
+     * @param currentStep current step in the installation process
+     * @param totalSteps total steps in the installation process
+     * @param message descriptive message about current step
+     */
+    public void updateProgress(String deviceName, int currentStep, int totalSteps, String message) {
+        if (showProgress) {
+            SwingUtilities.invokeLater(() -> {
+                if (progressLabel != null) {
+                    int completed = counter.get();
+                    String progressText = String.format("Progress: %d / %d - %s (%d/%d): %s",
+                        completed, numResults, deviceName, currentStep, totalSteps, message);
+                    progressLabel.setText(progressText);
+                }
+            });
+        }
+    }
+
     public boolean handleResult(String device, boolean isSuccess, String message) {
         Result result = new Result(device, isSuccess, message);
         synchronized (resultList) {

@@ -1,9 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
-import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.data.LogFilter;
-import com.jpage4500.devicemanager.data.SaveLogEntry;
+import com.jpage4500.devicemanager.data.*;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.SaveLogsTableModel;
 import com.jpage4500.devicemanager.table.utils.SaveLogsCellRenderer;

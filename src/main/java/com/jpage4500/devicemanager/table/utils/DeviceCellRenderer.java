@@ -4,7 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.ui.views.ComboIcon;
 import com.jpage4500.devicemanager.ui.views.IconTextField;
-import com.jpage4500.devicemanager.utils.Colors;
+import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;

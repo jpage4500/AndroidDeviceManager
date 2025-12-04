@@ -1,9 +1,7 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.MainApplication;
-import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.DeviceFile;
-import com.jpage4500.devicemanager.data.GithubRelease;
+import com.jpage4500.devicemanager.data.*;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteConnection;
@@ -52,6 +50,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public static final String SHOW_DEVICE_LIST = "Show Device List";
     public static final String SHOW_BROWSE = "Show File Browser";
     public static final String SHOW_LOG_VIEWER = "Show Device Logs";
+    public static final String SHOW_ACTIVITIES = "Show Activities";
     public static final String PREF_KEY_DEVICES = "devices";
 
     // update check for github releases
@@ -86,6 +85,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private final Map<String, ViewLogsScreen> logsViewMap = new HashMap<>();
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
     private SaveLogsScreen saveLogsScreen;
+    private ActivityDialog activityDialog;
 
     private static volatile boolean hasExited = false; // idempotent exit flag
 
@@ -278,6 +278,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // [CMD + 3] = show logs
         createCmdMenuItem(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleViewLogsCommand(null));
 
+        // [CMD + 4] = show activities
+        createCmdMenuItem(windowMenu, SHOW_ACTIVITIES, KeyEvent.VK_4, e -> showActivityDialog());
+
         // [CMD + ,] = settings
         createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(this));
 
@@ -311,6 +314,14 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         menubar.add(windowMenu);
         menubar.add(deviceMenu);
         setJMenuBar(menubar);
+    }
+
+    public ActivityDialog showActivityDialog() {
+        if (activityDialog == null) {
+            activityDialog = new ActivityDialog(this);
+        }
+        activityDialog.showDialog();
+        return activityDialog;
     }
 
     private void hideToolbar() {
@@ -913,22 +924,31 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void copyFiles(List<Device> selectedDeviceList, List<File> fileList) {
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), null);
-        String desc = "Copying ";
-        if (fileList.size() > 1) desc += fileList.size() + " files";
-        else desc += fileList.get(0).getName();
-        if (selectedDeviceList.size() > 1) desc += " to " + selectedDeviceList.size() + " devices";
-        else desc += " to " + selectedDeviceList.get(0).getDisplayName();
-        resultWatcher.showProgressDialog("Copying Files", desc);
+        ActivityDialog activityDialog = showActivityDialog();
+
+        StringBuilder fileNames = new StringBuilder();
+        for (File file : fileList) {
+            if (!fileNames.isEmpty()) fileNames.append(", ");
+            else fileNames.append("[");
+            fileNames.append(file.getName());
+        }
+        fileNames.append("]");
 
         // TODO: where to put files on device?
         String destFolder = "/sdcard/Download/";
         for (Device device : selectedDeviceList) {
             setDeviceBusy(device, true);
+            // copy [abc.jpg, hello.text] to "device name"
+            String operationDesc = String.format("Copy %s -> %s", fileNames, device.getDisplayName());
+            int activityId = activityDialog.addOperation(operationDesc, Icons.ICON_COPY);
             DeviceManager.getInstance().copyFiles(device, fileList, destFolder, (numCompleted, numTotal, msg) -> {
+                int progress = (numCompleted * 100) / numTotal;
+                activityDialog.updateOperation(activityId, progress, msg);
             }, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.getDisplayName(), isSuccess, error);
+                String msg = isSuccess ? "✅ Success" : "❌ Failed";
+                if (!isSuccess && error != null) msg += ": " + error;
+                activityDialog.updateOperation(activityId, 100, msg);
             });
         }
     }
@@ -947,35 +967,40 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
         }
 
-        int totalActions = localDeviceList.size() * fileList.size(); // # of local installs
-        totalActions += remoteDeviceMap.size() * fileList.size(); // # of remote installs
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), totalActions);
-        String desc = "Installing ";
-        if (fileList.size() > 1) desc += fileList.size() + " files";
-        else desc += fileList.get(0).getName();
-        if (selectedDeviceList.size() > 1) desc += " to " + selectedDeviceList.size() + " devices";
-        else desc += " to " + selectedDeviceList.get(0).getDisplayName();
-        resultWatcher.showProgressDialog("Installing Apps", desc);
+        ActivityDialog activityDialog = showActivityDialog();
 
         for (File file : fileList) {
             // install on local devices first
             for (Device device : localDeviceList) {
                 setDeviceBusy(device, true);
-                DeviceManager.getInstance().installApp(device, file, (isSuccess, error) -> {
-                    setDeviceBusy(device, false);
-                    resultWatcher.handleResult(device.getDisplayName(), isSuccess, error);
-                    // if app was installed, refresh device info which might include custom app version column
-                    if (isSuccess) DeviceManager.getInstance().fetchDeviceDetails(device, true);
-                });
+                String label = String.format("Install %s -> %s", file.getName(), device.getDisplayName());
+                final int activityId = activityDialog.addOperation(label, Icons.ICON_APK);
+                DeviceManager.getInstance().installApp(device, file,
+                    (currentStep, totalSteps, message) -> {
+                        int percent = Math.max(0, Math.min(100, (int) Math.round((totalSteps > 0 ? (currentStep * 100.0 / totalSteps) : 0))));
+                        activityDialog.updateOperation(activityId, percent, message);
+                    },
+                    (isSuccess, error) -> {
+                        setDeviceBusy(device, false);
+                        String msg = isSuccess ? "✅ Success" : "❌ Failed";
+                        if (!isSuccess && error != null) msg += ": " + error;
+                        activityDialog.updateOperation(activityId, 100, msg);
+                        if (isSuccess) DeviceManager.getInstance().fetchDeviceDetails(device, true);
+                    }
+                );
             }
-            // install on remote devices
+            // install on remote devices (grouped)
             remoteDeviceMap.forEach((remoteConnection, deviceList) -> {
                 deviceList.forEach(device -> setDeviceBusy(device, true));
+                String label = String.format("Install %s -> %s (%d devices)", file.getName(), remoteConnection.getName(), deviceList.size());
+                final int activityId = activityDialog.addOperation(label, Icons.ICON_APK);
                 DeviceManager.getInstance().installApp(remoteConnection, deviceList, file, (isSuccess, error) -> {
                     deviceList.forEach(device -> setDeviceBusy(device, false));
-                    String label = remoteConnection.getName() + " - " + deviceList.size() + " device(s)";
-                    resultWatcher.handleResult(label, isSuccess, isSuccess ? null : error);
+                    String msg = isSuccess ? "✅ Success" : "❌ Failed";
+                    if (!isSuccess && error != null) msg += ": " + error;
+                    activityDialog.updateOperation(activityId, 100, msg);
                     // TODO: refresh remote connection's devices
+                    // remoteConnection.scheduleRefresh();
                 });
             });
         }
@@ -1557,6 +1582,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 scriptList.add(file);
             }
         }
+        // sort scriptList alphabetically (case insensitive)
+        scriptList.sort(Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
+
         return scriptList;
     }
 
@@ -1580,7 +1608,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleCustomScriptClicked(File script, String name) {
-        List<Device> selectedDeviceList = getSelectedDevices(true);
+        List<Device> selectedDeviceList = getSelectedDevices(false);
         //if (selectedDeviceList.isEmpty()) return;
 
         log.trace("handleCustomScriptClicked: {}, {}", name, script.getAbsolutePath());
