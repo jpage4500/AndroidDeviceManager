@@ -988,11 +988,12 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     /**
      * special version of installApp which can install 1 file to multiple devices remotely without needing to upload the file multiple times
      */
-    public void installApp(RemoteConnection connection, List<Device> deviceList, File file, TaskListener listener) {
+    public void installApp(RemoteConnection connection, List<Device> deviceList, File file, ProgressListener progressListener, TaskListener listener) {
         commandExecutorService.submit(() -> {
             // convert list to serials
             List<String> serialList = new ArrayList<>();
             for (Device device : deviceList) serialList.add(device.serial);
+            progressListener.onProgress(0, 0, "Uploading " + Utils.bytesToDisplayString(file.length()) + "...");
             Result result = connection.installApp(serialList, file);
             if (listener != null) listener.onTaskComplete(result.isSuccess, result.result);
         });
@@ -1004,13 +1005,17 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     public Result installAppInternal(Device device, File file, ProgressListener progressListener) {
         if (device.remoteConnection != null) {
+            progressListener.onProgress(0, 0, "Uploading " + Utils.bytesToDisplayString(file.length()) + "...");
             return device.remoteConnection.installApp(List.of(device.serial), file);
         }
         Timer timer = new Timer();
         log.trace("installAppInternal: file:{}, size:{}", file.getName(), Utils.bytesToDisplayString(file.length()));
         try {
+            if (progressListener != null) progressListener.onProgress(1, 4, "Uploading " + Utils.bytesToDisplayString(file.length()) + "...");
             PackageManager packageManager = new PackageManager(device.jadbDevice);
             packageManager.install(file, (currentStep, totalSteps, message) -> {
+                // ignore step 1 "Uploading" since we're doing it above and with the file size
+                if (currentStep == 1 && totalSteps == 4) return;
                 if (progressListener != null) {
                     progressListener.onProgress(currentStep, totalSteps, message);
                 }

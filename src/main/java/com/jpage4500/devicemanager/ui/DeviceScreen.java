@@ -994,14 +994,19 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 deviceList.forEach(device -> setDeviceBusy(device, true));
                 String label = String.format("Install %s -> %s (%d devices)", file.getName(), remoteConnection.getName(), deviceList.size());
                 final int activityId = activityDialog.addOperation(label, Icons.ICON_APK);
-                DeviceManager.getInstance().installApp(remoteConnection, deviceList, file, (isSuccess, error) -> {
-                    deviceList.forEach(device -> setDeviceBusy(device, false));
-                    String msg = isSuccess ? "✅ Success" : "❌ Failed";
-                    if (!isSuccess && error != null) msg += ": " + error;
-                    activityDialog.updateOperation(activityId, 100, msg);
-                    // TODO: refresh remote connection's devices
-                    // remoteConnection.scheduleRefresh();
-                });
+                DeviceManager.getInstance().installApp(remoteConnection, deviceList, file,
+                    (currentStep, totalSteps, message) -> {
+                        int percent = Math.max(0, Math.min(100, (int) Math.round((totalSteps > 0 ? (currentStep * 100.0 / totalSteps) : 0))));
+                        activityDialog.updateOperation(activityId, percent, message);
+                    },
+                    (isSuccess, error) -> {
+                        deviceList.forEach(device -> setDeviceBusy(device, false));
+                        String msg = isSuccess ? "✅ Success" : "❌ Failed";
+                        if (!isSuccess && error != null) msg += ": " + error;
+                        activityDialog.updateOperation(activityId, 100, msg);
+                        // TODO: refresh remote connection's devices
+                        // remoteConnection.scheduleRefresh();
+                    });
             });
         }
     }

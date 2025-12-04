@@ -20,8 +20,8 @@ import java.util.UUID;
 public class ActivityDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(ActivityDialog.class);
 
-    private final List<Operation> operationList = new ArrayList<>();
-    private final JPanel operationsPanel = new JPanel();
+    private final DefaultListModel<Operation> listModel = new DefaultListModel<>();
+    private final JList<Operation> operationsList;
     private final JDialog dialog;
     private final JLabel emptyLabel;
     private final JButton clearResultsButton;
@@ -31,32 +31,56 @@ public class ActivityDialog extends JPanel {
         public long startTime;         // when operation started
         public long endTime;           // when operation completed
 
-        public JLabel icon;            // icon for this operation
-        public JLabel label;           // "Installing <filename.apk> to <device name>"
-        public JProgressBar progressBar;
-        public JLabel resultLabel;     // "Success" or "Failed"
-        public JButton closeButton;    // close button (visible when complete)
-        public JPanel container;
+        public ImageIcon icon;         // icon for this operation
+        public String label;           // "Installing <filename.apk> to <device name>"
+        public int progress;           // 0-100
+        public String result;          // "Success" or "Failed"
+        public boolean isComplete;     // progress == 100
     }
 
     /**
-     * Create an OperationDialog panel and optionally wrap it in a modeless dialog.
-     * If component and title are provided, a dialog will be created and shown.
+     * Create an ActivityDialog panel and optionally wrap it in a modeless dialog.
      */
     public ActivityDialog(Component component) {
         setLayout(new BorderLayout());
-        operationsPanel.setLayout(new BoxLayout(operationsPanel, BoxLayout.Y_AXIS));
-        operationsPanel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
-        // Create "No activities" label
+        // Create "No activities" label for empty state
         emptyLabel = new JLabel("No activities");
         emptyLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        emptyLabel.setHorizontalAlignment(JLabel.CENTER);
         emptyLabel.setForeground(Color.GRAY);
         emptyLabel.setFont(emptyLabel.getFont().deriveFont(24f));
-        operationsPanel.add(emptyLabel);
 
-        JScrollPane scrollPane = new JScrollPane(operationsPanel, ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        add(scrollPane, BorderLayout.CENTER);
+        // Create JList with custom renderer
+        operationsList = new JList<>(listModel);
+        operationsList.setOpaque(false);
+        operationsList.setCellRenderer(new OperationCellRenderer());
+        operationsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        operationsList.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+
+        // Add mouse listener to handle close button clicks
+        operationsList.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                int index = operationsList.locationToIndex(e.getPoint());
+                if (index >= 0) {
+                    Operation op = listModel.getElementAt(index);
+                    if (op.isComplete) {
+                        // Check if click is on the close button (right side of the cell)
+                        Rectangle cellBounds = operationsList.getCellBounds(index, index);
+                        int closeButtonX = cellBounds.x + cellBounds.width - 40; // close button area on right
+                        if (e.getX() >= closeButtonX) {
+                            removeOperation(op.id);
+                        }
+                    }
+                }
+            }
+        });
+
+        // Add empty label initially
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.add(emptyLabel, BorderLayout.CENTER);
+        add(centerPanel, BorderLayout.CENTER);
 
         Window parent = SwingUtilities.getWindowAncestor(component);
         dialog = new JDialog(parent, "Activity", Dialog.ModalityType.MODELESS);
@@ -82,110 +106,62 @@ public class ActivityDialog extends JPanel {
         footer.add(rightPanel, BorderLayout.EAST);
         add(footer, BorderLayout.SOUTH);
 
-        dialog.setSize(new Dimension(540, 300));
+        dialog.setSize(new Dimension(540, 200));
         dialog.setMinimumSize(new Dimension(540, 200));
         dialog.setLocationRelativeTo(component);
     }
 
     /**
-     * Add a new operation row with description, progress bar, and result label.
+     * Add a new operation to the list.
      *
      * @param label description to show for this operation
+     * @param icon  optional icon to display
      * @return generated operation id
      */
     public int addOperation(String label, Icons icon) {
         Operation operation = new Operation();
         operation.id = UUID.randomUUID().hashCode();
+        operation.label = label;
+        operation.progress = 0;
+        operation.result = null;
+        operation.isComplete = false;
+        operation.startTime = System.currentTimeMillis();
 
         if (icon != null) {
-            ImageIcon imageIcon = UiUtils.getImageIcon(icon.getName(), UiUtils.IMG_SIZE_TOOLBAR);
-            if (imageIcon != null) {
-                operation.icon = new JLabel(imageIcon);
-            }
+            operation.icon = UiUtils.getImageIcon(icon.getName(), UiUtils.IMG_SIZE_TOOLBAR);
         }
-
-        operation.label = new JLabel(label);
-        operation.label.setAlignmentX(Component.LEFT_ALIGNMENT);
-        operation.label.setPreferredSize(new Dimension(0, 20));
-        operation.label.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
-        operation.label.setMinimumSize(new Dimension(100, 20));
-        operation.label.setToolTipText(label);
-
-        operation.progressBar = new JProgressBar(0, 100);
-        operation.progressBar.setIndeterminate(true);
-        operation.progressBar.setAlignmentX(Component.LEFT_ALIGNMENT);
-        operation.progressBar.setPreferredSize(new Dimension(0, 10));
-        operation.progressBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 10));
-        operation.progressBar.setMinimumSize(new Dimension(100, 10));
-
-        operation.resultLabel = new JLabel("");
-        operation.resultLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        operation.resultLabel.setPreferredSize(new Dimension(0, 20));
-        operation.resultLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
-        operation.resultLabel.setMinimumSize(new Dimension(100, 20));
-
-        operation.startTime = System.currentTimeMillis();
-        operationList.add(operation);
-
-        JPanel row = new JPanel();
-        row.setLayout(new BorderLayout());
-
-        Border innerPadding = BorderFactory.createEmptyBorder(8, 8, 8, 8);
-        Border rounded = new LineBorder(new Color(180, 180, 180), 1, true);
-        row.setBorder(BorderFactory.createCompoundBorder(rounded, innerPadding));
-
-        row.setPreferredSize(new Dimension(500, 80));
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
-        row.setMinimumSize(new Dimension(500, 80));
-
-        // Add icon on the left if present - with padding on the right
-        if (operation.icon != null) {
-            JPanel iconPanel = new JPanel(new BorderLayout());
-            iconPanel.setOpaque(false);
-            iconPanel.add(operation.icon, BorderLayout.WEST);
-            iconPanel.add(Box.createHorizontalStrut(8), BorderLayout.EAST);
-            row.add(iconPanel, BorderLayout.WEST);
-        }
-
-        JPanel contentPanel = new JPanel();
-        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
-        contentPanel.setOpaque(false);
-
-        // Top row: label on left, close button on right
-        JPanel topRow = new JPanel(new BorderLayout());
-        topRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        topRow.setPreferredSize(new Dimension(0, 20));
-        topRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
-        topRow.setMinimumSize(new Dimension(0, 20));
-
-        // Wrapper panel for label to ensure it grows and respects parent width
-        JPanel labelWrapper = new JPanel(new BorderLayout());
-        labelWrapper.setOpaque(false);
-        labelWrapper.add(operation.label, BorderLayout.CENTER);
-        topRow.add(labelWrapper, BorderLayout.CENTER);
-
-        operation.closeButton = new JButton("✕");
-        operation.closeButton.setMargin(new Insets(2, 6, 2, 6));
-        operation.closeButton.setVisible(false); // hidden until complete
-        operation.closeButton.addActionListener(e -> removeOperation(operation.id));
-        topRow.add(operation.closeButton, BorderLayout.EAST);
-
-        contentPanel.add(topRow);
-        contentPanel.add(Box.createVerticalStrut(6));
-        contentPanel.add(operation.progressBar);
-        contentPanel.add(Box.createVerticalStrut(6));
-        contentPanel.add(operation.resultLabel);
-
-        row.add(contentPanel, BorderLayout.CENTER);
-        operation.container = row;
 
         SwingUtilities.invokeLater(() -> {
-            // Hide "No activities" label when adding first operation
-            emptyLabel.setVisible(false);
-            operationsPanel.add(row);
-            operationsPanel.add(Box.createVerticalStrut(6));
-            operationsPanel.revalidate();
-            operationsPanel.repaint();
+            listModel.addElement(operation);
+            operationsList.setSelectedIndex(listModel.getSize() - 1);
+
+            // Show list and hide empty label when first operation is added
+            if (listModel.getSize() == 1) {
+                // Remove empty label panel and replace with scroll pane
+                removeAll();
+                JScrollPane scrollPane = new JScrollPane(operationsList);
+                scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+                scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+                add(scrollPane, BorderLayout.CENTER);
+
+                JPanel footer = new JPanel(new BorderLayout());
+                JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+                rightPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+
+                clearResultsButton.setVisible(false);
+                rightPanel.add(clearResultsButton);
+
+                JButton closeButton = new JButton("Close");
+                closeButton.setMargin(new Insets(6, 12, 6, 12));
+                closeButton.addActionListener(e -> hideDialog());
+                rightPanel.add(closeButton);
+                footer.add(rightPanel, BorderLayout.EAST);
+                add(footer, BorderLayout.SOUTH);
+
+                revalidate();
+                repaint();
+            }
+
             adjustDialogSizeToFit();
         });
 
@@ -200,46 +176,42 @@ public class ActivityDialog extends JPanel {
      * @param result      optional result message ("Success", "Failed", error text, etc.)
      */
     public void updateOperation(int operationId, int progress, String result) {
-        Operation operation = getOperation(operationId);
-        if (operation == null) return;
-
-        // ensure progress is between 0 and 100
-        final int progressFinal = Math.max(0, Math.min(100, progress));
-
-        // update UI
         SwingUtilities.invokeLater(() -> {
-            operation.progressBar.setIndeterminate(false);
-            operation.progressBar.setValue(progressFinal);
+            // NOTE: must be run in invokeLater() because operation might not be added yet
+            Operation operation = getOperation(operationId);
+            if (operation == null) return;
 
-            String resultFinal = result == null ? "" : result;
+            // ensure progress is between 0 and 100
+            final int progressFinal = Math.max(0, Math.min(100, progress));
+
+            operation.progress = progressFinal;
+            operation.result = result == null ? "" : result;
+
             if (progressFinal == 100) {
                 // -- operation complete --
-                // append elapsed time
                 operation.endTime = System.currentTimeMillis();
                 long elapsed = operation.endTime - operation.startTime;
                 String time = Utils.formatTime(elapsed);
-                resultFinal += " (" + time + ")";
+                operation.result += " (" + time + ")";
+                operation.isComplete = true;
 
-                // show close button when operation is complete
-                operation.closeButton.setVisible(true);
-
+                // Show Clear Results button when first operation completes
                 clearResultsButton.setVisible(true);
             }
-            operation.resultLabel.setText(resultFinal);
-            // Update tooltip to show full text if it might be truncated
-            if (!resultFinal.isEmpty()) {
-                operation.resultLabel.setToolTipText(resultFinal);
-            }
 
-            operation.container.revalidate();
-            operation.container.repaint();
+            // Trigger repaint by finding and updating the list model
+            int index = listModel.indexOf(operation);
+            if (index >= 0) {
+                listModel.set(index, operation);
+            }
         });
     }
 
     private Operation getOperation(int operationId) {
-        for (Operation operation : operationList) {
-            if (operation.id == operationId) {
-                return operation;
+        for (int i = 0; i < listModel.size(); i++) {
+            Operation op = listModel.getElementAt(i);
+            if (op.id == operationId) {
+                return op;
             }
         }
         return null;
@@ -253,29 +225,25 @@ public class ActivityDialog extends JPanel {
         if (operation == null) return;
 
         SwingUtilities.invokeLater(() -> {
-            operationsPanel.remove(operation.container);
-            // also remove the vertical spacer after this operation
-            Component[] components = operationsPanel.getComponents();
-            for (int i = 0; i < components.length; i++) {
-                if (components[i] == operation.container && i + 1 < components.length) {
-                    operationsPanel.remove(i + 1); // remove spacer
-                    break;
-                }
-            }
-            operationList.remove(operation);
+            listModel.removeElement(operation);
 
-            // Show "No activities" label if list is now empty
-            if (operationList.isEmpty()) {
-                operationsPanel.removeAll();
-                operationsPanel.add(Box.createVerticalGlue());
-                emptyLabel.setVisible(true);
-                operationsPanel.add(emptyLabel);
-                operationsPanel.add(Box.createVerticalGlue());
+            // Show empty label if list is now empty
+            if (listModel.isEmpty()) {
+                removeAll();
+                JPanel centerPanel = new JPanel(new BorderLayout());
+                centerPanel.add(Box.createVerticalGlue(), BorderLayout.NORTH);
+                JPanel labelPanel = new JPanel(new BorderLayout());
+                labelPanel.add(Box.createHorizontalGlue(), BorderLayout.WEST);
+                labelPanel.add(emptyLabel, BorderLayout.CENTER);
+                labelPanel.add(Box.createHorizontalGlue(), BorderLayout.EAST);
+                centerPanel.add(labelPanel, BorderLayout.CENTER);
+                centerPanel.add(Box.createVerticalGlue(), BorderLayout.SOUTH);
+                add(centerPanel, BorderLayout.CENTER);
                 clearResultsButton.setVisible(false);
+                revalidate();
+                repaint();
             }
 
-            operationsPanel.revalidate();
-            operationsPanel.repaint();
             adjustDialogSizeToFit();
         });
     }
@@ -286,9 +254,10 @@ public class ActivityDialog extends JPanel {
     private void clearCompletedOperations() {
         // create a separate List to avoid ConcurrentModificationException
         List<Operation> removeList = new ArrayList<>();
-        operationList.forEach(operation -> {
+        for (int i = 0; i < listModel.size(); i++) {
+            Operation operation = listModel.getElementAt(i);
             if (operation.endTime > 0) removeList.add(operation);
-        });
+        }
         removeList.forEach(operation -> removeOperation(operation.id));
     }
 
@@ -296,44 +265,175 @@ public class ActivityDialog extends JPanel {
      * Show the dialog (makes it visible)
      */
     public void showDialog() {
-        if (dialog != null) {
-            SwingUtilities.invokeLater(() -> {
-                dialog.setVisible(true);
-                dialog.toFront();
-            });
-        }
+        SwingUtilities.invokeLater(() -> {
+            dialog.setVisible(true);
+            dialog.toFront();
+        });
     }
 
     /**
      * Hide the dialog (keeps it in memory so it can be shown again)
      */
     public void hideDialog() {
-        if (dialog != null) {
-            SwingUtilities.invokeLater(() -> dialog.setVisible(false));
-        }
+        SwingUtilities.invokeLater(() -> dialog.setVisible(false));
     }
 
     /**
      * Check if the dialog is currently visible
      */
     public boolean isDialogVisible() {
-        return dialog != null && dialog.isVisible();
+        return dialog.isVisible();
     }
 
     /**
      * Try to size the dialog to fit all operations without scrollbars.
-     * Caps height to ~50% of the screen to avoid oversized windows.
+     * Dynamically adjusts height based on number of items with min/max constraints.
      */
     private void adjustDialogSizeToFit() {
-        if (dialog == null) return;
-        dialog.pack();
-        // cap to screen size
-        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-        int maxH = (int) (screen.height * 0.5);
-        Dimension pref = dialog.getSize();
-        int newH = Math.min(pref.height, maxH);
-        dialog.setSize(new Dimension(Math.max(pref.width, 520), newH));
+        int itemCount = listModel.getSize();
+
+        // Constants for height calculation
+        final int MIN_HEIGHT = 200;
+        final int MAX_HEIGHT = 600;
+        final int ITEM_HEIGHT = 100; // approximate height per item (including padding)
+        final int FOOTER_HEIGHT = 60; // height for footer buttons
+        final int PADDING = 60; // additional padding
+
+        // Calculate desired height based on number of items
+        int contentHeight = (itemCount * ITEM_HEIGHT) + FOOTER_HEIGHT + PADDING;
+
+        // Clamp to min/max range
+        int targetHeight = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, contentHeight));
+
+        // Keep width consistent
+        int targetWidth = 540;
+
+        dialog.setSize(new Dimension(targetWidth, targetHeight));
         dialog.validate();
     }
 
+    /**
+     * Custom ListCellRenderer for Operation items
+     */
+    private static class OperationCellRenderer extends JPanel implements ListCellRenderer<Operation> {
+        private final JLabel iconLabel;
+        private final JLabel titleLabel;
+        private final JProgressBar progressBar;
+        private final JLabel resultLabel;
+        private final JButton closeButton;
+
+        public OperationCellRenderer() {
+            setLayout(new BorderLayout());
+            Border innerPadding = BorderFactory.createEmptyBorder(8, 8, 8, 8);
+            Border rounded = new LineBorder(new Color(180, 180, 180), 1, true);
+            setBorder(BorderFactory.createCompoundBorder(rounded, innerPadding));
+
+            // Icon on the left
+            iconLabel = new JLabel();
+            iconLabel.setPreferredSize(new Dimension(UiUtils.IMG_SIZE_TOOLBAR + 8, 64));
+            JPanel iconPanel = new JPanel(new BorderLayout());
+            iconPanel.setOpaque(false);
+            iconPanel.add(iconLabel, BorderLayout.WEST);
+            iconPanel.add(Box.createHorizontalStrut(8), BorderLayout.EAST);
+            add(iconPanel, BorderLayout.WEST);
+
+            // Content panel in center
+            JPanel contentPanel = new JPanel();
+            contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+            contentPanel.setOpaque(false);
+
+            // Title row with label and close button
+            JPanel titleRow = new JPanel(new BorderLayout());
+            titleRow.setOpaque(false);
+            titleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
+            titleLabel = new JLabel();
+            titleLabel.setPreferredSize(new Dimension(0, 20));
+            titleLabel.setMinimumSize(new Dimension(100, 20));
+            titleLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
+            titleRow.add(titleLabel, BorderLayout.CENTER);
+
+            closeButton = new JButton("✕");
+            closeButton.setMargin(new Insets(2, 6, 2, 6));
+            closeButton.setVisible(false);
+            closeButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            titleRow.add(closeButton, BorderLayout.EAST);
+
+            contentPanel.add(titleRow);
+            contentPanel.add(Box.createVerticalStrut(10));
+
+            // Progress bar - direct add, NO wrapper, fixed 10px height
+            progressBar = new JProgressBar(0, 100);
+            progressBar.setPreferredSize(new Dimension(400, 10));
+            progressBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 10));
+            progressBar.setMinimumSize(new Dimension(100, 10));
+            contentPanel.add(progressBar);
+            contentPanel.add(Box.createVerticalStrut(10));
+
+            // Result label - wrap in panel to ensure visibility and left alignment
+            JPanel resultPanel = new JPanel(new BorderLayout());
+            resultPanel.setOpaque(false);
+            resultPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
+
+            resultLabel = new JLabel("");
+            resultLabel.setPreferredSize(new Dimension(100, 20));
+            resultLabel.setMinimumSize(new Dimension(100, 20));
+            resultLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
+            resultPanel.add(resultLabel, BorderLayout.CENTER);
+
+            contentPanel.add(resultPanel);
+
+            add(contentPanel, BorderLayout.CENTER);
+        }
+
+        @Override
+        public Component getListCellRendererComponent(JList<? extends Operation> list, Operation operation, int index, boolean isSelected, boolean cellHasFocus) {
+            if (operation == null) return this;
+
+            iconLabel.setIcon(operation.icon);
+            titleLabel.setText(operation.label);
+
+            progressBar.setValue(operation.progress);
+
+            String resultText = operation.result == null ? "" : operation.result;
+            resultLabel.setText(resultText);
+
+            // Show close button when complete
+            closeButton.setVisible(operation.isComplete);
+
+            // Only set tooltip if label or result text is truncated
+            boolean isLabelTruncated = isTextTruncated(titleLabel);
+            boolean isResultTruncated = isTextTruncated(resultLabel);
+            if (isLabelTruncated || isResultTruncated) {
+                StringBuilder tooltip = new StringBuilder("<html>");
+                if (isLabelTruncated) {
+                    tooltip.append(operation.label);
+                }
+                if (isLabelTruncated && isResultTruncated) {
+                    tooltip.append("<br><br>");
+                }
+                if (isResultTruncated) {
+                    tooltip.append(resultText);
+                }
+                tooltip.append("</html>");
+                setToolTipText(tooltip.toString());
+            } else {
+                setToolTipText(null);
+            }
+
+            return this;
+        }
+
+        private boolean isTextTruncated(JLabel label) {
+            String text = label.getText();
+            if (text == null || text.isEmpty()) return false;
+            FontMetrics fm = label.getFontMetrics(label.getFont());
+            int textWidth = fm.stringWidth(text);
+            int labelWidth = label.getWidth();
+            // If width is not set yet (first render), use preferred width
+            if (labelWidth == 0) {
+                labelWidth = label.getPreferredSize().width;
+            }
+            return textWidth > labelWidth;
+        }
+    }
 }
