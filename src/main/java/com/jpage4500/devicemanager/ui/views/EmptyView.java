@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui.views;
 
+import com.jpage4500.devicemanager.data.Icons;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +29,7 @@ public class EmptyView extends JComponent {
 
         if (emptyImage == null) {
             try {
-                emptyImage = ImageIO.read(getClass().getResource("/images/logo.png"));
+                emptyImage = ImageIO.read(getClass().getResource("/images/" + Icons.LOGO.getName()));
             } catch (IOException e) {
                 log.error("paintComponent: {}", e.getMessage());
             }

@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.utils;
 
+import com.jpage4500.devicemanager.data.Icons;
 import net.coobird.thumbnailator.Thumbnails;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -10,8 +11,6 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.net.URL;
 
@@ -23,8 +22,29 @@ public class UiUtils {
     public static final int IMG_SIZE_TOOLBAR = 40;
     public static final int IMG_SIZE_TOOLBAR_SMALL = 20;
 
-    public static BufferedImage getImage(String path, int size) {
-        return getImage(path, size, size);
+    // Icons enum overloaded methods
+    public static BufferedImage getImage(Icons icon, int size) {
+        return getImage(icon, size, size);
+    }
+
+    public static BufferedImage getImage(Icons icon, int w, int h) {
+        return getImage(icon, w, h, null);
+    }
+
+    public static BufferedImage getImage(Icons icon, int w, int h, Color color) {
+        return icon != null ? getImage(icon.getName(), w, h, color) : null;
+    }
+
+    public static ImageIcon getImageIcon(Icons icon, int size) {
+        return getImageIcon(icon, size, size);
+    }
+
+    public static ImageIcon getImageIcon(Icons icon, int w, int h) {
+        return icon != null ? getImageIcon(icon.getName(), w, h) : null;
+    }
+
+    public static ImageIcon getImageIcon(Icons icon, int w, int h, Color color) {
+        return icon != null ? getImageIcon(icon.getName(), w, h, color) : null;
     }
 
     public static BufferedImage getImage(String path, int w, int h) {
@@ -132,7 +152,11 @@ public class UiUtils {
     }
 
     public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, ActionListener listener) {
-        return addPopupMenuItem(popupMenu, label, null, listener);
+        return addPopupMenuItem(popupMenu, label, (String) null, listener);
+    }
+
+    public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, Icons icon, ActionListener listener) {
+        return addPopupMenuItem(popupMenu, label, icon != null ? icon.getName() : null, listener);
     }
 
     public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, String iconName, ActionListener listener) {

@@ -1,10 +1,11 @@
 package com.jpage4500.devicemanager.table.utils;
 
+import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.ui.views.ComboIcon;
 import com.jpage4500.devicemanager.ui.views.IconTextField;
-import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
@@ -65,12 +66,13 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
         if (columnType != null) {
             switch (columnType) {
                 case BATTERY:
-                    String level = null;
+                    Icons level = null;
                     if (device.batteryLevel != null) {
-                        if (device.batteryLevel > 95) level = "battery_level4.png";
-                        else if (device.batteryLevel > 50) level = "battery_level3.png";
-                        else if (device.batteryLevel > 25) level = "battery_level2.png";
-                        else level = "battery_level1.png";
+                        if (device.batteryLevel > 95) level = Icons.BATTERY_LEVEL4;
+                        else if (device.batteryLevel > 50) level = Icons.BATTERY_LEVEL3;
+                        else if (device.batteryLevel > 25) level = Icons.BATTERY_LEVEL2;
+                        else if (device.batteryLevel > 5) level = Icons.BATTERY_LEVEL1;
+                        else level = Icons.BATTERY_LEVEL0;
                     }
                     boolean isCharging = (device.powerStatus != Device.PowerStatus.POWER_NONE);
                     icon = getChargingIcon(level, isCharging);
@@ -159,7 +161,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
         Icon icon = deviceIconMap.get(key);
         if (icon == null) {
             // create icon
-            String imageName = isRemote ? "device_remote.png" : "device_local.png";
+            Icons imageName = isRemote ? Icons.DEVICE_REMOTE : Icons.DEVICE_LOCAL;
             icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON, isSelected ? Color.WHITE : color);
             deviceIconMap.put(key, icon);
         }
@@ -169,7 +171,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
     /**
      * get or create and cache an icon made up of battery level and charging status
      */
-    private Icon getChargingIcon(String level, boolean isCharging) {
+    private Icon getChargingIcon(Icons level, boolean isCharging) {
         if (level == null) return null;
         String key = level + "-" + isCharging;
         Icon icon = chargingIconMap.get(key);
@@ -177,7 +179,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
             // create overlay icon
             Icon levelIcon = UiUtils.getImageIcon(level, UiUtils.IMG_SIZE_ICON);
             if (isCharging) {
-                Icon chargingIcon = UiUtils.getImageIcon("charging.png", UiUtils.IMG_SIZE_ICON);
+                Icon chargingIcon = UiUtils.getImageIcon(Icons.CHARGING, UiUtils.IMG_SIZE_ICON);
                 icon = new ComboIcon(levelIcon, chargingIcon);
             } else {
                 // use as-is

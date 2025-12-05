@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager;
 
 import com.formdev.flatlaf.FlatLightLaf;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
@@ -154,7 +155,7 @@ public class MainApplication {
             try {
                 Taskbar taskbar = Taskbar.getTaskbar();
                 if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
-                    BufferedImage image = UiUtils.getImage("logo.png", 256);
+                    BufferedImage image = UiUtils.getImage(Icons.LOGO, 256);
                     taskbar.setIconImage(image);
                 }
             } catch (final Exception e) {

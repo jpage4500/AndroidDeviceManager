@@ -56,16 +56,16 @@ public class SaveLogsScreen extends BaseScreen {
         this.deviceScreen = deviceScreen;
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-        BufferedImage startImg = UiUtils.getImage("icon_play.png", UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
+        BufferedImage startImg = UiUtils.getImage(Icons.ICON_PLAY, UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
         BufferedImage greenStartImg = UiUtils.replaceColor(startImg, Colors.COLOR_START_RECORDING);
         iconStartRecording = new ImageIcon(greenStartImg);
 
-        BufferedImage stopImg = UiUtils.getImage("icon_stop.png", UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
+        BufferedImage stopImg = UiUtils.getImage(Icons.ICON_STOP, UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
         BufferedImage redStopImg = UiUtils.replaceColor(stopImg, Colors.COLOR_STOP_RECORDING);
         iconStopRecording = new ImageIcon(redStopImg);
 
-        filterSetIcon = UiUtils.getImageIcon("icon_filter.png", UiUtils.IMG_SIZE_TOOLBAR);
-        noFilterIcon = UiUtils.getImageIcon("clear_filter.png", UiUtils.IMG_SIZE_TOOLBAR);
+        filterSetIcon = UiUtils.getImageIcon(Icons.ICON_FILTER, UiUtils.IMG_SIZE_TOOLBAR);
+        noFilterIcon = UiUtils.getImageIcon(Icons.CLEAR_FILTER, UiUtils.IMG_SIZE_TOOLBAR);
 
         initalizeUi();
     }
@@ -299,9 +299,9 @@ public class SaveLogsScreen extends BaseScreen {
         toolbar.addSeparator();
 
         // browse
-        createToolbarButton(toolbar, "icon_browse.png", "Logs", "Open Logs Folder", actionEvent -> openLogsFolder());
+        createToolbarButton(toolbar, Icons.BROWSE, "Logs", "Open Logs Folder", actionEvent -> openLogsFolder());
         // delete
-        deleteButton = createToolbarButton(toolbar, "icon_trash.png", "Delete", "Delete Logs", actionEvent -> deleteLogs());
+        deleteButton = createToolbarButton(toolbar, Icons.ICON_TRASH, "Delete", "Delete Logs", actionEvent -> deleteLogs());
 
         toolbar.addSeparator();
 
@@ -309,12 +309,12 @@ public class SaveLogsScreen extends BaseScreen {
         toolbar.add(Box.createHorizontalGlue());
 
         // filter
-        filterButton = createToolbarButton(toolbar, "clear_filter.png", "Filter", "Set Filter", null);
+        filterButton = createToolbarButton(toolbar, Icons.CLEAR_FILTER, "Filter", "Set Filter", null);
         UiUtils.addRightClickListener(filterButton, e -> {
             JPopupMenu popupMenu = new JPopupMenu();
 
             if (SaveLogsScreen.this.logFilter != null) {
-                JMenuItem item = new JMenuItem("Clear Filter", UiUtils.getImageIcon("clear_filter.png", UiUtils.IMG_SIZE_SMALL));
+                JMenuItem item = new JMenuItem("Clear Filter", UiUtils.getImageIcon(Icons.CLEAR_FILTER, UiUtils.IMG_SIZE_SMALL));
                 item.addActionListener(e2 -> handleFilterClicked(null));
                 popupMenu.add(item);
             }
@@ -324,12 +324,12 @@ public class SaveLogsScreen extends BaseScreen {
             systemList.addAll(filterList);
             for (LogFilter filter : systemList) {
                 if (filter.filterList == null || filter.filterList.isEmpty()) continue;
-                JMenuItem item = new JMenuItem(filter.name, UiUtils.getImageIcon("icon_filter.png", UiUtils.IMG_SIZE_SMALL));
+                JMenuItem item = new JMenuItem(filter.name, UiUtils.getImageIcon(Icons.ICON_FILTER, UiUtils.IMG_SIZE_SMALL));
                 item.addActionListener(e2 -> handleFilterClicked(filter));
                 popupMenu.add(item);
             }
 
-            JMenuItem item = new JMenuItem("Add Filter", UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_SMALL));
+            JMenuItem item = new JMenuItem("Add Filter", UiUtils.getImageIcon(Icons.ICON_ADD, UiUtils.IMG_SIZE_SMALL));
             item.addActionListener(e2 -> handleAddFilterClicked());
             popupMenu.add(item);
 

@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.data.LogFilterEntry;
@@ -117,7 +118,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         // -- add filter button --
         JButton addFilterButton = new JButton("Add Filter");
-        addFilterButton.setIcon(UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_ICON));
+        addFilterButton.setIcon(UiUtils.getImageIcon(Icons.ICON_ADD, UiUtils.IMG_SIZE_ICON));
         addFilterButton.addActionListener(this::handleAddFilterClicked);
         leftPanel.add(addFilterButton, BorderLayout.SOUTH);
 
@@ -793,7 +794,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         toolbar.addSeparator(new Dimension(10, 0));
 
-        createSmallToolbarButton(toolbar, "icon_trash.png", "Clear", "Clear Logs", actionEvent -> clearLogs());
+        createSmallToolbarButton(toolbar, Icons.ICON_TRASH, "Clear", "Clear Logs", actionEvent -> clearLogs());
     }
 
     private void clearLogs() {
@@ -811,7 +812,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void updateLoggingButton() {
-        String imageName = isLoggedPaused ? "icon_play.png" : "icon_stop.png";
+        Icons imageName = isLoggedPaused ? Icons.ICON_PLAY : Icons.ICON_STOP;
         ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
         logButton.setIcon(icon);
         logButton.setText(isLoggedPaused ? "Start" : "Stop");
@@ -853,9 +854,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void updateQuickViewButton() {
-        String imageName = isQuickViewEnabled ? "eye_closed.png" : "eye_open.png";
-        ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
-        quickViewButton.setIcon(icon);
+        Icons icon = isQuickViewEnabled ? Icons.EYE_CLOSED : Icons.EYE_OPEN;
+        ImageIcon imageIcon = UiUtils.getImageIcon(icon, UiUtils.IMG_SIZE_ICON);
+        quickViewButton.setIcon(imageIcon);
         quickViewButton.setText(isQuickViewEnabled ? "Restore" : "Hide");
         quickViewButton.setToolTipText(isQuickViewEnabled ? "Restore Distraction Free Mode" : "Enter Distraction Free Mode");
     }
