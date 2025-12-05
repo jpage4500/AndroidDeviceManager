@@ -18,10 +18,7 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -279,13 +276,20 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         private Point pressStartPoint;
         private boolean longPressTriggered;
 
+        // swipe gesture tracking
+        private Timer swipeGestureTimer;
+        private Point swipeStartPoint;
+        private int swipeAccumulatedRotation;
+        private boolean swipeIsHorizontal;
+        private static final int SWIPE_GESTURE_TIMEOUT_MS = 150; // time to wait for gesture completion
+        private static final int FIXED_SWIPE_DISTANCE = 300; // fixed swipe distance in device pixels
+
         public ScreenPanel() {
             setBackground(Color.BLACK);
             setFocusable(true);
             requestFocusInWindow();
 
-            // removed always-on timer; will start when first animation is added
-
+            // handle click and long-click
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
@@ -333,6 +337,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 }
             });
 
+            // handle drag
             addMouseMotionListener(new MouseAdapter() {
                 @Override
                 public void mouseDragged(MouseEvent e) {
@@ -346,6 +351,10 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 }
             });
 
+            // handle touchpad swipes
+            addMouseWheelListener(this::handleMouseWheel);
+
+            // handle key events
             addKeyListener(new KeyAdapter() {
                 @Override
                 public void keyTyped(KeyEvent e) {
@@ -556,7 +565,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             Integer androidKeyCode = AndroidKeyMapper.mapKeyCode(keyCode);
 
             if (androidKeyCode != null) {
-                log.debug("handleKeyPressed: Java keyCode={}, Android keyCode={}", keyCode, androidKeyCode);
+                //log.debug("handleKeyPressed: Java keyCode={}, Android keyCode={}", keyCode, androidKeyCode);
                 // flush any pending text first
                 flushTextBuffer();
                 // send keyevent
@@ -564,6 +573,77 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 addKeyAnimation(KeyEvent.getKeyText(keyCode));
                 e.consume();
             }
+        }
+
+        private void handleMouseWheel(MouseWheelEvent e) {
+            if (!isInputAllowed()) return;
+
+            int rotation = e.getWheelRotation();
+            Point mousePos = e.getPoint();
+            Point devicePoint = screenToDeviceCoordinates(mousePos);
+            if (devicePoint == null) return;
+
+            boolean isHorizontal = e.isShiftDown();
+
+            // if this is the first event of a new gesture
+            if (swipeGestureTimer == null || !swipeGestureTimer.isRunning()) {
+                // start new gesture
+                swipeStartPoint = devicePoint;
+                swipeAccumulatedRotation = rotation;
+                swipeIsHorizontal = isHorizontal;
+
+                // create timer to detect end of gesture
+                swipeGestureTimer = new Timer(SWIPE_GESTURE_TIMEOUT_MS, evt -> {
+                    sendAccumulatedSwipe();
+                });
+                swipeGestureTimer.setRepeats(false);
+                swipeGestureTimer.start();
+            } else {
+                // continue accumulating the gesture
+                swipeAccumulatedRotation += rotation;
+                // restart timer to wait for more events
+                swipeGestureTimer.restart();
+            }
+        }
+
+        private void sendAccumulatedSwipe() {
+            if (swipeStartPoint == null || swipeAccumulatedRotation == 0) {
+                return;
+            }
+
+            // calculate swipe direction based on accumulated rotation
+            int direction = swipeAccumulatedRotation < 0 ? -1 : 1;
+            int deltaX = swipeIsHorizontal ? direction * FIXED_SWIPE_DISTANCE : 0;
+            int deltaY = swipeIsHorizontal ? 0 : direction * FIXED_SWIPE_DISTANCE;
+
+            // calculate device swipe coordinates (start and end positions for the touch gesture)
+            Point startPoint = new Point(swipeStartPoint.x - deltaX, swipeStartPoint.y - deltaY);
+            Point endPoint = new Point(swipeStartPoint.x + deltaX, swipeStartPoint.y + deltaY);
+
+            // clamp coordinates to device screen bounds
+            startPoint = clampToDeviceBounds(startPoint);
+            endPoint = clampToDeviceBounds(endPoint);
+
+            log.debug("sendAccumulatedSwipe: rotation={}, horizontal={}, device={}→{}",
+                swipeAccumulatedRotation, swipeIsHorizontal, startPoint, endPoint);
+
+            // send swipe command to device
+            remoteConnection.sendScreenInputSwipe(device.serial,
+                startPoint.x, startPoint.y,
+                endPoint.x, endPoint.y,
+                200);
+
+            // show animation starting at mouse position
+            Point screenMousePos = deviceToScreenCoordinates(swipeStartPoint);
+            Point animEndPoint = new Point(swipeStartPoint.x + deltaX, swipeStartPoint.y + deltaY);
+            Point screenEnd = deviceToScreenCoordinates(animEndPoint);
+            if (screenMousePos != null && screenEnd != null) {
+                addMouseWheelSwipeAnimation(screenMousePos, screenEnd);
+            }
+
+            // reset gesture tracking
+            swipeStartPoint = null;
+            swipeAccumulatedRotation = 0;
         }
 
         private void copyImageToClipboard() {
@@ -669,6 +749,43 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             return new Point(deviceX, deviceY);
         }
 
+        private Point deviceToScreenCoordinates(Point devicePoint) {
+            if (currentImage == null) return null;
+
+            int panelWidth = screenPanel.getWidth();
+            int panelHeight = screenPanel.getHeight();
+            double panelRatio = (double) panelWidth / panelHeight;
+            double imageRatio = (double) currentImage.getWidth() / currentImage.getHeight();
+
+            int drawWidth, drawHeight, drawX, drawY;
+            if (panelRatio > imageRatio) {
+                drawHeight = panelHeight;
+                drawWidth = (int) (drawHeight * imageRatio);
+                drawX = (panelWidth - drawWidth) / 2;
+                drawY = 0;
+            } else {
+                drawWidth = panelWidth;
+                drawHeight = (int) (drawWidth / imageRatio);
+                drawX = 0;
+                drawY = (panelHeight - drawHeight) / 2;
+            }
+
+            // Convert device coordinates to screen
+            int screenX = (int) ((double) devicePoint.x / deviceWidth * drawWidth) + drawX;
+            int screenY = (int) ((double) devicePoint.y / deviceHeight * drawHeight) + drawY;
+
+            return new Point(screenX, screenY);
+        }
+
+        /**
+         * Clamp point coordinates to device screen bounds
+         */
+        private Point clampToDeviceBounds(Point point) {
+            int x = Math.max(0, Math.min(deviceWidth - 1, point.x));
+            int y = Math.max(0, Math.min(deviceHeight - 1, point.y));
+            return new Point(x, y);
+        }
+
         // animation helpers
         private void addTapAnimation(Point p) {
             animations.add(new Animations.TapAnimation(p.x, p.y));
@@ -678,6 +795,12 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
         private void addSwipeAnimation(Point start, Point end) {
             animations.add(new Animations.SwipeAnimation(start.x, start.y, end.x, end.y));
+            startAnimationLoop();
+            repaint();
+        }
+
+        private void addMouseWheelSwipeAnimation(Point start, Point end) {
+            animations.add(new Animations.MouseWheelSwipeAnimation(start.x, start.y, end.x, end.y));
             startAnimationLoop();
             repaint();
         }
@@ -692,7 +815,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     private void flushTextBuffer() {
         if (!textBuffer.isEmpty()) {
             String text = textBuffer.toString();
-            log.debug("flushTextBuffer: sending {} chars", text.length());
+            //log.debug("flushTextBuffer: sending {} chars", text.length());
             remoteConnection.sendScreenInputText(device.serial, text);
             textBuffer.setLength(0);
         }
