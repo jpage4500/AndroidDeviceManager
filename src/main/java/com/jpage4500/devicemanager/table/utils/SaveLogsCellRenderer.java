@@ -1,8 +1,9 @@
 package com.jpage4500.devicemanager.table.utils;
 
+import com.jpage4500.devicemanager.data.Colors;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.data.SaveLogEntry;
 import com.jpage4500.devicemanager.table.SaveLogsTableModel;
-import com.jpage4500.devicemanager.utils.Colors;
 import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ public class SaveLogsCellRenderer extends JLabel implements TableCellRenderer {
 
         UiUtils.setEmptyBorder(this, 10, 10);
 
-        BufferedImage image = UiUtils.getImage("device_local.png", UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON);
+        BufferedImage image = UiUtils.getImage(Icons.DEVICE_LOCAL, UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON);
 
         BufferedImage offlineImage = UiUtils.replaceColor(image, Color.GRAY);
         statusOfflineIcon = new ImageIcon(offlineImage);

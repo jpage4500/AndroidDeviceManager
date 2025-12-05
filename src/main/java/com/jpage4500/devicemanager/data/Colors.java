@@ -1,4 +1,4 @@
-package com.jpage4500.devicemanager.utils;
+package com.jpage4500.devicemanager.data;
 
 import java.awt.*;
 

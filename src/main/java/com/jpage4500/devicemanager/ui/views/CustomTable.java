@@ -1,5 +1,7 @@
 package com.jpage4500.devicemanager.ui.views;
 
+import com.jpage4500.devicemanager.data.Colors;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -156,7 +158,7 @@ public class CustomTable extends JTable {
 
     public void setEmptyText(String emptyText) {
         this.emptyText = emptyText;
-        emptyImage = UiUtils.getImage("empty_image.png", 500);
+        emptyImage = UiUtils.getImage(Icons.EMPTY_IMAGE, 500);
     }
 
     @Override
@@ -537,8 +539,8 @@ public class CustomTable extends JTable {
         public CustomTableHeader(JTable t) {
             super(t.getColumnModel());
 
-            arrowUpIcon = UiUtils.getImageIcon("arrow_down.png", UiUtils.IMG_SIZE_SMALL);
-            arrowDownIcon = UiUtils.getImageIcon("arrow_up.png", UiUtils.IMG_SIZE_SMALL);
+            arrowUpIcon = UiUtils.getImageIcon(Icons.ARROW_DOWN, UiUtils.IMG_SIZE_SMALL);
+            arrowDownIcon = UiUtils.getImageIcon(Icons.ARROW_UP, UiUtils.IMG_SIZE_SMALL);
 
             setBackground(Colors.COLOR_TABLE_HEADER);
 

@@ -493,8 +493,6 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         scheduledExecutorService.submit(() -> {
             // schedule these commands to be run after all other device details are fetched
             Timer timer = new Timer();
-            device.setBusy(true);
-            notifyDeviceUpdated(device);
             int beforeSize = device.customAppVersionList != null ? device.customAppVersionList.size() : 0;
 
             // cache results from same/similar query URL
@@ -581,8 +579,6 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             if (beforeSize != afterSize) {
                 log.trace("fetchCustomColumns: {}, {}", timer, GsonHelper.toJson(device.customAppVersionList));
             }
-            device.setBusy(false);
-            notifyDeviceUpdated(device);
         });
 
     }
@@ -976,8 +972,15 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * install file to given device
      */
     public void installApp(Device device, File file, TaskListener listener) {
+        installApp(device, file, null, listener);
+    }
+
+    /**
+     * install file to given device with progress updates
+     */
+    public void installApp(Device device, File file, ProgressListener progressListener, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            Result result = installAppInternal(device, file);
+            Result result = installAppInternal(device, file, progressListener);
             if (listener != null) listener.onTaskComplete(result.isSuccess, result.result);
         });
     }
@@ -985,25 +988,38 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     /**
      * special version of installApp which can install 1 file to multiple devices remotely without needing to upload the file multiple times
      */
-    public void installApp(RemoteConnection connection, List<Device> deviceList, File file, TaskListener listener) {
+    public void installApp(RemoteConnection connection, List<Device> deviceList, File file, ProgressListener progressListener, TaskListener listener) {
         commandExecutorService.submit(() -> {
             // convert list to serials
             List<String> serialList = new ArrayList<>();
             for (Device device : deviceList) serialList.add(device.serial);
+            progressListener.onProgress(0, 0, "Uploading " + Utils.bytesToDisplayString(file.length()) + "...");
             Result result = connection.installApp(serialList, file);
             if (listener != null) listener.onTaskComplete(result.isSuccess, result.result);
         });
     }
 
     public Result installAppInternal(Device device, File file) {
+        return installAppInternal(device, file, null);
+    }
+
+    public Result installAppInternal(Device device, File file, ProgressListener progressListener) {
         if (device.remoteConnection != null) {
+            progressListener.onProgress(0, 0, "Uploading " + Utils.bytesToDisplayString(file.length()) + "...");
             return device.remoteConnection.installApp(List.of(device.serial), file);
         }
         Timer timer = new Timer();
         log.trace("installAppInternal: file:{}, size:{}", file.getName(), Utils.bytesToDisplayString(file.length()));
         try {
+            if (progressListener != null) progressListener.onProgress(1, 4, "Uploading " + Utils.bytesToDisplayString(file.length()) + "...");
             PackageManager packageManager = new PackageManager(device.jadbDevice);
-            packageManager.install(file);
+            packageManager.install(file, (currentStep, totalSteps, message) -> {
+                // ignore step 1 "Uploading" since we're doing it above and with the file size
+                if (currentStep == 1 && totalSteps == 4) return;
+                if (progressListener != null) {
+                    progressListener.onProgress(currentStep, totalSteps, message);
+                }
+            });
             log.trace("installAppInternal: DONE:{}", timer);
             return new Result(true, null);
         } catch (Exception e) {
@@ -1833,36 +1849,55 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     /**
      * Wake device screen
      */
-    public boolean wakeDevice(Device device) {
+    public void wakeDevice(Device device) {
+        // check if screen is awake
+        if (isDeviceOn(device)) return;
         log.debug("wakeDevice: {}", device.serial);
+
+        // wake up the device
+        runShell(device, "input keyevent KEYCODE_POWER");
+        Utils.sleep(1000);
+        //if (isDeviceOn(device)) return;
+
+        // check power on status
+        // adb shell settings get global stay_on_while_plugged_in
+        // 0: Stay on is disabled (the default).
+        // 1: Stay on while plugged into AC power (BATTERY_PLUGGED_AC).
+        // 2: Stay on while plugged into USB power (BATTERY_PLUGGED_USB).
+        // 4: Stay on while plugged into wireless power (BATTERY_PLUGGED_WIRELESS).
+        // 3: Stay on while plugged into either AC or USB power (1 | 2).
+
+        // command failed - try alternative command
+        // runShell(device, "svc power stayon true");
+        // Utils.sleep(1000);
+        // if (isDeviceOn(device)) return;
+
+        // fallback: keep screen on while AC or USB (1|2 = 3)
+        // runShell(device, "settings put global stay_on_while_plugged_in 3");
+    }
+
+    /**
+     * check if device's screen is on
+     */
+    private boolean isDeviceOn(Device device) {
         // check if screen is awake
         DeviceManager.ShellResult result = runShell(device, "dumpsys power");
         if (result.isSuccess && result.resultList != null) {
-            boolean isScreenOn = true;
             for (String line : result.resultList) {
                 if (line.contains("mWakefulness=")) {
                     // mWakefulness=Dozing; mWakefulness=Asleep
                     log.debug("wakeDevice: {}", line);
                     if (TextUtils.containsAny(line, true, "Asleep", "Dozing")) {
-                        isScreenOn = false;
-                        break;
+                        // device screen is off
+                        return false;
                     }
                 }
             }
-            if (!isScreenOn) {
-                // wake up the device
-                runShell(device, "input keyevent " + AndroidKeyMapper.KEYCODE_WAKEUP);
-                Utils.sleep(1000);
-                // keep screen on during mirroring
-                // NOTE: keeps the device's screen on as long as it is plugged into a power source
-                result = runShell(device, "svc power stayon true");
-                if (!result.isSuccess) {
-                    // fallback: keep screen on while AC or USB (1|2 = 3)
-                    result = runShell(device, "settings put global stay_on_while_plugged_in 3");
-                }
-            }
+            // screen is on
+            return true;
         }
-        return result.isSuccess;
+        // command failed.. just assume screen is off
+        return false;
     }
 
     private String getAppVersion(Device device, String appPkg) {

@@ -32,6 +32,13 @@ public class PackageManager {
         this.device = device;
     }
 
+    /**
+     * Interface for receiving progress updates during app installation
+     */
+    public interface ProgressListener {
+        void onProgress(int currentStep, int totalSteps, String message);
+    }
+
     public List<Package> getPackages() throws IOException, JadbException {
         try (BufferedReader input = new BufferedReader(new InputStreamReader(device.executeShell("pm", "list", "packages"), StandardCharsets.UTF_8))) {
             ArrayList<Package> result = new ArrayList<>();
@@ -59,31 +66,36 @@ public class PackageManager {
         Stream.readAll(s, StandardCharsets.UTF_8);
     }
 
-    private void install(File apkFile, List<String> extraArguments) throws IOException, JadbException {
+    private void install(File apkFile, List<String> extraArguments, ProgressListener progressListener) throws IOException, JadbException {
         String apkName = apkFile.getName();
         if (apkName.endsWith(".xapk") || apkName.endsWith(".apkm")) {
-            installSplit(apkFile, extraArguments);
+            installSplit(apkFile, extraArguments, progressListener);
             return;
         }
+        if (progressListener != null) progressListener.onProgress(1, 4, "Uploading " + apkName);
         RemoteFile remote = new RemoteFile("/data/local/tmp/" + apkName);
         device.push(apkFile, remote);
+        if (progressListener != null) progressListener.onProgress(2, 4, "Installing " + apkName);
         List<String> arguments = new ArrayList<>();
         arguments.add("install");
         arguments.addAll(extraArguments);
         arguments.add(remote.getPath());
         InputStream s = device.executeShell("pm", arguments.toArray(new String[0]));
         String result = Stream.readAll(s, StandardCharsets.UTF_8);
+        if (progressListener != null) progressListener.onProgress(3, 4, "Cleaning up");
         remove(remote);
         verifyOperation("install", apkName, result);
+        if (progressListener != null) progressListener.onProgress(4, 4, "Installation complete");
     }
 
     /**
      * install split apk
      */
-    private void installSplit(File splitApkFile, List<String> extraArguments) throws IOException, JadbException {
+    private void installSplit(File splitApkFile, List<String> extraArguments, ProgressListener progressListener) throws IOException, JadbException {
         Timer timer = new Timer();
         // 1) copy .xapk/.apkm file to temp location
         String origName = splitApkFile.getName();
+        if (progressListener != null) progressListener.onProgress(1, 10, "Preparing " + origName);
         File tmpFile = new File(Utils.getTempFolder(), origName);
         log.trace("installSplit: copy file: {} -> {}", splitApkFile, tmpFile);
         try {
@@ -97,6 +109,7 @@ public class PackageManager {
             File targetDir = new File(tmpFile.getParent(), "dm-install");
 
             // 3) extract zip to folder
+            if (progressListener != null) progressListener.onProgress(2, 10, "Extracting split APKs");
             try (ZipFile zip = new ZipFile(zipFile)) {
                 Enumeration<? extends ZipEntry> entries = zip.entries();
                 while (entries.hasMoreElements()) {
@@ -176,6 +189,7 @@ public class PackageManager {
             log.trace("installSplit: install-create: {}, files:{}", totalSize, installFiles.size());
 
             // pm install-create -S TOTAL_SIZE_OF_ALL_APKS
+            if (progressListener != null) progressListener.onProgress(3, 10, "Creating install session");
             InputStream s = device.executeShell("pm", "install-create", "-S", String.valueOf(totalSize));
             String result = Stream.readAll(s, StandardCharsets.UTF_8);
             verifyOperation("install-create", "", result);
@@ -192,6 +206,11 @@ public class PackageManager {
                 long splitLen = apkFile.length();
                 // push file to device
                 log.trace("installSplit: installing:{}, len:{}", apkFile.getName(), splitLen);
+                if (progressListener != null) {
+                    int step = 4 + i;
+                    int totalSteps = 4 + installFiles.size() + 1; // 4 prep steps + files + 1 commit step
+                    progressListener.onProgress(step, totalSteps, "Installing " + apkFile.getName());
+                }
                 RemoteFile remote = new RemoteFile("/data/local/tmp/" + apkFile.getName());
                 device.push(apkFile, remote);
 
@@ -206,6 +225,10 @@ public class PackageManager {
 
             // pm install-commit 4711
             log.trace("installSplit: COMMIT:{}, {}", timer, session);
+            if (progressListener != null) {
+                int totalSteps = 4 + installFiles.size() + 1;
+                progressListener.onProgress(totalSteps - 1, totalSteps, "Finalizing installation");
+            }
             s = device.executeShell("pm", "install-commit", session);
             result = Stream.readAll(s, StandardCharsets.UTF_8);
             verifyOperation("install-commit", session, result);
@@ -213,6 +236,10 @@ public class PackageManager {
             // 6) install .obb files (optional)
 
             // clean-up
+            if (progressListener != null) {
+                int totalSteps = 4 + installFiles.size() + 1;
+                progressListener.onProgress(totalSteps, totalSteps, "Installation complete");
+            }
             zipFile.delete();
             FileUtils.deleteFolder(targetDir);
         } catch (Exception e) {
@@ -233,20 +260,32 @@ public class PackageManager {
     }
 
     public void install(File apkFile) throws IOException, JadbException {
-        install(apkFile, new ArrayList<>(0));
+        install(apkFile, new ArrayList<>(0), null);
+    }
+
+    public void install(File apkFile, ProgressListener progressListener) throws IOException, JadbException {
+        install(apkFile, new ArrayList<>(0), progressListener);
     }
 
     public void installWithOptions(File apkFile, List<? extends InstallOption> options) throws IOException, JadbException {
+        installWithOptions(apkFile, options, null);
+    }
+
+    public void installWithOptions(File apkFile, List<? extends InstallOption> options, ProgressListener progressListener) throws IOException, JadbException {
         List<String> optionsAsStr = new ArrayList<>(options.size());
 
         for (InstallOption installOption : options) {
             optionsAsStr.add(installOption.getStringRepresentation());
         }
-        install(apkFile, optionsAsStr);
+        install(apkFile, optionsAsStr, progressListener);
     }
 
     public void forceInstall(File apkFile) throws IOException, JadbException {
-        installWithOptions(apkFile, Collections.singletonList(REINSTALL_KEEPING_DATA));
+        installWithOptions(apkFile, Collections.singletonList(REINSTALL_KEEPING_DATA), null);
+    }
+
+    public void forceInstall(File apkFile, ProgressListener progressListener) throws IOException, JadbException {
+        installWithOptions(apkFile, Collections.singletonList(REINSTALL_KEEPING_DATA), progressListener);
     }
 
     public void uninstall(Package name) throws IOException, JadbException {

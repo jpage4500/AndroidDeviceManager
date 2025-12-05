@@ -107,7 +107,7 @@ public class RemoteHttpServer extends NanoWSD {
         }
 
         if (log.isTraceEnabled()) {
-            log.trace("serve: {} {}, {}/{}, {}", method, uri, TextUtils.firstValid(headerIp, clientIp), headerName, GsonHelper.toJson(params));
+            log.trace("serve: {} {}, {} {}", method, uri, TextUtils.firstValid(headerName, clientIp), params.isEmpty() ? "" : GsonHelper.toJson(params));
         }
 
         // authenticate
@@ -441,17 +441,22 @@ public class RemoteHttpServer extends NanoWSD {
             }
 
             // install to all devices
-            List<DeviceManager.Result> results = new ArrayList<>();
             boolean isSuccess = true;
+            StringBuilder sb = new StringBuilder();
             for (Device device : devices) {
                 DeviceManager.Result result = DeviceManager.getInstance().installAppInternal(device, tempFile);
+                if (!sb.isEmpty()) sb.append(", ");
+                sb.append(isSuccess ? "✅" : "❌");
+                sb.append(" ").append(device.serial);
+                // if any device fails, return failure
                 if (!result.isSuccess) isSuccess = false;
-                results.add(result);
             }
+            String result = sb.toString();
+            log.debug("handleInstallFile: {}", result);
             if (!isSuccess) {
-                return createBadResponse("Failed to install app: " + GsonHelper.toJson(results));
+                return createBadResponse(result);
             } else {
-                return createJsonResponse(results);
+                return createTextResponse(result);
             }
         } catch (Exception e) {
             log.error("handleInstallFile: Exception: {}", e.getMessage());
@@ -514,6 +519,10 @@ public class RemoteHttpServer extends NanoWSD {
         value = value.replaceAll("[\r\n]", "");
         if (value.length() > 128) value = value.substring(0, 128);
         return value;
+    }
+
+    private Response createTextResponse(String text) {
+        return newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, text);
     }
 
     private Response createJsonResponse(Object object) {

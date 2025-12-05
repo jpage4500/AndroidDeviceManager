@@ -2,6 +2,7 @@ package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.ExploreTableModel;
 import com.jpage4500.devicemanager.table.utils.ExplorerCellRenderer;
@@ -117,7 +118,7 @@ public class ExploreScreen extends BaseScreen {
         UiUtils.setEmptyBorder(statusBar, 0, 0);
 
         // bookmark
-        ImageIcon icon = UiUtils.getImageIcon("icon_bookmark.png", UiUtils.IMG_SIZE_SMALL);
+        ImageIcon icon = UiUtils.getImageIcon(Icons.BOOKMARK, UiUtils.IMG_SIZE_SMALL);
         pathLabel = new HoverLabel(selectedPath, icon);
         UiUtils.addLeftClickListener(pathLabel, this::showFavoritePopup);
         statusBar.add(pathLabel, BorderLayout.WEST);
@@ -142,7 +143,7 @@ public class ExploreScreen extends BaseScreen {
         for (String path : pathList) {
             if (TextUtils.equals(path, selectedPath)) continue;
             String fav = TextUtils.truncateStart(path, 25);
-            JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon("icon_open_folder.png", UiUtils.IMG_SIZE_SMALL));
+            JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon(Icons.OPEN_FOLDER, UiUtils.IMG_SIZE_SMALL));
             item.addActionListener(actionEvent -> showFolder(path));
             UiUtils.setEmptyBorder(item);
             popupMenu.add(item);
@@ -162,21 +163,21 @@ public class ExploreScreen extends BaseScreen {
         if (!pathList.contains(selectedPath)) {
             // add current item
             String path = TextUtils.truncateStart(selectedPath, 25);
-            ImageIcon favIcon = UiUtils.getImageIcon("icon_star.png", UiUtils.IMG_SIZE_SMALL);
+            ImageIcon favIcon = UiUtils.getImageIcon(Icons.STAR, UiUtils.IMG_SIZE_SMALL);
             JMenuItem currentItem = new JMenuItem("Bookmark [" + path + "]", favIcon);
             currentItem.addActionListener(actionEvent -> bookmarkPath(selectedPath));
             UiUtils.setEmptyBorder(currentItem);
             popupMenu.add(currentItem);
         } else {
             // remove current item
-            JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon("icon_trash.png", UiUtils.IMG_SIZE_SMALL));
+            JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon(Icons.TRASH, UiUtils.IMG_SIZE_SMALL));
             currentItem.addActionListener(actionEvent -> removeBookmark(selectedPath));
             UiUtils.setEmptyBorder(currentItem);
             popupMenu.add(currentItem);
         }
         popupMenu.addSeparator();
         // go to folder
-        JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon("icon_edit.png", UiUtils.IMG_SIZE_SMALL));
+        JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon(Icons.EDIT, UiUtils.IMG_SIZE_SMALL));
         goToItem.addActionListener(actionEvent -> handleGoToFolder());
         UiUtils.setEmptyBorder(goToItem);
         popupMenu.add(goToItem);
@@ -225,6 +226,9 @@ public class ExploreScreen extends BaseScreen {
 
         // [CMD + 3] = show logs
         createCmdMenuItem(windowMenu, DeviceScreen.SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
+
+        // [CMD + 4] = show activities
+        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_ACTIVITIES, KeyEvent.VK_4, e -> deviceScreen.showActivityDialog());
 
         // [CMD + T] = hide toolbar
         createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
@@ -485,11 +489,11 @@ public class ExploreScreen extends BaseScreen {
     private void setupToolbar() {
         toolbar.setRollover(true);
 
-        createToolbarButton(toolbar, "icon_open_folder.png", "Go To..", "Open Folder", actionEvent -> handleGoToFolder());
-        createToolbarButton(toolbar, "icon_download.png", "Download", "Download Files", actionEvent -> handleDownload());
+        createToolbarButton(toolbar, Icons.OPEN_FOLDER, "Go To..", "Open Folder", actionEvent -> handleGoToFolder());
+        createToolbarButton(toolbar, Icons.DOWNLOAD, "Download", "Download Files", actionEvent -> handleDownload());
         toolbar.addSeparator();
-        createToolbarButton(toolbar, "icon_folder_new.png", "New Folder", "New Folder", actionEvent -> handleNewFolder());
-        createToolbarButton(toolbar, "icon_delete.png", "Delete", "Delete Files", actionEvent -> handleDelete());
+        createToolbarButton(toolbar, Icons.FOLDER_NEW, "New Folder", "New Folder", actionEvent -> handleNewFolder());
+        createToolbarButton(toolbar, Icons.DELETE, "Delete", "Delete Files", actionEvent -> handleDelete());
 
         toolbar.add(Box.createHorizontalGlue());
 
@@ -499,11 +503,11 @@ public class ExploreScreen extends BaseScreen {
         filterTextField.setMaximumSize(new Dimension(200, 40));
         toolbar.add(filterTextField);
 
-        createToolbarButton(toolbar, "refresh.png", "Refresh", "Refresh Files", actionEvent -> refreshFiles());
+        createToolbarButton(toolbar, Icons.REFRESH, "Refresh", "Refresh Files", actionEvent -> refreshFiles());
 
         // root toolbar button
         useRoot = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_USE_ROOT, false);
-        rootButton = createToolbarButton(toolbar, "root.png", "Root", "Root Mode", actionEvent -> toggleRoot());
+        rootButton = createToolbarButton(toolbar, Icons.ROOT, "Root", "Root Mode", actionEvent -> toggleRoot());
         refreshRootButton();
     }
 
@@ -515,7 +519,7 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void refreshRootButton() {
-        ImageIcon icon = UiUtils.getImageIcon(useRoot ? "root_enabled.png" : "root.png", UiUtils.IMG_SIZE_TOOLBAR);
+        ImageIcon icon = UiUtils.getImageIcon(useRoot ? Icons.ROOT_ENABLED : Icons.ROOT, UiUtils.IMG_SIZE_TOOLBAR);
         rootButton.setIcon(icon);
         rootButton.setToolTipText(useRoot ? "Disable root mode" : "Enable root mode");
     }
@@ -536,13 +540,13 @@ public class ExploreScreen extends BaseScreen {
 
         boolean isSingleFile = selectedFileList.size() == 1;
         String msg = isSingleFile ?
-                selectedFileList.get(0).name :
-                selectedFileList.size() + " files(s)";
+            selectedFileList.get(0).name :
+            selectedFileList.size() + " files(s)";
 
         // prompt to install/copy
         int rc = JOptionPane.showConfirmDialog(this,
-                "Download " + msg + "?",
-                "Download?", JOptionPane.YES_NO_OPTION);
+            "Download " + msg + "?",
+            "Download?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         String downloadFolder = Utils.getDownloadFolder();
@@ -576,8 +580,8 @@ public class ExploreScreen extends BaseScreen {
         }
 
         int rc = JOptionPane.showConfirmDialog(this,
-                "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
-                "Delete Files?", JOptionPane.YES_NO_OPTION);
+            "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
+            "Delete Files?", JOptionPane.YES_NO_OPTION);
         if (rc != JOptionPane.YES_OPTION) return;
 
         for (DeviceFile file : selectedFileList) {

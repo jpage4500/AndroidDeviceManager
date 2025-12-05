@@ -1,11 +1,14 @@
 package com.jpage4500.devicemanager.ui;
 
-import com.jpage4500.devicemanager.utils.*;
+import com.jpage4500.devicemanager.data.Colors;
+import com.jpage4500.devicemanager.data.Icons;
+import com.jpage4500.devicemanager.utils.ClickListener;
+import com.jpage4500.devicemanager.utils.GsonHelper;
+import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.Timer;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -124,24 +127,22 @@ public class BaseScreen extends JFrame {
         }
     }
 
-    protected JButton createSmallToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ClickListener listener) {
-        return createToolbarButton(toolbar, imageName, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR_SMALL, listener);
+    // Icons enum overloads
+    protected JButton createSmallToolbarButton(JToolBar toolbar, Icons icon, String label, String tooltip, ClickListener listener) {
+        return createToolbarButton(toolbar, icon, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR_SMALL, listener);
     }
 
-    /**
-     * create a 'standard' toolbar button with 40x40 image and label below
-     */
-    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ClickListener listener) {
-        return createToolbarButton(toolbar, imageName, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
+    protected JButton createToolbarButton(JToolBar toolbar, Icons icon, String label, String tooltip, ClickListener listener) {
+        return createToolbarButton(toolbar, icon, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
     }
 
-    protected JButton createToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, int size, ClickListener listener) {
+    protected JButton createToolbarButton(JToolBar toolbar, Icons icon, String label, String tooltip, int size, ClickListener listener) {
         JButton button = new JButton(label);
-        if (imageName != null) {
-            BufferedImage image = UiUtils.getImage(imageName, size, size);
+        if (icon != null) {
+            BufferedImage image = UiUtils.getImage(icon, size, size);
             if (image == null) {
                 // fall back to default image
-                image = UiUtils.getImage("android.png", size, size);
+                image = UiUtils.getImage(Icons.ANDROID, size, size);
             }
             button.setIcon(new ImageIcon(image));
 

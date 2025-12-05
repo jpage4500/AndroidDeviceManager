@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.data.LogFilterEntry;
@@ -117,7 +118,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         // -- add filter button --
         JButton addFilterButton = new JButton("Add Filter");
-        addFilterButton.setIcon(UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_ICON));
+        addFilterButton.setIcon(UiUtils.getImageIcon(Icons.ADD, UiUtils.IMG_SIZE_ICON));
         addFilterButton.addActionListener(this::handleAddFilterClicked);
         leftPanel.add(addFilterButton, BorderLayout.SOUTH);
 
@@ -227,6 +228,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         // [CMD + T] = hide toolbar
         createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
+
+        // [CMD + H] = distraction free
+        createCmdMenuItem(windowMenu, "Toggle Distraction Free View", KeyEvent.VK_H, e -> toggleQuickViewButton());
 
         // -----------------------------------------------------------
         // -----------------------------------------------------------
@@ -420,17 +424,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 //        }
 
         // use some default column sizes
-        table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
-        table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
-        table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
-        table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
-        table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
-        table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
-        table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
-
-        table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
-        table.setMaxColWidth(LogsTableModel.Columns.PID.toString(), 100);
-        table.setMaxColWidth(LogsTableModel.Columns.TID.toString(), 100);
+        setDefaultColumnSizes();
 
         // ENTER -> view message
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
@@ -477,7 +471,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, actionEvent -> {
                     boolean update = !autoResize;
                     PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_AUTO_RESIZE, update);
-                    int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
+                    int flag = update ? JTable.AUTO_RESIZE_LAST_COLUMN : JTable.AUTO_RESIZE_OFF;
                     table.setAutoResizeMode(flag);
                 });
                 if (!autoResize) {
@@ -601,6 +595,20 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 }
             }
         });
+    }
+
+    private void setDefaultColumnSizes() {
+        table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
+        table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
+        table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
+        table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
+        table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
+        table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
+        table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
+
+        table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
+        table.setMaxColWidth(LogsTableModel.Columns.PID.toString(), 100);
+        table.setMaxColWidth(LogsTableModel.Columns.TID.toString(), 100);
     }
 
     private void handleMouseMovedForTooltip(java.awt.event.MouseEvent e) {
@@ -786,7 +794,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         toolbar.addSeparator(new Dimension(10, 0));
 
-        createSmallToolbarButton(toolbar, "icon_trash.png", "Clear", "Clear Logs", actionEvent -> clearLogs());
+        createSmallToolbarButton(toolbar, Icons.TRASH, "Clear", "Clear Logs", actionEvent -> clearLogs());
     }
 
     private void clearLogs() {
@@ -804,7 +812,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void updateLoggingButton() {
-        String imageName = isLoggedPaused ? "icon_play.png" : "icon_stop.png";
+        Icons imageName = isLoggedPaused ? Icons.PLAY : Icons.STOP;
         ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
         logButton.setIcon(icon);
         logButton.setText(isLoggedPaused ? "Start" : "Stop");
@@ -826,30 +834,19 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             hiddenColList.add(LogsTableModel.Columns.PID.name());
             model.setHiddenColumns(hiddenColList);
 
-            // size LEVEL and TAG columns to fit their content BEFORE enabling auto-resize
-            TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
-
-            // find column indices by name (after columns have been hidden)
-            TableColumn levelColumn = table.getColumnByName(LogsTableModel.Columns.LEVEL.name());
-            TableColumn tagColumn = table.getColumnByName(LogsTableModel.Columns.TAG.name());
-
-            if (levelColumn != null) {
-                int levelCol = table.convertColumnIndexToView(levelColumn.getModelIndex());
-                if (levelCol >= 0) adjuster.adjustColumn(levelCol);
-            }
-            if (tagColumn != null) {
-                int tagCol = table.convertColumnIndexToView(tagColumn.getModelIndex());
-                if (tagCol >= 0) adjuster.adjustColumn(tagCol);
-            }
-
             // enable auto-resize for last column (MSG) to fill remaining space
             table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
+
+            table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
+            table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
+            table.setMaxColWidth(LogsTableModel.Columns.TAG.toString(), 200);
+            table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
         } else {
             // restore previous auto-resize mode FIRST
-            table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+            table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
 
             // restore: show all columns
-            model.setHiddenColumns(new ArrayList<>());
+            model.setHiddenColumns(null);
 
             // restore saved column widths and order
             table.restoreTable();
@@ -857,9 +854,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void updateQuickViewButton() {
-        String imageName = isQuickViewEnabled ? "eye_closed.png" : "eye_open.png";
-        ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
-        quickViewButton.setIcon(icon);
+        Icons icon = isQuickViewEnabled ? Icons.EYE_CLOSED : Icons.EYE_OPEN;
+        ImageIcon imageIcon = UiUtils.getImageIcon(icon, UiUtils.IMG_SIZE_ICON);
+        quickViewButton.setIcon(imageIcon);
         quickViewButton.setText(isQuickViewEnabled ? "Restore" : "Hide");
         quickViewButton.setToolTipText(isQuickViewEnabled ? "Restore Distraction Free Mode" : "Enter Distraction Free Mode");
     }

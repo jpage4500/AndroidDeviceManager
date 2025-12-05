@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.data.LogFilter;
 import com.jpage4500.devicemanager.data.LogFilterEntry;
 import com.jpage4500.devicemanager.data.LogFilterExpression;
@@ -101,7 +102,7 @@ public class AddFilterDialog extends JPanel {
 
         // add/update filter
         addButton = new JButton();
-        addButton.setIcon(UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_ICON));
+        addButton.setIcon(UiUtils.getImageIcon(Icons.ADD, UiUtils.IMG_SIZE_ICON));
         addButton.addActionListener(e -> handleAddClicked());
         addAddFilterButton();
     }
@@ -208,7 +209,7 @@ public class AddFilterDialog extends JPanel {
             expressionComboBox.setSelectedIndex(exprIndex);
 
             deleteButton = new JButton();
-            deleteButton.setIcon(UiUtils.getImageIcon("icon_delete.png", UiUtils.IMG_SIZE_ICON));
+            deleteButton.setIcon(UiUtils.getImageIcon(Icons.DELETE, UiUtils.IMG_SIZE_ICON));
 
             valueField = new HintTextField("Value", null);
         }

@@ -85,13 +85,8 @@ public class Device {
             sb.append(remoteConnection.getServerConfig().name);
         }
 
-        if (TextUtils.notEmpty(nickname)) {
-            if (!sb.isEmpty()) sb.append(" - ");
-            sb.append(nickname);
-        } else if (model != null) {
-            if (!sb.isEmpty()) sb.append(" - ");
-            sb.append(model);
-        }
+        if (!sb.isEmpty()) sb.append(" - ");
+        sb.append(getName());
 
         if (phone != null) {
             if (!sb.isEmpty()) sb.append(" - ");
@@ -101,6 +96,17 @@ public class Device {
             sb.append(serial);
         }
         return sb.toString();
+    }
+
+    public String getName() {
+        if (TextUtils.notEmpty(nickname)) {
+            return nickname;
+        } else if (model != null) {
+            return model;
+        } else {
+            // TODO: better fallback?
+            return "";
+        }
     }
 
     /**

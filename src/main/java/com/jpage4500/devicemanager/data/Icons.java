@@ -1,0 +1,101 @@
+package com.jpage4500.devicemanager.data;
+
+/**
+ * represents all the images used in the app
+ * NOTE: all icons are in png format
+ */
+public enum Icons {
+    ADB("adb.png"),
+    ADD("add.png"),
+    ANDROID("android.png"),
+    ARROW_DOWN("arrow_down.png"),
+    ARROW_RIGHT("arrow_right.png"),
+    ARROW_UP("arrow_up.png"),
+    BATTERY_LEVEL0("battery_level0.png"),
+    BATTERY_LEVEL1("battery_level1.png"),
+    BATTERY_LEVEL2("battery_level2.png"),
+    BATTERY_LEVEL3("battery_level3.png"),
+    BATTERY_LEVEL4("battery_level4.png"),
+    BOOKMARK("bookmark.png"),
+    BROWSE("browse.png"),
+    CHARGING("charging.png"),
+    CLEAR_FILTER("clear_filter.png"),
+    CLOSE("close.png"),
+    COPY("copy.png"),
+    DELETE("delete.png"),
+    DEVICE_LOCAL("device_local.png"),
+    DEVICE_REMOTE("device_remote.png"),
+    DOWNLOAD("download.png"),
+    EDIT("edit.png"),
+    EMPTY_IMAGE("empty_image.png"),
+    ERROR("error.png"),
+    EYE_CLOSED("eye_closed.png"),
+    EYE_OPEN("eye_open.png"),
+    FILE("file.png"),
+    FILE_APK("file_apk.png"),
+    FILE_JSON("file_json.png"),
+    FILE_LINK("file_link.png"),
+    FILE_LOGS("file_logs.png"),
+    FILE_READONLY("file_readonly.png"),
+    FILE_SAVE("file_save.png"),
+    FILE_SCRIPT("file_script.png"),
+    FILE_XML("file_xml.png"),
+    FILTER("filter.png"),
+    FOLDER("folder.png"),
+    FOLDER_LINK("folder_link.png"),
+    FOLDER_NEW("folder_new.png"),
+    FOLDER_READONLY("folder_readonly.png"),
+    FOLDER_UP("folder_up.png"),
+    KEYBOARD("keyboard.png"),
+    LOGO("logo.png"),
+    LOGS("logs.png"),
+    MEMORY("memory.png"),
+    MIRROR("mirror.png"),
+    MORE("more.png"),
+    NETWORK("network.png"),
+    OPEN("open.png"),
+    OPEN_FOLDER("open_folder.png"),
+    OVERFLOW("overflow.png"),
+    PAUSE("pause.png"),
+    PLAY("play.png"),
+    POWER("power.png"),
+    REFRESH("refresh.png"),
+    RESTART("restart.png"),
+    ROOT("root.png"),
+    ROOT_ENABLED("root_enabled.png"),
+    SAVE("save.png"),
+    SCREEN_RECORD("screen_record.png"),
+    SCREENSHOT("screenshot.png"),
+    SCRCPY("scrcpy.png"),
+    SCRIPT("script.png"),
+    SERVER("server.png"),
+    SETTINGS("settings.png"),
+    SHARE_OFF("share_off.png"),
+    SHARE_ON("share_on.png"),
+    SIZE("size.png"),
+    STAR("star.png"),
+    STATUS_BUSY("status_busy.png"),
+    STATUS_ERROR("status_error.png"),
+    STATUS_OFFLINE("status_offline.png"),
+    STATUS_ONLINE("status_online.png"),
+    STOP("stop.png"),
+    SUCCESS("success.png"),
+    SYSTEM_TRAY("system_tray.png"),
+    TERMINAL("terminal.png"),
+    TRASH("trash.png"),
+    TRAY_ICON("tray_icon.png"),
+    UPDATE("update.png"),
+    VARIABLE("variable.png"),
+    WRAP("wrap.png"),
+    ;
+
+    private final String name;
+
+    Icons(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+}

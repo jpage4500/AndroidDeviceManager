@@ -125,6 +125,10 @@ public class RemoteServerManager {
     }
 
     public List<RemoteClientInfo> getConnectedClients() {
+        // clear out any clients that haven't been active for 24 hours
+        long cutoffMs = System.currentTimeMillis() - 24 * 60 * 60 * 1000;
+        connectedClients.entrySet().removeIf(entry -> entry.getValue().lastActivityMs < cutoffMs);
+
         return new ArrayList<>(connectedClients.values());
     }
 

@@ -48,7 +48,21 @@ function handleLinux() {
     gnome-terminal -- bash -c "${SCRIPT} ${DEVICES}"
 }
 
-##
+###############################################################################
+## START ##
+###############################################################################
+
+# check if script exists
+if [[ ! -f "${SCRIPT}" ]]; then
+    echo "script not found: ${SCRIPT}"
+    exit 1
+fi
+# check if script is executable
+if [[ ! -x "${SCRIPT}" ]]; then
+    echo "script is not executable: ${SCRIPT}"
+    chmod +x "${SCRIPT}"
+fi
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
     handleMacOSX
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
