@@ -317,9 +317,9 @@ public class NetworkHelper {
         sb.append(String.format("<< %d) %s: %s, ", response.requestNumber, lastPath, response.timer));
         if (response.status == 200) {
             if (response.body != null) {
-                sb.append(Utils.bytesToDisplayString(response.body.length())).append(", ");
+                sb.append(FileUtils.bytesToDisplayString(response.body.length())).append(", ");
             } else if (response instanceof HttpDataResponse dataResponse && dataResponse.dataSize > 0) {
-                sb.append(Utils.bytesToDisplayString(dataResponse.dataSize)).append(", ");
+                sb.append(FileUtils.bytesToDisplayString(dataResponse.dataSize)).append(", ");
             }
         } else {
             sb.append(String.format("ERROR:%d, \"%s\", ", response.status, response.body));

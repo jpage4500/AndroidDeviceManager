@@ -9,12 +9,10 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.text.DecimalFormat;
 import java.util.concurrent.TimeUnit;
 
 public class Utils {
     private static final Logger log = LoggerFactory.getLogger(Utils.class);
-    private static final DecimalFormat sizeDisplayFormat = new DecimalFormat("#,##0.#");
 
     public static boolean isWindows() {
         return TextUtils.containsIgnoreCase(System.getProperty("os.name"), "windows");
@@ -281,35 +279,6 @@ public class Utils {
      */
     public static int getRandomNumber(int min, int max) {
         return min + (int) (Math.random() * ((max - min) + 1));
-    }
-
-    private static final String[] SIZE_UNITS = new String[]{"b", "k", "M", "GB", "TB"};
-
-    /**
-     * return string description of number of bytes (45k, 320b, 1.1M)
-     */
-    public static String bytesToDisplayString(long sizeInBytes) {
-        if (sizeInBytes <= 0) return String.valueOf(sizeInBytes);
-        int digitGroups = (int) (Math.log10(sizeInBytes) / Math.log10(1024));
-        return sizeDisplayFormat.format(sizeInBytes / Math.pow(1024, digitGroups)) + SIZE_UNITS[digitGroups];
-    }
-
-    /**
-     * Determine MIME type from filename
-     */
-    public static String getMimeType(String filename) {
-        if (filename == null) return null;
-        String lower = filename.toLowerCase();
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-        if (lower.endsWith(".png")) return "image/png";
-        if (lower.endsWith(".gif")) return "image/gif";
-        if (lower.endsWith(".txt")) return "text/plain";
-        if (lower.endsWith(".json")) return "application/json";
-        if (lower.endsWith(".xml")) return "application/xml";
-        if (lower.endsWith(".pdf")) return "application/pdf";
-        if (lower.endsWith(".zip")) return "application/zip";
-        if (lower.endsWith(".apk")) return "application/vnd.android.package-archive";
-        return "application/octet-stream";
     }
 
 }

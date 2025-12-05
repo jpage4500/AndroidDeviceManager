@@ -128,18 +128,18 @@ public class BaseScreen extends JFrame {
     }
 
     // Icons enum overloads
-    protected JButton createSmallToolbarButton(JToolBar toolbar, Icons icon, String label, String tooltip, ClickListener listener) {
-        return createToolbarButton(toolbar, icon, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR_SMALL, listener);
+    protected JButton createSmallToolbarButton(JToolBar toolbar, Icons icn, String label, String tooltip, ClickListener listener) {
+        return createToolbarButton(toolbar, icn, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR_SMALL, listener);
     }
 
-    protected JButton createToolbarButton(JToolBar toolbar, Icons icon, String label, String tooltip, ClickListener listener) {
-        return createToolbarButton(toolbar, icon, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
+    protected JButton createToolbarButton(JToolBar toolbar, Icons icn, String label, String tooltip, ClickListener listener) {
+        return createToolbarButton(toolbar, icn, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
     }
 
-    protected JButton createToolbarButton(JToolBar toolbar, Icons icon, String label, String tooltip, int size, ClickListener listener) {
+    protected JButton createToolbarButton(JToolBar toolbar, Icons icn, String label, String tooltip, int size, ClickListener listener) {
         JButton button = new JButton(label);
-        if (icon != null) {
-            BufferedImage image = UiUtils.getImage(icon, size, size);
+        if (icn != null) {
+            BufferedImage image = UiUtils.getImage(icn, size, size);
             if (image == null) {
                 // fall back to default image
                 image = UiUtils.getImage(Icons.ANDROID, size, size);

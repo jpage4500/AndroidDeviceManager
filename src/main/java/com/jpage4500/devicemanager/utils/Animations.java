@@ -275,5 +275,169 @@ public final class Animations {
             g2.dispose();
         }
     }
+
+    /**
+     * Mouse wheel swipe animation: 2 chevron arrows (>>) animating from start to end
+     * Designed specifically for trackpad swipe gestures
+     */
+    public static class MouseWheelSwipeAnimation extends Animation {
+        private final int x1, y1, x2, y2;
+        private static final int GROWTH_MS = 300;
+        private static final int HOLD_MS = 100;
+        private static final int FADE_MS = 300;
+        private static final double CHEVRON_SIZE = 36; // size of each chevron (height)
+        private static final double CHEVRON_SPACING = 18; // spacing between the 2 chevrons
+
+        public MouseWheelSwipeAnimation(int x1, int y1, int x2, int y2) {
+            super(GROWTH_MS + HOLD_MS + FADE_MS);
+            this.x1 = x1;
+            this.y1 = y1;
+            this.x2 = x2;
+            this.y2 = y2;
+        }
+
+        @Override
+        public void paint(Graphics2D g) {
+            long elapsed = System.currentTimeMillis() - startTime;
+            float alpha = elapsed < GROWTH_MS + HOLD_MS ? 1f : 1f - Math.min(1f, (elapsed - GROWTH_MS - HOLD_MS) / (float) FADE_MS);
+            if (alpha <= 0f) return;
+
+            double dx = x2 - x1;
+            double dy = y2 - y1;
+            double len = Math.hypot(dx, dy);
+            if (len < 2) return;
+
+            double progress = Math.min(1.0, elapsed / (double) GROWTH_MS);
+
+            // unit vector along the swipe direction
+            double ux = dx / len;
+            double uy = dy / len;
+
+            // perpendicular vector
+            double perpX = -uy;
+            double perpY = ux;
+
+            // calculate current position along the path (animate from start to end)
+            double currentX = x1 + dx * progress;
+            double currentY = y1 + dy * progress;
+
+            // draw 2 chevrons positioned along the swipe direction (like >>)
+            // first chevron (back one)
+            drawChevron(g, alpha,
+                currentX - ux * CHEVRON_SPACING,
+                currentY - uy * CHEVRON_SPACING,
+                ux, uy, perpX, perpY);
+
+            // second chevron (front one)
+            drawChevron(g, alpha,
+                currentX,
+                currentY,
+                ux, uy, perpX, perpY);
+        }
+
+        private void drawChevron(Graphics2D g, float alpha,
+                                 double centerX, double centerY,
+                                 double ux, double uy, double perpX, double perpY) {
+
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+
+            // chevron is a V shape rotated to point in the direction
+            // calculate the 3 points of the chevron (top, tip, bottom)
+            double halfSize = CHEVRON_SIZE / 2.0;
+
+            // tip of chevron points forward
+            double tipX = centerX + ux * (CHEVRON_SIZE / 3.0);
+            double tipY = centerY + uy * (CHEVRON_SIZE / 3.0);
+
+            // back of chevron
+            double backX = centerX - ux * (CHEVRON_SIZE / 3.0);
+            double backY = centerY - uy * (CHEVRON_SIZE / 3.0);
+
+            // top and bottom points
+            double topX = backX + perpX * halfSize;
+            double topY = backY + perpY * halfSize;
+            double bottomX = backX - perpX * halfSize;
+            double bottomY = backY - perpY * halfSize;
+
+            // draw glow
+            Graphics2D gGlow = (Graphics2D) g.create();
+            gGlow.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            gGlow.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha * 0.5f));
+            gGlow.setColor(GLOW_COLOR);
+            gGlow.setStroke(new BasicStroke(10f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            gGlow.drawLine((int) topX, (int) topY, (int) tipX, (int) tipY);
+            gGlow.drawLine((int) tipX, (int) tipY, (int) bottomX, (int) bottomY);
+            gGlow.dispose();
+
+            // draw main chevron outline
+            g2.setColor(MAIN_COLOR);
+            g2.setStroke(new BasicStroke(5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawLine((int) topX, (int) topY, (int) tipX, (int) tipY);
+            g2.drawLine((int) tipX, (int) tipY, (int) bottomX, (int) bottomY);
+
+            g2.dispose();
+        }
+    }
+
+    /**
+     * Icon animation: centered bubble showing an icon image
+     */
+    public static class IconAnimation extends Animation {
+        private final Image icon;
+        private final JComponent panel; // used for size
+
+        public IconAnimation(Image icon, JComponent panel) {
+            super(600);
+            this.icon = icon;
+            this.panel = panel;
+        }
+
+        @Override
+        public void paint(Graphics2D g) {
+            if (icon == null) return;
+
+            double p = progress();
+            float alpha = (float) (1.0 - p);
+            if (alpha <= 0f) return;
+
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+
+            int panelW = panel.getWidth();
+            int panelH = panel.getHeight();
+
+            // icon size - scale based on panel size
+            int iconSize = Math.max(48, panelW / 8);
+            int padding = 20;
+
+            // center position
+            int bubbleSize = iconSize + padding * 2;
+            int bubbleX = (panelW - bubbleSize) / 2;
+            int bubbleY = (panelH - bubbleSize) / 2;
+
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+
+            // draw glow
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha * 0.55f));
+            g2.setColor(GLOW_COLOR);
+            g2.fillRoundRect(bubbleX - 6, bubbleY - 6, bubbleSize + 12, bubbleSize + 12, 40, 40);
+
+            // draw bubble background
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+            g2.setColor(new Color(MAIN_COLOR.getRed(), MAIN_COLOR.getGreen(), MAIN_COLOR.getBlue(), (int) (195 * alpha)));
+            g2.fillRoundRect(bubbleX, bubbleY, bubbleSize, bubbleSize, 32, 32);
+
+            // draw icon centered in bubble
+            int iconX = bubbleX + padding;
+            int iconY = bubbleY + padding;
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+            g2.drawImage(icon, iconX, iconY, iconSize, iconSize, null);
+
+            g2.dispose();
+        }
+    }
 }
 

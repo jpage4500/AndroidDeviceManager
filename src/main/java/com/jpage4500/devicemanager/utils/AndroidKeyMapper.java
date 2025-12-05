@@ -46,6 +46,7 @@ public class AndroidKeyMapper {
     public static final int KEYCODE_MOVE_HOME = 122;
     public static final int KEYCODE_MOVE_END = 123;
     public static final int KEYCODE_WAKEUP = 224;
+    public static final int KEYCODE_APP_SWITCH = 187;
 
     private static final Map<Integer, Integer> keyMap = new HashMap<>();
 

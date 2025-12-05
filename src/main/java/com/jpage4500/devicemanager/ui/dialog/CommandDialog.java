@@ -154,8 +154,8 @@ public class CommandDialog extends JPanel {
         log.debug("runCommand: {}, devices:{}", command, selectedDeviceList.size());
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
             log.trace("runCommand: {}, {}", isSuccess, error);
-            Icons img = isSuccess ? Icons.SUCCESS : Icons.ERROR;
-            BufferedImage image = UiUtils.getImage(img, UiUtils.IMG_SIZE_ICON);
+            Icons icn = isSuccess ? Icons.SUCCESS : Icons.ERROR;
+            BufferedImage image = UiUtils.getImage(icn, UiUtils.IMG_SIZE_ICON);
             Color color = isSuccess ? Colors.COLOR_SUCCESS : Colors.COLOR_ERROR;
             image = UiUtils.replaceColor(image, color);
             resultsLabel.setVisible(true);

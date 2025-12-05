@@ -342,7 +342,7 @@ public class RemoteHttpServer extends NanoWSD {
             }
 
             // determine MIME type
-            String mimeType = Utils.getMimeType(filename);
+            String mimeType = FileUtils.getMimeType(filename);
 
             // stream the file to the client
             FileInputStream fis = new FileInputStream(tempFile);

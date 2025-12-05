@@ -234,7 +234,7 @@ public class SettingsDialog extends JPanel {
         // add items to list with icons
         for (DeviceScreen.ToolbarButton button : toolbarArr) {
             boolean isHidden = hiddenList.contains(button);
-            ImageIcon icon = UiUtils.getImageIcon(button.icon.getName(), 32);
+            ImageIcon icon = UiUtils.getImageIcon(button.icn, 32);
             checkBoxList.addItem(button.label, !isHidden, icon);
         }
 

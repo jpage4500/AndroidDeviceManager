@@ -22,65 +22,53 @@ public class UiUtils {
     public static final int IMG_SIZE_TOOLBAR = 40;
     public static final int IMG_SIZE_TOOLBAR_SMALL = 20;
 
-    // Icons enum overloaded methods
-    public static BufferedImage getImage(Icons icon, int size) {
-        return getImage(icon, size, size);
+    // ------------------------------------------------------------------------
+    // getImage:
+    // - BufferedImage scaled using Thumbnails library
+    // ------------------------------------------------------------------------
+
+    public static BufferedImage getImage(Icons icn, int size) {
+        return getImage(icn, size, size);
     }
 
-    public static BufferedImage getImage(Icons icon, int w, int h) {
-        return getImage(icon, w, h, null);
+    public static BufferedImage getImage(Icons icn, int w, int h) {
+        return getImage(icn, w, h, null);
     }
 
-    public static BufferedImage getImage(Icons icon, int w, int h, Color color) {
-        return icon != null ? getImage(icon.getName(), w, h, color) : null;
-    }
-
-    public static ImageIcon getImageIcon(Icons icon, int size) {
-        return getImageIcon(icon, size, size);
-    }
-
-    public static ImageIcon getImageIcon(Icons icon, int w, int h) {
-        return icon != null ? getImageIcon(icon.getName(), w, h) : null;
-    }
-
-    public static ImageIcon getImageIcon(Icons icon, int w, int h, Color color) {
-        return icon != null ? getImageIcon(icon.getName(), w, h, color) : null;
-    }
-
-    public static BufferedImage getImage(String path, int w, int h) {
-        return getImage(path, w, h, null);
-    }
-
-    public static BufferedImage getImage(String path, int w, int h, Color color) {
-        if (path == null) return null;
+    public static BufferedImage getImage(Icons icn, int w, int h, Color color) {
+        if (icn == null) return null;
         try {
             // library offers MUCH better image scaling than ImageIO
-            Thumbnails.Builder<URL> imageBuilder = Thumbnails.of(UiUtils.class.getResource("/images/" + path));
-            imageBuilder = imageBuilder.size(w, h);
+            Thumbnails.Builder<URL> imageBuilder = Thumbnails.of(UiUtils.class.getResource("/images/" + icn.getName()));
+            if (w > 0 && h > 0) {
+                imageBuilder = imageBuilder.size(w, h);
+            } else {
+                // load full size image
+                imageBuilder = imageBuilder.scale(1.0);
+            }
             BufferedImage image = imageBuilder.asBufferedImage();
             if (image != null) {
                 if (color != null) return replaceColor(image, color);
                 else return image;
             }
-            log.error("getImage: image not found! {}", path);
+            log.error("getImage: image not found! {}", icn);
         } catch (Exception e) {
-            log.error("getImage: Exception: url:{}, {}", path, e.getMessage());
+            log.error("getImage: Exception: url:{}, {}", icn, e.getMessage());
         }
         return null;
     }
 
-    public static ImageIcon getImageIcon(String imageName, int size) {
-        return getImageIcon(imageName, size, size);
+    // ------------------------------------------------------------------------
+    // getImageIcon:
+    // - ImageIcon scaled using Thumbnails library
+    // ------------------------------------------------------------------------
+
+    public static ImageIcon getImageIcon(Icons icn, int size) {
+        return new ImageIcon(getImage(icn, size, size, null));
     }
 
-    public static ImageIcon getImageIcon(String imageName, int w, int h) {
-        Image image = getImage(imageName, w, h);
-        if (image != null) return new ImageIcon(image);
-        else return null;
-    }
-
-    public static ImageIcon getImageIcon(String imageName, int w, int h, Color color) {
-        Image image = getImage(imageName, w, h, color);
+    public static ImageIcon getImageIcon(Icons icn, int w, int h, Color color) {
+        Image image = getImage(icn, w, h, color);
         if (image != null) return new ImageIcon(image);
         else return null;
     }
@@ -152,17 +140,13 @@ public class UiUtils {
     }
 
     public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, ActionListener listener) {
-        return addPopupMenuItem(popupMenu, label, (String) null, listener);
+        return addPopupMenuItem(popupMenu, label, null, listener);
     }
 
-    public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, Icons icon, ActionListener listener) {
-        return addPopupMenuItem(popupMenu, label, icon != null ? icon.getName() : null, listener);
-    }
-
-    public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, String iconName, ActionListener listener) {
+    public static JMenuItem addPopupMenuItem(JPopupMenu popupMenu, String label, Icons iconEnum, ActionListener listener) {
         Icon icon = null;
-        if (iconName != null) {
-            icon = getImageIcon(iconName, UiUtils.IMG_SIZE_SMALL);
+        if (iconEnum != null) {
+            icon = getImageIcon(iconEnum, UiUtils.IMG_SIZE_SMALL);
         }
         JMenuItem menuItem = new JMenuItem(label, icon);
         menuItem.addActionListener(listener);
