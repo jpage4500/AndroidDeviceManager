@@ -98,6 +98,17 @@ public class RemoteConnectionUtils {
         public String label;
         public String ip;
         public String host;
+
+        public String getDesc() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(ip);
+            if (TextUtils.notEmpty(host) && !TextUtils.equals(ip, host)) {
+                sb.append(" (");
+                sb.append(host);
+                sb.append(")");
+            }
+            return sb.toString();
+        }
     }
 
     public static List<Network> getActiveNetworkInfo() {

@@ -27,6 +27,7 @@ public class ShareServerDialog extends JPanel {
 
     private final RemoteServerManager serverManager;
 
+    private JPanel mainPanel;
     private JLabel statusLabel;
     private JTextField deviceNameField;
     private JTextField portField;
@@ -35,7 +36,6 @@ public class ShareServerDialog extends JPanel {
     private JTable clientTable;
     private JButton toggleButton;
     private JButton copyButton;
-    private JTextArea networkField;
     private List<RemoteConnectionUtils.Network> networkList;
 
     public static void showShareServerDialog(Component parent) {
@@ -61,60 +61,21 @@ public class ShareServerDialog extends JPanel {
     }
 
     private void initUI() {
-        JPanel mainPanel = new JPanel(new MigLayout("fillx", "[right]rel[grow,fill]"));
-
-        // status
-        mainPanel.add(new JLabel("Status:"));
+        mainPanel = new JPanel(new MigLayout("fillx", "[right]rel[grow,fill]"));
         statusLabel = new JLabel();
-        statusLabel.setFont(statusLabel.getFont().deriveFont(Font.BOLD));
-        mainPanel.add(statusLabel, "wrap");
-
-        // server Name
-        mainPanel.add(new JLabel("Server Name:"));
         deviceNameField = new JTextField();
-        mainPanel.add(deviceNameField, "wrap");
-
-        // placeholder for network(s)
-        mainPanel.add(new JLabel("Host / IP:"), "aligny top");
-        networkField = new JTextArea();
-        networkField.setEditable(false);
-        networkField.setBackground(Color.LIGHT_GRAY);
-        networkField.setLineWrap(true);
-        networkField.setWrapStyleWord(true);
-        networkField.setRows(1);
-        JScrollPane networkScrollPane = new JScrollPane(networkField);
-        networkScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        networkScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        mainPanel.add(networkScrollPane, "height 20:60:, wrap");
-
-        // port
-        mainPanel.add(new JLabel("Port:"));
         portField = new JTextField();
-        mainPanel.add(portField, "wrap");
-
-        // auth Token
-        mainPanel.add(new JLabel("Auth Token:"));
         authTokenField = new JTextField();
-        mainPanel.add(authTokenField, "wrap");
-
-        // copy button
         copyButton = new JButton("Copy Connection String");
         copyButton.addActionListener(e -> copyConnectionString());
-        copyButton.setEnabled(false); // Disabled until server starts
-        mainPanel.add(copyButton, "skip 1, wrap");
-
-        // connected Clients label
-        mainPanel.add(new JLabel("Connected Clients:"), "wrap");
 
         // client table
         clientTableModel = new ClientTableModel();
         clientTable = new JTable(clientTableModel);
         clientTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         clientTable.setRowHeight(25);
-        JScrollPane scrollPane = new JScrollPane(clientTable);
-        scrollPane.setPreferredSize(new Dimension(500, 150));
-        mainPanel.add(scrollPane, "span, grow, wrap 10px");
 
+        // NOTE: adding elements to mainPanel in refreshUI so we can add multiple host/IP rows
         add(mainPanel, BorderLayout.CENTER);
 
         // control buttons
@@ -133,7 +94,10 @@ public class ShareServerDialog extends JPanel {
     private void refreshUI() {
         boolean isRunning = serverManager.isRunning();
 
-        // update status
+        mainPanel.removeAll();
+
+        // status
+        mainPanel.add(new JLabel("Status:"));
         if (isRunning) {
             statusLabel.setText("Running");
             statusLabel.setForeground(new Color(0, 150, 0));
@@ -143,48 +107,63 @@ public class ShareServerDialog extends JPanel {
             statusLabel.setForeground(Color.RED);
             toggleButton.setText("Start Server");
         }
+        mainPanel.add(statusLabel, "wrap");
 
-        // get network(s)
+        // server name
+        mainPanel.add(new JLabel("Server Name:"));
+        String deviceName = RemoteConnectionUtils.getDeviceName();
+        deviceNameField.setText(deviceName);
+        deviceNameField.setEditable(!isRunning);
+        deviceNameField.setBackground(isRunning ? Color.LIGHT_GRAY : Color.WHITE);
+        mainPanel.add(deviceNameField, "wrap");
+
+        // network(s)
         synchronized (this) {
             if (networkList != null) {
-                StringBuilder networkSb = new StringBuilder();
                 for (RemoteConnectionUtils.Network network : networkList) {
-                    // add line break for subsequent entries
-                    if (!networkSb.isEmpty()) networkSb.append("\n");
-                    // IP address
-                    networkSb.append(network.ip);
-                    // hostname
-                    if (TextUtils.notEmpty(network.host) && !TextUtils.equals(network.host, network.ip)) {
-                        networkSb.append(" (");
-                        networkSb.append(network.host);
-                        networkSb.append(")");
-                    }
+                    mainPanel.add(new JLabel("Host / IP:"), "aligny top");
+
+                    JTextField statusField = new JTextField();
+                    statusField.setEditable(false);
+                    statusField.setBackground(Color.LIGHT_GRAY);
+                    mainPanel.add(statusField, "wrap");
+                    statusField.setText(network.getDesc());
                 }
-                networkField.setText(networkSb.toString());
             } else {
-                networkField.setText("fetching network info...");
+                mainPanel.add(new JLabel("Host / IP:"), "aligny top");
+                // working...
+                JTextField statusField = new JTextField();
+                mainPanel.add(statusField, "wrap");
+                statusField.setText("fetching network info...");
             }
         }
 
-        // get device name and IP
-        String deviceName = RemoteConnectionUtils.getDeviceName();
+        // port
+        mainPanel.add(new JLabel("Port:"));
         int port = isRunning ? serverManager.getPort() : getDefaultPort();
-        String authToken = isRunning ? serverManager.getAuthToken() : getDefaultOrGenerateAuthToken();
-
-        // update fields
-        deviceNameField.setText(deviceName);
         portField.setText(String.valueOf(port));
-        authTokenField.setText(authToken);
-
-        // enable/disable editable fields based on server status
-        deviceNameField.setEditable(!isRunning);
         portField.setEditable(!isRunning);
-        authTokenField.setEditable(!isRunning);
-
-        // visual indication of editable state
-        deviceNameField.setBackground(isRunning ? Color.LIGHT_GRAY : Color.WHITE);
         portField.setBackground(isRunning ? Color.LIGHT_GRAY : Color.WHITE);
+        mainPanel.add(portField, "wrap");
+
+        // auth Token
+        mainPanel.add(new JLabel("Auth Token:"));
+        String authToken = isRunning ? serverManager.getAuthToken() : getDefaultOrGenerateAuthToken();
+        authTokenField.setText(authToken);
+        authTokenField.setEditable(!isRunning);
         authTokenField.setBackground(isRunning ? Color.LIGHT_GRAY : Color.WHITE);
+        mainPanel.add(authTokenField, "wrap");
+
+        // copy button
+        copyButton.setEnabled(isRunning);
+        mainPanel.add(copyButton, "skip 1, wrap");
+
+        // connected Clients label
+        mainPanel.add(new JLabel("Connected Clients:"), "wrap");
+
+        JScrollPane scrollPane = new JScrollPane(clientTable);
+        scrollPane.setPreferredSize(new Dimension(500, 150));
+        mainPanel.add(scrollPane, "span, grow, wrap 10px");
 
         // enable/disable copy button based on server status
         copyButton.setEnabled(isRunning);
