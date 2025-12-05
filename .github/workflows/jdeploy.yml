@@ -9,6 +9,11 @@ on:
     paths-ignore:
       - 'README.md'
 
+# npm Trusted Publishing
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -43,6 +48,7 @@ jobs:
           cat package.new
           mv package.new package.json
 
+      # NOTE: should not need this anymore with npm Trusted Publishing
       - name: set NPM token
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
 
