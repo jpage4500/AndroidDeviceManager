@@ -158,7 +158,7 @@ public class CustomTable extends JTable {
 
     public void setEmptyText(String emptyText) {
         this.emptyText = emptyText;
-        emptyImage = UiUtils.getImage(Icons.EMPTY_IMAGE, 500);
+        emptyImage = UiUtils.getImage(Icons.EMPTY_IMAGE, 0);
     }
 
     @Override

@@ -500,7 +500,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 ToolbarButton.ADB, ToolbarButton.REFRESH, ToolbarButton.SERVER, ToolbarButton.SETTINGS));
 
             for (ToolbarButton toolbarButton : toolbarButtons) {
-                UiUtils.addPopupMenuItem(popupMenu, toolbarButton.label, toolbarButton.icon.getName(), e -> {
+                UiUtils.addPopupMenuItem(popupMenu, toolbarButton.label, toolbarButton.icn, e -> {
                     handleButtonClicked(toolbarButton, null);
                 });
             }
@@ -747,8 +747,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     private void addTrayMenuItem(Device device) {
         boolean isRemote = device.remoteConnection != null;
-        Icons imageName = isRemote ? Icons.DEVICE_REMOTE : Icons.DEVICE_LOCAL;
-        BufferedImage image = UiUtils.getImage(imageName, UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON);
+        Icons icn = isRemote ? Icons.DEVICE_REMOTE : Icons.DEVICE_LOCAL;
+        BufferedImage image = UiUtils.getImage(icn, UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON);
         if (device.isOnline) {
             image = UiUtils.replaceColor(image, Colors.COLOR_ONLINE);
         }
@@ -1359,19 +1359,19 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         SETTINGS(Icons.SETTINGS, "Settings", "Settings"),
         ;
 
-        public final Icons icon;
+        public final Icons icn;
         public final String label;
         public final String tooltip;
 
-        ToolbarButton(Icons icon, String label, String tooltip) {
-            this.icon = icon;
+        ToolbarButton(Icons icn, String label, String tooltip) {
+            this.icn = icn;
             this.label = label;
             this.tooltip = tooltip;
         }
 
         // Backwards compatibility method
         public String getImage() {
-            return icon.getName();
+            return icn.getName();
         }
 
         /**
@@ -1456,7 +1456,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JButton button = getToolbarButton(ToolbarButton.SERVER);
         if (button != null) {
             RemoteServerManager server = DeviceManager.getInstance().getRemoteServerManager();
-            BufferedImage image = UiUtils.getImage(ToolbarButton.SERVER.icon, UiUtils.IMG_SIZE_TOOLBAR);
+            BufferedImage image = UiUtils.getImage(ToolbarButton.SERVER.icn, UiUtils.IMG_SIZE_TOOLBAR);
             if (image != null) {
                 if (server.isRunning()) {
                     image = UiUtils.replaceColor(image, Colors.COLOR_SERVER_RUNNING);
@@ -1565,7 +1565,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         String label = toolbarButton.label;
         String tooltip = toolbarButton.tooltip;
 
-        JButton button = createToolbarButton(toolbar, toolbarButton.icon, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
+        JButton button = createToolbarButton(toolbar, toolbarButton.icn, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
         UiUtils.addRightClickListener(button, e -> {
             if (toolbarButton == ToolbarButton.SETTINGS) return;
             JPopupMenu popupMenu = new JPopupMenu();

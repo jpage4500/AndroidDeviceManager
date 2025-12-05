@@ -115,10 +115,10 @@ public class ActivityDialog extends JPanel {
      * Add a new operation to the list.
      *
      * @param label description to show for this operation
-     * @param icon  optional icon to display
+     * @param icn  optional icon to display
      * @return generated operation id
      */
-    public int addOperation(String label, Icons icon) {
+    public int addOperation(String label, Icons icn) {
         Operation operation = new Operation();
         operation.id = UUID.randomUUID().hashCode();
         operation.label = label;
@@ -127,8 +127,8 @@ public class ActivityDialog extends JPanel {
         operation.isComplete = false;
         operation.startTime = System.currentTimeMillis();
 
-        if (icon != null) {
-            operation.icon = UiUtils.getImageIcon(icon.getName(), UiUtils.IMG_SIZE_TOOLBAR);
+        if (icn != null) {
+            operation.icon = UiUtils.getImageIcon(icn, UiUtils.IMG_SIZE_TOOLBAR);
         }
 
         SwingUtilities.invokeLater(() -> {
