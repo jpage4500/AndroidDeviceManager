@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteConnection;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
@@ -293,6 +294,10 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
+                    if (e.isPopupTrigger()) {
+                        showContextMenu(e);
+                        return;
+                    }
                     requestFocusInWindow();
                     dragStart = e.getPoint();
                     pressStartPoint = e.getPoint();
@@ -303,6 +308,11 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
                 @Override
                 public void mouseReleased(MouseEvent e) {
+                    if (e.isPopupTrigger()) {
+                        showContextMenu(e);
+                        return;
+                    }
+
                     // stop long press timer
                     stopLongPressTimer();
 
@@ -809,6 +819,53 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             animations.add(new Animations.KeyAnimation(text, this));
             startAnimationLoop();
             repaint();
+        }
+
+        private void addIconAnimation(Image icon) {
+            animations.add(new Animations.IconAnimation(icon, this));
+            startAnimationLoop();
+            repaint();
+        }
+
+        private void showContextMenu(MouseEvent e) {
+            JPopupMenu popup = new JPopupMenu();
+
+            // Home
+            addPopupItem(popup, "Home", Icons.HOME, AndroidKeyMapper.KEYCODE_HOME);
+            // Back
+            addPopupItem(popup, "Back", Icons.BACK, AndroidKeyMapper.KEYCODE_BACK);
+            // Recent Apps / Task Switcher
+            addPopupItem(popup, "Recent Apps", Icons.RECENT, AndroidKeyMapper.KEYCODE_APP_SWITCH);
+            popup.addSeparator();
+            // Menu
+            addPopupItem(popup, "Menu", Icons.MENU, AndroidKeyMapper.KEYCODE_MENU);
+            popup.addSeparator();
+            // TODO: uncomment later if useful
+//            // Page Up
+//            addPopupItem(popup, "Page Up", Icons.ARROW_UP, AndroidKeyMapper.KEYCODE_PAGE_UP);
+//            // Page Down
+//            addPopupItem(popup, "Page Down", Icons.ARROW_DOWN, AndroidKeyMapper.KEYCODE_PAGE_DOWN);
+//            popup.addSeparator();
+//            // Volume Up
+//            addPopupItemWithKeyAnimation(popup, "Volume Up", "Vol+", AndroidKeyMapper.KEYCODE_VOLUME_UP);
+//            // Volume Down
+//            addPopupItemWithKeyAnimation(popup, "Volume Down", "Vol-", AndroidKeyMapper.KEYCODE_VOLUME_DOWN);
+//            popup.addSeparator();
+
+            // Power
+            addPopupItem(popup, "Power", Icons.POWER, AndroidKeyMapper.KEYCODE_POWER);
+
+            popup.show(e.getComponent(), e.getX(), e.getY());
+        }
+
+        private void addPopupItem(JPopupMenu popup, String label, Icons icn, int keycode) {
+            JMenuItem item = UiUtils.addPopupMenuItem(popup, label, icn, evt -> {
+                if (isInputAllowed()) {
+                    remoteConnection.sendScreenInputKeyEvent(device.serial, keycode);
+                    addIconAnimation(UiUtils.getImage(icn, 64));
+                }
+            });
+            popup.add(item);
         }
     }
 

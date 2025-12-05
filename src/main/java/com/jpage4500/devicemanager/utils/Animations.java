@@ -380,5 +380,64 @@ public final class Animations {
             g2.dispose();
         }
     }
+
+    /**
+     * Icon animation: centered bubble showing an icon image
+     */
+    public static class IconAnimation extends Animation {
+        private final Image icon;
+        private final JComponent panel; // used for size
+
+        public IconAnimation(Image icon, JComponent panel) {
+            super(600);
+            this.icon = icon;
+            this.panel = panel;
+        }
+
+        @Override
+        public void paint(Graphics2D g) {
+            if (icon == null) return;
+
+            double p = progress();
+            float alpha = (float) (1.0 - p);
+            if (alpha <= 0f) return;
+
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+
+            int panelW = panel.getWidth();
+            int panelH = panel.getHeight();
+
+            // icon size - scale based on panel size
+            int iconSize = Math.max(48, panelW / 8);
+            int padding = 20;
+
+            // center position
+            int bubbleSize = iconSize + padding * 2;
+            int bubbleX = (panelW - bubbleSize) / 2;
+            int bubbleY = (panelH - bubbleSize) / 2;
+
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+
+            // draw glow
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha * 0.55f));
+            g2.setColor(GLOW_COLOR);
+            g2.fillRoundRect(bubbleX - 6, bubbleY - 6, bubbleSize + 12, bubbleSize + 12, 40, 40);
+
+            // draw bubble background
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+            g2.setColor(new Color(MAIN_COLOR.getRed(), MAIN_COLOR.getGreen(), MAIN_COLOR.getBlue(), (int) (195 * alpha)));
+            g2.fillRoundRect(bubbleX, bubbleY, bubbleSize, bubbleSize, 32, 32);
+
+            // draw icon centered in bubble
+            int iconX = bubbleX + padding;
+            int iconY = bubbleY + padding;
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+            g2.drawImage(icon, iconX, iconY, iconSize, iconSize, null);
+
+            g2.dispose();
+        }
+    }
 }
 
