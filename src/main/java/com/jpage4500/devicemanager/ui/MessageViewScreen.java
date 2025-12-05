@@ -78,7 +78,7 @@ public class MessageViewScreen extends BaseScreen {
         //xmlButton = createSmallToolbarButton(toolbar, Icons.FILE_XML, TEXT_FORMAT_XML, "Format XML", actionEvent -> formatXml());
         wrapButton = createSmallToolbarButton(toolbar, Icons.WRAP, TEXT_WRAP_ON, "Wrap text (line wrap)", actionEvent -> toggleWrap());
         autoFormatButton = createSmallToolbarButton(toolbar, Icons.STATUS_BUSY, TEXT_AUTO_FORMAT_ON, "Auto Format JSON text", actionEvent -> toggleAutoFormat());
-        editButton = createSmallToolbarButton(toolbar, Icons.ICON_EDIT, "Edit", "Edit message in default editor", actionEvent -> editMessage());
+        editButton = createSmallToolbarButton(toolbar, Icons.EDIT, "Edit", "Edit message in default editor", actionEvent -> editMessage());
     }
 
     public void editMessage() {

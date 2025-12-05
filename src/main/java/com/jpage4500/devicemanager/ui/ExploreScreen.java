@@ -118,7 +118,7 @@ public class ExploreScreen extends BaseScreen {
         UiUtils.setEmptyBorder(statusBar, 0, 0);
 
         // bookmark
-        ImageIcon icon = UiUtils.getImageIcon(Icons.ICON_BOOKMARK, UiUtils.IMG_SIZE_SMALL);
+        ImageIcon icon = UiUtils.getImageIcon(Icons.BOOKMARK, UiUtils.IMG_SIZE_SMALL);
         pathLabel = new HoverLabel(selectedPath, icon);
         UiUtils.addLeftClickListener(pathLabel, this::showFavoritePopup);
         statusBar.add(pathLabel, BorderLayout.WEST);
@@ -143,7 +143,7 @@ public class ExploreScreen extends BaseScreen {
         for (String path : pathList) {
             if (TextUtils.equals(path, selectedPath)) continue;
             String fav = TextUtils.truncateStart(path, 25);
-            JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon(Icons.ICON_OPEN_FOLDER, UiUtils.IMG_SIZE_SMALL));
+            JMenuItem item = new JMenuItem(fav, UiUtils.getImageIcon(Icons.OPEN_FOLDER, UiUtils.IMG_SIZE_SMALL));
             item.addActionListener(actionEvent -> showFolder(path));
             UiUtils.setEmptyBorder(item);
             popupMenu.add(item);
@@ -163,21 +163,21 @@ public class ExploreScreen extends BaseScreen {
         if (!pathList.contains(selectedPath)) {
             // add current item
             String path = TextUtils.truncateStart(selectedPath, 25);
-            ImageIcon favIcon = UiUtils.getImageIcon(Icons.ICON_STAR, UiUtils.IMG_SIZE_SMALL);
+            ImageIcon favIcon = UiUtils.getImageIcon(Icons.STAR, UiUtils.IMG_SIZE_SMALL);
             JMenuItem currentItem = new JMenuItem("Bookmark [" + path + "]", favIcon);
             currentItem.addActionListener(actionEvent -> bookmarkPath(selectedPath));
             UiUtils.setEmptyBorder(currentItem);
             popupMenu.add(currentItem);
         } else {
             // remove current item
-            JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon(Icons.ICON_TRASH, UiUtils.IMG_SIZE_SMALL));
+            JMenuItem currentItem = new JMenuItem("Remove Bookmark", UiUtils.getImageIcon(Icons.TRASH, UiUtils.IMG_SIZE_SMALL));
             currentItem.addActionListener(actionEvent -> removeBookmark(selectedPath));
             UiUtils.setEmptyBorder(currentItem);
             popupMenu.add(currentItem);
         }
         popupMenu.addSeparator();
         // go to folder
-        JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon(Icons.ICON_EDIT, UiUtils.IMG_SIZE_SMALL));
+        JMenuItem goToItem = new JMenuItem("Go to folder...", UiUtils.getImageIcon(Icons.EDIT, UiUtils.IMG_SIZE_SMALL));
         goToItem.addActionListener(actionEvent -> handleGoToFolder());
         UiUtils.setEmptyBorder(goToItem);
         popupMenu.add(goToItem);
@@ -489,11 +489,11 @@ public class ExploreScreen extends BaseScreen {
     private void setupToolbar() {
         toolbar.setRollover(true);
 
-        createToolbarButton(toolbar, Icons.ICON_OPEN_FOLDER, "Go To..", "Open Folder", actionEvent -> handleGoToFolder());
-        createToolbarButton(toolbar, Icons.ICON_DOWNLOAD, "Download", "Download Files", actionEvent -> handleDownload());
+        createToolbarButton(toolbar, Icons.OPEN_FOLDER, "Go To..", "Open Folder", actionEvent -> handleGoToFolder());
+        createToolbarButton(toolbar, Icons.DOWNLOAD, "Download", "Download Files", actionEvent -> handleDownload());
         toolbar.addSeparator();
-        createToolbarButton(toolbar, Icons.ICON_FOLDER_NEW, "New Folder", "New Folder", actionEvent -> handleNewFolder());
-        createToolbarButton(toolbar, Icons.ICON_DELETE, "Delete", "Delete Files", actionEvent -> handleDelete());
+        createToolbarButton(toolbar, Icons.FOLDER_NEW, "New Folder", "New Folder", actionEvent -> handleNewFolder());
+        createToolbarButton(toolbar, Icons.DELETE, "Delete", "Delete Files", actionEvent -> handleDelete());
 
         toolbar.add(Box.createHorizontalGlue());
 

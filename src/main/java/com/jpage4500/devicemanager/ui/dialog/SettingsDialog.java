@@ -185,7 +185,7 @@ public class SettingsDialog extends JPanel {
         JScrollPane scroll = new JScrollPane(checkBoxList);
         panel.add(scroll, "grow, span, wrap");
 
-        HoverLabel resetLabel = new HoverLabel("Reset to defaults", UiUtils.getImageIcon(Icons.ICON_TRASH, UiUtils.IMG_SIZE_SMALL));
+        HoverLabel resetLabel = new HoverLabel("Reset to defaults", UiUtils.getImageIcon(Icons.TRASH, UiUtils.IMG_SIZE_SMALL));
         resetLabel.addActionListener(actionEvent -> {
             if (!DialogHelper.showConfirmDialog(component, "Reset Table?", "Reset Table to defaults?")) return;
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, null);
@@ -246,7 +246,7 @@ public class SettingsDialog extends JPanel {
         panel.add(scroll, "grow, span, wrap");
 
         // add Restore Default button
-        HoverLabel defaultButton = new HoverLabel("Reset to defaults", UiUtils.getImageIcon(Icons.ICON_TRASH, UiUtils.IMG_SIZE_SMALL));
+        HoverLabel defaultButton = new HoverLabel("Reset to defaults", UiUtils.getImageIcon(Icons.TRASH, UiUtils.IMG_SIZE_SMALL));
         defaultButton.addActionListener(e -> {
             // reset to default order and visibility
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, null);

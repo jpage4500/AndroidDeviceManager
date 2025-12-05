@@ -56,15 +56,15 @@ public class SaveLogsScreen extends BaseScreen {
         this.deviceScreen = deviceScreen;
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-        BufferedImage startImg = UiUtils.getImage(Icons.ICON_PLAY, UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
+        BufferedImage startImg = UiUtils.getImage(Icons.PLAY, UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
         BufferedImage greenStartImg = UiUtils.replaceColor(startImg, Colors.COLOR_START_RECORDING);
         iconStartRecording = new ImageIcon(greenStartImg);
 
-        BufferedImage stopImg = UiUtils.getImage(Icons.ICON_STOP, UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
+        BufferedImage stopImg = UiUtils.getImage(Icons.STOP, UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
         BufferedImage redStopImg = UiUtils.replaceColor(stopImg, Colors.COLOR_STOP_RECORDING);
         iconStopRecording = new ImageIcon(redStopImg);
 
-        filterSetIcon = UiUtils.getImageIcon(Icons.ICON_FILTER, UiUtils.IMG_SIZE_TOOLBAR);
+        filterSetIcon = UiUtils.getImageIcon(Icons.FILTER, UiUtils.IMG_SIZE_TOOLBAR);
         noFilterIcon = UiUtils.getImageIcon(Icons.CLEAR_FILTER, UiUtils.IMG_SIZE_TOOLBAR);
 
         initalizeUi();
@@ -301,7 +301,7 @@ public class SaveLogsScreen extends BaseScreen {
         // browse
         createToolbarButton(toolbar, Icons.BROWSE, "Logs", "Open Logs Folder", actionEvent -> openLogsFolder());
         // delete
-        deleteButton = createToolbarButton(toolbar, Icons.ICON_TRASH, "Delete", "Delete Logs", actionEvent -> deleteLogs());
+        deleteButton = createToolbarButton(toolbar, Icons.TRASH, "Delete", "Delete Logs", actionEvent -> deleteLogs());
 
         toolbar.addSeparator();
 
@@ -324,12 +324,12 @@ public class SaveLogsScreen extends BaseScreen {
             systemList.addAll(filterList);
             for (LogFilter filter : systemList) {
                 if (filter.filterList == null || filter.filterList.isEmpty()) continue;
-                JMenuItem item = new JMenuItem(filter.name, UiUtils.getImageIcon(Icons.ICON_FILTER, UiUtils.IMG_SIZE_SMALL));
+                JMenuItem item = new JMenuItem(filter.name, UiUtils.getImageIcon(Icons.FILTER, UiUtils.IMG_SIZE_SMALL));
                 item.addActionListener(e2 -> handleFilterClicked(filter));
                 popupMenu.add(item);
             }
 
-            JMenuItem item = new JMenuItem("Add Filter", UiUtils.getImageIcon(Icons.ICON_ADD, UiUtils.IMG_SIZE_SMALL));
+            JMenuItem item = new JMenuItem("Add Filter", UiUtils.getImageIcon(Icons.ADD, UiUtils.IMG_SIZE_SMALL));
             item.addActionListener(e2 -> handleAddFilterClicked());
             popupMenu.add(item);
 

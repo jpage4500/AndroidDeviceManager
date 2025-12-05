@@ -118,7 +118,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         // -- add filter button --
         JButton addFilterButton = new JButton("Add Filter");
-        addFilterButton.setIcon(UiUtils.getImageIcon(Icons.ICON_ADD, UiUtils.IMG_SIZE_ICON));
+        addFilterButton.setIcon(UiUtils.getImageIcon(Icons.ADD, UiUtils.IMG_SIZE_ICON));
         addFilterButton.addActionListener(this::handleAddFilterClicked);
         leftPanel.add(addFilterButton, BorderLayout.SOUTH);
 
@@ -794,7 +794,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         toolbar.addSeparator(new Dimension(10, 0));
 
-        createSmallToolbarButton(toolbar, Icons.ICON_TRASH, "Clear", "Clear Logs", actionEvent -> clearLogs());
+        createSmallToolbarButton(toolbar, Icons.TRASH, "Clear", "Clear Logs", actionEvent -> clearLogs());
     }
 
     private void clearLogs() {
@@ -812,7 +812,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void updateLoggingButton() {
-        Icons imageName = isLoggedPaused ? Icons.ICON_PLAY : Icons.ICON_STOP;
+        Icons imageName = isLoggedPaused ? Icons.PLAY : Icons.STOP;
         ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
         logButton.setIcon(icon);
         logButton.setText(isLoggedPaused ? "Start" : "Stop");

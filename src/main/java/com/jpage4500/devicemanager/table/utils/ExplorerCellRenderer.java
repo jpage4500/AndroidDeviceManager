@@ -35,13 +35,13 @@ public class ExplorerCellRenderer extends JLabel implements TableCellRenderer {
         Border margin = new EmptyBorder(0, 10, 0, 0);
         setBorder(margin);
 
-        folderUpIcon = UiUtils.getImageIcon(Icons.ICON_FOLDER_UP, UiUtils.IMG_SIZE_ICON);
-        folderIcon = UiUtils.getImageIcon(Icons.ICON_FOLDER, UiUtils.IMG_SIZE_ICON);
-        folderReadonlyIcon = UiUtils.getImageIcon(Icons.ICON_FOLDER_READONLY, UiUtils.IMG_SIZE_ICON);
-        fileIcon = UiUtils.getImageIcon(Icons.ICON_FILE, UiUtils.IMG_SIZE_ICON);
-        fileReadonlyIcon = UiUtils.getImageIcon(Icons.ICON_FILE_READONLY, UiUtils.IMG_SIZE_ICON);
-        folderLinkIcon = UiUtils.getImageIcon(Icons.ICON_FOLDER_LINK, UiUtils.IMG_SIZE_ICON);
-        fileLinkIcon = UiUtils.getImageIcon(Icons.ICON_FILE_LINK, UiUtils.IMG_SIZE_ICON);
+        folderUpIcon = UiUtils.getImageIcon(Icons.FOLDER_UP, UiUtils.IMG_SIZE_ICON);
+        folderIcon = UiUtils.getImageIcon(Icons.FOLDER, UiUtils.IMG_SIZE_ICON);
+        folderReadonlyIcon = UiUtils.getImageIcon(Icons.FOLDER_READONLY, UiUtils.IMG_SIZE_ICON);
+        fileIcon = UiUtils.getImageIcon(Icons.FILE, UiUtils.IMG_SIZE_ICON);
+        fileReadonlyIcon = UiUtils.getImageIcon(Icons.FILE_READONLY, UiUtils.IMG_SIZE_ICON);
+        folderLinkIcon = UiUtils.getImageIcon(Icons.FOLDER_LINK, UiUtils.IMG_SIZE_ICON);
+        fileLinkIcon = UiUtils.getImageIcon(Icons.FILE_LINK, UiUtils.IMG_SIZE_ICON);
     }
 
     public Component getTableCellRendererComponent(JTable table, Object object, boolean isSelected, boolean hasFocus, int row, int column) {

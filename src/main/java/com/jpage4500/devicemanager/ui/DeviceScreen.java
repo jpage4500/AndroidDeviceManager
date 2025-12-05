@@ -237,7 +237,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         UiUtils.setEmptyBorder(leftPanel, 0, 0);
 
         // update
-        ImageIcon icon = UiUtils.getImageIcon(Icons.ICON_UPDATE, UiUtils.IMG_SIZE_SMALL);
+        ImageIcon icon = UiUtils.getImageIcon(Icons.UPDATE, UiUtils.IMG_SIZE_SMALL);
         updateLabel = new HoverLabel(icon);
         updateLabel.setToolTipText("Check for updates");
         leftPanel.add(updateLabel);
@@ -449,7 +449,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
             popupMenu.addSeparator();
 
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", Icons.ICON_SETTINGS, actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this, this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", Icons.SETTINGS, actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this, this));
 
             boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
             String resizeDesc = autoResize ? "ON" : "OFF";
@@ -486,12 +486,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 popupMenu.addSeparator();
             }
 
-            UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", Icons.ICON_COPY, actionEvent -> handleCopyClipboardFieldCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", Icons.ICON_COPY, actionEvent -> handleCopyClipboardCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", Icons.COPY, actionEvent -> handleCopyClipboardFieldCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", Icons.COPY, actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
 
             // device details
-            UiUtils.addPopupMenuItem(popupMenu, "Device Details", Icons.ICON_LOGS, actionEvent -> handleDeviceDetails(device));
+            UiUtils.addPopupMenuItem(popupMenu, "Device Details", Icons.LOGS, actionEvent -> handleDeviceDetails(device));
 
             List<ToolbarButton> toolbarButtons = new ArrayList<>(List.of(ToolbarButton.values()));
 
@@ -615,7 +615,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         trayPopupMenu.setInvoker(trayPopupMenu);
         List<Device> devices = DeviceManager.getInstance().getDevices();
         if (devices.isEmpty()) {
-            UiUtils.addPopupMenuItem(trayPopupMenu, "Open", Icons.ICON_OPEN, actionEvent -> {
+            UiUtils.addPopupMenuItem(trayPopupMenu, "Open", Icons.OPEN, actionEvent -> {
                 trayPopupMenu.setVisible(false);
                 bringWindowToFront();
             });
@@ -625,7 +625,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
         }
         trayPopupMenu.addSeparator();
-        UiUtils.addPopupMenuItem(trayPopupMenu, "Quit", Icons.ICON_CLOSE, actionEvent -> exitApp(true));
+        UiUtils.addPopupMenuItem(trayPopupMenu, "Quit", Icons.CLOSE, actionEvent -> exitApp(true));
 
         trayPopupMenu.setVisible(true);
     }
@@ -940,7 +940,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             setDeviceBusy(device, true);
             // copy [abc.jpg, hello.text] to "device name"
             String operationDesc = String.format("Copy %s -> %s", fileNames, device.getDisplayName());
-            int activityId = activityDialog.addOperation(operationDesc, Icons.ICON_COPY);
+            int activityId = activityDialog.addOperation(operationDesc, Icons.COPY);
             DeviceManager.getInstance().copyFiles(device, fileList, destFolder, (numCompleted, numTotal, msg) -> {
                 int progress = (numCompleted * 100) / numTotal;
                 activityDialog.updateOperation(activityId, progress, msg);
@@ -1102,7 +1102,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         JPopupMenu popupMenu = new JPopupMenu();
 
         // adb wireless
-        JMenuItem adbItem = new JMenuItem("Connect to ADB Wireless Device", UiUtils.getImageIcon(Icons.ICON_ADB, UiUtils.IMG_SIZE_SMALL));
+        JMenuItem adbItem = new JMenuItem("Connect to ADB Wireless Device", UiUtils.getImageIcon(Icons.ADB, UiUtils.IMG_SIZE_SMALL));
         adbItem.addActionListener(e -> {
             showConnectAdbWirelessDialog();
         });
@@ -1340,7 +1340,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     // configurable toolbar buttons
     public enum ToolbarButton {
-        CONNECT(Icons.ICON_ADD, "Connect", "Connect Device"),
+        CONNECT(Icons.ADD, "Connect", "Connect Device"),
         BROWSE(Icons.BROWSE, "Browse", "File Explorer"),
         LOGS(Icons.FILE_LOGS, "View Logs", "Log Viewer"),
         SAVE_LOGS(Icons.FILE_SAVE, "Save Logs", "Save Logs to Disk"),
@@ -1350,13 +1350,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         SCREENSHOT(Icons.SCREENSHOT, "Screenshot", "Screenshot"),
         INSTALL(Icons.FILE_APK, "Install", "Install / Copy file"),
         RESTART(Icons.RESTART, "Reboot", "Reboot Device"),
-        TERMINAL(Icons.ICON_TERMINAL, "Terminal", "Open Terminal"),
+        TERMINAL(Icons.TERMINAL, "Terminal", "Open Terminal"),
         ADB(Icons.ADB, "ADB", "Run custom adb command"),
         SCRIPTS(Icons.FILE_SCRIPT, "Scripts", "Run custom scripts"),
         FILTER(Icons.CLEAR_FILTER, "Filter", "Filter devices..."),
         REFRESH(Icons.REFRESH, "Refresh", "Refresh Devices"),
         SERVER(Icons.SERVER, "Server", "Start server to share devices"),
-        SETTINGS(Icons.ICON_SETTINGS, "Settings", "Settings"),
+        SETTINGS(Icons.SETTINGS, "Settings", "Settings"),
         ;
 
         public final Icons icon;
@@ -1512,7 +1512,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 setupToolbar();
             });
             // manage toolbar
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", Icons.ICON_SETTINGS, actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", Icons.SETTINGS, actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
 
             popupMenu.show(e.getComponent(), e.getX(), e.getY());
         });
@@ -1573,7 +1573,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 hideToobarButton(toolbarButton);
                 setupToolbar();
             });
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", Icons.ICON_SETTINGS, actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", Icons.SETTINGS, actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
             popupMenu.show(e.getComponent(), e.getX(), e.getY());
         });
 
@@ -1790,7 +1790,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 updateVersion = finalVersion;
                 updateDesc = finalDesc;
                 updateLabel.setToolTipText("Update Available " + updateVersion + ", desc: " + finalDesc);
-                BufferedImage image = UiUtils.getImage(Icons.ICON_UPDATE, UiUtils.IMG_SIZE_SMALL, UiUtils.IMG_SIZE_SMALL, Colors.COLOR_ERROR);
+                BufferedImage image = UiUtils.getImage(Icons.UPDATE, UiUtils.IMG_SIZE_SMALL, UiUtils.IMG_SIZE_SMALL, Colors.COLOR_ERROR);
                 if (image != null) updateLabel.setIcon(new ImageIcon(image));
                 updateLabel.setVisible(true);
                 if (updateListener != null)
