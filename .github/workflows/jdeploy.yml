@@ -10,9 +10,9 @@ on:
       - 'README.md'
 
 # npm Trusted Publishing
-permissions:
-  id-token: write
-  contents: read
+#permissions:
+#  id-token: write
+#  contents: read
 
 jobs:
   build:
