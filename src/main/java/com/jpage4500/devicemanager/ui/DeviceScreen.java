@@ -521,8 +521,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         if (trayIconDevices != null && devices.size() == trayIconDevices) return;
 
         trayIconDevices = devices.size();
-        if (systemTray == null) {
-            try {
+        Menu menu;
+        try {
+            if (systemTray == null) {
                 // Configure Dorkbox SystemTray before initialization
                 // These settings prevent LinkageError on Java 17+ by disabling runtime class modifications
                 //SystemTray.DEBUG = true;
@@ -532,7 +533,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 // Osx works the best but doesn't show icons
                 // Swing shows icons but doesn't look native and has focus issues
                 //SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Osx;
-                SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Swing;
+                if (Utils.isMac()) {
+                    SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Swing;
+                }
                 //
                 // Disable javafx/swt/gtk detection to avoid class loading issues
                 // System.setProperty("SystemTray.PREFER_GTK3", "false");
@@ -542,21 +545,23 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                     return;
                 }
                 log.trace("setupSystemTray: {}", systemTray.getTrayImageSize());
-            } catch (LinkageError e) {
-                log.error("setupSystemTray: LinkageError: {}", e.getMessage());
-                return;
-            } catch (Exception e) {
-                log.error("setupSystemTray: Exception: {}", e.getMessage());
-                return;
             }
+            BufferedImage trayImage = UiUtils.getTrayIconWithCount(trayIconDevices);
+            systemTray.setImage(trayImage);
+            if (!Utils.isLinux()) {
+                systemTray.setTooltip(trayIconDevices + " Devices");
+            }
+
+            menu = systemTray.getMenu();
+        } catch (LinkageError e) {
+            log.error("setupSystemTray: LinkageError: {}", e.getMessage());
+            return;
+        } catch (Exception e) {
+            log.error("setupSystemTray: Exception: {}", e.getMessage());
+            return;
         }
+        if (menu == null) return;
 
-        BufferedImage trayImage = getTrayIconWithCount(trayIconDevices);
-        systemTray.setImage(trayImage);
-        systemTray.setTooltip(trayIconDevices + " Devices");
-        systemTray.setStatus("Android Device Manager");
-
-        Menu menu = systemTray.getMenu();
         // clear menu
         for (Entry entry : menu.getEntries()) menu.remove(entry);
 
@@ -595,56 +600,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         menu.add(new Separator());
 
-        MenuItem quitItem = new MenuItem("Quit", UiUtils.getImage(Icons.OPEN, 16, 16, Color.BLACK));
+        MenuItem quitItem = new MenuItem("Quit", UiUtils.getImage(Icons.POWER, 16, 16, Color.BLACK));
         quitItem.setCallback(e2 -> exitApp(true));
         menu.add(quitItem);
-    }
-
-    private BufferedImage getTrayIconWithCount(int count) {
-        Color iconColor = Utils.isLinux() ? Color.BLACK : Color.WHITE;
-        int size = 32;
-        BufferedImage baseImage = UiUtils.getImage(Icons.SYSTEM_TRAY, size, size, iconColor);
-        if (count == 0) return baseImage;
-
-        // Create square image
-        BufferedImage combined = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = combined.createGraphics();
-        // Enable anti-aliasing for smoother rendering
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-        // Draw base icon with semi-transparency (40% opacity) so number is easier to read
-        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f));
-        g.drawImage(baseImage, 0, 0, null);
-
-        // Reset to full opacity for text
-        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
-
-        // Draw count with large bold font centered in the image
-        String text = String.valueOf(count);
-        Font font = new Font("Arial", Font.BOLD, 24);
-        g.setFont(font);
-        FontMetrics fm = g.getFontMetrics();
-        int textWidth = fm.stringWidth(text);
-        int textHeight = fm.getAscent();
-
-        // Center text in the image
-        int textX = (size - textWidth) / 2;
-        int textY = (size - textHeight) / 2 + textHeight;
-
-        // Draw outline around text for better visibility
-        g.setColor(Color.BLACK);
-        g.setStroke(new BasicStroke(3.0f));
-        g.drawString(text, textX - 1, textY - 1);
-        g.drawString(text, textX + 1, textY - 1);
-        g.drawString(text, textX - 1, textY + 1);
-        g.drawString(text, textX + 1, textY + 1);
-
-        // Draw text on top
-        g.setColor(Color.WHITE);
-        g.drawString(text, textX, textY);
-        g.dispose();
-        return combined;
     }
 
     @Override

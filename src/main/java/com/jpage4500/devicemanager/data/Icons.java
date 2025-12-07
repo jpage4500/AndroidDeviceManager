@@ -84,7 +84,6 @@ public enum Icons {
     STATUS_ONLINE("status_online.png"),
     STOP("stop.png"),
     SUCCESS("success.png"),
-    SYSTEM_TRAY("system_tray.png"),
     TERMINAL("terminal.png"),
     TRASH("trash.png"),
     TRAY_ICON("tray_icon.png"),
