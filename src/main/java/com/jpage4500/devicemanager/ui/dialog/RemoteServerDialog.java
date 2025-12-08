@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
+import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteConnectionManager;
@@ -69,15 +70,39 @@ public class RemoteServerDialog extends JPanel {
         serverTable = new JTable(tableModel);
         serverTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         serverTable.setRowHeight(30);
-        serverTable.getColumnModel().getColumn(0).setPreferredWidth(30);  // Status
-        serverTable.getColumnModel().getColumn(1).setPreferredWidth(150); // Name
-        serverTable.getColumnModel().getColumn(2).setPreferredWidth(150); // Host
-        serverTable.getColumnModel().getColumn(3).setPreferredWidth(60);  // Port
-        serverTable.getColumnModel().getColumn(4).setPreferredWidth(80);  // Status
+        serverTable.getColumnModel().getColumn(ServerColumn.ENABLED.ordinal()).setPreferredWidth(30);  // Status
+        serverTable.getColumnModel().getColumn(ServerColumn.COLOR.ordinal()).setPreferredWidth(30);  // Color
+        serverTable.getColumnModel().getColumn(ServerColumn.NAME.ordinal()).setPreferredWidth(150); // Name
+        serverTable.getColumnModel().getColumn(ServerColumn.HOST.ordinal()).setPreferredWidth(150); // Host
+        serverTable.getColumnModel().getColumn(ServerColumn.PORT.ordinal()).setPreferredWidth(60);  // Port
+        serverTable.getColumnModel().getColumn(ServerColumn.STATUS.ordinal()).setPreferredWidth(80);  // Status
 
         // custom renderer for status column
-        serverTable.getColumnModel().getColumn(0).setCellRenderer(new StatusCellRenderer());
-        serverTable.getColumnModel().getColumn(4).setCellRenderer(new ConnectionStatusRenderer());
+        serverTable.getColumnModel().getColumn(ServerColumn.ENABLED.ordinal()).setCellRenderer(new StatusCellRenderer());
+        serverTable.getColumnModel().getColumn(ServerColumn.COLOR.ordinal()).setCellRenderer(new ColorCellRenderer());
+        serverTable.getColumnModel().getColumn(ServerColumn.STATUS.ordinal()).setCellRenderer(new ConnectionStatusRenderer());
+
+        // Add mouse listener for color picker on color column
+        serverTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                int row = serverTable.rowAtPoint(e.getPoint());
+                int col = serverTable.columnAtPoint(e.getPoint());
+                if (col == ServerColumn.COLOR.ordinal() && row >= 0) { // Color column
+                    RemoteServerConfig server = tableModel.getServerAt(row);
+                    if (server != null) {
+                        Color initialColor = new Color(server.color, true);
+                        Color newColor = JColorChooser.showDialog(serverTable, "Choose Server Color", initialColor);
+                        if (newColor != null && !newColor.equals(initialColor)) {
+                            server.color = newColor.getRGB();
+                            // Persist the change
+                            DeviceManager.getInstance().getRemoteConnectionManager().updateServer(server);
+                            tableModel.fireTableRowsUpdated(row, row);
+                        }
+                    }
+                }
+            }
+        });
 
         JScrollPane scrollPane = new JScrollPane(serverTable);
         scrollPane.setPreferredSize(new Dimension(600, 300));
@@ -188,11 +213,27 @@ public class RemoteServerDialog extends JPanel {
         }
     }
 
+    enum ServerColumn {
+        ENABLED("✓"),
+        NAME("Name"),
+        HOST("Host"),
+        PORT("Port"),
+        STATUS("Status"),
+        COLOR("Color"),
+        ;
+
+        final String label;
+
+        ServerColumn(String label) {
+            this.label = label;
+        }
+    }
+
     /**
      * Table model for server list
      */
     private static class ServerTableModel extends AbstractTableModel {
-        private final String[] columnNames = {"✓", "Name", "Host", "Port", "Status"};
+        private final ServerColumn[] columns = ServerColumn.values();
         private List<RemoteServerConfig> servers = new ArrayList<>();
 
         public void setServers(List<RemoteServerConfig> servers) {
@@ -214,47 +255,44 @@ public class RemoteServerDialog extends JPanel {
 
         @Override
         public int getColumnCount() {
-            return columnNames.length;
+            return columns.length;
         }
 
         @Override
         public String getColumnName(int column) {
-            return columnNames[column];
+            return columns[column].label;
         }
 
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
             RemoteServerConfig server = servers.get(rowIndex);
-            switch (columnIndex) {
-                case 0:
-                    return server.enabled;
-                case 1:
-                    return server.name;
-                case 2:
-                    return server.host;
-                case 3:
-                    return server.port;
-                case 4:
-                    return getConnectionStatus(server);
-                default:
-                    return null;
-            }
+            ServerColumn col = columns[columnIndex];
+            return switch (col) {
+                case ENABLED -> server.enabled;
+                case COLOR -> server.color;
+                case NAME -> server.name;
+                case HOST -> server.host;
+                case PORT -> server.port;
+                case STATUS -> getConnectionStatus(server);
+            };
         }
 
         @Override
         public Class<?> getColumnClass(int columnIndex) {
-            if (columnIndex == 0) return Boolean.class;
+            ServerColumn col = columns[columnIndex];
+            if (col == ServerColumn.ENABLED) return Boolean.class;
+            if (col == ServerColumn.COLOR) return Integer.class;
             return String.class;
         }
 
         @Override
         public boolean isCellEditable(int rowIndex, int columnIndex) {
-            return columnIndex == 0; // Only enabled checkbox is editable
+            return columns[columnIndex] == ServerColumn.ENABLED;
         }
 
         @Override
         public void setValueAt(Object value, int rowIndex, int columnIndex) {
-            if (columnIndex == 0) {
+            if (columns[columnIndex] == ServerColumn.ENABLED) {
                 RemoteServerConfig server = servers.get(rowIndex);
                 server.enabled = (Boolean) value;
 
@@ -292,6 +330,63 @@ public class RemoteServerDialog extends JPanel {
             checkbox.setSelected(value != null && (Boolean) value);
             checkbox.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
             return checkbox;
+        }
+    }
+
+    /**
+     * Renderer for color column
+     */
+    private static class ColorCellRenderer extends DefaultTableCellRenderer {
+        private static final int BOX_SIZE = 16;
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            int colorInt = value instanceof Integer ? (Integer) value : Colors.COLOR_ONLINE.getRGB();
+            Color color = new Color(colorInt, true);
+            JLabel label = new JLabel();
+            label.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+            label.setOpaque(true);
+            label.setHorizontalAlignment(SwingConstants.CENTER);
+            label.setVerticalAlignment(SwingConstants.CENTER);
+            label.setIcon(new ColorBoxIcon(color, BOX_SIZE, isSelected ? table.getSelectionBackground() : Color.LIGHT_GRAY));
+            return label;
+        }
+    }
+
+    /**
+     * Icon for rendering a colored box (used in color column)
+     */
+    private static class ColorBoxIcon implements Icon {
+        private final Color color;
+        private final int size;
+        private final Color borderColor;
+
+        public ColorBoxIcon(Color color, int size, Color borderColor) {
+            this.color = color;
+            this.size = size;
+            this.borderColor = borderColor;
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            // Draw only the box, leave background transparent
+            g2.setColor(color);
+            g2.fillRect(x, y, size, size);
+            g2.setColor(borderColor);
+            g2.drawRect(x, y, size - 1, size - 1);
+            g2.dispose();
+        }
+
+        @Override
+        public int getIconWidth() {
+            return size;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return size;
         }
     }
 

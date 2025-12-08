@@ -15,10 +15,12 @@ public class RemoteServerConfig {
     public int port;               // server port
     public String authToken;       // authentication token
     public boolean enabled;        // whether to connect on startup
+    public int color;              // server color (ARGB)
 
     public RemoteServerConfig() {
         this.id = UUID.randomUUID().toString();
         this.enabled = true;
+        this.color = Colors.COLOR_ONLINE.getRGB();
     }
 
     public String getUrl() {

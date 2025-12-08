@@ -156,8 +156,11 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
         } else {
             state = isRemote ? DeviceState.REMOTE_ONLINE : DeviceState.ONLINE;
             color = Colors.COLOR_ONLINE;
+            if (isRemote) {
+                color = new Color(device.remoteConnection.getServerConfig().color);
+            }
         }
-        String key = state + "-" + isSelected;
+        String key = state + "-" + isSelected + "-" + color;
         Icon icon = deviceIconMap.get(key);
         if (icon == null) {
             // create icon
