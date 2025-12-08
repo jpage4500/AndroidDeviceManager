@@ -573,7 +573,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         for (Device device : devices) {
             Icons icn = device.remoteConnection != null ? Icons.ADB : Icons.ANDROID;
-            Color color = Color.BLACK; // device.isOnline ? Colors.COLOR_ONLINE : Colors.COLOR_OFFLINE;
+            Color color = device.isOnline ? Colors.COLOR_ONLINE : Colors.COLOR_OFFLINE;
+            if (device.isOnline && device.remoteConnection != null) {
+                color = new Color(device.remoteConnection.getServerConfig().color);
+            }
             Image imageIcon = UiUtils.getImage(icn, 16, 16, color);
             String displayName = device.getDisplayName();
             Menu submenu = new Menu(TextUtils.truncate(displayName, 30), imageIcon);
