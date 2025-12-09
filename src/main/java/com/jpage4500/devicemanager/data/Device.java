@@ -5,6 +5,7 @@ import com.jpage4500.devicemanager.utils.ExcludeFromSerialization;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import se.vidstige.jadb.JadbDevice;
 
+import java.awt.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -182,6 +183,25 @@ public class Device {
             busyCounter.set(0);
         }
         return newValue > 0;
+    }
+
+    /**
+     * @return an icon to represent this device
+     */
+    public Icons getDeviceIcon() {
+        // TODO: if local device but connected via adb wireless (serial = 192.168.0.100:5555), use a different icon
+        return remoteConnection != null ? Icons.DEVICE_REMOTE : Icons.DEVICE_LOCAL;
+    }
+
+    /**
+     * @return color to use for this device
+     */
+    public Color getDeviceColor() {
+        if (!isOnline) return Colors.COLOR_OFFLINE;
+        if (remoteConnection != null) {
+            return new Color(remoteConnection.getServerConfig().color);
+        }
+        return Colors.COLOR_ONLINE;
     }
 
 }

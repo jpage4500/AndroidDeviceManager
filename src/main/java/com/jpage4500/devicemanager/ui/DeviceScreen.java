@@ -12,6 +12,7 @@ import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.*;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
+import com.jpage4500.devicemanager.ui.views.DraggableCheckBoxList;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.*;
@@ -532,8 +533,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 SystemTray.AUTO_SIZE = true;
                 // Osx works the best but doesn't show icons
                 // Swing shows icons but doesn't look native and has focus issues
-                //SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Osx;
                 if (Utils.isMac()) {
+                    //SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Osx;
                     SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Swing;
                 }
                 //
@@ -829,19 +830,34 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     /**
-     * called when user double-clicks on .apk file or selects open with device manager
+     * called when user double-clicks on .apk file in OS file manager
      * - similar to handleFilesDropped() but waits a bit until a device is connected
      */
-    public void handleFilesOpened(List<File> fileList) {
-        log.debug("handleFilesOpened: {}", fileList.size());
-        if (table.getRowCount() > 0) {
-            handleFilesDropped(fileList);
+    public void handleFilesOpened(List<File> fileList, int attempt) {
+        log.debug("handleFilesOpened: {} files, attempt:{}", fileList.size(), attempt);
+        List<Device> deviceList = DeviceManager.getInstance().getDevices();
+        if (deviceList.isEmpty()) {
+            // try again later (until 5 attempts)
+            if (attempt <= 5) {
+                Utils.runDelayed(1000, true, () -> handleFilesOpened(fileList, attempt + 1));
+            } else {
+                DialogHelper.showDialog(this, "Device Manager", "No devices connected. Please connect a device and try again.");
+            }
+        } else if (deviceList.size() == 1) {
+            // install/copy to this device
+            installOrCopyFiles(deviceList, fileList);
         } else {
-            Utils.runDelayed(1000, true, () -> handleFilesDropped(fileList));
+            // Show device selection dialog
+            DialogHelper.showDeviceSelectionDialog(this, "Install/Copy Files", selectedDevices -> {
+                installOrCopyFiles(selectedDevices, fileList);
+            });
         }
     }
 
-    public void handleFilesDropped(List<File> fileList) {
+    /**
+     * called from drag & drop of files to device manager window
+     */
+    private void handleFilesDropped(List<File> fileList) {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) {
             log.error("handleFilesDropped: no devices! {}", fileList);
@@ -852,6 +868,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     public void installOrCopyFiles(List<Device> selectedDeviceList, List<File> fileList) {
+        if (selectedDeviceList == null || selectedDeviceList.isEmpty()) return;
         FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
         // if all files are .apk, do install instead of copy
         boolean isInstall = stats.numApk == stats.numTotal;

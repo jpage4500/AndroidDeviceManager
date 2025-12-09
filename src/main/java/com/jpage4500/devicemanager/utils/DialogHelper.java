@@ -1,7 +1,12 @@
 package com.jpage4500.devicemanager.utils;
 
+import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.Icons;
+import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
+import com.jpage4500.devicemanager.ui.views.DraggableCheckBoxList;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
+import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +17,7 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -94,7 +100,7 @@ public class DialogHelper {
         textArea.setEditable(false);
         textArea.setLineWrap(true);
         textArea.setWrapStyleWord(true);
-        
+
         // calculate preferred size based on text content
         FontMetrics fm = textArea.getFontMetrics(textArea.getFont());
         String[] lines = text.split("\n");
@@ -105,20 +111,20 @@ public class DialogHelper {
                 maxLineWidth = lineWidth;
             }
         }
-        
+
         // calculate dimensions with constraints
         int screenWidth = Utils.getScreenWidth();
         int screenHeight = Utils.getScreenHeight();
         int maxWidth = Math.min(screenWidth * 3 / 4, 1200);
         int maxHeight = screenHeight - 200;
-        
+
         int preferredWidth = Math.min(maxLineWidth + 50, maxWidth);
         int preferredHeight = Math.min(lines.length * fm.getHeight() + 50, maxHeight);
-        
+
         // ensure minimum size
         preferredWidth = Math.max(preferredWidth, 400);
         preferredHeight = Math.max(preferredHeight, 200);
-        
+
         JScrollPane scrollPane = new JScrollPane(textArea);
         scrollPane.setPreferredSize(new Dimension(preferredWidth, preferredHeight));
         JOptionPane.showMessageDialog(component, scrollPane, title, JOptionPane.PLAIN_MESSAGE);
@@ -246,6 +252,76 @@ public class DialogHelper {
         } else {
             return (JOptionPane) parent;
         }
+    }
+
+    /**
+     * Callback interface for device selection dialog
+     */
+    public interface DeviceSelectionListener {
+        void onDevicesSelected(List<Device> selectedDevices);
+    }
+
+    /**
+     * Show a dialog to select one or more devices from a list
+     *
+     * @param listener Callback when devices are selected (or null if cancelled)
+     */
+    public static void showDeviceSelectionDialog(Component component, String title, DeviceSelectionListener listener) {
+        List<Device> deviceList = DeviceManager.getInstance().getDevices();
+        // sort by display name
+        deviceList.sort((d1, d2) -> d1.getDisplayName().compareToIgnoreCase(d2.getDisplayName()));
+
+        DraggableCheckBoxList checkBoxList = new DraggableCheckBoxList();
+        checkBoxList.setDragEnabled(false);
+        for (Device device : deviceList) {
+            ImageIcon icon = UiUtils.getImageIcon(device.getDeviceIcon(), 32, 32, device.getDeviceColor());
+            String label = device.getName() + " (" + device.serial + ")";
+            checkBoxList.addItem(label, true, icon);
+        }
+
+        JPanel panel = new JPanel(new MigLayout("fillx"));
+
+        JScrollPane scroll = new JScrollPane(checkBoxList);
+        scroll.setPreferredSize(new Dimension(350, Math.min(300, deviceList.size() * 40)));
+        panel.add(scroll, "grow, span, wrap");
+
+        // Select All link
+        HoverLabel selectAllLabel = new HoverLabel("Select All");
+        selectAllLabel.addActionListener(e -> {
+            // toggle selection state
+            int numSelected = checkBoxList.getNumberSelectedItems();
+            boolean select = numSelected != checkBoxList.getModel().getSize();
+            for (int i = 0; i < checkBoxList.getModel().getSize(); i++) {
+                DraggableCheckBoxList.CheckBoxItem item = checkBoxList.getModel().getElementAt(i);
+                item.checkbox.setSelected(select);
+            }
+            checkBoxList.repaint();
+        });
+        panel.add(selectAllLabel, "span, align right, wrap");
+
+        // OK/Cancel buttons
+        JPanel buttonPanel = new JPanel(new MigLayout("fillx", "push[][]"));
+        JButton cancelButton = new JButton("Cancel");
+        cancelButton.addActionListener(e -> UiUtils.closeWindow(panel));
+        buttonPanel.add(cancelButton, "");
+        JButton okButton = new JButton("OK");
+        okButton.addActionListener(e -> {
+            List<Device> selectedDevices = new ArrayList<>();
+            for (int i = 0; i < checkBoxList.getModel().getSize(); i++) {
+                DraggableCheckBoxList.CheckBoxItem item = checkBoxList.getModel().getElementAt(i);
+                if (item.checkbox.isSelected()) selectedDevices.add(deviceList.get(i));
+            }
+            if (!selectedDevices.isEmpty()) {
+                UiUtils.closeWindow(panel);
+                if (listener != null) listener.onDevicesSelected(selectedDevices);
+            } else {
+                DialogHelper.showDialog(component, "Device Manager", "Please select at least 1 device.");
+            }
+        });
+        buttonPanel.add(okButton, "");
+        panel.add(buttonPanel, "span, align right");
+
+        DialogHelper.showCustomDialog(component, panel, title, new String[]{});
     }
 
 }
