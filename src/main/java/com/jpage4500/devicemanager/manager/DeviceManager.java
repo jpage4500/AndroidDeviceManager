@@ -41,6 +41,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     public static final String COMMAND_DISK_SIZE = "df /data";
     public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS"; // | grep u0_
     public static final String COMMAND_DUMPSYS_BATTERY = "dumpsys battery";
+    public static final String COMMAND_LIST_PACKAGES = "pm list packages";
 
     public static final String APP_SCRCPY = "scrcpy";
     public static final String APP_ADB = "adb";
@@ -68,6 +69,8 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     public static final String CUSTOM_KEY_PROP = "PROP";
     public static final String CUSTOM_KEY_QUERY = "QUERY";
     public static final String QUERY_ROW_0 = "Row: 0 ";
+
+    public static final String PACKAGE_PREFIX = "package:";
 
     private static volatile DeviceManager instance;
 
@@ -1814,7 +1817,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     public interface InstalledAppListener {
-        void onComplete(HashSet<String> appSet);
+        void onComplete(Set<String> appSet);
     }
 
     /**
@@ -1822,11 +1825,19 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      */
     public void getInstalledApps(Device device, InstalledAppListener listener) {
         commandExecutorService.submit(() -> {
-            try {
-                HashSet<String> appSet = device.jadbDevice.listInstalledPackages();
+            ShellResult shellResult = runShell(device, COMMAND_LIST_PACKAGES);
+            if (shellResult.isSuccess) {
+                Set<String> appSet = new HashSet<>();
+                for (String result : shellResult.resultList) {
+                    // package:com.samsung.oda.service
+                    // package:com.sec.android.iaft
+                    if (TextUtils.startsWith(result, PACKAGE_PREFIX)) {
+                        String packageName = result.substring(PACKAGE_PREFIX.length()).trim();
+                        appSet.add(packageName);
+                    }
+                }
                 listener.onComplete(appSet);
-            } catch (Exception e) {
-                log.error("getInstalledApps: {}", e.getMessage());
+            } else {
                 listener.onComplete(null);
             }
         });
