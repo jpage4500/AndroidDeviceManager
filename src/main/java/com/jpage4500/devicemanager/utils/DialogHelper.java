@@ -130,10 +130,9 @@ public class DialogHelper {
         JOptionPane.showMessageDialog(component, scrollPane, title, JOptionPane.PLAIN_MESSAGE);
     }
 
-    public static boolean showCustomDialog(Component frame, Component component, String title, String[] buttonArr) {
-        int rc = JOptionPane.showOptionDialog(frame, component, title, JOptionPane.DEFAULT_OPTION,
+    public static int showCustomDialog(Component frame, Component component, String title, String[] buttonArr) {
+        return JOptionPane.showOptionDialog(frame, component, title, JOptionPane.DEFAULT_OPTION,
             JOptionPane.PLAIN_MESSAGE, null, buttonArr, null);
-        return (rc == JOptionPane.YES_OPTION);
     }
 
     public static String showInputDialog(Component component, String title, String text, String defaultValue) {
@@ -266,7 +265,10 @@ public class DialogHelper {
      *
      * @param listener Callback when devices are selected (or null if cancelled)
      */
-    public static void showDeviceSelectionDialog(Component component, String title, DeviceSelectionListener listener) {
+    public static void showDeviceSelectionDialog(Component component, String title, String msg, DeviceSelectionListener listener) {
+        if (title == null) title = "Select Devices";
+        if (msg == null) msg = "Select one or more devices";
+
         List<Device> deviceList = DeviceManager.getInstance().getDevices();
         // sort by display name
         deviceList.sort((d1, d2) -> d1.getDisplayName().compareToIgnoreCase(d2.getDisplayName()));
@@ -275,11 +277,14 @@ public class DialogHelper {
         checkBoxList.setDragEnabled(false);
         for (Device device : deviceList) {
             ImageIcon icon = UiUtils.getImageIcon(device.getDeviceIcon(), 32, 32, device.getDeviceColor());
-            String label = device.getName() + " (" + device.serial + ")";
-            checkBoxList.addItem(label, true, icon);
+            String label = device.getDisplayName();
+            checkBoxList.addItem(label, false, icon);
         }
 
         JPanel panel = new JPanel(new MigLayout("fillx"));
+
+        Label msgLabel = new Label(msg);
+        panel.add(msgLabel, "span, wrap 20px");
 
         JScrollPane scroll = new JScrollPane(checkBoxList);
         scroll.setPreferredSize(new Dimension(350, Math.min(300, deviceList.size() * 40)));
@@ -297,31 +302,21 @@ public class DialogHelper {
             }
             checkBoxList.repaint();
         });
-        panel.add(selectAllLabel, "span, align right, wrap");
+        panel.add(selectAllLabel, "span, align right, gaptop 5px, wrap");
 
-        // OK/Cancel buttons
-        JPanel buttonPanel = new JPanel(new MigLayout("fillx", "push[][]"));
-        JButton cancelButton = new JButton("Cancel");
-        cancelButton.addActionListener(e -> UiUtils.closeWindow(panel));
-        buttonPanel.add(cancelButton, "");
-        JButton okButton = new JButton("OK");
-        okButton.addActionListener(e -> {
-            List<Device> selectedDevices = new ArrayList<>();
-            for (int i = 0; i < checkBoxList.getModel().getSize(); i++) {
-                DraggableCheckBoxList.CheckBoxItem item = checkBoxList.getModel().getElementAt(i);
-                if (item.checkbox.isSelected()) selectedDevices.add(deviceList.get(i));
-            }
-            if (!selectedDevices.isEmpty()) {
-                UiUtils.closeWindow(panel);
-                if (listener != null) listener.onDevicesSelected(selectedDevices);
-            } else {
-                DialogHelper.showDialog(component, "Device Manager", "Please select at least 1 device.");
-            }
-        });
-        buttonPanel.add(okButton, "");
-        panel.add(buttonPanel, "span, align right");
+        if (DialogHelper.showCustomDialog(component, panel, title, new String[]{"Ok", "Cancel"}) != JOptionPane.YES_OPTION) return;
 
-        DialogHelper.showCustomDialog(component, panel, title, new String[]{});
+        List<Device> selectedDevices = new ArrayList<>();
+        for (int i = 0; i < checkBoxList.getModel().getSize(); i++) {
+            DraggableCheckBoxList.CheckBoxItem item = checkBoxList.getModel().getElementAt(i);
+            if (item.checkbox.isSelected()) selectedDevices.add(deviceList.get(i));
+        }
+        if (!selectedDevices.isEmpty()) {
+            listener.onDevicesSelected(selectedDevices);
+        } else {
+            DialogHelper.showDialog(component, "Device Manager", "Please select at least 1 device.");
+            showDeviceSelectionDialog(component, title, msg, listener);
+        }
     }
 
 }

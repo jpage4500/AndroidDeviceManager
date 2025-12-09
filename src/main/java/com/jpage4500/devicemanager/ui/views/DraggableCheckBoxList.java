@@ -162,7 +162,7 @@ public class DraggableCheckBoxList extends JList<DraggableCheckBoxList.CheckBoxI
             // left side: icon or spacer to maintain alignment
             if (item.icon != null) {
                 JLabel iconLabel = new JLabel(item.icon);
-                iconLabel.setBorder(BorderFactory.createEmptyBorder(4, 5, 4, 5));
+                iconLabel.setBorder(BorderFactory.createEmptyBorder(4, 5, 4, 0));
                 panel.add(iconLabel, BorderLayout.WEST);
             } else {
                 // add spacer to align checkboxes when no icon

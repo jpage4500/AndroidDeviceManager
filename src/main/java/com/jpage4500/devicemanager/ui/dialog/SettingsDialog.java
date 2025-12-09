@@ -202,7 +202,7 @@ public class SettingsDialog extends JPanel {
         });
         panel.add(resetLabel, "newline 20px, al right, span, wrap");
 
-        if (!DialogHelper.showCustomDialog(component, panel, "Manage Columns", null)) return;
+        if (DialogHelper.showCustomDialog(component, panel, "Manage Columns", null) != JOptionPane.YES_OPTION) return;
 
         // save columns that are NOT selected
         List<String> selectedItems = checkBoxList.getUnSelectedItems();
@@ -348,7 +348,7 @@ public class SettingsDialog extends JPanel {
         JScrollPane scroll = new JScrollPane(inputField);
         panel.add(scroll, "grow, span, wrap");
 
-        if (!DialogHelper.showCustomDialog(this, panel, title, null)) return null;
+        if (DialogHelper.showCustomDialog(this, panel, title, null) != JOptionPane.YES_OPTION) return null;
 
         String results = inputField.getText();
         log.debug("showEditField: results: {}", results);

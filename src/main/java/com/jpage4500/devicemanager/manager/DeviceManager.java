@@ -133,6 +133,8 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     public void initialize(DeviceListener listener) {
         this.deviceListener = listener;
 
+        connectAdbServer(true);
+
         // remote connection manager
         remoteConnectionManager = new RemoteConnectionManager(this);
 

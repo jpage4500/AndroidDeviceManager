@@ -101,8 +101,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         initalizeUi();
 
-        DeviceManager.getInstance().connectAdbServer(true);
-
         scheduleUpdateChecks();
     }
 
@@ -848,7 +846,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             installOrCopyFiles(deviceList, fileList);
         } else {
             // Show device selection dialog
-            DialogHelper.showDeviceSelectionDialog(this, "Install/Copy Files", selectedDevices -> {
+            DialogHelper.showDeviceSelectionDialog(this, "Install/Copy Files", null, selectedDevices -> {
                 installOrCopyFiles(selectedDevices, fileList);
             });
         }
@@ -1833,7 +1831,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             yesOption = "View";
         }
         String[] choices = {yesOption, "Cancel"};
-        if (!DialogHelper.showCustomDialog(this, panel, "Update Available", choices)) return;
+        if (DialogHelper.showCustomDialog(this, panel, "Update Available", choices) != JOptionPane.YES_OPTION) return;
 
         if (isJdeploy) {
             // exit and restart app

@@ -101,8 +101,6 @@ public class MainApplication {
         DeviceManager deviceManager = DeviceManager.getInstance();
         // server will automatically start
         deviceManager.initialize(null);
-
-        deviceManager.connectAdbServer(true);
     }
 
     public static void main(String[] args) {
@@ -198,8 +196,10 @@ public class MainApplication {
 
     private void sendFilesToDevice() {
         if (deviceScreen != null && !openFileList.isEmpty()) {
-            deviceScreen.handleFilesOpened(openFileList, 1);
-            openFileList.clear();
+            Utils.runDelayed(1000, true, () -> {
+                deviceScreen.handleFilesOpened(openFileList, 1);
+                openFileList.clear();
+            });
         }
     }
 
