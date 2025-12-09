@@ -13,7 +13,8 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <maven.compiler.release>17</maven.compiler.release>
-        <maven.build.timestamp.format>yy.M.d-Hmm</maven.build.timestamp.format>
+        <!-- example: 25.12.9-1711 ; NOTE: must not contain a leading 0 in any of the values -->
+        <maven.build.timestamp.format>yy.M.d-Hm</maven.build.timestamp.format>
     </properties>
 
     <dependencies>
