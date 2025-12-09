@@ -14,8 +14,11 @@ import com.jpage4500.devicemanager.ui.dialog.*;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
-import com.jpage4500.devicemanager.ui.views.TrayMenuItem;
 import com.jpage4500.devicemanager.utils.*;
+import dorkbox.systemTray.*;
+import dorkbox.systemTray.Menu;
+import dorkbox.systemTray.MenuItem;
+import dorkbox.systemTray.SystemTray;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +31,6 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -63,9 +65,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private DeviceRowSorter sorter;
     public JToolBar toolbar;
     private HintTextField filterTextField;
-    private JPopupMenu trayPopupMenu;
-    private TrayIcon trayIcon;
-    private int trayIconDevices;
+
+    // system tray
+    private SystemTray systemTray;
+    private Integer trayIconDevices;
 
     // status bar items
     private HoverLabel updateLabel;         // update
@@ -151,9 +154,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         super.onWindowStateChanged(state);
         switch (state) {
             case CLOSING -> exitApp(false);
-            case DEACTIVATED -> {
-                if (trayPopupMenu != null) trayPopupMenu.setVisible(false);
-            }
         }
     }
 
@@ -208,12 +208,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             updateExecutorService = null;
         }
 
-        if (SystemTray.isSupported() && trayIcon != null) {
-            try {
-                SystemTray.getSystemTray().remove(trayIcon);
-            } catch (Exception e) {
-                log.error("exitApp: Exception removing system tray: {}", e.getMessage());
-            }
+        // Shutdown SystemTray
+        if (systemTray != null) {
+            systemTray.shutdown();
         }
 
         // shutdown file logging executor
@@ -383,7 +380,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 }
             }
             // default double-click action
-            handleMirrorCommand();
+            handleMirrorCommand(null);
         });
 
         // support drag and drop of files IN TO deviceView
@@ -520,114 +517,95 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void setupSystemTray() {
-        if (!SystemTray.isSupported()) return;
-
-        // linux system tray support isn't great.. keep it simple - open and exit
-        if (Utils.isLinux()) {
-            if (trayIcon != null) return;
-            BufferedImage icon = UiUtils.getImage(Icons.SYSTEM_TRAY, 16, 16, Color.BLACK);
-            trayIcon = new TrayIcon(icon, "Android Device Manager");
-            PopupMenu popupMenu = new PopupMenu();
-            MenuItem openItem = new MenuItem("Open");
-            openItem.addActionListener(actionEvent -> bringWindowToFront());
-            popupMenu.add(openItem);
-            MenuItem exitItem = new MenuItem("Exit");
-            exitItem.addActionListener(actionEvent -> exitApp(true));
-            popupMenu.add(exitItem);
-            trayIcon.setPopupMenu(popupMenu);
-            try {
-                SystemTray tray = SystemTray.getSystemTray();
-                tray.add(trayIcon);
-            } catch (Exception e) {
-                log.error("setupSystemTray: Exception: {}", e.getMessage());
-                trayIcon = null;
-                return;
-            }
-            return;
-        }
-
         List<Device> devices = DeviceManager.getInstance().getDevices();
-        if (devices.size() == trayIconDevices && trayIcon != null) return;
+        if (trayIconDevices != null && devices.size() == trayIconDevices) return;
 
         trayIconDevices = devices.size();
-        BufferedImage trayIconImage = getTrayIconWithCount(trayIconDevices);
-
-        if (trayIcon == null) {
-            trayIcon = new TrayIcon(trayIconImage, "Android Device Manager");
-            trayIcon.setImageAutoSize(false);
-            trayIcon.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    if (trayPopupMenu != null) {
-                        trayPopupMenu.setVisible(false);
-                        trayPopupMenu = null;
-                    } else {
-                        showSystemTray(e);
-                    }
+        Menu menu;
+        try {
+            if (systemTray == null) {
+                // Configure Dorkbox SystemTray before initialization
+                // These settings prevent LinkageError on Java 17+ by disabling runtime class modifications
+                //SystemTray.DEBUG = true;
+                SystemTray.ENABLE_ROOT_CHECK = false;
+                SystemTray.AUTO_FIX_INCONSISTENCIES = false;
+                SystemTray.AUTO_SIZE = true;
+                // Osx works the best but doesn't show icons
+                // Swing shows icons but doesn't look native and has focus issues
+                //SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Osx;
+                if (Utils.isMac()) {
+                    SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Swing;
                 }
-            });
-            try {
-                SystemTray tray = SystemTray.getSystemTray();
-                tray.add(trayIcon);
-            } catch (Exception e) {
-                log.error("initializeUI: Exception: {}", e.getMessage());
-                trayIcon = null;
+                //
+                // Disable javafx/swt/gtk detection to avoid class loading issues
+                // System.setProperty("SystemTray.PREFER_GTK3", "false");
+                systemTray = SystemTray.get();
+                if (systemTray == null) {
+                    log.warn("setupSystemTray: SystemTray not supported on this platform");
+                    return;
+                }
+                log.trace("setupSystemTray: {}", systemTray.getTrayImageSize());
             }
-        } else {
-            trayIcon.setImage(trayIconImage);
-        }
-    }
-
-    private BufferedImage getTrayIconWithCount(int count) {
-        Color iconColor = Utils.isLinux() ? Color.BLACK : Color.WHITE;
-        BufferedImage baseImage = UiUtils.getImage(Icons.SYSTEM_TRAY, 22, 22, iconColor);
-        int w = baseImage.getWidth();
-        int h = baseImage.getHeight();
-        if (count == 0) return baseImage;
-
-        // measure text width
-        BufferedImage tempImg = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = tempImg.createGraphics();
-        Font font = new Font("Arial", Font.PLAIN, 16);
-        g2.setFont(font);
-        FontMetrics fm = g2.getFontMetrics();
-        String text = String.valueOf(count);
-        int textWidth = fm.stringWidth(text);
-        int textHeight = fm.getHeight();
-        g2.dispose();
-
-        int combinedWidth = w + textWidth + 6;
-        BufferedImage combined = new BufferedImage(combinedWidth, h, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = combined.createGraphics();
-        g.drawImage(baseImage, 0, 0, null);
-        g.setFont(font);
-        g.setColor(Color.WHITE);
-        int x = w + 6;
-        int y = h / 2 + textHeight / 3;
-        g.drawString(text, x, y);
-        g.dispose();
-        return combined;
-    }
-
-    private void showSystemTray(MouseEvent e) {
-        trayPopupMenu = new JPopupMenu();
-        trayPopupMenu.setLocation(e.getX(), e.getY());
-        trayPopupMenu.setInvoker(trayPopupMenu);
-        List<Device> devices = DeviceManager.getInstance().getDevices();
-        if (devices.isEmpty()) {
-            UiUtils.addPopupMenuItem(trayPopupMenu, "Open", Icons.OPEN, actionEvent -> {
-                trayPopupMenu.setVisible(false);
-                bringWindowToFront();
-            });
-        } else {
-            for (Device device : devices) {
-                addTrayMenuItem(device);
+            BufferedImage trayImage = UiUtils.getTrayIconWithCount(trayIconDevices);
+            systemTray.setImage(trayImage);
+            if (!Utils.isLinux()) {
+                systemTray.setTooltip(trayIconDevices + " Devices");
             }
-        }
-        trayPopupMenu.addSeparator();
-        UiUtils.addPopupMenuItem(trayPopupMenu, "Quit", Icons.CLOSE, actionEvent -> exitApp(true));
 
-        trayPopupMenu.setVisible(true);
+            menu = systemTray.getMenu();
+        } catch (LinkageError e) {
+            log.error("setupSystemTray: LinkageError: {}", e.getMessage());
+            return;
+        } catch (Exception e) {
+            log.error("setupSystemTray: Exception: {}", e.getMessage());
+            return;
+        }
+        if (menu == null) return;
+
+        // clear menu
+        for (Entry entry : menu.getEntries()) menu.remove(entry);
+
+        MenuItem openItem = new MenuItem("Open", UiUtils.getImage(Icons.OPEN, 16, 16, Color.BLACK));
+        openItem.setCallback(e2 -> bringWindowToFront());
+        menu.add(openItem);
+
+        menu.add(new Separator());
+
+        for (Device device : devices) {
+            Icons icn = device.remoteConnection != null ? Icons.ADB : Icons.ANDROID;
+            Color color = device.isOnline ? Colors.COLOR_ONLINE : Colors.COLOR_OFFLINE;
+            if (device.isOnline && device.remoteConnection != null) {
+                color = new Color(device.remoteConnection.getServerConfig().color);
+            }
+            Image imageIcon = UiUtils.getImage(icn, 16, 16, color);
+            String displayName = device.getDisplayName();
+            Menu submenu = new Menu(TextUtils.truncate(displayName, 30), imageIcon);
+            submenu.setEnabled(device.isOnline);
+            // note: tooltips don't display on mac
+            //submenu.setTooltip(TextUtils.truncate(displayName, 64));
+
+            if (device.isOnline) {
+                MenuItem mirrorItem = new MenuItem("Mirror", UiUtils.getImage(Icons.MIRROR, 16, 16, Color.BLACK));
+                mirrorItem.setCallback(e2 -> handleMirrorCommand(device));
+                submenu.add(mirrorItem);
+
+                MenuItem browseItem = new MenuItem("Browse", UiUtils.getImage(Icons.BROWSE, 16, 16, Color.BLACK));
+                browseItem.setCallback(e2 -> handleBrowseCommand(device));
+                submenu.add(browseItem);
+
+                MenuItem logsItem = new MenuItem("Logs", UiUtils.getImage(Icons.LOGS, 16, 16, Color.BLACK));
+                logsItem.setCallback(e2 -> handleViewLogsCommand(device));
+                submenu.add(logsItem);
+            }
+
+            menu.add(submenu);
+        }
+
+        menu.add(new Separator());
+
+        MenuItem quitItem = new MenuItem("Quit", UiUtils.getImage(Icons.POWER, 16, 16, Color.BLACK));
+        quitItem.setCallback(e2 -> exitApp(true));
+        menu.add(quitItem);
     }
 
     @Override
@@ -743,35 +721,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 log.error("refreshUi: Exception: {}", e.getMessage());
             }
         }
-    }
-
-    private void addTrayMenuItem(Device device) {
-        boolean isRemote = device.remoteConnection != null;
-        Icons icn = isRemote ? Icons.DEVICE_REMOTE : Icons.DEVICE_LOCAL;
-        BufferedImage image = UiUtils.getImage(icn, UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON);
-        if (device.isOnline) {
-            image = UiUtils.replaceColor(image, Colors.COLOR_ONLINE);
-        }
-
-        TrayMenuItem item = new TrayMenuItem(device.getDisplayName(), new ImageIcon(image));
-        item.addButton("Browse", actionEvent -> {
-            trayPopupMenu.setVisible(false);
-            handleBrowseCommand(device);
-        });
-        item.addButton("Logs", actionEvent -> {
-            trayPopupMenu.setVisible(false);
-            handleViewLogsCommand(device);
-        });
-        item.addActionListener(e2 -> {
-            trayPopupMenu.setVisible(false);
-            trayDeviceClicked(device);
-        });
-        trayPopupMenu.add(item);
-    }
-
-    private void trayDeviceClicked(Device device) {
-        log.debug("trayDeviceClicked: {}", device.getDisplayName());
-        bringWindowToFront();
     }
 
     private void handleHideColumn(int column) {
@@ -1266,8 +1215,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
-    private void handleMirrorCommand() {
-        List<Device> selectedDeviceList = getSelectedDevices(true);
+    private void handleMirrorCommand(Device selectedDevice) {
+        List<Device> selectedDeviceList;
+        if (selectedDevice == null) {
+            selectedDeviceList = getSelectedDevices(true);
+        } else {
+            selectedDeviceList = Collections.singletonList(selectedDevice);
+        }
         if (selectedDeviceList.isEmpty()) return;
         if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
@@ -1482,7 +1436,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             case LOGS -> handleViewLogsCommand(null);
             case SAVE_LOGS -> handleSaveLogsCommand();
             case INPUT -> handleInputCommand();
-            case MIRROR -> handleMirrorCommand();
+            case MIRROR -> handleMirrorCommand(null);
             case RECORD -> handleRecordCommand();
             case SCREENSHOT -> handleScreenshotCommand();
             case INSTALL -> handleInstallCommand();

@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
+import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.RemoteConnectionManager;
@@ -23,6 +24,8 @@ public class AddServerDialog {
     private JTextField portField;
     private JTextField tokenField;
     private JCheckBox enabledCheckbox;
+    private JButton colorButton;
+    private int selectedColorInt;
 
     public AddServerDialog(Component parent, RemoteServerConfig existingServer) {
         this.parent = parent;
@@ -57,6 +60,24 @@ public class AddServerDialog {
             tokenField.setText(existingServer.authToken);
         }
         panel.add(tokenField, "wrap");
+
+        // color selector
+        panel.add(new JLabel("Color:"));
+        selectedColorInt = existingServer != null ? existingServer.color : Colors.COLOR_ONLINE.getRGB();
+        Color selectedColor = new Color(selectedColorInt, true);
+        colorButton = new JButton();
+        colorButton.setBackground(selectedColor);
+        colorButton.setPreferredSize(new Dimension(40, 20));
+        colorButton.setOpaque(true);
+        colorButton.setBorderPainted(false);
+        colorButton.addActionListener(e -> {
+            Color newColor = JColorChooser.showDialog(parent, "Choose Server Color", selectedColor);
+            if (newColor != null) {
+                selectedColorInt = newColor.getRGB();
+                colorButton.setBackground(newColor);
+            }
+        });
+        panel.add(colorButton, "wrap");
 
         // enabled
         enabledCheckbox = new JCheckBox("Enabled");
@@ -95,6 +116,7 @@ public class AddServerDialog {
             config.port = port;
             config.authToken = token.isEmpty() ? null : token;
             config.enabled = enabledCheckbox.isSelected();
+            config.color = selectedColorInt;
 
             // prevent duplicates by host/port
             RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
@@ -105,4 +127,3 @@ public class AddServerDialog {
         }
     }
 }
-

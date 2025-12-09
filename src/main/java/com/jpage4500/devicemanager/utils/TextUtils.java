@@ -531,7 +531,7 @@ public class TextUtils {
     public static String truncate(String text, int maxLen) {
         int textLen = TextUtils.length(text);
         boolean truncate = textLen > maxLen;
-        return truncate ? (text.substring(0, maxLen) + "...") : text;
+        return truncate ? (text.substring(0, maxLen - 3) + "...") : text;
     }
 
     /**

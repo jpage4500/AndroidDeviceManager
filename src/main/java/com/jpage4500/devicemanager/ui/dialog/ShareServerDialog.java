@@ -168,6 +168,9 @@ public class ShareServerDialog extends JPanel {
         // enable/disable copy button based on server status
         copyButton.setEnabled(isRunning);
 
+        mainPanel.validate();
+        validate();
+
         refreshClientList();
     }
 
