@@ -3,7 +3,7 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.RemoteConnectionManager;
+import com.jpage4500.devicemanager.manager.client.RemoteConnectionManager;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;

@@ -3,7 +3,7 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.RemoteConnection;
+import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.AndroidKeyMapper;
 import com.jpage4500.devicemanager.utils.Animations;

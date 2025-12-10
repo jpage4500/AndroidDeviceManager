@@ -2,7 +2,7 @@ package com.jpage4500.devicemanager.ui.dialog;
 
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.RemoteServerManager;
+import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;

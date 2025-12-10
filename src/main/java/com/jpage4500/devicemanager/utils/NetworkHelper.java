@@ -42,14 +42,14 @@ public class NetworkHelper {
     /**
      * GET request
      */
-    public HttpResponse getRequest(String urlStr) {
+    public static HttpResponse getRequest(String urlStr) {
         return getRequest(urlStr, null);
     }
 
     /**
      * GET request
      */
-    public HttpResponse getRequest(String urlStr, Map<String, String> headers) {
+    public static HttpResponse getRequest(String urlStr, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
         try {
             HttpURLConnection conn = createConnection(urlStr);
@@ -69,14 +69,14 @@ public class NetworkHelper {
     /**
      * POST request
      */
-    public HttpResponse postRequest(String urlStr, String body) {
+    public static HttpResponse postRequest(String urlStr, String body) {
         return postRequest(urlStr, body, null);
     }
 
     /**
      * POST request
      */
-    public HttpResponse postRequest(String urlStr, String body, Map<String, String> headers) {
+    public static HttpResponse postRequest(String urlStr, String body, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
         try {
             HttpURLConnection conn = createPostConnection(urlStr);
@@ -103,7 +103,7 @@ public class NetworkHelper {
     /**
      * download URL to byte array
      */
-    public HttpDataResponse download(String urlStr, Map<String, String> headers) {
+    public static HttpDataResponse download(String urlStr, Map<String, String> headers) {
         HttpDataResponse response = new HttpDataResponse();
         try {
             HttpURLConnection conn = createConnection(urlStr);
@@ -140,7 +140,7 @@ public class NetworkHelper {
     /**
      * download file from URL
      */
-    public HttpResponse downloadFile(String urlStr, File file, Map<String, String> headers) {
+    public static HttpResponse downloadFile(String urlStr, File file, Map<String, String> headers) {
         HttpDataResponse response = new HttpDataResponse();
         try {
             HttpURLConnection conn = createConnection(urlStr);
@@ -171,7 +171,7 @@ public class NetworkHelper {
     /**
      * upload file to URL
      */
-    public HttpResponse upload(String urlStr, File file, Map<String, String> headers) {
+    public static HttpResponse upload(String urlStr, File file, Map<String, String> headers) {
         HttpResponse response = new HttpResponse();
         try {
             HttpURLConnection conn = createPostConnection(urlStr);
@@ -226,7 +226,7 @@ public class NetworkHelper {
     /**
      * create HttpURLConnection (GET)
      */
-    private HttpURLConnection createConnection(String urlStr) throws IOException {
+    private static HttpURLConnection createConnection(String urlStr) throws IOException {
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
@@ -238,14 +238,14 @@ public class NetworkHelper {
     /**
      * create HttpURLConnection (POST)
      */
-    private HttpURLConnection createPostConnection(String urlStr) throws IOException {
+    private static HttpURLConnection createPostConnection(String urlStr) throws IOException {
         HttpURLConnection connection = createConnection(urlStr);
         connection.setRequestMethod("POST");
         connection.setDoOutput(true);
         return connection;
     }
 
-    private String readResponse(HttpURLConnection conn) throws IOException {
+    private static String readResponse(HttpURLConnection conn) throws IOException {
         if (conn.getContentLength() != 0) {
             InputStream inputStream = getInputStream(conn);
             try (BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
@@ -260,7 +260,7 @@ public class NetworkHelper {
         return null;
     }
 
-    private InputStream getInputStream(HttpURLConnection conn) throws IOException {
+    private static InputStream getInputStream(HttpURLConnection conn) throws IOException {
         int responseCode = conn.getResponseCode();
         InputStream inputStream = (responseCode >= 200 && responseCode < 300) ? conn.getInputStream() : conn.getErrorStream();
         String encoding = conn.getContentEncoding();
@@ -272,7 +272,7 @@ public class NetworkHelper {
         return inputStream;
     }
 
-    private void addHeaders(HttpURLConnection conn, Map<String, String> headers) {
+    private static void addHeaders(HttpURLConnection conn, Map<String, String> headers) {
         if (headers != null) {
             for (Map.Entry<String, String> entry : headers.entrySet()) {
                 String key = entry.getKey();
@@ -288,7 +288,7 @@ public class NetworkHelper {
      * >> 2) INFO: https://server-name.dev:443/api/info
      * >> 3) INFO: POST http://192.168.0.95:8766/api/info "{key:value}"
      */
-    private void logRequest(HttpURLConnection connection, HttpResponse response, String body) {
+    private static void logRequest(HttpURLConnection connection, HttpResponse response, String body) {
         String url = connection.getURL().toString();
         String lastPath = getLastPath(url);
         String method = connection.getRequestMethod();
@@ -309,7 +309,7 @@ public class NetworkHelper {
      * << 1) INFO: 200ms, OK: http://192.168.0.95:8766/api/info, "{key:value}"
      * << 2) INFO: 20s, ERROR:401, "Connection Failed", http://192.168.0.95:8766/api/info
      */
-    private void logResponse(HttpURLConnection connection, HttpResponse response) {
+    private static void logResponse(HttpURLConnection connection, HttpResponse response) {
         String url = connection.getURL().toString();
         String lastPath = getLastPath(url);
         String method = connection.getRequestMethod();
@@ -334,12 +334,12 @@ public class NetworkHelper {
         log.trace(sb.toString());
     }
 
-    private void logError(String url, HttpResponse response) {
+    private static void logError(String url, HttpResponse response) {
         String lastPath = getLastPath(url);
         log.error("<< {}) {}: {}: ERROR: \"{}\": {}", response.requestNumber, lastPath, response.timer, response.body, url);
     }
 
-    private String getLastPath(String url) {
+    private static String getLastPath(String url) {
         if (url == null) return null;
         String[] splitArr = url.split("/");
         String lastPath = splitArr[splitArr.length - 1];

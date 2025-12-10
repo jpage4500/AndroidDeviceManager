@@ -288,6 +288,7 @@ public class DialogHelper {
 
         JScrollPane scroll = new JScrollPane(checkBoxList);
         scroll.setPreferredSize(new Dimension(350, Math.min(300, deviceList.size() * 40)));
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         panel.add(scroll, "grow, span, wrap");
 
         // Select All link

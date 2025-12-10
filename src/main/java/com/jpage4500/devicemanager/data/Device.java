@@ -1,6 +1,6 @@
 package com.jpage4500.devicemanager.data;
 
-import com.jpage4500.devicemanager.manager.RemoteConnection;
+import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.utils.ExcludeFromSerialization;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import se.vidstige.jadb.JadbDevice;

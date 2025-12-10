@@ -3,6 +3,9 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.manager.client.RemoteConnection;
+import com.jpage4500.devicemanager.manager.client.RemoteConnectionManager;
+import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.ui.RemoteScreenWindow;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
@@ -1174,7 +1177,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     /**
      * synchronous version of fetchFileList
      */
-    protected FileResponse fetchFileListInternal(Device device, String path, boolean useRoot) {
+    public FileResponse fetchFileListInternal(Device device, String path, boolean useRoot) {
         // check if device is remote - use remote API
         if (device.remoteConnection != null) {
             // NOTE: root actions not supported remotely
@@ -1244,7 +1247,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      *
      * @return true if download was successful & file/folder exists
      */
-    protected boolean downloadFileInternal(Device device, String path, DeviceFile file, File saveFile) {
+    public boolean downloadFileInternal(Device device, String path, DeviceFile file, File saveFile) {
         if (file.isDirectory) {
             // create local folder
             if (!saveFile.exists()) {

@@ -4,15 +4,14 @@ import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.*;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.RemoteConnection;
-import com.jpage4500.devicemanager.manager.RemoteServerManager;
+import com.jpage4500.devicemanager.manager.client.RemoteConnection;
+import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.*;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
-import com.jpage4500.devicemanager.ui.views.DraggableCheckBoxList;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.*;
@@ -797,7 +796,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     /**
      * check if any devices in the list is a remote device
      *
-     * @param list
      * @param showWarning - true to show a warning if 1 or more devices are remote
      * @return true if any are remote; however if showWarning is true and the user chooses to continue, false is returned
      */

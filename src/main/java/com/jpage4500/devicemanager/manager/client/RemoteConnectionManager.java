@@ -1,7 +1,8 @@
-package com.jpage4500.devicemanager.manager;
+package com.jpage4500.devicemanager.manager.client;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
+import com.jpage4500.devicemanager.manager.server.RemoteHttpServer;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
