@@ -25,7 +25,6 @@ import java.util.List;
  */
 public class RemoteServerDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(RemoteServerDialog.class);
-    private static final int REFRESH_INTERVAL_MS = 2000; // 2 seconds
 
     private final Component parent;
     private JTable serverTable;

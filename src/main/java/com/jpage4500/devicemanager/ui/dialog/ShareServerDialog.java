@@ -53,8 +53,9 @@ public class ShareServerDialog extends JPanel {
 
         // fetch network list in background
         Utils.runBackground(() -> {
+            List<RemoteConnectionUtils.Network> list = RemoteConnectionUtils.getActiveNetworkInfo();
             synchronized (this) {
-                networkList = RemoteConnectionUtils.getActiveNetworkInfo();
+                networkList = list;
             }
             SwingUtilities.invokeLater(this::refreshUI);
         });
