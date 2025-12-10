@@ -1,6 +1,5 @@
 package com.jpage4500.devicemanager.table.utils;
 
-import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
@@ -22,15 +21,6 @@ import java.util.Map;
 
 public class DeviceCellRenderer extends IconTextField implements TableCellRenderer {
     private static final Logger log = LoggerFactory.getLogger(DeviceCellRenderer.class);
-
-    private enum DeviceState {
-        OFFLINE,
-        ONLINE,
-        BUSY,
-        REMOTE_OFFLINE,
-        REMOTE_ONLINE,
-        REMOTE_BUSY,
-    }
 
     private final Map<String, Icon> deviceIconMap;
 
@@ -83,7 +73,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
                     break;
                 case NAME:
                     // show device status icon with optional remote indicator
-                    icon = getDeviceIcon(device, isSelectedAndFocused);
+                    icon = getDeviceIcon(device);
                     text = model.deviceValue(device, column);
                     break;
             }
@@ -142,30 +132,14 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
         return this;
     }
 
-    private Icon getDeviceIcon(Device device, boolean isSelected) {
-        boolean isRemote = device.remoteConnection != null;
-        boolean isBusy = device.getBusyCount() > 0;
-        DeviceState state;
-        Color color;
-        if (!device.isOnline) {
-            state = isRemote ? DeviceState.REMOTE_OFFLINE : DeviceState.OFFLINE;
-            color = Colors.COLOR_OFFLINE;
-        } else if (isBusy) {
-            state = isRemote ? DeviceState.REMOTE_BUSY : DeviceState.BUSY;
-            color = Colors.COLOR_BUSY;
-        } else {
-            state = isRemote ? DeviceState.REMOTE_ONLINE : DeviceState.ONLINE;
-            color = Colors.COLOR_ONLINE;
-            if (isRemote) {
-                color = new Color(device.remoteConnection.getServerConfig().color);
-            }
-        }
-        String key = state + "-" + isSelected + "-" + color;
+    private Icon getDeviceIcon(Device device) {
+        Icons icn = device.getDeviceIcon();
+        Color color = device.getDeviceColor(true);
+        String key = icn + "-" + color;
         Icon icon = deviceIconMap.get(key);
         if (icon == null) {
             // create icon
-            Icons icn = isRemote ? Icons.DEVICE_REMOTE : Icons.DEVICE_LOCAL;
-            icon = UiUtils.getImageIcon(icn, UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON, isSelected ? Color.WHITE : color);
+            icon = UiUtils.getImageIcon(icn, UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON, color);
             deviceIconMap.put(key, icon);
         }
         return icon;
