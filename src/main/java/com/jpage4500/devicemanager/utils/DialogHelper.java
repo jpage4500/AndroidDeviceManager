@@ -276,7 +276,7 @@ public class DialogHelper {
         DraggableCheckBoxList checkBoxList = new DraggableCheckBoxList();
         checkBoxList.setDragEnabled(false);
         for (Device device : deviceList) {
-            ImageIcon icon = UiUtils.getImageIcon(device.getDeviceIcon(), 32, 32, device.getDeviceColor(false));
+            ImageIcon icon = UiUtils.getImageIcon(device.getDeviceIcon(), 32, 32, device.getDeviceColor());
             String label = device.getDisplayName();
             checkBoxList.addItem(label, false, icon);
         }

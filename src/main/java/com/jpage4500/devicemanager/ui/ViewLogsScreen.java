@@ -1,10 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
-import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.Icons;
-import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.data.LogFilter;
-import com.jpage4500.devicemanager.data.LogFilterEntry;
+import com.jpage4500.devicemanager.data.*;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.table.utils.LogFilterRenderer;
@@ -23,7 +19,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.table.TableColumn;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -762,6 +757,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         if (DeviceManager.getInstance().isLogging(device)) return;
 
         String lastLogTime = model.getLastLogTime();
+//        if (lastLogTime == null) {
+//            // default start time is 10 minutes ago (10-16 11:34)
+//            lastLogTime = new SimpleDateFormat("MM-dd HH:mm").format(new Date(System.currentTimeMillis() - 10 * 60 * 1000));
+//        }
         DeviceManager.getInstance().startLogging(device, lastLogTime, null, this);
     }
 
@@ -1158,17 +1157,12 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         if (numSelected == 0) choice++;
 
         List<LogEntry> logEntriesToSave = new ArrayList<>();
-        switch (choice) {
-            case 0: // selected lines
-                logEntriesToSave = getSelectedLogEntries();
-                break;
-            case 1: // visible lines
-                logEntriesToSave = getVisibleLogEntries();
-                break;
-            case 2: // entire log buffer
-                logEntriesToSave = getAllLogEntries();
-                break;
-        }
+        logEntriesToSave = switch (choice) {
+            case 0 -> getSelectedLogEntries();
+            case 1 -> getVisibleLogEntries();
+            case 2 -> getAllLogEntries();
+            default -> logEntriesToSave;
+        };
 
         if (logEntriesToSave.isEmpty()) {
             DialogHelper.showDialog(this, "Nothing to save", "No log entries to save");

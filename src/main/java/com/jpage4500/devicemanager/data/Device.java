@@ -198,9 +198,8 @@ public class Device {
     /**
      * @return color to use for this device
      */
-    public Color getDeviceColor(boolean supportBusy) {
+    public Color getDeviceColor() {
         if (!isOnline) return Colors.COLOR_OFFLINE;
-        else if (supportBusy && isBusy()) return Colors.COLOR_BUSY;
         else if (remoteConnection != null) return new Color(remoteConnection.getServerConfig().color);
         return Colors.COLOR_ONLINE;
     }

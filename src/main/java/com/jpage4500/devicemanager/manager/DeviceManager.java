@@ -1399,7 +1399,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
         // handle remote device via WebSocket
         if (device.remoteConnection != null) {
-            log.debug("startLogging: REMOTE: device: {}, filter:{}", device.serial, filterText);
+            log.debug("startLogging: REMOTE: device: {}, last:{}, filter:{}", device.serial, lastLogTime, filterText);
             device.remoteConnection.startLogging(device.serial, lastLogTime, filterText, listener);
             return;
         }
@@ -1407,7 +1407,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         // local device - existing implementation
         commandExecutorService.submit(() -> {
             String logStartTime = lastLogTime;
-            log.debug("startLogging: {}, from:{}", device.serial, lastLogTime);
+            log.debug("startLogging: {}, last:{}, filter:{}", device.serial, lastLogTime, filterText);
             AtomicBoolean loggingState = getLoggingState(device.serial, true);
             loggingState.set(true);
             InputStream inputStream = null;

@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.table.utils;
 
+import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
@@ -134,7 +135,8 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
 
     private Icon getDeviceIcon(Device device) {
         Icons icn = device.getDeviceIcon();
-        Color color = device.getDeviceColor(true);
+        Color color = device.getDeviceColor();
+        if (device.isBusy()) color = Colors.COLOR_BUSY;
         String key = icn + "-" + color;
         Icon icon = deviceIconMap.get(key);
         if (icon == null) {
