@@ -11,7 +11,6 @@ import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Text;
 
 import javax.swing.*;
 import java.awt.*;
@@ -26,11 +25,13 @@ public class MainApplication {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
     private DeviceScreen deviceScreen;
-    private List<File> openFileList;
+    private final List<File> openFileList;
 
     public static String version;
 
     public MainApplication(String[] args) {
+        openFileList = new ArrayList<>();
+
         setupLogging();
         log.debug("APP START: {}, java:{}, os:{}", version, Runtime.version(), System.getProperty("os.name"));
 
@@ -51,7 +52,7 @@ public class MainApplication {
         }
 
         if (serverMode) SwingUtilities.invokeLater(() -> runServerMode(args));
-        else SwingUtilities.invokeLater(this::initializeUI);
+        else SwingUtilities.invokeLater(() -> initializeUI(args));
     }
 
     private void runServerMode(String[] args) {
@@ -100,8 +101,6 @@ public class MainApplication {
         DeviceManager deviceManager = DeviceManager.getInstance();
         // server will automatically start
         deviceManager.initialize(null);
-
-        deviceManager.connectAdbServer(true);
     }
 
     public static void main(String[] args) {
@@ -145,7 +144,7 @@ public class MainApplication {
         }
     }
 
-    private void initializeUI() {
+    private void initializeUI(String[] args) {
         FlatLightLaf.setup();
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
@@ -164,6 +163,22 @@ public class MainApplication {
         }
 
         deviceScreen = new DeviceScreen();
+
+        // handle command line args
+        // --install <apk>
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            if (TextUtils.equalsIgnoreCase(arg, "--install") && i + 1 < args.length) {
+                String apk = args[i + 1];
+                File file = new File(apk);
+                if (file.exists()) {
+                    openFileList.add(file);
+                } else {
+                    log.warn("initializeUI: --install file not found: {}", apk);
+                }
+            }
+        }
+
         sendFilesToDevice();
     }
 
@@ -172,7 +187,6 @@ public class MainApplication {
         if (desktop.isSupported(Desktop.Action.APP_OPEN_FILE)) {
             desktop.setOpenFileHandler(e -> {
                 List<File> files = e.getFiles();
-                if (openFileList == null) openFileList = new ArrayList<>();
                 openFileList.addAll(files);
                 log.debug("handleLaunchParams: {}", openFileList);
                 sendFilesToDevice();
@@ -181,9 +195,11 @@ public class MainApplication {
     }
 
     private void sendFilesToDevice() {
-        if (deviceScreen != null && openFileList != null && !openFileList.isEmpty()) {
-            deviceScreen.handleFilesOpened(openFileList);
-            openFileList = null;
+        if (deviceScreen != null && !openFileList.isEmpty()) {
+            Utils.runDelayed(1000, true, () -> {
+                deviceScreen.handleFilesOpened(openFileList, 1);
+                openFileList.clear();
+            });
         }
     }
 

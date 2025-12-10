@@ -22,7 +22,7 @@ public class DraggableCheckBoxList extends JList<DraggableCheckBoxList.CheckBoxI
 
     public DraggableCheckBoxList() {
         setCellRenderer(new CellRenderer());
-        
+
         // track mouse press/release/drag
         addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
@@ -105,12 +105,23 @@ public class DraggableCheckBoxList extends JList<DraggableCheckBoxList.CheckBoxI
     public List<String> getUnSelectedItems() {
         List<String> selectedItems = new ArrayList<>();
         for (int i = 0; i < this.getModel().getSize(); i++) {
-            CheckBoxItem item = (CheckBoxItem) getModel().getElementAt(i);
+            CheckBoxItem item = getModel().getElementAt(i);
             if (!item.checkbox.isSelected()) {
                 selectedItems.add(item.checkbox.getText());
             }
         }
         return selectedItems;
+    }
+
+    public int getNumberSelectedItems() {
+        int numSelected = 0;
+        for (int i = 0; i < this.getModel().getSize(); i++) {
+            CheckBoxItem item = getModel().getElementAt(i);
+            if (item.checkbox.isSelected()) {
+                numSelected++;
+            }
+        }
+        return numSelected;
     }
 
     /**
@@ -131,27 +142,27 @@ public class DraggableCheckBoxList extends JList<DraggableCheckBoxList.CheckBoxI
      */
     protected class CellRenderer implements ListCellRenderer<CheckBoxItem> {
         private static final int ICON_SIZE = 32;
-        
+
         public Component getListCellRendererComponent(JList<? extends CheckBoxItem> list, CheckBoxItem value, int index, boolean isSelected, boolean cellHasFocus) {
             CheckBoxItem item = value;
             JCheckBox checkbox = item.checkbox;
-            
+
             JPanel panel = new JPanel(new BorderLayout(5, 0));
             panel.setOpaque(true);
-            
+
             if (index % 2 == 0) panel.setBackground(Color.WHITE);
             else panel.setBackground(Colors.COLOR_LIGHT_GRAY);
-            
+
             checkbox.setOpaque(false);
             checkbox.setEnabled(isEnabled());
             checkbox.setFont(getFont());
             checkbox.setFocusPainted(false);
             checkbox.setBorderPainted(false);
-            
+
             // left side: icon or spacer to maintain alignment
             if (item.icon != null) {
                 JLabel iconLabel = new JLabel(item.icon);
-                iconLabel.setBorder(BorderFactory.createEmptyBorder(4, 5, 4, 5));
+                iconLabel.setBorder(BorderFactory.createEmptyBorder(4, 5, 4, 0));
                 panel.add(iconLabel, BorderLayout.WEST);
             } else {
                 // add spacer to align checkboxes when no icon
@@ -160,18 +171,20 @@ public class DraggableCheckBoxList extends JList<DraggableCheckBoxList.CheckBoxI
                 spacer.setPreferredSize(new Dimension(ICON_SIZE + 10, ICON_SIZE));
                 panel.add(spacer, BorderLayout.WEST);
             }
-            
+
             // center: checkbox
             panel.add(checkbox, BorderLayout.CENTER);
-            
-            // right side: drag handle
-            JLabel dragHandle = new JLabel("☰");
-            dragHandle.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
-            dragHandle.setForeground(Color.GRAY);
-            dragHandle.setBorder(BorderFactory.createEmptyBorder(4, 5, 4, 10));
-            dragHandle.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
-            panel.add(dragHandle, BorderLayout.EAST);
-            
+
+            if (getDragEnabled()) {
+                // right side: drag handle
+                JLabel dragHandle = new JLabel("☰");
+                dragHandle.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
+                dragHandle.setForeground(Color.GRAY);
+                dragHandle.setBorder(BorderFactory.createEmptyBorder(4, 5, 4, 10));
+                dragHandle.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                panel.add(dragHandle, BorderLayout.EAST);
+            }
+
             return panel;
         }
     }
@@ -181,7 +194,7 @@ public class DraggableCheckBoxList extends JList<DraggableCheckBoxList.CheckBoxI
      */
     private class ListItemTransferHandler extends TransferHandler {
         private final DataFlavor localObjectFlavor;
-        
+
         public ListItemTransferHandler() {
             localObjectFlavor = new DataFlavor(CheckBoxItem.class, "CheckBoxItem");
         }
@@ -192,7 +205,7 @@ public class DraggableCheckBoxList extends JList<DraggableCheckBoxList.CheckBoxI
             if (!isDragHandlePressed) {
                 return null;
             }
-            
+
             @SuppressWarnings("unchecked")
             JList<CheckBoxItem> list = (JList<CheckBoxItem>) c;
             dragSourceIndex = list.getSelectedIndex();
@@ -221,7 +234,7 @@ public class DraggableCheckBoxList extends JList<DraggableCheckBoxList.CheckBoxI
 
             try {
                 CheckBoxItem item = (CheckBoxItem) support.getTransferable().getTransferData(localObjectFlavor);
-                
+
                 // get current list as array
                 ListModel<CheckBoxItem> currentModel = getModel();
                 CheckBoxItem[] items = new CheckBoxItem[currentModel.getSize()];

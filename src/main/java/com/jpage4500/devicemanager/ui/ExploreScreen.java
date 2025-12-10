@@ -593,7 +593,7 @@ public class ExploreScreen extends BaseScreen {
         List<String> pathList = getFavoritePathList();
         JComboBox comboBox = new JComboBox(pathList.toArray(new String[]{}));
         comboBox.setEditable(true);
-        if (!DialogHelper.showCustomDialog(this, comboBox, "Go to folder", null)) return;
+        if (DialogHelper.showCustomDialog(this, comboBox, "Go to folder", null) != JOptionPane.YES_OPTION) return;
 
         Object selectedObj = comboBox.getSelectedItem();
         if (selectedObj == null) return;
