@@ -189,8 +189,10 @@ public class Device {
      * @return an icon to represent this device
      */
     public Icons getDeviceIcon() {
-        // TODO: if local device but connected via adb wireless (serial = 192.168.0.100:5555), use a different icon
-        return remoteConnection != null ? Icons.DEVICE_REMOTE : Icons.DEVICE_LOCAL;
+        if (remoteConnection != null) return Icons.DEVICE_REMOTE;
+        // if local device but connected via adb wireless (serial = 192.168.0.100:5555), use a different icon
+        if (TextUtils.contains(serial, ":")) return Icons.DEVICE_REMOTE;
+        return Icons.DEVICE_LOCAL;
     }
 
     /**
