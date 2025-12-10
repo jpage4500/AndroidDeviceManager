@@ -34,6 +34,9 @@ public class NetworkHelper {
         }
     }
 
+    private NetworkHelper() {
+    }
+
     public static class HttpDataResponse extends HttpResponse {
         public long dataSize;
         public byte[] data;

@@ -1733,8 +1733,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
         String version = null;
         String desc = null;
-        NetworkHelper networkHelper = new NetworkHelper();
-        NetworkHelper.HttpResponse response = networkHelper.getRequest(UPDATE_SOURCE_GITHUB);
+        NetworkHelper.HttpResponse response = NetworkHelper.getRequest(UPDATE_SOURCE_GITHUB);
         List<GithubRelease> releases = GsonHelper.stringToList(response.body, GithubRelease.class);
         if (!releases.isEmpty()) {
             GithubRelease latestRelease = releases.get(0);
