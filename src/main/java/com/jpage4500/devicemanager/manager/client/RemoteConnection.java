@@ -802,7 +802,7 @@ public class RemoteConnection {
 
             @Override
             public void onError(WebSocket webSocket, Throwable error) {
-                log.error("onError: screen stream device: {}", deviceSerial, error);
+                log.error("onError: screen stream device: {}, {}", deviceSerial, error.getMessage());
                 ScreenStreamSession session = screenStreamSessions.remove(deviceSerial);
                 if (session != null && session.listener != null) {
                     session.listener.onError("WebSocket error: " + error.getMessage());
