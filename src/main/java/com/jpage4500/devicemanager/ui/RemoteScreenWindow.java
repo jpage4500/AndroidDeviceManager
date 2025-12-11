@@ -7,6 +7,7 @@ import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.AndroidKeyMapper;
 import com.jpage4500.devicemanager.utils.Animations;
+import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -732,10 +733,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 } catch (IOException ex) {
                     log.error("saveImageToFile: error saving image", ex);
                     statusBar.setCenterLabel("Error saving image");
-                    JOptionPane.showMessageDialog(RemoteScreenWindow.this,
-                        "Failed to save image: " + ex.getMessage(),
-                        "Save Error",
-                        JOptionPane.ERROR_MESSAGE);
+                    DialogHelper.showDialog(this, "Save Error", "Failed to save image: " + ex.getMessage(), true);
                 }
             }
         }

@@ -89,7 +89,7 @@ public class AddServerDialog {
 
         // Loop until valid input or user cancels
         while (true) {
-            int result = JOptionPane.showOptionDialog(parent, panel, title, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE, null, new Object[]{actionButton, "Cancel"}, actionButton);
+            int result = DialogHelper.showCustomDialog(parent, panel, title, new Object[]{actionButton, "Cancel"});
             if (result != JOptionPane.OK_OPTION) return null;
 
             // Validate input

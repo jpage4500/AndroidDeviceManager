@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.CheckboxCellRenderer;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
@@ -18,25 +19,23 @@ import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
-
 public class ConnectDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(ConnectDialog.class);
 
-    // Connection status constants
+    // connection status constants
     private static final String STATUS_CONNECTED = "Connected";
     private static final String STATUS_DISCONNECTED = "Disconnected";
     private static final String STATUS_CONNECTING = "Connecting...";
     private static final String STATUS_DISCONNECTING = "Disconnecting...";
 
-    // Default values
+    // default values
     private static final int DEFAULT_PORT = 5555;
     private static final int MAX_RECENT_DEVICES = 10;
     private static final int REFRESH_DELAY_MS = 2000;
     private static final int DEVICE_NAME_POLL_INTERVAL_MS = 1000; // Poll every 1 second
     private static final int DEVICE_NAME_POLL_MAX_ATTEMPTS = 30; // Max 30 seconds
 
-    // Table column widths
+    // table column widths
     private static final int COL_WIDTH_CHECKBOX = 40;
     private static final int COL_WIDTH_NAME = 150;
     private static final int COL_WIDTH_IP = 120;
@@ -45,6 +44,8 @@ public class ConnectDialog extends JPanel {
     private static final int TABLE_WIDTH = 550;
     private static final int TABLE_HEIGHT = 200;
     private static final int TABLE_ROW_HEIGHT = 30;
+
+    public static final String DEFAULT_HOST = "192.168.0.100";
 
     private HintTextField serverField;
     private HintTextField portField;
@@ -78,7 +79,7 @@ public class ConnectDialog extends JPanel {
     private ConnectDialog() {
         setLayout(new MigLayout("fillx, insets 10", "[grow]"));
 
-        // Create table
+        // create table
         tableModel = new DeviceTableModel();
         deviceTable = new JTable(tableModel);
         deviceTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -89,20 +90,20 @@ public class ConnectDialog extends JPanel {
         deviceTable.getColumnModel().getColumn(DeviceColumn.PORT.ordinal()).setPreferredWidth(COL_WIDTH_PORT);
         deviceTable.getColumnModel().getColumn(DeviceColumn.STATUS.ordinal()).setPreferredWidth(COL_WIDTH_STATUS);
 
-        // Custom renderer for checkbox column
+        // custom renderer for checkbox column
         deviceTable.getColumnModel().getColumn(DeviceColumn.CONNECTED.ordinal()).setCellRenderer(new CheckboxCellRenderer());
         deviceTable.getColumnModel().getColumn(DeviceColumn.STATUS.ordinal()).setCellRenderer(new ConnectionStatusRenderer());
 
-        // Add right-click context menu for disconnected devices
+        // add right-click context menu for disconnected devices
         UiUtils.addRightClickListener(deviceTable, e -> {
             int row = deviceTable.rowAtPoint(e.getPoint());
             if (row >= 0) {
                 deviceTable.setRowSelectionInterval(row, row);
                 WirelessDevice device = tableModel.getDeviceAt(row);
                 if (device != null && !device.isConnected) {
-                    // Only show menu for disconnected devices
+                    // only show menu for disconnected devices
                     JPopupMenu popup = new JPopupMenu();
-                    UiUtils.addPopupMenuItem(popup, "Delete", event -> handleDeleteDevice(device));
+                    UiUtils.addPopupMenuItem(popup, "Delete", Icons.DELETE, event -> handleDeleteDevice(device));
                     popup.show(deviceTable, e.getX(), e.getY());
                 }
             }
@@ -114,16 +115,15 @@ public class ConnectDialog extends JPanel {
 
         add(new JSeparator(), "growx, wrap, gaptop 10, gapbottom 10");
 
-        // Manual connect section
-        String lastIp = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LAST_DEVICE_IP);
+        // manual connect section
+        String lastIp = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LAST_DEVICE_IP, DEFAULT_HOST);
         int lastPort = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LAST_DEVICE_PORT, DEFAULT_PORT);
-        if (TextUtils.isEmpty(lastIp)) lastIp = "";
 
         JPanel manualPanel = new JPanel(new MigLayout("fillx, insets 0", "[][grow][][grow][]"));
 
         manualPanel.add(new JLabel("IP:"), "");
 
-        serverField = new HintTextField("192.168.0.100", text -> updateConnectButton());
+        serverField = new HintTextField(DEFAULT_HOST, text -> updateConnectButton());
         serverField.setText(lastIp);
         serverField.setHorizontalAlignment(SwingConstants.LEFT);
         manualPanel.add(serverField, "growx");
@@ -185,7 +185,7 @@ public class ConnectDialog extends JPanel {
         try {
             port = Integer.parseInt(portStr);
         } catch (NumberFormatException e) {
-            log.error("Invalid port: " + portStr);
+            log.error("handleManualConnect: Invalid port: " + portStr);
             return;
         }
 
@@ -202,12 +202,13 @@ public class ConnectDialog extends JPanel {
         PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LAST_DEVICE_PORT, port);
 
         connectButton.setEnabled(false);
+        log.trace("handleManualConnect: connecting to: {}, {}", ip, port);
         DeviceManager deviceManager = DeviceManager.getInstance();
         deviceManager.connectDevice(ip, port, (success, result) -> {
             updateConnectButton();
             if (success) {
-                log.debug("Connected to {}:{}", ip, port);
-                // Clear fields and refresh table
+                log.debug("handleManualConnect: Connected to {}:{}", ip, port);
+                // clear fields and refresh table
                 SwingUtilities.invokeLater(() -> {
                     serverField.setText("");
                     portField.setText(String.valueOf(DEFAULT_PORT));
@@ -216,8 +217,10 @@ public class ConnectDialog extends JPanel {
                     startDeviceNamePolling();
                 });
             } else {
-                log.error("Failed to connect to {}:{}", ip, port);
-                DialogHelper.showDialog(this, "Connect Device", "Failed to connect to device: " + result);
+                log.error("handleManualConnect: Failed to connect to {}:{}", ip, port);
+                String msg = "Failed to connect to device.";
+                if (TextUtils.notEmpty(result)) msg += " " + result;
+                DialogHelper.showDialog(this, "Connect Device", msg, true);
             }
         });
     }
@@ -227,7 +230,7 @@ public class ConnectDialog extends JPanel {
         List<WirelessDevice> recentDeviceList = getRecentWirelessDevices();
         List<WirelessDevice> displayDeviceList = new ArrayList<>();
 
-        // Add currently connected wireless devices
+        // add currently connected wireless devices
         for (Device device : connectedDeviceList) {
             if (device.isWireless()) {
                 WirelessDevice wd = new WirelessDevice();
@@ -240,7 +243,7 @@ public class ConnectDialog extends JPanel {
             }
         }
 
-        // Add recent devices that aren't currently connected
+        // add recent devices that aren't currently connected
         for (WirelessDevice recentDevice : recentDeviceList) {
             boolean alreadyAdded = false;
             for (WirelessDevice displayDevice : displayDeviceList) {
@@ -263,17 +266,17 @@ public class ConnectDialog extends JPanel {
      * Handle deleting a disconnected device from the list
      */
     private void handleDeleteDevice(WirelessDevice device) {
-        // Confirm deletion
+        // confirm deletion
         String message = "Delete device '" + device.getName() + "' (" + device.serial + ") from the list?";
         if (DialogHelper.showConfirmDialog(this, "Confirm Delete", message)) {
-            log.debug("Deleting device: {}", device);
+            log.debug("handleDeleteDevice: Deleting device: {}", device);
             removeWirelessDevice(device);
             refreshTable();
         }
     }
 
     /**
-     * Check if device has a valid name
+     * check if device has a valid name
      */
     private boolean hasDeviceName(WirelessDevice device) {
         return TextUtils.notEmpty(device.nickname) || TextUtils.notEmpty(device.model);
@@ -294,7 +297,7 @@ public class ConnectDialog extends JPanel {
     }
 
     /**
-     * Start polling timer to refresh table until device name is populated
+     * start polling timer to refresh table until device name is populated
      */
     private void startDeviceNamePolling(String serial) {
         final int[] attemptCount = {0};
@@ -330,7 +333,7 @@ public class ConnectDialog extends JPanel {
     }
 
     public static List<WirelessDevice> getRecentWirelessDevices() {
-        String recentDeviceStr = PreferenceUtils.getPreference(Pref.PREF_RECENT_WIRELESS_DEVICES);
+        String recentDeviceStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_RECENT_WIRELESS_DEVICES);
         return GsonHelper.stringToList(recentDeviceStr, WirelessDevice.class);
     }
 
@@ -348,17 +351,17 @@ public class ConnectDialog extends JPanel {
         if (deviceList.size() > MAX_RECENT_DEVICES) {
             deviceList.remove(deviceList.size() - 1);
         }
-        PreferenceUtils.setPreference(Pref.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
     }
 
     public static void removeWirelessDevice(WirelessDevice wirelessDevice) {
         List<WirelessDevice> deviceList = getRecentWirelessDevices();
         deviceList.removeIf(device -> TextUtils.equals(device.serial, wirelessDevice.serial));
-        PreferenceUtils.setPreference(Pref.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_RECENT_WIRELESS_DEVICES, GsonHelper.toJson(deviceList));
     }
 
     /**
-     * Extract IP address from serial (format: "192.168.0.100:5555")
+     * extract IP address from serial (format: "192.168.0.100:5555")
      */
     private static String getIpFromSerial(String serial) {
         int pos = serial.indexOf(':');
@@ -366,7 +369,7 @@ public class ConnectDialog extends JPanel {
     }
 
     /**
-     * Extract port from serial (format: "192.168.0.100:5555")
+     * extract port from serial (format: "192.168.0.100:5555")
      */
     private static String getPortFromSerial(String serial) {
         int pos = serial.indexOf(':');
@@ -400,7 +403,7 @@ public class ConnectDialog extends JPanel {
     }
 
     /**
-     * Table model for device list
+     * table model for device list
      */
     private class DeviceTableModel extends AbstractTableModel {
         private final DeviceColumn[] columns = DeviceColumn.values();
@@ -458,7 +461,7 @@ public class ConnectDialog extends JPanel {
             if (columns[columnIndex] != DeviceColumn.CONNECTED) {
                 return false;
             }
-            // Disable checkbox while connecting or disconnecting
+            // disable checkbox while connecting or disconnecting
             WirelessDevice device = devices.get(rowIndex);
             String status = device.connectionStatus;
             return !STATUS_CONNECTING.equals(status) && !STATUS_DISCONNECTING.equals(status);
@@ -479,21 +482,22 @@ public class ConnectDialog extends JPanel {
         }
 
         /**
-         * Handle connecting to a device
+         * handle connecting to a device
          */
         private void handleConnect(WirelessDevice device, int rowIndex) {
             String ip = getIpFromSerial(device.serial);
             int port = getPortIntFromSerial(device.serial);
 
-            // Set status to "Connecting..."
+            // set status to "Connecting..."
             device.connectionStatus = STATUS_CONNECTING;
             fireTableRowsUpdated(rowIndex, rowIndex);
+            log.trace("handleConnect: connecting to: {}", device);
 
             DeviceManager.getInstance().connectDevice(ip, port, (success, result) -> {
                 if (success) {
                     device.isConnected = true;
                     device.connectionStatus = STATUS_CONNECTED;
-                    log.debug("Connected to {}", device);
+                    log.debug("handleConnect: Connected to {}", device);
 
                     SwingUtilities.invokeLater(() -> {
                         fireTableRowsUpdated(rowIndex, rowIndex);
@@ -502,16 +506,19 @@ public class ConnectDialog extends JPanel {
                     });
                 } else {
                     device.connectionStatus = STATUS_DISCONNECTED;
-                    log.error("Failed to connect to {}", device);
+                    log.error("handleConnect: Failed to connect to {}", device);
                     SwingUtilities.invokeLater(() -> {
                         fireTableRowsUpdated(rowIndex, rowIndex);
                     });
+                    String msg = "Failed to connect to device.";
+                    if (TextUtils.notEmpty(result)) msg += " " + result;
+                    DialogHelper.showDialog(ConnectDialog.this, "Connect Device", msg);
                 }
             });
         }
 
         /**
-         * Handle disconnecting from a device
+         * handle disconnecting from a device
          */
         private void handleDisconnect(WirelessDevice device, int rowIndex) {
             device.connectionStatus = STATUS_DISCONNECTING;
@@ -519,11 +526,11 @@ public class ConnectDialog extends JPanel {
 
             DeviceManager.getInstance().disconnectDevice(device.serial, (success, result) -> {
                 if (success) {
-                    log.debug("Disconnected from {}", device);
+                    log.debug("handleDisconnect: Disconnected from {}", device);
                     device.isConnected = false;
                     device.connectionStatus = STATUS_DISCONNECTED;
                 } else {
-                    log.error("Failed to disconnect from {}", device);
+                    log.error("handleDisconnect: Failed to disconnect from {}", device);
                     device.connectionStatus = STATUS_CONNECTED;
                 }
                 SwingUtilities.invokeLater(() -> {
@@ -535,7 +542,7 @@ public class ConnectDialog extends JPanel {
     }
 
     /**
-     * Renderer for connection status column
+     * renderer for connection status column
      */
     private static class ConnectionStatusRenderer extends javax.swing.table.DefaultTableCellRenderer {
         @Override

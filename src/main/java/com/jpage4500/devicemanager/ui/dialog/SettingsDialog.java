@@ -370,7 +370,7 @@ public class SettingsDialog extends JPanel {
         JScrollPane scroll = new JScrollPane(inputField);
         panel.add(scroll, "grow, span, wrap");
 
-        int rc = JOptionPane.showOptionDialog(deviceScreen, panel, title, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
+        int rc = DialogHelper.showCustomDialog(deviceScreen, panel, title, new String[]{});
         if (rc != JOptionPane.YES_OPTION) return null;
 
         String results = inputField.getText().trim();

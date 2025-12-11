@@ -26,11 +26,25 @@ public class DialogHelper {
     public static final String KEY_VALUE_DELIM = " : ";
 
     /**
-     * show a simple dialog
+     * show an INFO dialog
+     */
+    public static void showDialog(Component component, String text) {
+        showDialog(component, null, text, false);
+    }
+
+    /**
+     * show an INFO dialog
      */
     public static void showDialog(Component component, String title, String text) {
-        if (title == null) title = "Alert";
-        JOptionPane.showConfirmDialog(component, text, title, JOptionPane.DEFAULT_OPTION);
+        showDialog(component, title, text, false);
+    }
+
+    /**
+     * show an INFO or ERROR dialog
+     */
+    public static void showDialog(Component component, String title, String text, boolean isError) {
+        if (title == null) title = isError ? "Error" : "Alert";
+        JOptionPane.showConfirmDialog(component, text, title, JOptionPane.DEFAULT_OPTION, isError ? JOptionPane.ERROR_MESSAGE : JOptionPane.INFORMATION_MESSAGE);
     }
 
     /**
@@ -41,6 +55,14 @@ public class DialogHelper {
     public static boolean showConfirmDialog(Component component, String title, String text) {
         int rc = JOptionPane.showConfirmDialog(component, text, title, JOptionPane.YES_NO_OPTION);
         return (rc == JOptionPane.YES_OPTION);
+    }
+
+    /**
+     * show a dialog to prompt for input
+     */
+    public static String showInputDialog(Component component, String title, String text, String defaultValue) {
+        return (String) JOptionPane.showInputDialog(component, text, title,
+            JOptionPane.QUESTION_MESSAGE, null, null, defaultValue);
     }
 
     public static int showOptionDialog(Component component, String title, String text, List<String> choiceList) {
@@ -130,15 +152,9 @@ public class DialogHelper {
         JOptionPane.showMessageDialog(component, scrollPane, title, JOptionPane.PLAIN_MESSAGE);
     }
 
-    public static int showCustomDialog(Component frame, Component component, String title, String[] buttonArr) {
+    public static int showCustomDialog(Component frame, Component component, String title, Object[] buttonArr) {
         return JOptionPane.showOptionDialog(frame, component, title, JOptionPane.DEFAULT_OPTION,
             JOptionPane.PLAIN_MESSAGE, null, buttonArr, null);
-    }
-
-    public static String showInputDialog(Component component, String title, String text, String defaultValue) {
-        String result = (String) JOptionPane.showInputDialog(component, text, title,
-            JOptionPane.QUESTION_MESSAGE, null, null, defaultValue);
-        return result;
     }
 
     public interface ListListener {

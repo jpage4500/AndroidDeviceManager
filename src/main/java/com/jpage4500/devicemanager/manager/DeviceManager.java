@@ -1320,7 +1320,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("connectDevice: {}:{}, Exception:{}", ip, port, e.getMessage());
-                listener.onTaskComplete(false, null);
+                listener.onTaskComplete(false, e.getMessage());
             }
         });
     }

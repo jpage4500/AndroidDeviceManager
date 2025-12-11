@@ -258,10 +258,10 @@ public class ShareServerDialog extends JPanel {
             StringSelection selection = new StringSelection(connectionStr);
             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
             clipboard.setContents(selection, selection);
-            JOptionPane.showMessageDialog(this, "Connection string copied to clipboard", "Copied", JOptionPane.INFORMATION_MESSAGE);
+            DialogHelper.showDialog(this, "Copied", "Connection string copied to clipboard");
         } catch (Exception e) {
             log.error("Failed to copy connection string", e);
-            JOptionPane.showMessageDialog(this, "Failed to generate connection string", "Error", JOptionPane.ERROR_MESSAGE);
+            DialogHelper.showDialog(this, "Error", "Failed to generate connection string", true);
         }
     }
 
