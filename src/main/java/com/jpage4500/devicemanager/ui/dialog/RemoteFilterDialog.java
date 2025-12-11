@@ -38,21 +38,14 @@ public class RemoteFilterDialog extends JPanel {
         JButton newBtn = DialogHelper.createDialogButton("New...");
         JButton cancelBtn = DialogHelper.createDialogButton("Cancel");
 
-        int rc = JOptionPane.showOptionDialog(parent, dialog,
+        int rc = DialogHelper.showCustomDialog(parent, dialog,
             "Select Remote Log Filter - " + device.getDisplayName(),
-            JOptionPane.DEFAULT_OPTION,
-            JOptionPane.PLAIN_MESSAGE,
-            null,
-            new Object[]{okBtn, newBtn, cancelBtn},
-            okBtn);
+            new Object[]{okBtn, newBtn, cancelBtn});
 
         if (rc == 0) { // OK button
             String built = dialog.buildFilterExpression();
             if (TextUtils.isEmpty(built)) {
-                JOptionPane.showMessageDialog(parent,
-                    "Please select or enter a valid filter.",
-                    "Invalid Filter",
-                    JOptionPane.WARNING_MESSAGE);
+                DialogHelper.showDialog(parent, "Invalid Filter", "Please select or enter a valid filter.", true);
                 // recursively show dialog again
                 return showFilterDialog(parent, device);
             }

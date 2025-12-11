@@ -1,4 +1,4 @@
-package com.jpage4500.devicemanager.manager;
+package com.jpage4500.devicemanager.manager.server;
 
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;

@@ -5,7 +5,7 @@ import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.RemoteServerManager;
+import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
 import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.ILoggerFactory;
@@ -183,6 +183,8 @@ public class MainApplication {
     }
 
     private void registerFileHandler() {
+        if (!Desktop.isDesktopSupported()) return;
+
         Desktop desktop = Desktop.getDesktop();
         if (desktop.isSupported(Desktop.Action.APP_OPEN_FILE)) {
             desktop.setOpenFileHandler(e -> {
@@ -196,10 +198,8 @@ public class MainApplication {
 
     private void sendFilesToDevice() {
         if (deviceScreen != null && !openFileList.isEmpty()) {
-            Utils.runDelayed(1000, true, () -> {
-                deviceScreen.handleFilesOpened(openFileList, 1);
-                openFileList.clear();
-            });
+            deviceScreen.handleFilesOpened(openFileList, 1);
+            openFileList.clear();
         }
     }
 

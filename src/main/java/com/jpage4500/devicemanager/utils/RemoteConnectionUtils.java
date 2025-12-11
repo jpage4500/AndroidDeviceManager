@@ -77,8 +77,7 @@ public class RemoteConnectionUtils {
     public static String getPublicIpAddress() {
         // try to get public IP address first
         try {
-            NetworkHelper networkHelper = new NetworkHelper();
-            NetworkHelper.HttpResponse response = networkHelper.getRequest("https://api.ipify.org");
+            NetworkHelper.HttpResponse response = NetworkHelper.getRequest("https://api.ipify.org");
             if (response.status == 200) {
                 return response.body.trim();
             }

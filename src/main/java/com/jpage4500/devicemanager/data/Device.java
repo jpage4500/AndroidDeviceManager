@@ -1,6 +1,6 @@
 package com.jpage4500.devicemanager.data;
 
-import com.jpage4500.devicemanager.manager.RemoteConnection;
+import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.utils.ExcludeFromSerialization;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import se.vidstige.jadb.JadbDevice;
@@ -198,9 +198,8 @@ public class Device {
     /**
      * @return color to use for this device
      */
-    public Color getDeviceColor(boolean supportBusy) {
+    public Color getDeviceColor() {
         if (!isOnline) return Colors.COLOR_OFFLINE;
-        else if (supportBusy && isBusy()) return Colors.COLOR_BUSY;
         else if (remoteConnection != null) return new Color(remoteConnection.getServerConfig().color);
         return Colors.COLOR_ONLINE;
     }

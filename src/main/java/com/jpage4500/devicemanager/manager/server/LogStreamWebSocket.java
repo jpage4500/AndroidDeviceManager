@@ -1,8 +1,9 @@
-package com.jpage4500.devicemanager.manager;
+package com.jpage4500.devicemanager.manager.server;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.data.LogFilter;
+import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import fi.iki.elonen.NanoWSD;
 import org.slf4j.Logger;

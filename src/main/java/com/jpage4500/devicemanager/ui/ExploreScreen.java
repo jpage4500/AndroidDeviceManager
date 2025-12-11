@@ -544,15 +544,12 @@ public class ExploreScreen extends BaseScreen {
             selectedFileList.size() + " files(s)";
 
         // prompt to install/copy
-        int rc = JOptionPane.showConfirmDialog(this,
-            "Download " + msg + "?",
-            "Download?", JOptionPane.YES_NO_OPTION);
-        if (rc != JOptionPane.YES_OPTION) return;
+        if (!DialogHelper.showConfirmDialog(this, "Download?", "Download " + msg + "?")) return;
 
         String downloadFolder = Utils.getDownloadFolder();
         for (DeviceFile file : selectedFileList) {
             if (file.isReadOnly) {
-                JOptionPane.showMessageDialog(this, "File is read-only!", "Read-only", JOptionPane.ERROR_MESSAGE);
+                DialogHelper.showDialog(this, "Read-only", "File is read-only!", true);
                 return;
             }
             File downloadFile = new File(downloadFolder, file.name);
@@ -579,10 +576,8 @@ public class ExploreScreen extends BaseScreen {
             sb.append(file.name);
         }
 
-        int rc = JOptionPane.showConfirmDialog(this,
-            "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb,
-            "Delete Files?", JOptionPane.YES_NO_OPTION);
-        if (rc != JOptionPane.YES_OPTION) return;
+        String message = "Delete " + selectedFileList.size() + " files(s)?\n\n" + sb;
+        if (!DialogHelper.showConfirmDialog(this, "Delete Files?", message)) return;
 
         for (DeviceFile file : selectedFileList) {
             DeviceManager.getInstance().deleteFile(device, selectedPath, file, (isSuccess, error) -> refreshFiles());

@@ -3,7 +3,7 @@ package com.jpage4500.devicemanager.ui.dialog;
 import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.RemoteConnectionManager;
+import com.jpage4500.devicemanager.manager.client.RemoteConnectionManager;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
@@ -25,7 +25,6 @@ import java.util.List;
  */
 public class RemoteServerDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(RemoteServerDialog.class);
-    private static final int REFRESH_INTERVAL_MS = 2000; // 2 seconds
 
     private final Component parent;
     private JTable serverTable;

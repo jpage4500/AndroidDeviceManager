@@ -36,8 +36,8 @@ public class AddFilterDialog extends JPanel {
         dialog.okButton = DialogHelper.createDialogButton(okText);
         JButton cancelButton = DialogHelper.createDialogButton("Cancel");
 
-        int rc = JOptionPane.showOptionDialog(frame, dialog, "Add Filter", JOptionPane.DEFAULT_OPTION,
-                JOptionPane.PLAIN_MESSAGE, null, new Object[]{dialog.okButton, cancelButton}, dialog.okButton);
+        int rc = DialogHelper.showCustomDialog(frame, dialog, "Add Filter",
+                new Object[]{dialog.okButton, cancelButton});
         boolean isOk = (rc == JOptionPane.YES_OPTION);
         if (isOk) {
             return dialog.getLogFilter();

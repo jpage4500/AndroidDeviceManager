@@ -3,16 +3,19 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.RemoteConnection;
+import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.AndroidKeyMapper;
 import com.jpage4500.devicemanager.utils.Animations;
+import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -242,7 +245,8 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         SwingUtilities.invokeLater(() -> {
             log.error("onError: {}", error);
             statusBar.setCenterLabel("Error: " + error);
-            JOptionPane.showMessageDialog(this, error, "Screen Stream Error", JOptionPane.ERROR_MESSAGE);
+            // JOptionPane.showMessageDialog(this, error, "Screen Stream Error", JOptionPane.ERROR_MESSAGE);
+            scheduleReconnect();
         });
     }
 
@@ -285,6 +289,8 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         private static final int SWIPE_GESTURE_TIMEOUT_MS = 150; // time to wait for gesture completion
         private static final int FIXED_SWIPE_DISTANCE = 300; // fixed swipe distance in device pixels
 
+        private JPopupMenu activePopup;
+
         public ScreenPanel() {
             setBackground(Color.BLACK);
             setFocusable(true);
@@ -297,7 +303,13 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                     if (e.isPopupTrigger()) {
                         showContextMenu(e);
                         return;
+                    } else if (activePopup != null) {
+                        // close popup and ignore this click
+                        closePopup();
+                        e.consume();
+                        return;
                     }
+
                     requestFocusInWindow();
                     dragStart = e.getPoint();
                     pressStartPoint = e.getPoint();
@@ -308,11 +320,6 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
                 @Override
                 public void mouseReleased(MouseEvent e) {
-                    if (e.isPopupTrigger()) {
-                        showContextMenu(e);
-                        return;
-                    }
-
                     // stop long press timer
                     stopLongPressTimer();
 
@@ -380,6 +387,13 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
         private boolean isInputAllowed() {
             return connected;
+        }
+
+        private boolean isPopupVisible() {
+            if (activePopup != null) {
+                return activePopup.isVisible();
+            }
+            return false;
         }
 
         private void startAnimationLoop() {
@@ -554,6 +568,13 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         private void handleKeyPressed(KeyEvent e) {
             int keyCode = e.getKeyCode();
 
+            // if popup is open and Escape is pressed, close it
+            if (isPopupVisible() && keyCode == KeyEvent.VK_ESCAPE) {
+                closePopup();
+                e.consume();
+                return;
+            }
+
             // check for CMD+C (Mac) or CTRL+C (other platforms) to copy image
             boolean isMetaDown = e.isMetaDown() || e.isControlDown();
             if (isMetaDown && keyCode == KeyEvent.VK_C) {
@@ -712,10 +733,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 } catch (IOException ex) {
                     log.error("saveImageToFile: error saving image", ex);
                     statusBar.setCenterLabel("Error saving image");
-                    JOptionPane.showMessageDialog(RemoteScreenWindow.this,
-                        "Failed to save image: " + ex.getMessage(),
-                        "Save Error",
-                        JOptionPane.ERROR_MESSAGE);
+                    DialogHelper.showDialog(this, "Save Error", "Failed to save image: " + ex.getMessage(), true);
                 }
             }
         }
@@ -828,6 +846,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         }
 
         private void showContextMenu(MouseEvent e) {
+            closePopup();
             JPopupMenu popup = new JPopupMenu();
 
             // Home
@@ -856,6 +875,14 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             addPopupItem(popup, "Power", Icons.POWER, AndroidKeyMapper.KEYCODE_POWER);
 
             popup.show(e.getComponent(), e.getX(), e.getY());
+            activePopup = popup;
+        }
+
+        private void closePopup() {
+            if (activePopup != null && activePopup.isVisible()) {
+                activePopup.setVisible(false);
+            }
+            activePopup = null;
         }
 
         private void addPopupItem(JPopupMenu popup, String label, Icons icn, int keycode) {

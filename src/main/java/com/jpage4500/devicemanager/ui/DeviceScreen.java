@@ -4,15 +4,14 @@ import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.*;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.RemoteConnection;
-import com.jpage4500.devicemanager.manager.RemoteServerManager;
+import com.jpage4500.devicemanager.manager.client.RemoteConnection;
+import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.*;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
-import com.jpage4500.devicemanager.ui.views.DraggableCheckBoxList;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.*;
@@ -69,7 +68,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
     // system tray
     private SystemTray systemTray;
-    private Integer trayIconDevices;
+    private String systemTrayHashCode;
 
     // status bar items
     private HoverLabel updateLabel;         // update
@@ -515,11 +514,38 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         return popupMenu;
     }
 
-    private void setupSystemTray() {
-        List<Device> devices = DeviceManager.getInstance().getDevices();
-        if (trayIconDevices != null && devices.size() == trayIconDevices) return;
+    private void setupTaskBar() {
+        if (!Taskbar.isTaskbarSupported()) return;
+        // badge number
+        try {
+            Taskbar taskbar = Taskbar.getTaskbar();
+            if (taskbar.isSupported(Taskbar.Feature.ICON_BADGE_NUMBER)) {
+                int numOnline = 0;
+                for (Device device : DeviceManager.getInstance().getDevices()) {
+                    if (device.isOnline) numOnline++;
+                }
+                String badge = numOnline > 0 ? String.valueOf(numOnline) : null;
+                taskbar.setIconBadge(badge);
+            }
+        } catch (final Exception e) {
+            log.error("setupTaskBar: Exception: {}", e.getMessage());
+        }
+    }
 
-        trayIconDevices = devices.size();
+    private void setupSystemTray() {
+        DeviceManager deviceManager = DeviceManager.getInstance();
+        List<Device> deviceList = deviceManager.getDevices();
+        // sort by display name
+        deviceList.sort((d1, d2) -> d1.getDisplayName().compareToIgnoreCase(d2.getDisplayName()));
+        // compare list to previous list so we don't have to update tray anytime a device property is updated
+        StringBuilder sb = new StringBuilder();
+        for (Device device : deviceList) {
+            sb.append(device.getDisplayName()).append("|").append(device.isOnline ? "1" : "0").append(";");
+        }
+        String hashCode = sb.toString();
+        if (TextUtils.equals(systemTrayHashCode, hashCode)) return;
+        systemTrayHashCode = hashCode;
+
         Menu menu;
         try {
             if (systemTray == null) {
@@ -545,12 +571,11 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 }
                 log.trace("setupSystemTray: {}", systemTray.getTrayImageSize());
             }
-            BufferedImage trayImage = UiUtils.getTrayIconWithCount(trayIconDevices);
+            BufferedImage trayImage = UiUtils.getTrayIconWithCount(deviceList.size());
             systemTray.setImage(trayImage);
             if (!Utils.isLinux()) {
-                systemTray.setTooltip(trayIconDevices + " Devices");
+                systemTray.setTooltip(deviceList.size() + " Devices");
             }
-
             menu = systemTray.getMenu();
         } catch (LinkageError e) {
             log.error("setupSystemTray: LinkageError: {}", e.getMessage());
@@ -570,9 +595,37 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         menu.add(new Separator());
 
-        for (Device device : devices) {
+        // show local devices first
+        deviceList.removeIf(device -> device.remoteConnection != null);
+        addSystemTrayDevices(menu, deviceList);
+
+        // show servers and their devices
+        List<RemoteConnection> remoteConnections = deviceManager.getRemoteConnectionManager().getActiveConnections();
+        // sort by name
+        remoteConnections.sort(Comparator.comparing(RemoteConnection::getName, String.CASE_INSENSITIVE_ORDER));
+        for (RemoteConnection server : remoteConnections) {
+            String name = TextUtils.truncate("Server: " + server.getName(), 30);
+            Color color = new Color(server.getServerConfig().color);
+            Menu serverItem = new Menu(name, UiUtils.getImage(Icons.SERVER, 16, 16, color));
+            List<Device> serverDeviceList = server.getDeviceList();
+            // sort by display name
+            serverDeviceList.sort((d1, d2) -> d1.getDisplayName().compareToIgnoreCase(d2.getDisplayName()));
+            addSystemTrayDevices(serverItem, serverDeviceList);
+
+            menu.add(serverItem);
+        }
+
+        menu.add(new Separator());
+
+        MenuItem quitItem = new MenuItem("Quit", UiUtils.getImage(Icons.POWER, 16, 16, Color.BLACK));
+        quitItem.setCallback(e2 -> exitApp(true));
+        menu.add(quitItem);
+    }
+
+    private void addSystemTrayDevices(Menu menu, List<Device> deviceList) {
+        for (Device device : deviceList) {
             Icons icn = device.getDeviceIcon();
-            Color color = device.getDeviceColor(false);
+            Color color = device.getDeviceColor();
             Image imageIcon = UiUtils.getImage(icn, 16, 16, color);
             String displayName = device.getDisplayName();
             Menu submenu = new Menu(TextUtils.truncate(displayName, 30), imageIcon);
@@ -596,12 +649,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
             menu.add(submenu);
         }
-
-        menu.add(new Separator());
-
-        MenuItem quitItem = new MenuItem("Quit", UiUtils.getImage(Icons.POWER, 16, 16, Color.BLACK));
-        quitItem.setCallback(e2 -> exitApp(true));
-        menu.add(quitItem);
     }
 
     @Override
@@ -620,6 +667,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             for (Device device : deviceList) {
                 updateDeviceState(device);
             }
+
+            setupSystemTray();
+            setupTaskBar();
         });
     }
 
@@ -629,6 +679,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             model.updateDevice(device);
             updateDeviceState(device);
             sorter.sort();
+
+            setupSystemTray();
+            setupTaskBar();
         });
     }
 
@@ -638,6 +691,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             model.removeDevice(device);
             updateDeviceState(device);
             sorter.sort();
+
+            setupSystemTray();
+            setupTaskBar();
         });
     }
 
@@ -698,25 +754,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         long freeMemory = Runtime.getRuntime().freeMemory();
         long usedMemory = totalMemory - freeMemory;
         memoryLabel.setText(FileUtils.bytesToDisplayString(usedMemory));
-
-        setupSystemTray();
-
-        // badge number
-        if (Taskbar.isTaskbarSupported()) {
-            try {
-                Taskbar taskbar = Taskbar.getTaskbar();
-                if (taskbar.isSupported(Taskbar.Feature.ICON_BADGE_NUMBER)) {
-                    int numOnline = 0;
-                    for (Device device : DeviceManager.getInstance().getDevices()) {
-                        if (device.isOnline) numOnline++;
-                    }
-                    String badge = numOnline > 0 ? String.valueOf(numOnline) : null;
-                    taskbar.setIconBadge(badge);
-                }
-            } catch (final Exception e) {
-                log.error("refreshUi: Exception: {}", e.getMessage());
-            }
-        }
     }
 
     private void handleHideColumn(int column) {
@@ -797,7 +834,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     /**
      * check if any devices in the list is a remote device
      *
-     * @param list
      * @param showWarning - true to show a warning if 1 or more devices are remote
      * @return true if any are remote; however if showWarning is true and the user chooses to continue, false is returned
      */
@@ -1735,8 +1771,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
         String version = null;
         String desc = null;
-        NetworkHelper networkHelper = new NetworkHelper();
-        NetworkHelper.HttpResponse response = networkHelper.getRequest(UPDATE_SOURCE_GITHUB);
+        NetworkHelper.HttpResponse response = NetworkHelper.getRequest(UPDATE_SOURCE_GITHUB);
         List<GithubRelease> releases = GsonHelper.stringToList(response.body, GithubRelease.class);
         if (!releases.isEmpty()) {
             GithubRelease latestRelease = releases.get(0);

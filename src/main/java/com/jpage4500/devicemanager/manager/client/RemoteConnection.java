@@ -1,9 +1,13 @@
-package com.jpage4500.devicemanager.manager;
+package com.jpage4500.devicemanager.manager.client;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
+import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.manager.server.LogStreamWebSocket;
+import com.jpage4500.devicemanager.manager.server.RemoteHttpServer;
+import com.jpage4500.devicemanager.manager.server.ScreenStreamWebSocket;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.NetworkHelper;
 import org.slf4j.Logger;
@@ -45,7 +49,6 @@ public class RemoteConnection {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private Future<?> future;
 
-    private NetworkHelper networkHelper;
     private final List<Device> deviceList = new ArrayList<>();
     private long lastHealthCheck = 0;
     private boolean isConnected = false;
@@ -56,13 +59,10 @@ public class RemoteConnection {
 
     // screen streaming
     private final Map<String, ScreenStreamSession> screenStreamSessions = new ConcurrentHashMap<>();
-    private HttpClient httpClient;
 
     public RemoteConnection(RemoteServerConfig config, RemoteConnectionManager.RemoteConnectionListener listener) {
         this.serverConfig = config;
         this.listener = listener;
-        networkHelper = new NetworkHelper();
-        httpClient = HttpClient.newHttpClient();
         scheduleRefresh();
     }
 
@@ -133,7 +133,7 @@ public class RemoteConnection {
     public RemoteHttpServer.ServerInfo fetchServerInfo() {
         Map<String, String> headers = getDefaultHeaders();
         String url = serverConfig.getUrl() + RemoteHttpServer.API_INFO;
-        NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
+        NetworkHelper.HttpResponse response = NetworkHelper.getRequest(url, headers);
         if (response.status == 200) {
             isConnected = true;
             lastHealthCheck = System.currentTimeMillis();
@@ -150,7 +150,7 @@ public class RemoteConnection {
     public List<Device> fetchDevices() {
         Map<String, String> headers = getDefaultHeaders();
         String url = serverConfig.getUrl() + RemoteHttpServer.API_DEVICES;
-        NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
+        NetworkHelper.HttpResponse response = NetworkHelper.getRequest(url, headers);
         //log.trace("fetchDevices: response: {}", GsonHelper.toJson(response));
         if (response.status == 200) {
             List<Device> deviceList = GsonHelper.stringToList(response.body, Device.class);
@@ -172,7 +172,7 @@ public class RemoteConnection {
         String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
         String url = serverConfig.getUrl() + RemoteHttpServer.API_FILES_LIST + "?serial=" + deviceSerial + "&path=" + encodedPath;
         Map<String, String> headers = getDefaultHeaders();
-        NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
+        NetworkHelper.HttpResponse response = NetworkHelper.getRequest(url, headers);
         log.trace("fetchFileList: response: {}", GsonHelper.toJson(response));
         if (response.status == 200) {
             List<DeviceFile> fileList = GsonHelper.stringToList(response.body, DeviceFile.class);
@@ -188,7 +188,7 @@ public class RemoteConnection {
     public Map<String, String> fetchDeviceProperties(String deviceSerial) {
         String url = serverConfig.getUrl() + RemoteHttpServer.API_DEVICE_PROPERTIES + "?serial=" + deviceSerial;
         Map<String, String> headers = getDefaultHeaders();
-        NetworkHelper.HttpResponse response = networkHelper.getRequest(url, headers);
+        NetworkHelper.HttpResponse response = NetworkHelper.getRequest(url, headers);
         log.trace("fetchDeviceProperties: response: {}", GsonHelper.toJson(response));
         if (response.status == 200) {
             return GsonHelper.stringToMap(response.body, String.class, String.class);
@@ -208,7 +208,7 @@ public class RemoteConnection {
         request.put("key", key);
         request.put("value", value);
 
-        NetworkHelper.HttpResponse response = networkHelper.postRequest(url, GsonHelper.toJson(request), headers);
+        NetworkHelper.HttpResponse response = NetworkHelper.postRequest(url, GsonHelper.toJson(request), headers);
         return response.status == 200;
     }
 
@@ -218,7 +218,7 @@ public class RemoteConnection {
     public BufferedImage fetchScreenshot(String deviceSerial) {
         String url = serverConfig.getUrl() + RemoteHttpServer.API_SCREENSHOT + "?serial=" + deviceSerial;
         Map<String, String> headers = getDefaultHeaders();
-        NetworkHelper.HttpDataResponse response = networkHelper.download(url, headers);
+        NetworkHelper.HttpDataResponse response = NetworkHelper.download(url, headers);
         if (response.status == 200 && response.data != null) {
             try (ByteArrayInputStream bais = new ByteArrayInputStream(response.data)) {
                 return ImageIO.read(bais);
@@ -262,7 +262,7 @@ public class RemoteConnection {
         request.put("serial", deviceSerial);
         request.put("command", command);
 
-        NetworkHelper.HttpResponse response = networkHelper.postRequest(url, GsonHelper.toJson(request), headers);
+        NetworkHelper.HttpResponse response = NetworkHelper.postRequest(url, GsonHelper.toJson(request), headers);
 
         if (response.status == 200) {
             return GsonHelper.fromJson(response.body, DeviceManager.ShellResult.class);
@@ -281,7 +281,7 @@ public class RemoteConnection {
             "&path=" + encodedPath + "&file=" + encodedFile;
 
         Map<String, String> headers = getDefaultHeaders();
-        NetworkHelper.HttpResponse response = networkHelper.downloadFile(url, saveFile, headers);
+        NetworkHelper.HttpResponse response = NetworkHelper.downloadFile(url, saveFile, headers);
         return response.status == 200;
     }
 
@@ -295,7 +295,7 @@ public class RemoteConnection {
             "&path=" + encodedPath + "&file=" + encodedFile;
 
         Map<String, String> headers = getDefaultHeaders();
-        NetworkHelper.HttpResponse response = networkHelper.upload(url, localFile, headers);
+        NetworkHelper.HttpResponse response = NetworkHelper.upload(url, localFile, headers);
         return response.status == 200;
     }
 
@@ -310,7 +310,7 @@ public class RemoteConnection {
         }
 
         Map<String, String> headers = getDefaultHeaders();
-        NetworkHelper.HttpResponse response = networkHelper.upload(url, localFile, headers);
+        NetworkHelper.HttpResponse response = NetworkHelper.upload(url, localFile, headers);
         return new DeviceManager.Result(response.status == 200, response.body);
     }
 
@@ -436,7 +436,7 @@ public class RemoteConnection {
 
         // connect WebSocket
         try {
-            CompletableFuture<WebSocket> wsFuture = httpClient.newWebSocketBuilder()
+            CompletableFuture<WebSocket> wsFuture = HttpClient.newHttpClient().newWebSocketBuilder()
                 .buildAsync(URI.create(wsUrl), wsListener);
 
             wsFuture.whenComplete((ws, throwable) -> {
@@ -802,7 +802,7 @@ public class RemoteConnection {
 
             @Override
             public void onError(WebSocket webSocket, Throwable error) {
-                log.error("onError: screen stream device: {}", deviceSerial, error);
+                log.error("onError: screen stream device: {}, {}", deviceSerial, error.getMessage());
                 ScreenStreamSession session = screenStreamSessions.remove(deviceSerial);
                 if (session != null && session.listener != null) {
                     session.listener.onError("WebSocket error: " + error.getMessage());
@@ -813,7 +813,7 @@ public class RemoteConnection {
 
         // connect WebSocket
         try {
-            CompletableFuture<WebSocket> wsFuture = httpClient.newWebSocketBuilder()
+            CompletableFuture<WebSocket> wsFuture = HttpClient.newHttpClient().newWebSocketBuilder()
                 .buildAsync(URI.create(wsUrl), wsListener);
 
             wsFuture.whenComplete((ws, throwable) -> {

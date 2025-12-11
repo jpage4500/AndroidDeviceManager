@@ -2,7 +2,7 @@ package com.jpage4500.devicemanager.ui.dialog;
 
 import com.jpage4500.devicemanager.data.RemoteClientInfo;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.RemoteServerManager;
+import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -53,8 +53,9 @@ public class ShareServerDialog extends JPanel {
 
         // fetch network list in background
         Utils.runBackground(() -> {
+            List<RemoteConnectionUtils.Network> list = RemoteConnectionUtils.getActiveNetworkInfo();
             synchronized (this) {
-                networkList = RemoteConnectionUtils.getActiveNetworkInfo();
+                networkList = list;
             }
             SwingUtilities.invokeLater(this::refreshUI);
         });
@@ -257,10 +258,10 @@ public class ShareServerDialog extends JPanel {
             StringSelection selection = new StringSelection(connectionStr);
             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
             clipboard.setContents(selection, selection);
-            JOptionPane.showMessageDialog(this, "Connection string copied to clipboard", "Copied", JOptionPane.INFORMATION_MESSAGE);
+            DialogHelper.showDialog(this, "Copied", "Connection string copied to clipboard");
         } catch (Exception e) {
             log.error("Failed to copy connection string", e);
-            JOptionPane.showMessageDialog(this, "Failed to generate connection string", "Error", JOptionPane.ERROR_MESSAGE);
+            DialogHelper.showDialog(this, "Error", "Failed to generate connection string", true);
         }
     }
 
