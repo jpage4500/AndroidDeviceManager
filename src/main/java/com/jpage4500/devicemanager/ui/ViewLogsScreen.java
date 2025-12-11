@@ -573,7 +573,12 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         table.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
             @Override
             public void mouseMoved(java.awt.event.MouseEvent e) {
-                handleMouseMovedForTooltip(e);
+                // only show tooltip if autoscroll is disabled
+                if (!autoScrollCheckBox.isSelected()) {
+                    handleMouseMovedForTooltip(e);
+                } else {
+                    hideTooltip();
+                }
             }
         });
 
@@ -1144,26 +1149,28 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         if (numSelected > 0) {
             optionList.add("Selected Lines (" + numSelected + ")");
         }
-        optionList.add("Visible Lines");
+        List<LogFilter> selectedFilters = filterList.getSelectedValuesList();
+        if (!selectedFilters.isEmpty()) {
+            optionList.add("Visible Lines");
+        }
         optionList.add("Entire Log Buffer");
 
-        int choice = DialogHelper.showOptionDialog(this,
-            "What would you like to save?",
-            "Save Logs",
-            optionList);
-        if (choice < 0 || choice >= optionList.size()) return;
-
-        // adjust choice if no selected rows
-        if (numSelected == 0) choice++;
-
-        List<LogEntry> logEntriesToSave = new ArrayList<>();
-        logEntriesToSave = switch (choice) {
-            case 0 -> getSelectedLogEntries();
-            case 1 -> getVisibleLogEntries();
-            case 2 -> getAllLogEntries();
-            default -> logEntriesToSave;
-        };
-
+        List<LogEntry> logEntriesToSave = null;
+        // only show dialog if more than one option
+        if (optionList.size() > 1) {
+            int choice = DialogHelper.showOptionDialog(this, "What would you like to save?", "Save Logs", optionList);
+            if (choice < 0 || choice >= optionList.size()) return;
+            String selectedValue = optionList.get(choice);
+            if (TextUtils.startsWith(selectedValue, "Selected")) {
+                logEntriesToSave = getSelectedLogEntries();
+            } else if (TextUtils.startsWith(selectedValue, "Visible")) {
+                logEntriesToSave = getVisibleLogEntries();
+            }
+        }
+        if (logEntriesToSave == null) {
+            // default: save entire log buffer
+            logEntriesToSave = getAllLogEntries();
+        }
         if (logEntriesToSave.isEmpty()) {
             DialogHelper.showDialog(this, "Nothing to save", "No log entries to save");
             return;

@@ -54,7 +54,9 @@ public class MessageTooltipPanel extends JWindow {
         textView.setText(text);
         int preferredHeight = textView.getPreferredHeight(width);
         int actualHeight = Math.min(preferredHeight, MAX_HEIGHT);
-        boolean showAtTop = mouseY >= (bottomY - actualHeight);
+        // NOTE: always show at top unless the dialog would cover up the mouse cursor
+        // boolean showAtTop = mouseY >= (bottomY - actualHeight);
+        boolean showAtTop = mouseY >= topY + actualHeight;
         int y = showAtTop ? topY : bottomY - actualHeight;
         setSize(width, actualHeight);
         setLocation(x, y);
