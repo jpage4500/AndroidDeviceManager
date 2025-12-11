@@ -9,6 +9,7 @@ import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -156,6 +157,10 @@ public class RemoteConnectionManager {
     public List<RemoteServerConfig> getServers() {
         String serverStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_CONNECTED_SERVERS);
         return GsonHelper.stringToList(serverStr, RemoteServerConfig.class);
+    }
+
+    public List<RemoteConnection> getActiveConnections() {
+        return new ArrayList<>(connections.values());
     }
 
     /**

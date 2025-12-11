@@ -533,7 +533,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void setupSystemTray() {
-        List<Device> deviceList = DeviceManager.getInstance().getDevices();
+        DeviceManager deviceManager = DeviceManager.getInstance();
+        List<Device> deviceList = deviceManager.getDevices();
         // sort by display name
         deviceList.sort((d1, d2) -> d1.getDisplayName().compareToIgnoreCase(d2.getDisplayName()));
         // compare list to previous list so we don't have to update tray anytime a device property is updated
@@ -594,6 +595,34 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         menu.add(new Separator());
 
+        // show local devices first
+        deviceList.removeIf(device -> device.remoteConnection != null);
+        addSystemTrayDevices(menu, deviceList);
+
+        // show servers and their devices
+        List<RemoteConnection> remoteConnections = deviceManager.getRemoteConnectionManager().getActiveConnections();
+        // sort by name
+        remoteConnections.sort(Comparator.comparing(RemoteConnection::getName, String.CASE_INSENSITIVE_ORDER));
+        for (RemoteConnection server : remoteConnections) {
+            String name = TextUtils.truncate("Server: " + server.getName(), 30);
+            Color color = new Color(server.getServerConfig().color);
+            Menu serverItem = new Menu(name, UiUtils.getImage(Icons.SERVER, 16, 16, color));
+            List<Device> serverDeviceList = server.getDeviceList();
+            // sort by display name
+            serverDeviceList.sort((d1, d2) -> d1.getDisplayName().compareToIgnoreCase(d2.getDisplayName()));
+            addSystemTrayDevices(serverItem, serverDeviceList);
+
+            menu.add(serverItem);
+        }
+
+        menu.add(new Separator());
+
+        MenuItem quitItem = new MenuItem("Quit", UiUtils.getImage(Icons.POWER, 16, 16, Color.BLACK));
+        quitItem.setCallback(e2 -> exitApp(true));
+        menu.add(quitItem);
+    }
+
+    private void addSystemTrayDevices(Menu menu, List<Device> deviceList) {
         for (Device device : deviceList) {
             Icons icn = device.getDeviceIcon();
             Color color = device.getDeviceColor();
@@ -620,12 +649,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
             menu.add(submenu);
         }
-
-        menu.add(new Separator());
-
-        MenuItem quitItem = new MenuItem("Quit", UiUtils.getImage(Icons.POWER, 16, 16, Color.BLACK));
-        quitItem.setCallback(e2 -> exitApp(true));
-        menu.add(quitItem);
     }
 
     @Override
