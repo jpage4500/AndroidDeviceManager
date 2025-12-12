@@ -197,9 +197,7 @@ public class DialogHelper {
 
                 UiUtils.addPopupMenuItem(popupMenu, "Copy to Clipboard", actionEvent -> {
                     String allText = TextUtils.join(valueList, "\n");
-                    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                    StringSelection stringSelection = new StringSelection(allText);
-                    clipboard.setContents(stringSelection, null);
+                    Utils.setClipboardText(allText);
                 });
                 popupMenu.show(evt.getComponent(), evt.getX(), evt.getY());
             } else if (evt.getClickCount() == 2) {

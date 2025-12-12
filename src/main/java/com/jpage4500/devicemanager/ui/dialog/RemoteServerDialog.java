@@ -4,14 +4,13 @@ import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.client.RemoteConnectionManager;
-import com.jpage4500.devicemanager.utils.DialogHelper;
-import com.jpage4500.devicemanager.utils.GsonHelper;
-import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
+import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
@@ -168,32 +167,26 @@ public class RemoteServerDialog extends JPanel {
     }
 
     private void pasteConnectionString() {
-        try {
-            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-            String connStr = (String) clipboard.getData(DataFlavor.stringFlavor);
-            if (connStr != null && !connStr.trim().isEmpty()) {
-                RemoteServerConfig config = RemoteConnectionUtils.parseConnectionString(connStr.trim());
-                log.trace("pasteConnectionString: {} -> {}", connStr, GsonHelper.toJson(config));
-                if (config != null) {
-                    // Open Add Server dialog with pre-filled values
-                    AddServerDialog dialog = new AddServerDialog(parent, config);
-                    RemoteServerConfig updated = dialog.showDialog();
-                    if (updated != null) {
-                        RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
-                        // prevent duplicates by host/port
-                        if (remoteConnectionManager.isServerExist(updated.host, updated.port, null)) return;
-                        remoteConnectionManager.addServer(updated);
-                        loadServers();
-                    }
-                } else {
-                    DialogHelper.showDialog(this, "Error", "Invalid connection string");
-                }
-            } else {
-                DialogHelper.showDialog(this, "Error", "Clipboard is empty");
+        String connStr = Utils.getClipboardText();
+        if (TextUtils.isEmpty(connStr)) {
+            DialogHelper.showDialog(this, "Error", "Clipboard is empty");
+            return;
+        }
+        RemoteServerConfig config = RemoteConnectionUtils.parseConnectionString(connStr.trim());
+        log.trace("pasteConnectionString: {} -> {}", connStr, GsonHelper.toJson(config));
+        if (config != null) {
+            // Open Add Server dialog with pre-filled values
+            AddServerDialog dialog = new AddServerDialog(parent, config);
+            RemoteServerConfig updated = dialog.showDialog();
+            if (updated != null) {
+                RemoteConnectionManager remoteConnectionManager = DeviceManager.getInstance().getRemoteConnectionManager();
+                // prevent duplicates by host/port
+                if (remoteConnectionManager.isServerExist(updated.host, updated.port, null)) return;
+                remoteConnectionManager.addServer(updated);
+                loadServers();
             }
-        } catch (Exception e) {
-            log.error("pasteConnectionString: {}", e.getMessage());
-            DialogHelper.showDialog(this, "Error", "Failed to paste from clipboard");
+        } else {
+            DialogHelper.showDialog(this, "Error", "Invalid connection string");
         }
     }
 

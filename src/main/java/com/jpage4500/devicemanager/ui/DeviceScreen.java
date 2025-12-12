@@ -776,8 +776,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleCopyClipboardFieldCommand() {
-        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
         int selectedColumn = table.getSelectedColumn();
@@ -791,13 +789,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             String value = model.deviceValue(device, modelCol);
             sb.append(value != null ? value : "");
         }
-        StringSelection stringSelection = new StringSelection(sb.toString());
-        clipboard.setContents(stringSelection, null);
+        Utils.setClipboardText(sb.toString());
     }
 
     private void handleCopyClipboardCommand() {
-        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
 
@@ -810,8 +805,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 sb.append(value != null ? value : "");
             }
         }
-        StringSelection stringSelection = new StringSelection(sb.toString());
-        clipboard.setContents(stringSelection, null);
+        Utils.setClipboardText(sb.toString());
     }
 
     private void handleTermCommand() {

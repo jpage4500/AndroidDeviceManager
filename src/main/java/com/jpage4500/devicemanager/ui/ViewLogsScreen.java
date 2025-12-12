@@ -20,8 +20,6 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
@@ -688,9 +686,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
         if (sb.isEmpty()) return;
 
-        StringSelection stringSelection = new StringSelection(sb.toString());
-        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-        clipboard.setContents(stringSelection, null);
+        Utils.setClipboardText(sb.toString());
     }
 
     private void handleCopyClicked() {
@@ -702,9 +698,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
         if (sb.isEmpty()) return;
 
-        StringSelection stringSelection = new StringSelection(sb.toString());
-        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-        clipboard.setContents(stringSelection, null);
+        Utils.setClipboardText(sb.toString());
     }
 
     private void handleViewLogsClicked() {

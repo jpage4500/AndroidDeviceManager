@@ -5,15 +5,13 @@ import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
-import com.jpage4500.devicemanager.utils.AndroidKeyMapper;
-import com.jpage4500.devicemanager.utils.Animations;
-import com.jpage4500.devicemanager.utils.DialogHelper;
-import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -590,7 +588,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
             // check for CMD+V (Mac) or CTRL+V (other platforms) to paste text
             if (isMetaDown && keyCode == KeyEvent.VK_V) {
-                pasteTextToDevice();
+                pasteTextToDevice(null);
                 e.consume();
                 return;
             }
@@ -743,38 +741,40 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             }
         }
 
-        private void pasteTextToDevice() {
+        private void pasteTextToDevice(String pasteText) {
             if (!isInputAllowed()) {
                 log.debug("pasteTextToDevice: input not allowed");
                 statusBar.setCenterLabel("Device not connected");
                 return;
             }
 
-            try {
-                Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                if (!clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)) {
-                    log.debug("pasteTextToDevice: no text in clipboard");
-                    statusBar.setCenterLabel("No text in clipboard");
-                    return;
-                }
-
-                String text = (String) clipboard.getData(DataFlavor.stringFlavor);
-                if (text == null || text.isEmpty()) {
-                    log.debug("pasteTextToDevice: clipboard text is empty");
-                    statusBar.setCenterLabel("Clipboard is empty");
-                    return;
-                }
-
-                log.debug("pasteTextToDevice: pasting {} characters", text.length());
-                remoteConnection.sendScreenInputText(device.serial, text);
-                statusBar.setCenterLabel("Pasted " + text.length() + " characters");
-
-                // show animation
-                addIconAnimation(UiUtils.getImage(Icons.PASTE, 64));
-            } catch (Exception ex) {
-                log.error("pasteTextToDevice: error:{}", ex.getMessage());
-                statusBar.setCenterLabel("Error pasting text: " + ex.getMessage());
+            if (TextUtils.isEmpty(pasteText)) {
+                pasteText = Utils.getClipboardText();
+                if (TextUtils.isEmpty(pasteText)) return;
             }
+
+            log.debug("pasteTextToDevice: pasting: {}", pasteText);
+            remoteConnection.sendScreenInputText(device.serial, pasteText);
+            statusBar.setCenterLabel("Pasted text");
+
+            // show animation
+            addIconAnimation(UiUtils.getImage(Icons.PASTE, 64));
+        }
+
+        /**
+         * send command to device (ie: "adb shell" +
+         */
+        private void executeCommand(String command) {
+            if (!isInputAllowed()) {
+                log.debug("executeCommand: input not allowed");
+                statusBar.setCenterLabel("Device not connected");
+                return;
+            }
+
+            addKeyAnimation("run command");
+            Utils.runBackground(() -> {
+                DeviceManager.ShellResult result = remoteConnection.executeCommand(device.serial, command);
+            });
         }
 
         /**
@@ -900,12 +900,16 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             popup.addSeparator();
 
             // Paste from clipboard
-            JMenuItem pasteItem = UiUtils.addPopupMenuItem(popup, "Paste", Icons.PASTE, evt -> {
-                activePopup = null;
-                pasteTextToDevice();
-            });
-            popup.add(pasteItem);
-            popup.addSeparator();
+            String pasteText = Utils.getClipboardText();
+            if (TextUtils.notEmpty(pasteText)) {
+                JMenuItem pasteItem = UiUtils.addPopupMenuItem(popup, "Paste", Icons.PASTE, evt -> {
+                    activePopup = null;
+                    pasteTextToDevice(pasteText);
+                });
+                pasteItem.setToolTipText("Paste: \"" + pasteText + "\"");
+                popup.add(pasteItem);
+                popup.addSeparator();
+            }
 
             // TODO: uncomment later if useful
 //            // Page Up

@@ -614,9 +614,7 @@ public class ExploreScreen extends BaseScreen {
             sb.append(selectedPath + "/" + file.name);
         }
 
-        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-        StringSelection stringSelection = new StringSelection(sb.toString());
-        clipboard.setContents(stringSelection, null);
+        Utils.setClipboardText(sb.toString());
     }
 
     private void handleCopyName() {
@@ -630,9 +628,7 @@ public class ExploreScreen extends BaseScreen {
             sb.append(file.name);
         }
 
-        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-        StringSelection stringSelection = new StringSelection(sb.toString());
-        clipboard.setContents(stringSelection, null);
+        Utils.setClipboardText(sb.toString());
     }
 
     private List<DeviceFile> getSelectedFiles(boolean includeUpFolder, boolean showError) {
