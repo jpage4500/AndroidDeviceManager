@@ -14,8 +14,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
-import javax.swing.event.PopupMenuEvent;
-import javax.swing.event.PopupMenuListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -590,6 +588,13 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 return;
             }
 
+            // check for CMD+V (Mac) or CTRL+V (other platforms) to paste text
+            if (isMetaDown && keyCode == KeyEvent.VK_V) {
+                pasteTextToDevice();
+                e.consume();
+                return;
+            }
+
             if (!isInputAllowed()) return;
 
             // map to Android keycode
@@ -738,6 +743,40 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             }
         }
 
+        private void pasteTextToDevice() {
+            if (!isInputAllowed()) {
+                log.debug("pasteTextToDevice: input not allowed");
+                statusBar.setCenterLabel("Device not connected");
+                return;
+            }
+
+            try {
+                Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                if (!clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)) {
+                    log.debug("pasteTextToDevice: no text in clipboard");
+                    statusBar.setCenterLabel("No text in clipboard");
+                    return;
+                }
+
+                String text = (String) clipboard.getData(DataFlavor.stringFlavor);
+                if (text == null || text.isEmpty()) {
+                    log.debug("pasteTextToDevice: clipboard text is empty");
+                    statusBar.setCenterLabel("Clipboard is empty");
+                    return;
+                }
+
+                log.debug("pasteTextToDevice: pasting {} characters", text.length());
+                remoteConnection.sendScreenInputText(device.serial, text);
+                statusBar.setCenterLabel("Pasted " + text.length() + " characters");
+
+                // show animation
+                addIconAnimation(UiUtils.getImage(Icons.PASTE, 64));
+            } catch (Exception ex) {
+                log.error("pasteTextToDevice: error:{}", ex.getMessage());
+                statusBar.setCenterLabel("Error pasting text: " + ex.getMessage());
+            }
+        }
+
         /**
          * Convert screen coordinates to device coordinates
          */
@@ -859,6 +898,15 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             // Menu
             addPopupItem(popup, "Menu", Icons.MENU, AndroidKeyMapper.KEYCODE_MENU);
             popup.addSeparator();
+
+            // Paste from clipboard
+            JMenuItem pasteItem = UiUtils.addPopupMenuItem(popup, "Paste", Icons.PASTE, evt -> {
+                activePopup = null;
+                pasteTextToDevice();
+            });
+            popup.add(pasteItem);
+            popup.addSeparator();
+
             // TODO: uncomment later if useful
 //            // Page Up
 //            addPopupItem(popup, "Page Up", Icons.ARROW_UP, AndroidKeyMapper.KEYCODE_PAGE_UP);
@@ -887,6 +935,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
         private void addPopupItem(JPopupMenu popup, String label, Icons icn, int keycode) {
             JMenuItem item = UiUtils.addPopupMenuItem(popup, label, icn, evt -> {
+                activePopup = null;
                 if (isInputAllowed()) {
                     remoteConnection.sendScreenInputKeyEvent(device.serial, keycode);
                     addIconAnimation(UiUtils.getImage(icn, 64));

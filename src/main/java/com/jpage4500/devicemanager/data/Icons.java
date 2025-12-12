@@ -60,6 +60,7 @@ public enum Icons {
     OPEN_FOLDER("open_folder.png"),
     OVERFLOW("overflow.png"),
     PAUSE("pause.png"),
+    PASTE("paste.png"),
     PLAY("play.png"),
     POWER("power.png"),
     RECENT("recent.png"),

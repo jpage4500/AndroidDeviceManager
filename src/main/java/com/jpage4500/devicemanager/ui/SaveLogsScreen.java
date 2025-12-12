@@ -157,6 +157,7 @@ public class SaveLogsScreen extends BaseScreen {
 
                 @Override
                 public void handleError(String error) {
+                    stopLogging();
                 }
             });
         }
