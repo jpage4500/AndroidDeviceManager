@@ -154,6 +154,10 @@ public class SaveLogsScreen extends BaseScreen {
                 public void handleProcessMap(Map<String, String> processMap) {
                     // do nothing
                 }
+
+                @Override
+                public void handleError(String error) {
+                }
             });
         }
         isRecording = true;

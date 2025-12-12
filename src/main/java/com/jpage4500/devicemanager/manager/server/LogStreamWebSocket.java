@@ -147,6 +147,11 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
         sendMessage(TYPE_PROCESS_MAP, Map.of("map", processMap));
     }
 
+    @Override
+    public void handleError(String error) {
+
+    }
+
     // private helper methods
 
     private void startLogging() {

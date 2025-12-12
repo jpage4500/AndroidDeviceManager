@@ -1378,6 +1378,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
          * update process map (map of all running apps/processes and their process ID)
          */
         void handleProcessMap(Map<String, String> processMap);
+
+        // called if logging stops unexpectedly
+        void handleError(String error);
     }
 
     private AtomicBoolean getLoggingState(String serial, boolean createIfNotFound) {
@@ -1450,7 +1453,8 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     }
                 }
             } catch (Exception e) {
-                log.error("startLogging: {}, {}", e.getMessage(), e.getMessage());
+                log.error("startLogging: Exception:{}", e.getMessage());
+                listener.handleError("Error: " + e.getMessage());
             } finally {
                 if (inputStream != null) {
                     try {

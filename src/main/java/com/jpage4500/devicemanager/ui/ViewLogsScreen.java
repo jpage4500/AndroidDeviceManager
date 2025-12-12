@@ -228,8 +228,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // [CMD + T] = hide toolbar
         createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
-        // [CMD + H] = distraction free
-        createCmdMenuItem(windowMenu, "Toggle Distraction Free View", KeyEvent.VK_H, e -> toggleQuickViewButton());
+        // [CMD + D] = distraction free
+        createCmdMenuItem(windowMenu, "Toggle Distraction Free View", KeyEvent.VK_D, e -> toggleQuickViewButton());
 
         // -----------------------------------------------------------
         // -----------------------------------------------------------
@@ -754,6 +754,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void stopLogging() {
         DeviceManager.getInstance().stopLogging(device);
+        isLoggedPaused = true;
+        updateLoggingButton();
     }
 
     private void startLogging() {
@@ -813,6 +815,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void toggleLoggingButton() {
+        if (!device.isOnline) return;
         isLoggedPaused = !isLoggedPaused;
         updateLoggingButton();
         if (isLoggedPaused) {
@@ -1164,6 +1167,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     @Override
     public void handleProcessMap(Map<String, String> processMap) {
         SwingUtilities.invokeLater(() -> model.setProcessMap(processMap));
+    }
+
+    @Override
+    public void handleError(String error) {
+        stopLogging();
     }
 
     private void handleSaveLogsClicked() {

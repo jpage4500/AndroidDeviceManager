@@ -420,6 +420,10 @@ public class RemoteConnection {
             @Override
             public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
                 log.info("onClose: device: {}, code: {}, reason: {}", deviceSerial, statusCode, reason);
+                LogStreamSession session = logStreamSessions.get(deviceSerial);
+                if (session != null && listener != null) {
+                    listener.handleError("connection closed: " + reason);
+                }
                 loggingStateMap.remove(deviceSerial);
                 logStreamSessions.remove(deviceSerial);
                 return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
@@ -428,6 +432,10 @@ public class RemoteConnection {
             @Override
             public void onError(WebSocket webSocket, Throwable error) {
                 log.error("onError: device: {}, {}", deviceSerial, error.getMessage());
+                LogStreamSession session = logStreamSessions.get(deviceSerial);
+                if (session != null && listener != null) {
+                    listener.handleError("Error: " + error.getMessage());
+                }
                 loggingStateMap.remove(deviceSerial);
                 logStreamSessions.remove(deviceSerial);
                 WebSocket.Listener.super.onError(webSocket, error);
@@ -737,9 +745,6 @@ public class RemoteConnection {
         ScreenStreamListener listener;
         String deviceSerial;
         ByteArrayOutputStream dataBuffer = new ByteArrayOutputStream();
-        int expectedHeaderLength = -1;
-        byte[] currentHeader = null;
-        int currentImageSize = 0;
 
         ScreenStreamSession(WebSocket ws, ScreenStreamListener listener, String serial) {
             this.webSocket = ws;
