@@ -1118,12 +1118,36 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         List<LogEntry> logList = new ArrayList<>(logEntryList);
         SwingUtilities.invokeLater(() -> {
             // capture selected rows
-//            int[] selectedRows = table.getSelectedRows();
-//            log.trace("handleLogEntries: selected rows: {}", GsonHelper.toJson(selectedRows));
+            int beforeSize = model.getRowCount();
+            int addedSize = logEntryList.size();
+            int[] selectedRows = table.getSelectedRows();
+            //log.trace("handleLogEntries: selected rows: {}", GsonHelper.toJson(selectedRows));
 
+            // add new log entries (NOTE: old logs might be removed if over limit)
             model.addLogEntry(logList);
 
             // restore selected rows
+            if (selectedRows.length > 0) {
+                int afterSize = model.getRowCount();
+                if (beforeSize + addedSize != afterSize) {
+                    // logs were truncated; adjust selection indexes
+                    int numRemoved = (beforeSize + addedSize) - afterSize;
+                    log.trace("handleLogEntries: {} removed, before:{}, added:{}, after:{}", numRemoved, beforeSize, addedSize, afterSize);
+                    for (int i = 0; i < selectedRows.length; i++) {
+                        selectedRows[i] -= numRemoved;
+                        // if selected row was deleted, set to 0
+                        // TODO: remove
+                        if (selectedRows[i] < 0) selectedRows[i] = 0;
+                    }
+                }
+
+                int startIndex = selectedRows[0];
+                int endIndex = selectedRows[selectedRows.length - 1];
+                log.trace("handleLogEntries: selected: {}-{}", startIndex, endIndex);
+                // TODO: allow for segmented selection ranges
+                table.setRowSelectionInterval(startIndex, endIndex);
+            }
+
 //            table.clearSelection();
 //            int rowCount = table.getRowCount();
 //            for (int row : selectedRows) {

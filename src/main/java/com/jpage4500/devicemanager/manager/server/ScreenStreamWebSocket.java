@@ -116,7 +116,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
 
             handleControlMessage(action, controlMessage);
         } catch (Exception e) {
-            log.error("onMessage: error processing message", e);
+            log.error("onMessage: Exception: {}", e.getMessage());
             sendErrorMessage("Error processing message: " + e.getMessage());
         }
     }
@@ -128,7 +128,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
 
     @Override
     protected void onException(IOException exception) {
-        log.error("onException: device: {}", device.serial, exception);
+        log.error("onException: device: {}, {}", device.serial, exception.getMessage());
         cleanup();
     }
 
@@ -142,7 +142,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
                 try {
                     close(NanoWSD.WebSocketFrame.CloseCode.NormalClosure, "Client requested close", false);
                 } catch (IOException e) {
-                    log.error("handleControlMessage: error closing", e);
+                    log.error("handleControlMessage: IOException: {}", e.getMessage());
                 }
                 break;
 
@@ -225,7 +225,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
                     break;
             }
         } catch (Exception e) {
-            log.error("handleInputMessage: error", e);
+            log.error("handleInputMessage: error:{}", e.getMessage());
             sendErrorMessage("Input error: " + e.getMessage());
         }
     }
@@ -504,7 +504,7 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             log.trace("sendStatusMessage: {}", json);
             send(json);
         } catch (IOException e) {
-            log.error("sendStatusMessage: error", e);
+            log.error("sendStatusMessage: error:{}", e.getMessage());
         }
     }
 

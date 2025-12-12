@@ -691,7 +691,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 log.debug("copyImageToClipboard: image copied to clipboard");
                 statusBar.setCenterLabel("Image copied to clipboard");
             } catch (Exception ex) {
-                log.error("copyImageToClipboard: error", ex);
+                log.error("copyImageToClipboard: error:{}", ex.getMessage());
                 statusBar.setCenterLabel("Error copying image");
             }
         }
@@ -731,7 +731,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                     log.debug("saveImageToFile: image saved to {}", file.getAbsolutePath());
                     statusBar.setCenterLabel("Image saved: " + file.getName());
                 } catch (IOException ex) {
-                    log.error("saveImageToFile: error saving image", ex);
+                    log.error("saveImageToFile: error saving image:{}", ex.getMessage());
                     statusBar.setCenterLabel("Error saving image");
                     DialogHelper.showDialog(this, "Save Error", "Failed to save image: " + ex.getMessage(), true);
                 }

@@ -278,7 +278,7 @@ public class RemoteHttpServer extends NanoWSD {
 
             return response;
         } catch (Exception e) {
-            log.error("handleScreenshot: Failed to process screenshot", e);
+            log.error("handleScreenshot: Failed to process screenshot:{}", e.getMessage());
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT,
                 "Error processing screenshot: " + e.getMessage());
         }
@@ -353,7 +353,7 @@ public class RemoteHttpServer extends NanoWSD {
 
             return response;
         } catch (Exception e) {
-            log.error("handleDownloadFile: Failed to download file", e);
+            log.error("handleDownloadFile: Failed to download file:{}", e.getMessage());
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT,
                 "Error downloading file: " + e.getMessage());
         }
@@ -402,7 +402,7 @@ public class RemoteHttpServer extends NanoWSD {
             response.put("path", path + "/" + filename);
             return createJsonResponse(response);
         } catch (Exception e) {
-            log.error("handleUploadFile: Failed to upload file", e);
+            log.error("handleUploadFile: Failed to upload file:{}", e.getMessage());
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "Error uploading file: " + e.getMessage());
         }
     }

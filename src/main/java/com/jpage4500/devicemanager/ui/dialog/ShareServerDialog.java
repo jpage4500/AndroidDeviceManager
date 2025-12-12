@@ -223,7 +223,7 @@ public class ShareServerDialog extends JPanel {
             try {
                 serverManager.startServer(port, authToken);
             } catch (Exception e) {
-                log.error("Failed to start server", e);
+                log.error("Failed to start server:{}", e.getMessage());
                 DialogHelper.showDialog(this, "Error", "Failed to start server: " + e.getMessage());
             }
 
@@ -260,7 +260,7 @@ public class ShareServerDialog extends JPanel {
             clipboard.setContents(selection, selection);
             DialogHelper.showDialog(this, "Copied", "Connection string copied to clipboard");
         } catch (Exception e) {
-            log.error("Failed to copy connection string", e);
+            log.error("Failed to copy connection string:{}", e.getMessage());
             DialogHelper.showDialog(this, "Error", "Failed to generate connection string", true);
         }
     }

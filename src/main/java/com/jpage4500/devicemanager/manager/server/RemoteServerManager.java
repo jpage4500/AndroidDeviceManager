@@ -88,7 +88,7 @@ public class RemoteServerManager {
             log.info("startServer: port: {}, token: {}", port, authToken);
             if (listener != null) listener.onServerStarted(port);
         } catch (IOException e) {
-            log.error("startServer: error", e);
+            log.error("startServer: error:{}", e.getMessage());
             if (listener != null) listener.onError(e);
         }
     }

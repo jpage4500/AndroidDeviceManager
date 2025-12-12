@@ -275,7 +275,7 @@ public class DraggableCheckBoxList extends JList<DraggableCheckBoxList.CheckBoxI
                 setSelectedIndex(dropTargetIndex);
                 return true;
             } catch (Exception e) {
-                log.error("Error importing data", e);
+                log.error("importData: Exception: {}", e.getMessage());
             }
 
             return false;

@@ -1450,7 +1450,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     }
                 }
             } catch (Exception e) {
-                log.error("startLogging: {}", e.getMessage(), e);
+                log.error("startLogging: {}, {}", e.getMessage(), e.getMessage());
             } finally {
                 if (inputStream != null) {
                     try {
@@ -1652,7 +1652,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 });
             }
         } catch (Exception e) {
-            log.error("copyResourcesToFiles: Exception:", e);
+            log.error("copyResourcesToFiles: {}", e.getMessage());
         }
     }
 
@@ -1673,7 +1673,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
             tempFile.setExecutable(true);
         } catch (Exception e) {
-            log.error("copyResource: Exception:", e);
+            log.error("copyResource: {}", e.getMessage());
         }
     }
 

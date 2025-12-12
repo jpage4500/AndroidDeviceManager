@@ -108,7 +108,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
                 default -> sendError("Unknown action: " + action);
             }
         } catch (Exception e) {
-            log.error("onMessage: device: {} error", device.serial, e);
+            log.error("onMessage: Exception: device: {}, {}", device.serial, e.getMessage());
             sendError("Error processing message: " + e.getMessage());
         }
     }
@@ -120,7 +120,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
 
     @Override
     protected void onException(IOException exception) {
-        log.error("onException: device: {}", device.serial, exception);
+        log.error("onException: device: {}, {}", device.serial, exception.getMessage());
         cleanup();
     }
 
@@ -174,7 +174,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
                     ping("heartbeat".getBytes());
                 }
             } catch (Exception e) {
-                log.error("pingTask: device: {} error", device.serial, e);
+                log.error("pingTask: device: {} {}", device.serial, e.getMessage());
             }
         }, PING_INTERVAL_MS, PING_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
@@ -202,7 +202,7 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
             //log.trace("sendBatch: compressed:{} decompressed:{} ratio:{}", compressed.length, json.length(), String.format("%.2f", (double) compressed.length / (double) json.length()));
             send(compressed);
         } catch (IOException e) {
-            log.error("sendBatch: gzip error device:{} size:{}", device.serial, logStrList.size(), e);
+            log.error("sendBatch: gzip error device:{} size:{}, {}", device.serial, logStrList.size(), e.getMessage());
             log.trace("sendBatch: {}", json);
         }
     }
@@ -251,7 +251,8 @@ public class LogStreamWebSocket extends NanoWSD.WebSocket implements DeviceManag
             String json = GsonHelper.toJson(message);
             send(json);
         } catch (IOException e) {
-            log.error("sendMessage: device: {} type: {} error", device.serial, type, e);
+            log.error("sendMessage: device: {} type: {} {}", device.serial, type, e.getMessage());
+            log.error("sendMessage: device: {} type: {} {}", device.serial, type, e.getMessage());
         }
     }
 
