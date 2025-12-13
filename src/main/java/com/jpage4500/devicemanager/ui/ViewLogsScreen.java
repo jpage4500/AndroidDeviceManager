@@ -1105,6 +1105,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void scrollToFollow() {
         if (autoScrollCheckBox != null && autoScrollCheckBox.isSelected()) {
+            table.clearSelection();
             table.scrollToBottom();
         }
     }
@@ -1114,44 +1115,51 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // save log entries as they'll get cleared after this method returns
         List<LogEntry> logList = new ArrayList<>(logEntryList);
         SwingUtilities.invokeLater(() -> {
-            // capture selected rows
-            int beforeSize = model.getRowCount();
-            int addedSize = logEntryList.size();
-            int[] selectedRows = table.getSelectedRows();
-            //log.trace("handleLogEntries: selected rows: {}", GsonHelper.toJson(selectedRows));
-
-            // add new log entries (NOTE: old logs might be removed if over limit)
-            model.addLogEntry(logList);
-
-            // restore selected rows
-            if (selectedRows.length > 0) {
-                int afterSize = model.getRowCount();
-                if (beforeSize + addedSize != afterSize) {
-                    // logs were truncated; adjust selection indexes
-                    int numRemoved = (beforeSize + addedSize) - afterSize;
-                    log.trace("handleLogEntries: {} removed, before:{}, added:{}, after:{}", numRemoved, beforeSize, addedSize, afterSize);
-                    for (int i = 0; i < selectedRows.length; i++) {
-                        selectedRows[i] -= numRemoved;
-                        // if selected row was deleted, set to 0
-                        // TODO: remove
-                        if (selectedRows[i] < 0) selectedRows[i] = 0;
-                    }
-                }
-
-                int startIndex = selectedRows[0];
-                int endIndex = selectedRows[selectedRows.length - 1];
-                log.trace("handleLogEntries: selected: {}-{}", startIndex, endIndex);
-                // TODO: allow for segmented selection ranges
-                table.setRowSelectionInterval(startIndex, endIndex);
+            // get selected rows
+            int[] selectedViewRows = table.getSelectedRows();
+            // convert VIEW indices to MODEL indices
+            int[] selectedModelRows = new int[selectedViewRows.length];
+            for (int i = 0; i < selectedViewRows.length; i++) {
+                selectedModelRows[i] = table.convertRowIndexToModel(selectedViewRows[i]);
             }
 
-//            table.clearSelection();
-//            int rowCount = table.getRowCount();
-//            for (int row : selectedRows) {
-//                if (row < rowCount) {
-//                    table.addRowSelectionInterval(row, row);
-//                }
-//            }
+            int beforeSize = model.getRowCount();
+            int addedSize = logList.size();
+
+            // disable selection events during update to prevent interference
+            ListSelectionModel selectionModel = table.getSelectionModel();
+            selectionModel.setValueIsAdjusting(true);
+
+            // add new log entries (NOTE: old logs might be removed from TOP if over limit)
+            model.addLogEntry(logList);
+
+            int afterSize = model.getRowCount();
+
+            // restore selected rows by adjusting MODEL indices if rows were removed from top
+            if (selectedModelRows.length > 0) {
+                int numRemoved = 0;
+                if (beforeSize + addedSize != afterSize) {
+                    // Logs were truncated from the top; adjust MODEL indices
+                    numRemoved = (beforeSize + addedSize) - afterSize;
+                }
+
+                table.clearSelection();
+                for (int modelRow : selectedModelRows) {
+                    // adjust for removed rows
+                    int adjustedModelRow = modelRow - numRemoved;
+                    // skip if this row was removed
+                    if (adjustedModelRow >= 0 && adjustedModelRow < afterSize) {
+                        // convert MODEL index to VIEW index
+                        int viewRow = table.convertRowIndexToView(adjustedModelRow);
+                        if (viewRow >= 0) {
+                            table.addRowSelectionInterval(viewRow, viewRow);
+                        }
+                    }
+                }
+            }
+
+            // re-enable selection events
+            selectionModel.setValueIsAdjusting(false);
 
             scrollToFollow();
             refreshUi();
