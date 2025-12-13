@@ -114,7 +114,7 @@ public class Device {
      * if device is connected via adb wireless
      */
     public boolean isWireless() {
-        return serial.indexOf(':') > 0;
+        return TextUtils.indexOf(serial, ':') >= 0 || TextUtils.endsWith(serial, "._tcp");
     }
 
     /**
@@ -191,7 +191,7 @@ public class Device {
     public Icons getDeviceIcon() {
         if (remoteConnection != null) return Icons.DEVICE_REMOTE;
         // if local device but connected via adb wireless (serial = 192.168.0.100:5555), use a different icon
-        if (TextUtils.contains(serial, ":")) return Icons.DEVICE_REMOTE;
+        if (isWireless()) return Icons.DEVICE_REMOTE;
         return Icons.DEVICE_LOCAL;
     }
 

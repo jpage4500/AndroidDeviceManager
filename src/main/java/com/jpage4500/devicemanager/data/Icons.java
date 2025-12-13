@@ -63,6 +63,7 @@ public enum Icons {
     PASTE("paste.png"),
     PLAY("play.png"),
     POWER("power.png"),
+    QR_CODE("qr_code.png"),
     RECENT("recent.png"),
     REFRESH("refresh.png"),
     RESTART("restart.png"),
