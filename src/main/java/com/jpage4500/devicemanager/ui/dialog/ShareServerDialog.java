@@ -223,7 +223,7 @@ public class ShareServerDialog extends JPanel {
             try {
                 serverManager.startServer(port, authToken);
             } catch (Exception e) {
-                log.error("Failed to start server", e);
+                log.error("Failed to start server:{}", e.getMessage());
                 DialogHelper.showDialog(this, "Error", "Failed to start server: " + e.getMessage());
             }
 
@@ -254,15 +254,8 @@ public class ShareServerDialog extends JPanel {
 
         String connectionStr = RemoteConnectionUtils.generateConnectionString(hostname, serverManager.getPort(), serverManager.getAuthToken(), deviceNameField.getText());
 
-        try {
-            StringSelection selection = new StringSelection(connectionStr);
-            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-            clipboard.setContents(selection, selection);
-            DialogHelper.showDialog(this, "Copied", "Connection string copied to clipboard");
-        } catch (Exception e) {
-            log.error("Failed to copy connection string", e);
-            DialogHelper.showDialog(this, "Error", "Failed to generate connection string", true);
-        }
+        Utils.setClipboardText(connectionStr);
+        DialogHelper.showDialog(this, "Copied", "Connection string copied to clipboard");
     }
 
     private void refreshClientList() {

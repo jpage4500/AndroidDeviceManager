@@ -28,6 +28,7 @@ public class AndroidKeyMapper {
     public static final int KEYCODE_SPACE = 62;
     public static final int KEYCODE_ESCAPE = 111;
     public static final int KEYCODE_FORWARD_DEL = 112;
+    public static final int KEYCODE_CTRL_LEFT = 113;
     public static final int KEYCODE_PAGE_UP = 92;
     public static final int KEYCODE_PAGE_DOWN = 93;
     public static final int KEYCODE_INSERT = 124;

@@ -1,11 +1,15 @@
 package com.jpage4500.devicemanager.utils;
 
+import com.jpage4500.devicemanager.data.Icons;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.Timer;
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -165,6 +169,29 @@ public class Utils {
         }
 
         return seconds + "s";
+    }
+
+    public static String getClipboardText() {
+        try {
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            if (!clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor)) {
+                return null;
+            }
+            return (String) clipboard.getData(DataFlavor.stringFlavor);
+        } catch (Exception e) {
+            log.trace("getClipboardText: Exception:{}", e.getMessage());
+            return null;
+        }
+    }
+
+    public static void setClipboardText(String text) {
+        try {
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            StringSelection stringSelection = new StringSelection(text);
+            clipboard.setContents(stringSelection, null);
+        } catch (Exception e) {
+            log.trace("setClipboardText: Exception:{}", e.getMessage());
+        }
     }
 
     public enum CompareResult {

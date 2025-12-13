@@ -1345,6 +1345,57 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         });
     }
 
+    /**
+     * Pair with a device using ADB wireless pairing
+     * @param ip IP address of device
+     * @param port Pairing port (not connection port)
+     * @param pairingCode 6-digit pairing code
+     * @param listener Callback listener
+     */
+    public void pairDevice(String ip, int port, String pairingCode, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            try {
+                log.debug("pairDevice: {}:{} with code:{}", ip, port, pairingCode);
+
+                // Run adb pair command
+                String command = String.format("adb pair %s:%d %s", ip, port, pairingCode);
+                Process process = Runtime.getRuntime().exec(command);
+
+                // Read output
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                StringBuilder output = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append("\n");
+                    log.trace("pairDevice output: {}", line);
+                }
+
+                // Read error output
+                BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+                StringBuilder errorOutput = new StringBuilder();
+                while ((line = errorReader.readLine()) != null) {
+                    errorOutput.append(line).append("\n");
+                    log.trace("pairDevice error: {}", line);
+                }
+
+                int exitCode = process.waitFor();
+                String result = output.toString();
+
+                if (exitCode == 0 && result.contains("Successfully paired")) {
+                    log.debug("pairDevice: Successfully paired with {}:{}", ip, port);
+                    listener.onTaskComplete(true, result);
+                } else {
+                    String errorMsg = errorOutput.length() > 0 ? errorOutput.toString() : result;
+                    log.error("pairDevice: Failed to pair with {}:{}, error:{}", ip, port, errorMsg);
+                    listener.onTaskComplete(false, errorMsg);
+                }
+            } catch (Exception e) {
+                log.error("pairDevice: {}:{}, Exception:{}", ip, port, e.getMessage(), e);
+                listener.onTaskComplete(false, e.getMessage());
+            }
+        });
+    }
+
     public void sendInputText(Device device, String text, TaskListener listener) {
         commandExecutorService.submit(() -> {
             String command = "input text \"" + text + "\"";
@@ -1378,6 +1429,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
          * update process map (map of all running apps/processes and their process ID)
          */
         void handleProcessMap(Map<String, String> processMap);
+
+        // called if logging stops unexpectedly
+        void handleError(String error);
     }
 
     private AtomicBoolean getLoggingState(String serial, boolean createIfNotFound) {
@@ -1450,7 +1504,8 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     }
                 }
             } catch (Exception e) {
-                log.error("startLogging: {}", e.getMessage(), e);
+                log.error("startLogging: Exception:{}", e.getMessage());
+                listener.handleError("Error: " + e.getMessage());
             } finally {
                 if (inputStream != null) {
                     try {
@@ -1652,7 +1707,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 });
             }
         } catch (Exception e) {
-            log.error("copyResourcesToFiles: Exception:", e);
+            log.error("copyResourcesToFiles: {}", e.getMessage());
         }
     }
 
@@ -1673,7 +1728,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
             tempFile.setExecutable(true);
         } catch (Exception e) {
-            log.error("copyResource: Exception:", e);
+            log.error("copyResource: {}", e.getMessage());
         }
     }
 

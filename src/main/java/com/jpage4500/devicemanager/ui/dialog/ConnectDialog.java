@@ -156,7 +156,14 @@ public class ConnectDialog extends JPanel {
         connectButton.addActionListener(e -> handleManualConnect());
         manualPanel.add(connectButton, "gapleft 10");
 
-        add(manualPanel, "growx");
+        add(manualPanel, "growx, wrap");
+
+        // Add QR Code button
+        JButton qrButton = new JButton("Pair with QR Code", UiUtils.getImageIcon(Icons.QR_CODE, UiUtils.IMG_SIZE_ICON));
+        qrButton.addActionListener(e -> {
+            QrCodeDialog.showQrCodeDialog(this, this::refreshTable);
+        });
+        add(qrButton, "align right, gaptop 10");
 
         updateConnectButton();
 

@@ -66,7 +66,7 @@ public class RemoteConnectionUtils {
 
             return config;
         } catch (Exception e) {
-            log.error("Failed to parse connection string", e);
+            log.error("Failed to parse connection string:{}", e.getMessage());
             return null;
         }
     }

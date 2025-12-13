@@ -223,7 +223,7 @@ public class RemoteConnection {
             try (ByteArrayInputStream bais = new ByteArrayInputStream(response.data)) {
                 return ImageIO.read(bais);
             } catch (Exception e) {
-                log.error("fetchScreenshot: error decoding image", e);
+                log.error("fetchScreenshot: error decoding image: {}", e.getMessage());
             }
         } else {
             log.warn("fetchScreenshot: failed, status: {}", response.status);
@@ -420,6 +420,10 @@ public class RemoteConnection {
             @Override
             public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
                 log.info("onClose: device: {}, code: {}, reason: {}", deviceSerial, statusCode, reason);
+                LogStreamSession session = logStreamSessions.get(deviceSerial);
+                if (session != null && listener != null) {
+                    listener.handleError("connection closed: " + reason);
+                }
                 loggingStateMap.remove(deviceSerial);
                 logStreamSessions.remove(deviceSerial);
                 return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
@@ -428,6 +432,10 @@ public class RemoteConnection {
             @Override
             public void onError(WebSocket webSocket, Throwable error) {
                 log.error("onError: device: {}, {}", deviceSerial, error.getMessage());
+                LogStreamSession session = logStreamSessions.get(deviceSerial);
+                if (session != null && listener != null) {
+                    listener.handleError("Error: " + error.getMessage());
+                }
                 loggingStateMap.remove(deviceSerial);
                 logStreamSessions.remove(deviceSerial);
                 WebSocket.Listener.super.onError(webSocket, error);
@@ -441,7 +449,7 @@ public class RemoteConnection {
 
             wsFuture.whenComplete((ws, throwable) -> {
                 if (throwable != null) {
-                    log.error("startLogging: device: {} failed", deviceSerial, throwable);
+                    log.error("startLogging: device: {} failed: {}", deviceSerial, throwable.getMessage());
                 } else {
                     // store session
                     LogStreamSession session = new LogStreamSession(ws, listener, deviceSerial);
@@ -450,7 +458,7 @@ public class RemoteConnection {
                 }
             });
         } catch (Exception e) {
-            log.error("startLogging: device: {} error", deviceSerial, e);
+            log.error("startLogging: device: {} {}", deviceSerial, e.getMessage());
         }
     }
 
@@ -470,7 +478,7 @@ public class RemoteConnection {
             }
             session.listener.handleLogEntries(logEntries);
         } catch (Exception e) {
-            log.error("handleBinaryLogFrame: device:{} decompress error", session.deviceSerial, e);
+            log.error("handleBinaryLogFrame: device:{} {}", session.deviceSerial, e.getMessage());
         }
     }
 
@@ -615,7 +623,7 @@ public class RemoteConnection {
                 default -> log.debug("handleWebSocketMessage: device: {} unknown type: {}", session.deviceSerial, type);
             }
         } catch (Exception e) {
-            log.error("handleWebSocketMessage: device: {}", session.deviceSerial, e);
+            log.error("handleWebSocketMessage: device: {}, {}", session.deviceSerial, e.getMessage());
         }
     }
 
@@ -687,7 +695,7 @@ public class RemoteConnection {
 
             return entry;
         } catch (Exception e) {
-            log.error("parseLogEntry: error", e);
+            log.error("parseLogEntry: {}", e.getMessage());
             return null;
         }
     }
@@ -708,7 +716,7 @@ public class RemoteConnection {
             webSocket.sendText(json, true);
             log.debug("sendControlMessage: action: {}", action);
         } catch (Exception e) {
-            log.error("sendControlMessage: error", e);
+            log.error("sendControlMessage: Exception:{}", e.getMessage());
         }
     }
 
@@ -737,9 +745,6 @@ public class RemoteConnection {
         ScreenStreamListener listener;
         String deviceSerial;
         ByteArrayOutputStream dataBuffer = new ByteArrayOutputStream();
-        int expectedHeaderLength = -1;
-        byte[] currentHeader = null;
-        int currentImageSize = 0;
 
         ScreenStreamSession(WebSocket ws, ScreenStreamListener listener, String serial) {
             this.webSocket = ws;
@@ -775,7 +780,7 @@ public class RemoteConnection {
                     try {
                         handleScreenStreamBinary(data, last, session);
                     } catch (Exception e) {
-                        log.error("onBinary: error handling data", e);
+                        log.error("onBinary: Exception:{}", e.getMessage());
                     }
                 }
                 return WebSocket.Listener.super.onBinary(webSocket, data, last);
@@ -818,7 +823,7 @@ public class RemoteConnection {
 
             wsFuture.whenComplete((ws, throwable) -> {
                 if (throwable != null) {
-                    log.error("startScreenStream: device: {} failed", deviceSerial, throwable);
+                    log.error("startScreenStream: device: {} failed:{}", deviceSerial, throwable.getMessage());
                     listener.onError("Failed to connect: " + throwable.getMessage());
                 } else {
                     // store session
@@ -828,7 +833,7 @@ public class RemoteConnection {
                 }
             });
         } catch (Exception e) {
-            log.error("startScreenStream: device: {} error", deviceSerial, e);
+            log.error("startScreenStream: device: {} error:{}", deviceSerial, e.getMessage());
             listener.onError("Failed to start: " + e.getMessage());
         }
     }
@@ -1021,7 +1026,7 @@ public class RemoteConnection {
             }
 
         } catch (Exception e) {
-            log.error("handleScreenStreamBinary: error", e);
+            log.error("handleScreenStreamBinary: error:{}", e.getMessage());
             session.listener.onError("Frame decode error: " + e.getMessage());
         }
     }
@@ -1042,7 +1047,7 @@ public class RemoteConnection {
                 session.listener.onError(error);
             }
         } catch (Exception e) {
-            log.error("handleScreenStreamText: error", e);
+            log.error("handleScreenStreamText: error:{}", e.getMessage());
         }
     }
 
@@ -1054,7 +1059,7 @@ public class RemoteConnection {
                 log.trace("sendScreenControlMessage: {}", json);
             }
         } catch (Exception e) {
-            log.error("sendScreenControlMessage: error", e);
+            log.error("sendScreenControlMessage: error:{}", e.getMessage());
         }
     }
 

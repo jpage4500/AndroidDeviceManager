@@ -5,17 +5,13 @@ import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
-import com.jpage4500.devicemanager.utils.AndroidKeyMapper;
-import com.jpage4500.devicemanager.utils.Animations;
-import com.jpage4500.devicemanager.utils.DialogHelper;
-import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
-import javax.swing.event.PopupMenuEvent;
-import javax.swing.event.PopupMenuListener;
+import javax.swing.Timer;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -590,6 +586,13 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 return;
             }
 
+            // check for CMD+V (Mac) or CTRL+V (other platforms) to paste text
+            if (isMetaDown && keyCode == KeyEvent.VK_V) {
+                pasteTextToDevice(null);
+                e.consume();
+                return;
+            }
+
             if (!isInputAllowed()) return;
 
             // map to Android keycode
@@ -691,7 +694,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 log.debug("copyImageToClipboard: image copied to clipboard");
                 statusBar.setCenterLabel("Image copied to clipboard");
             } catch (Exception ex) {
-                log.error("copyImageToClipboard: error", ex);
+                log.error("copyImageToClipboard: error:{}", ex.getMessage());
                 statusBar.setCenterLabel("Error copying image");
             }
         }
@@ -731,11 +734,47 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                     log.debug("saveImageToFile: image saved to {}", file.getAbsolutePath());
                     statusBar.setCenterLabel("Image saved: " + file.getName());
                 } catch (IOException ex) {
-                    log.error("saveImageToFile: error saving image", ex);
+                    log.error("saveImageToFile: error saving image:{}", ex.getMessage());
                     statusBar.setCenterLabel("Error saving image");
                     DialogHelper.showDialog(this, "Save Error", "Failed to save image: " + ex.getMessage(), true);
                 }
             }
+        }
+
+        private void pasteTextToDevice(String pasteText) {
+            if (!isInputAllowed()) {
+                log.debug("pasteTextToDevice: input not allowed");
+                statusBar.setCenterLabel("Device not connected");
+                return;
+            }
+
+            if (TextUtils.isEmpty(pasteText)) {
+                pasteText = Utils.getClipboardText();
+                if (TextUtils.isEmpty(pasteText)) return;
+            }
+
+            log.debug("pasteTextToDevice: pasting: {}", pasteText);
+            remoteConnection.sendScreenInputText(device.serial, pasteText);
+            statusBar.setCenterLabel("Pasted text");
+
+            // show animation
+            addIconAnimation(UiUtils.getImage(Icons.PASTE, 64));
+        }
+
+        /**
+         * send command to device (ie: "adb shell" +
+         */
+        private void executeCommand(String command) {
+            if (!isInputAllowed()) {
+                log.debug("executeCommand: input not allowed");
+                statusBar.setCenterLabel("Device not connected");
+                return;
+            }
+
+            addKeyAnimation("run command");
+            Utils.runBackground(() -> {
+                DeviceManager.ShellResult result = remoteConnection.executeCommand(device.serial, command);
+            });
         }
 
         /**
@@ -859,6 +898,19 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             // Menu
             addPopupItem(popup, "Menu", Icons.MENU, AndroidKeyMapper.KEYCODE_MENU);
             popup.addSeparator();
+
+            // Paste from clipboard
+            String pasteText = Utils.getClipboardText();
+            if (TextUtils.notEmpty(pasteText)) {
+                JMenuItem pasteItem = UiUtils.addPopupMenuItem(popup, "Paste", Icons.PASTE, evt -> {
+                    activePopup = null;
+                    pasteTextToDevice(pasteText);
+                });
+                pasteItem.setToolTipText("Paste: \"" + pasteText + "\"");
+                popup.add(pasteItem);
+                popup.addSeparator();
+            }
+
             // TODO: uncomment later if useful
 //            // Page Up
 //            addPopupItem(popup, "Page Up", Icons.ARROW_UP, AndroidKeyMapper.KEYCODE_PAGE_UP);
@@ -887,6 +939,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
         private void addPopupItem(JPopupMenu popup, String label, Icons icn, int keycode) {
             JMenuItem item = UiUtils.addPopupMenuItem(popup, label, icn, evt -> {
+                activePopup = null;
                 if (isInputAllowed()) {
                     remoteConnection.sendScreenInputKeyEvent(device.serial, keycode);
                     addIconAnimation(UiUtils.getImage(icn, 64));

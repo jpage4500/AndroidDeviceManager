@@ -20,8 +20,6 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
@@ -228,8 +226,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // [CMD + T] = hide toolbar
         createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
 
-        // [CMD + H] = distraction free
-        createCmdMenuItem(windowMenu, "Toggle Distraction Free View", KeyEvent.VK_H, e -> toggleQuickViewButton());
+        // [CMD + D] = distraction free
+        createCmdMenuItem(windowMenu, "Toggle Distraction Free View", KeyEvent.VK_D, e -> toggleQuickViewButton());
 
         // -----------------------------------------------------------
         // -----------------------------------------------------------
@@ -688,9 +686,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
         if (sb.isEmpty()) return;
 
-        StringSelection stringSelection = new StringSelection(sb.toString());
-        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-        clipboard.setContents(stringSelection, null);
+        Utils.setClipboardText(sb.toString());
     }
 
     private void handleCopyClicked() {
@@ -702,9 +698,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
         if (sb.isEmpty()) return;
 
-        StringSelection stringSelection = new StringSelection(sb.toString());
-        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-        clipboard.setContents(stringSelection, null);
+        Utils.setClipboardText(sb.toString());
     }
 
     private void handleViewLogsClicked() {
@@ -754,6 +748,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void stopLogging() {
         DeviceManager.getInstance().stopLogging(device);
+        isLoggedPaused = true;
+        updateLoggingButton();
     }
 
     private void startLogging() {
@@ -813,6 +809,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void toggleLoggingButton() {
+        if (!device.isOnline) return;
         isLoggedPaused = !isLoggedPaused;
         updateLoggingButton();
         if (isLoggedPaused) {
@@ -1108,6 +1105,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void scrollToFollow() {
         if (autoScrollCheckBox != null && autoScrollCheckBox.isSelected()) {
+            table.clearSelection();
             table.scrollToBottom();
         }
     }
@@ -1117,20 +1115,51 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // save log entries as they'll get cleared after this method returns
         List<LogEntry> logList = new ArrayList<>(logEntryList);
         SwingUtilities.invokeLater(() -> {
-            // capture selected rows
-//            int[] selectedRows = table.getSelectedRows();
-//            log.trace("handleLogEntries: selected rows: {}", GsonHelper.toJson(selectedRows));
+            // get selected rows
+            int[] selectedViewRows = table.getSelectedRows();
+            // convert VIEW indices to MODEL indices
+            int[] selectedModelRows = new int[selectedViewRows.length];
+            for (int i = 0; i < selectedViewRows.length; i++) {
+                selectedModelRows[i] = table.convertRowIndexToModel(selectedViewRows[i]);
+            }
 
+            int beforeSize = model.getRowCount();
+            int addedSize = logList.size();
+
+            // disable selection events during update to prevent interference
+            ListSelectionModel selectionModel = table.getSelectionModel();
+            selectionModel.setValueIsAdjusting(true);
+
+            // add new log entries (NOTE: old logs might be removed from TOP if over limit)
             model.addLogEntry(logList);
 
-            // restore selected rows
-//            table.clearSelection();
-//            int rowCount = table.getRowCount();
-//            for (int row : selectedRows) {
-//                if (row < rowCount) {
-//                    table.addRowSelectionInterval(row, row);
-//                }
-//            }
+            int afterSize = model.getRowCount();
+
+            // restore selected rows by adjusting MODEL indices if rows were removed from top
+            if (selectedModelRows.length > 0) {
+                int numRemoved = 0;
+                if (beforeSize + addedSize != afterSize) {
+                    // Logs were truncated from the top; adjust MODEL indices
+                    numRemoved = (beforeSize + addedSize) - afterSize;
+                }
+
+                table.clearSelection();
+                for (int modelRow : selectedModelRows) {
+                    // adjust for removed rows
+                    int adjustedModelRow = modelRow - numRemoved;
+                    // skip if this row was removed
+                    if (adjustedModelRow >= 0 && adjustedModelRow < afterSize) {
+                        // convert MODEL index to VIEW index
+                        int viewRow = table.convertRowIndexToView(adjustedModelRow);
+                        if (viewRow >= 0) {
+                            table.addRowSelectionInterval(viewRow, viewRow);
+                        }
+                    }
+                }
+            }
+
+            // re-enable selection events
+            selectionModel.setValueIsAdjusting(false);
 
             scrollToFollow();
             refreshUi();
@@ -1140,6 +1169,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     @Override
     public void handleProcessMap(Map<String, String> processMap) {
         SwingUtilities.invokeLater(() -> model.setProcessMap(processMap));
+    }
+
+    @Override
+    public void handleError(String error) {
+        stopLogging();
     }
 
     private void handleSaveLogsClicked() {
