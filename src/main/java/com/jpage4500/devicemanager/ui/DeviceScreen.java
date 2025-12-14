@@ -487,21 +487,49 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             // device details
             UiUtils.addPopupMenuItem(popupMenu, "Device Details", Icons.LOGS, actionEvent -> handleDeviceDetails(device));
 
-            List<ToolbarButton> toolbarButtons = new ArrayList<>(List.of(ToolbarButton.values()));
-
-            // remove any non-device specific actions
-            toolbarButtons.removeAll(List.of(ToolbarButton.CONNECT, ToolbarButton.SCRIPTS, ToolbarButton.FILTER,
-                ToolbarButton.ADB, ToolbarButton.REFRESH, ToolbarButton.SERVER, ToolbarButton.SETTINGS));
-
-            for (ToolbarButton toolbarButton : toolbarButtons) {
-                UiUtils.addPopupMenuItem(popupMenu, toolbarButton.label, toolbarButton.icn, e -> {
-                    handleButtonClicked(toolbarButton, null);
-                });
+            // primary options
+            ToolbarButton[] mainOptions = new ToolbarButton[]{ToolbarButton.BROWSE, ToolbarButton.LOGS, ToolbarButton.MIRROR};
+            for (ToolbarButton toolbarButton : mainOptions) {
+                addPopupMenuItem(popupMenu, toolbarButton);
             }
+            // more...
+            JMenu moreMenu = new JMenu("More");
+            // secondary options
+            ToolbarButton[] secondaryOptions = new ToolbarButton[]{ToolbarButton.RECORD, ToolbarButton.SCREENSHOT, ToolbarButton.INPUT, ToolbarButton.INSTALL, ToolbarButton.TERMINAL, ToolbarButton.RESTART};
+            for (ToolbarButton toolbarButton : secondaryOptions) {
+                JMenuItem item = new JMenuItem(toolbarButton.label, UiUtils.getImageIcon(toolbarButton.icn, UiUtils.IMG_SIZE_SMALL));
+                item.addActionListener(e -> handleButtonClicked(toolbarButton, null));
+                moreMenu.add(item);
+            }
+            popupMenu.add(moreMenu);
+
+            popupMenu.addSeparator();
+
+            JMenu commandMenu = new JMenu("Send Command");
+            // add previously used commands (last 10)
+            List<String> customCommandList = CommandDialog.getCustomCommands();
+            for (String command : customCommandList) {
+                JMenuItem item = new JMenuItem(command, UiUtils.getImageIcon(Icons.FILE_ADB, UiUtils.IMG_SIZE_SMALL));
+                item.addActionListener(e -> {
+                    DeviceManager.getInstance().runCustomCommand(device, command, result -> {
+                        // move to top of recent list
+                        CommandDialog.addCustomCommand(command);
+                        DialogHelper.showTextDialog(this, "Result", result.toString());
+                    });
+                });
+                commandMenu.add(item);
+            }
+            if (!customCommandList.isEmpty()) commandMenu.addSeparator();
+
+            JMenuItem item = new JMenuItem("Enter Command...", UiUtils.getImageIcon(Icons.FILE_ADB, UiUtils.IMG_SIZE_SMALL));
+            item.addActionListener(e -> handleSendCommand(device));
+            commandMenu.add(item);
+
+            popupMenu.add(commandMenu);
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
-                UiUtils.addPopupMenuItem(popupMenu, "Disconnect " + device.getDisplayName(), actionEvent -> handleDisconnect(device));
+                UiUtils.addPopupMenuItem(popupMenu, "Disconnect", actionEvent -> handleDisconnect(device));
             }
         } else {
             // offline device
@@ -511,6 +539,27 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             UiUtils.addPopupMenuItem(popupMenu, "Remove", actionEvent -> handleRemoveDevice(device));
         }
         return popupMenu;
+    }
+
+    private void handleSendCommand(Device device) {
+        // prompt for adb command
+        String command = DialogHelper.showInputDialog(this, "ADB Command", "Enter command to run", null);
+        if (TextUtils.isEmpty(command)) return;
+
+        command = CommandDialog.santizeCommand(command);
+
+        CommandDialog.addCustomCommand(command);
+
+        // send command to device
+        DeviceManager.getInstance().runCustomCommand(device, command, result -> {
+            DialogHelper.showTextDialog(this, "Result", result.toString());
+        });
+    }
+
+    private void addPopupMenuItem(JPopupMenu popupMenu, ToolbarButton toolbarButton) {
+        UiUtils.addPopupMenuItem(popupMenu, toolbarButton.label, toolbarButton.icn, e -> {
+            handleButtonClicked(toolbarButton, null);
+        });
     }
 
     private void setupTaskbar() {
@@ -1355,7 +1404,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         INSTALL(Icons.FILE_APK, "Install", "Install / Copy file"),
         RESTART(Icons.RESTART, "Reboot", "Reboot Device"),
         TERMINAL(Icons.TERMINAL, "Terminal", "Open Terminal"),
-        ADB(Icons.ADB, "ADB", "Run custom adb command"),
+        ADB(Icons.FILE_ADB, "ADB", "Run custom adb command"),
         SCRIPTS(Icons.FILE_SCRIPT, "Scripts", "Run custom scripts"),
         FILTER(Icons.CLEAR_FILTER, "Filter", "Filter devices..."),
         REFRESH(Icons.REFRESH, "Refresh", "Refresh Devices"),

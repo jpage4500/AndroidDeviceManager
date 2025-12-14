@@ -115,38 +115,13 @@ public class CommandDialog extends JPanel {
         DialogHelper.showTextDialog(this, "Results", resultsMsg);
     }
 
-    private void deleteItem(String command) {
-        log.trace("deleteItem: {}", command);
-        List<String> customCommands = getCustomCommands();
-        customCommands.remove(command);
-        PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
-        populateRecent();
-    }
-
     private void runCommand() {
         String command = textField.getCleanText();
         if (TextUtils.isEmpty(command)) return;
 
-        // remove "adb " from commands
-        if (command.startsWith("adb ")) {
-            command = command.substring("adb ".length());
-        }
-        // remove "shell " from commands
-        if (command.startsWith("shell ")) {
-            command = command.substring("shell ".length());
-        }
+        command = santizeCommand(command);
 
-        // update recent list
-        List<String> customCommands = getCustomCommands();
-        customCommands.remove(command);
-        // add to top of list
-        customCommands.add(0, command);
-        // only save last 10 entries
-        if (customCommands.size() > MAX_RECENT_COMMANDS) {
-            customCommands = customCommands.subList(0, MAX_RECENT_COMMANDS);
-        }
-
-        PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
+        addCustomCommand(command);
 
         // update displayed list
         populateRecent();
@@ -180,7 +155,7 @@ public class CommandDialog extends JPanel {
         if (!listModel.isEmpty()) list.setSelectedIndex(0);
     }
 
-    private List<String> getCustomCommands() {
+    public static List<String> getCustomCommands() {
         String customCommands = PreferenceUtils.getPreference(Pref.PREF_CUSTOM_COMMAND_LIST);
         List<String> commandList = GsonHelper.stringToList(customCommands, String.class);
         if (commandList.isEmpty()) {
@@ -189,5 +164,40 @@ public class CommandDialog extends JPanel {
         }
         return commandList;
     }
+
+    public static void addCustomCommand(String command) {
+        // update recent list
+        List<String> customCommands = getCustomCommands();
+        customCommands.remove(command);
+        // add to top of list
+        customCommands.add(0, command);
+        // only save last 10 entries
+        if (customCommands.size() > MAX_RECENT_COMMANDS) {
+            customCommands = customCommands.subList(0, MAX_RECENT_COMMANDS);
+        }
+
+        PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
+    }
+
+    public static String santizeCommand(String command) {
+        // remove "adb " from commands
+        if (command.startsWith("adb ")) {
+            command = command.substring("adb ".length());
+        }
+        // remove "shell " from commands
+        if (command.startsWith("shell ")) {
+            command = command.substring("shell ".length());
+        }
+        return command;
+    }
+
+    public void deleteItem(String command) {
+        log.trace("deleteItem: {}", command);
+        List<String> customCommands = getCustomCommands();
+        customCommands.remove(command);
+        PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
+        populateRecent();
+    }
+
 }
 

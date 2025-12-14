@@ -33,6 +33,7 @@ public enum Icons {
     EYE_CLOSED("eye_closed.png"),
     EYE_OPEN("eye_open.png"),
     FILE("file.png"),
+    FILE_ADB("file_adb.png"),
     FILE_APK("file_apk.png"),
     FILE_JSON("file_json.png"),
     FILE_LINK("file_link.png"),
