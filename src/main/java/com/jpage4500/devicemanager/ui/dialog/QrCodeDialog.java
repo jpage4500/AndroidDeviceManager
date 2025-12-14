@@ -8,6 +8,7 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.utils.DialogHelper;
+import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
@@ -23,6 +24,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.security.SecureRandom;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -230,34 +232,31 @@ public class QrCodeDialog extends JPanel {
      * pair with the discovered device
      */
     private void pairWithDevice(String address, int port) {
-        DeviceManager.getInstance().pairDevice(address, port, password, new DeviceManager.TaskListener() {
-            @Override
-            public void onTaskComplete(boolean isSuccess, String result) {
-                if (isSuccess) {
-                    log.info("pairWithDevice: successfully paired with device at {}:{}", address, port);
-                    updateStatus("✓ Pairing successful!", new Color(0, 153, 0));
+        DeviceManager.getInstance().pairDevice(address, port, password, (isSuccess, result) -> {
+            if (isSuccess) {
+                log.info("pairWithDevice: successfully paired with device at {}:{}", address, port);
+                updateStatus("✓ Pairing successful!", new Color(0, 153, 0));
 
-                    // stop discovery to prevent further pairing attempts
-                    stopDiscovery();
+                // stop discovery to prevent further pairing attempts
+                stopDiscovery();
 
-                    // show success notification and close dialog
-                    SwingUtilities.invokeLater(() -> {
-                        String msg = String.format("Successfully paired with device at %s:%d", address, port);
-                        DialogHelper.showDialog(QrCodeDialog.this, "Pairing Successful", msg);
+                // show success notification and close dialog
+                SwingUtilities.invokeLater(() -> {
+                    String msg = String.format("Successfully paired with device at %s:%d", address, port);
+                    DialogHelper.showDialog(QrCodeDialog.this, "Pairing Successful", msg);
 
-                        // close the QR code dialog window
-                        Window window = SwingUtilities.getWindowAncestor(QrCodeDialog.this);
-                        if (window != null) {
-                            window.dispose();
-                        }
-                    });
-                } else {
-                    log.error("pairWithDevice: failed to pair with device at {}:{}, error: {}", address, port, result);
-                    updateStatus("✗ Pairing failed: " + result, Color.RED);
+                    // close the QR code dialog window
+                    Window window = SwingUtilities.getWindowAncestor(QrCodeDialog.this);
+                    if (window != null) {
+                        window.dispose();
+                    }
+                });
+            } else {
+                log.error("pairWithDevice: failed to pair with device at {}:{}, error: {}", address, port, result);
+                updateStatus("✗ Pairing failed: " + result, Color.RED);
 
-                    // reset flag so user can try again
-                    isPaired.set(false);
-                }
+                // reset flag so user can try again
+                isPaired.set(false);
             }
         });
     }
@@ -279,54 +278,27 @@ public class QrCodeDialog extends JPanel {
      * prefers non-loopback, active interfaces
      */
     private InetAddress findNetworkInterface() throws IOException {
-        // try to find a non-loopback interface
-        java.net.NetworkInterface networkInterface = null;
-        java.util.Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
+        List<RemoteConnectionUtils.Network> networkList = RemoteConnectionUtils.getActiveNetworkInfo();
 
-        while (interfaces.hasMoreElements()) {
-            java.net.NetworkInterface ni = interfaces.nextElement();
+        if (networkList.isEmpty()) {
+            // last resort: use local host (will likely not work for mDNS)
+            log.warn("findNetworkInterface: could not find suitable network interface, falling back to localhost");
+            return InetAddress.getLocalHost();
+        }
 
-            // skip loopback, inactive, or down interfaces
-            if (ni.isLoopback() || !ni.isUp() || ni.isVirtual()) {
-                continue;
-            }
-
-            // look for interfaces with IPv4 addresses
-            java.util.Enumeration<InetAddress> addresses = ni.getInetAddresses();
-            while (addresses.hasMoreElements()) {
-                InetAddress addr = addresses.nextElement();
-
-                // prefer IPv4, non-loopback, site-local addresses (192.168.x.x, 10.x.x.x, etc)
-                if (addr instanceof java.net.Inet4Address && !addr.isLoopbackAddress()) {
-                    if (addr.isSiteLocalAddress()) {
-                        log.debug("findNetworkInterface: found suitable network interface: {} - {} ({})",
-                            ni.getName(), addr.getHostAddress(), ni.getDisplayName());
-                        return addr;
-                    }
-                    // keep this as fallback
-                    if (networkInterface == null) {
-                        networkInterface = ni;
-                    }
-                }
+        // prefer site-local addresses (192.168.x.x, 10.x.x.x, etc)
+        for (RemoteConnectionUtils.Network network : networkList) {
+            InetAddress addr = InetAddress.getByName(network.ip);
+            if (addr.isSiteLocalAddress()) {
+                log.debug("findNetworkInterface: found suitable network interface: {} - {}", network.label, network.ip);
+                return addr;
             }
         }
 
-        // if we found any non-loopback interface, use it
-        if (networkInterface != null) {
-            java.util.Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
-            while (addresses.hasMoreElements()) {
-                InetAddress addr = addresses.nextElement();
-                if (addr instanceof java.net.Inet4Address && !addr.isLoopbackAddress()) {
-                    log.debug("findNetworkInterface: using fallback network interface: {} - {} ({})",
-                        networkInterface.getName(), addr.getHostAddress(), networkInterface.getDisplayName());
-                    return addr;
-                }
-            }
-        }
-
-        // last resort: use local host (will likely not work for mDNS)
-        log.warn("findNetworkInterface: could not find suitable network interface, falling back to localhost");
-        return InetAddress.getLocalHost();
+        // use first available network
+        RemoteConnectionUtils.Network network = networkList.get(0);
+        log.debug("findNetworkInterface: using fallback network interface: {} - {}", network.label, network.ip);
+        return InetAddress.getByName(network.ip);
     }
 
     /**
