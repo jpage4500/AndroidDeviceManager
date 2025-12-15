@@ -152,8 +152,12 @@ public class CommandDialog extends JPanel {
     }
 
     private void populateRecent() {
-        List<String> customCommandList = getCustomCommands();
         listModel.clear();
+        Map<String, String> namedCommands = getNamedCommands();
+        // TODO: use name
+        listModel.addAll(namedCommands.values());
+
+        List<String> customCommandList = getCustomCommands();
         listModel.addAll(customCommandList);
 
         if (!listModel.isEmpty()) list.setSelectedIndex(0);
@@ -232,7 +236,7 @@ public class CommandDialog extends JPanel {
         namedCommandMap.forEach((name, command) -> {
             JMenuItem item = new JMenuItem(name);
             item.setToolTipText(command);
-            item.addActionListener(e -> runCustomCommand(popup, device, command, false));
+            item.addActionListener(e -> runCustomCommand(popup, device, command));
             commandMenu.add(item);
         });
         if (!namedCommandMap.isEmpty()) commandMenu.addSeparator();
@@ -240,8 +244,16 @@ public class CommandDialog extends JPanel {
         // add previously used commands (last 10)
         List<String> customCommandList = CommandDialog.getCustomCommands();
         for (String command : customCommandList) {
-            JMenuItem item = new JMenuItem(command);
-            item.addActionListener(e -> runCustomCommand(popup, device, command, true));
+            String truncatedCommand = TextUtils.truncate(command, 30);
+            JMenuItem item = new JMenuItem(truncatedCommand);
+            if (!TextUtils.equals(command, truncatedCommand)) {
+                item.setToolTipText(command);
+            }
+            item.addActionListener(e -> {
+                // move to top of recent list
+                CommandDialog.addCustomCommand(command);
+                runCustomCommand(popup, device, command);
+            });
             commandMenu.add(item);
         }
         if (!customCommandList.isEmpty()) commandMenu.addSeparator();
@@ -254,11 +266,7 @@ public class CommandDialog extends JPanel {
         popup.addSeparator();
     }
 
-    private static void runCustomCommand(Component component, Device device, String command, boolean saveResult) {
-        if (saveResult) {
-            // move to top of recent list
-            CommandDialog.addCustomCommand(command);
-        }
+    private static void runCustomCommand(Component component, Device device, String command) {
         DeviceManager.getInstance().runCustomCommand(device, command, result -> {
             String title = result.isSuccess ? "Success" : "Failed";
             String text = TextUtils.join(result.resultList, "\n");
@@ -273,7 +281,7 @@ public class CommandDialog extends JPanel {
 
         command = CommandDialog.santizeCommand(command);
 
-        runCustomCommand(component, device, command, true);
+        runCustomCommand(component, device, command);
     }
 
 }
