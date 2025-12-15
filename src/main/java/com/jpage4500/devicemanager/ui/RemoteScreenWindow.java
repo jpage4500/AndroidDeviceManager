@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
+import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
@@ -894,7 +895,6 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             addPopupItem(popup, "Back", Icons.BACK, AndroidKeyMapper.KEYCODE_BACK);
             // Recent Apps / Task Switcher
             addPopupItem(popup, "Recent Apps", Icons.RECENT, AndroidKeyMapper.KEYCODE_APP_SWITCH);
-            popup.addSeparator();
             // Menu
             addPopupItem(popup, "Menu", Icons.MENU, AndroidKeyMapper.KEYCODE_MENU);
             popup.addSeparator();
@@ -910,6 +910,8 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 popup.add(pasteItem);
                 popup.addSeparator();
             }
+
+            CommandDialog.setupCommandPopupMenu(popup, device);
 
             // TODO: uncomment later if useful
 //            // Page Up

@@ -17,7 +17,10 @@ import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
 
@@ -28,6 +31,7 @@ public class CommandDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(CommandDialog.class);
 
     public static final int MAX_RECENT_COMMANDS = 10;
+    public static final String COMMANDS_TXT = "commands.txt";
 
     private Component frame;
     private HintTextField textField;
@@ -165,6 +169,29 @@ public class CommandDialog extends JPanel {
         return commandList;
     }
 
+    /**
+     * get any predefined commands which are saved in ~/.device-manager/commands.txt
+     * FORMAT: NAME = COMMAND
+     * -----------
+     * clear APP data = pm clear com.example.app
+     * open APP = ...
+     * -----------
+     */
+    public static Map<String, String> getNamedCommands() {
+        File home = Utils.getDeviceManagerFolder();
+        File namedCommandFile = new File(home, COMMANDS_TXT);
+        String commandsText = FileUtils.readFile(namedCommandFile);
+        TreeMap<String, String> resultMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        if (TextUtils.isEmpty(commandsText)) return resultMap;
+        String[] commandArr = commandsText.split("\n");
+        for (String command : commandArr) {
+            String[] lineArr = command.split("=");
+            if (lineArr.length < 2) continue;
+            resultMap.put(lineArr[0].trim(), lineArr[1].trim());
+        }
+        return resultMap;
+    }
+
     public static void addCustomCommand(String command) {
         // update recent list
         List<String> customCommands = getCustomCommands();
@@ -197,6 +224,56 @@ public class CommandDialog extends JPanel {
         customCommands.remove(command);
         PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
         populateRecent();
+    }
+
+    public static void setupCommandPopupMenu(JPopupMenu popup, Device device) {
+        JMenu commandMenu = new JMenu("Send Command");
+        Map<String, String> namedCommandMap = CommandDialog.getNamedCommands();
+        namedCommandMap.forEach((name, command) -> {
+            JMenuItem item = new JMenuItem(name);
+            item.setToolTipText(command);
+            item.addActionListener(e -> runCustomCommand(popup, device, command, false));
+            commandMenu.add(item);
+        });
+        if (!namedCommandMap.isEmpty()) commandMenu.addSeparator();
+
+        // add previously used commands (last 10)
+        List<String> customCommandList = CommandDialog.getCustomCommands();
+        for (String command : customCommandList) {
+            JMenuItem item = new JMenuItem(command);
+            item.addActionListener(e -> runCustomCommand(popup, device, command, true));
+            commandMenu.add(item);
+        }
+        if (!customCommandList.isEmpty()) commandMenu.addSeparator();
+
+        JMenuItem item = new JMenuItem("Enter Command...", UiUtils.getImageIcon(Icons.FILE_ADB, UiUtils.IMG_SIZE_SMALL));
+        item.addActionListener(e -> handleSendCommand(popup, device));
+        commandMenu.add(item);
+
+        popup.add(commandMenu);
+        popup.addSeparator();
+    }
+
+    private static void runCustomCommand(Component component, Device device, String command, boolean saveResult) {
+        if (saveResult) {
+            // move to top of recent list
+            CommandDialog.addCustomCommand(command);
+        }
+        DeviceManager.getInstance().runCustomCommand(device, command, result -> {
+            String title = result.isSuccess ? "Success" : "Failed";
+            String text = TextUtils.join(result.resultList, "\n");
+            DialogHelper.showTextDialog(component, title, text);
+        });
+    }
+
+    private static void handleSendCommand(Component component, Device device) {
+        // prompt for adb command
+        String command = DialogHelper.showInputDialog(component, "ADB Command", "Enter command to run", null);
+        if (TextUtils.isEmpty(command)) return;
+
+        command = CommandDialog.santizeCommand(command);
+
+        runCustomCommand(component, device, command, true);
     }
 
 }

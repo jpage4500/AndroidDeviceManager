@@ -505,27 +505,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
             popupMenu.addSeparator();
 
-            JMenu commandMenu = new JMenu("Send Command");
-            // add previously used commands (last 10)
-            List<String> customCommandList = CommandDialog.getCustomCommands();
-            for (String command : customCommandList) {
-                JMenuItem item = new JMenuItem(command, UiUtils.getImageIcon(Icons.FILE_ADB, UiUtils.IMG_SIZE_SMALL));
-                item.addActionListener(e -> {
-                    DeviceManager.getInstance().runCustomCommand(device, command, result -> {
-                        // move to top of recent list
-                        CommandDialog.addCustomCommand(command);
-                        DialogHelper.showTextDialog(this, "Result", result.toString());
-                    });
-                });
-                commandMenu.add(item);
-            }
-            if (!customCommandList.isEmpty()) commandMenu.addSeparator();
-
-            JMenuItem item = new JMenuItem("Enter Command...", UiUtils.getImageIcon(Icons.FILE_ADB, UiUtils.IMG_SIZE_SMALL));
-            item.addActionListener(e -> handleSendCommand(device));
-            commandMenu.add(item);
-
-            popupMenu.add(commandMenu);
+            CommandDialog.setupCommandPopupMenu(popupMenu, device);
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
@@ -539,21 +519,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             UiUtils.addPopupMenuItem(popupMenu, "Remove", actionEvent -> handleRemoveDevice(device));
         }
         return popupMenu;
-    }
-
-    private void handleSendCommand(Device device) {
-        // prompt for adb command
-        String command = DialogHelper.showInputDialog(this, "ADB Command", "Enter command to run", null);
-        if (TextUtils.isEmpty(command)) return;
-
-        command = CommandDialog.santizeCommand(command);
-
-        CommandDialog.addCustomCommand(command);
-
-        // send command to device
-        DeviceManager.getInstance().runCustomCommand(device, command, result -> {
-            DialogHelper.showTextDialog(this, "Result", result.toString());
-        });
     }
 
     private void addPopupMenuItem(JPopupMenu popupMenu, ToolbarButton toolbarButton) {
