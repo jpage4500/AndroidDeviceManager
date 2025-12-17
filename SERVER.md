@@ -60,3 +60,5 @@ Most actions such as screenshot, install, remote command, etc can be run on remo
 Instead of running scrcpy which is used locally, remote mirroring a device sends a series of compressed screenshots from the server to the client. 
 
 You can interact with the device by clicking on the screen to send a click. Long-presses and swipes are also supported. Typing on the keyboard will send key events to the remote device as well. 
+
+![Mirror Client](resources/client_mirror.png)
