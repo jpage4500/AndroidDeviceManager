@@ -185,20 +185,26 @@ public class QrCodeDialog extends JPanel {
                         ServiceInfo info = event.getInfo();
                         log.info("serviceResolved: service resolved: {}, addresses: {}", info.getName(), info.getHostAddresses());
 
-                        if (info.getHostAddresses().length > 0) {
-                            String address = info.getHostAddresses()[0];
-                            int port = info.getPort();
-
-                            log.info("serviceResolved: attempting to pair with {}:{} using password: {}", address, port, password);
-
-                            // set flag immediately to prevent multiple pairing attempts
-                            isPaired.set(true);
-
-                            updateStatus("Device found! Pairing...", new Color(255, 140, 0)); // orange
-
-                            // attempt pairing
-                            pairWithDevice(address, port);
+                        // find the best address to use (prefer IPv4, avoid IPv6 link-local)
+                        String bestAddress = findBestAddress(info.getHostAddresses());
+                        if (bestAddress == null) {
+                            log.debug("serviceResolved: no suitable address found, waiting for more info");
+                            return;
                         }
+
+                        int port = info.getPort();
+
+                        // set flag immediately to prevent multiple pairing attempts
+                        if (!isPaired.compareAndSet(false, true)) {
+                            log.debug("serviceResolved: pairing already in progress, ignoring");
+                            return;
+                        }
+
+                        log.info("serviceResolved: attempting to pair with {}:{} using password: {}", bestAddress, port, password);
+                        updateStatus("Device found! Pairing...", new Color(255, 140, 0)); // orange
+
+                        // attempt pairing
+                        pairWithDevice(bestAddress, port);
                     }
                 });
 
@@ -271,6 +277,57 @@ public class QrCodeDialog extends JPanel {
                 statusLabel.setForeground(color);
             }
         });
+    }
+
+    /**
+     * find the best address to use for pairing
+     * prefers IPv4 over IPv6, filters out link-local IPv6 addresses
+     *
+     * @param addresses array of IP addresses
+     * @return best address to use, or null if none suitable
+     */
+    private String findBestAddress(String[] addresses) {
+        if (addresses == null || addresses.length == 0) {
+            return null;
+        }
+
+        String firstIpv4 = null;
+        String firstIpv6 = null;
+
+        for (String address : addresses) {
+            // remove brackets if present (IPv6 addresses are wrapped in brackets)
+            String cleanAddress = address.replace("[", "").replace("]", "");
+
+            // skip IPv6 link-local addresses (fe80::)
+            if (cleanAddress.startsWith("fe80:")) {
+                log.debug("findBestAddress: skipping IPv6 link-local address: {}", address);
+                continue;
+            }
+
+            // determine if IPv4 or IPv6
+            boolean isIpv4 = cleanAddress.contains("."); // simple check: IPv4 has dots
+            if (isIpv4) {
+                if (firstIpv4 == null) {
+                    firstIpv4 = cleanAddress;
+                }
+            } else {
+                if (firstIpv6 == null) {
+                    firstIpv6 = cleanAddress;
+                }
+            }
+        }
+
+        // prefer IPv4 over IPv6
+        if (firstIpv4 != null) {
+            log.debug("findBestAddress: selected IPv4 address: {}", firstIpv4);
+            return firstIpv4;
+        } else if (firstIpv6 != null) {
+            log.debug("findBestAddress: selected IPv6 address: {}", firstIpv6);
+            return firstIpv6;
+        }
+
+        log.warn("findBestAddress: no suitable address found in: {}", (Object) addresses);
+        return null;
     }
 
     /**

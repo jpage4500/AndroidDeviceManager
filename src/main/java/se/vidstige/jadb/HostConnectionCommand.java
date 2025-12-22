@@ -30,6 +30,21 @@ public class HostConnectionCommand {
         responseValidator.validate(status);
     }
 
+    // allow subclasses to access transport for custom commands
+    protected Transport getTransport() {
+        return transport;
+    }
+
+    // allow subclasses to verify responses
+    protected void verifyTransportLevel(Transport transport) throws IOException, JadbException {
+        transport.verifyResponse();
+    }
+
+    protected void verifyProtocolLevel(Transport transport) throws IOException, ConnectionToRemoteDeviceException {
+        String status = transport.readString();
+        responseValidator.validate(status);
+    }
+
     //@VisibleForTesting
     interface ResponseValidator {
         void validate(String response) throws ConnectionToRemoteDeviceException;

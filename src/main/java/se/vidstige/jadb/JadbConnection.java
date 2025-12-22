@@ -49,6 +49,20 @@ public class JadbConnection implements ITransportFactory {
         }
     }
 
+    public void disconnectFromTcpDeviceBySerial(String serial)
+            throws IOException, JadbException, ConnectionToRemoteDeviceException {
+        try (Transport transport = createTransport()) {
+            new HostDisconnectFromRemoteTcpDevice(transport).disconnectBySerial(serial);
+        }
+    }
+
+    public InetSocketAddress pairWithTcpDevice(InetSocketAddress inetSocketAddress, String pairingCode)
+            throws IOException, JadbException, ConnectionToRemoteDeviceException {
+        try (Transport transport = createTransport()) {
+            return new HostPairWithRemoteTcpDevice(transport).pair(inetSocketAddress, pairingCode);
+        }
+    }
+
     public List<JadbDevice> getDevices() throws IOException, JadbException {
         try (Transport transport = createTransport()) {
             transport.send("host:devices");
