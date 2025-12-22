@@ -7,6 +7,7 @@ Android Device Manager is a desktop app which can manage one or more Android dev
 ## Features ##
 
 - View all connected (and wireless) devices
+- View devices connected to another computer (see [SERVER.md](SERVER.md))
 - Populates device **phone number, free space, IMEI, carrier** (if available)
 - **Remote control** selected devices (requires [scrcpy](https://github.com/Genymobile/scrcpy))
 - Capture **screenshots** of selected devices
@@ -17,12 +18,15 @@ Android Device Manager is a desktop app which can manage one or more Android dev
     - delete folders/files
     - root mode supported
 - View **Device Logs**
-    - NOTE: this is a work in progress!
+    - filter by log level/tag
+    - add and combine filters to make searching logs easier
 - **Restart** selected devices
 - Run **user-defined adb commands**
+- Run **user-defined scripts**
 - Set and display custom properties on each device
 - Start an **adb shell** session with selected devices
 - **View version** of user-defined list of apps
+- Connect to devices wirelessly via **QR code**
 
 ## Manage devices connected to other computers ##
 

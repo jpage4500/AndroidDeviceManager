@@ -17,7 +17,10 @@ import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
 
@@ -28,6 +31,7 @@ public class CommandDialog extends JPanel {
     private static final Logger log = LoggerFactory.getLogger(CommandDialog.class);
 
     public static final int MAX_RECENT_COMMANDS = 10;
+    public static final String COMMANDS_TXT = "commands.txt";
 
     private Component frame;
     private HintTextField textField;
@@ -115,38 +119,13 @@ public class CommandDialog extends JPanel {
         DialogHelper.showTextDialog(this, "Results", resultsMsg);
     }
 
-    private void deleteItem(String command) {
-        log.trace("deleteItem: {}", command);
-        List<String> customCommands = getCustomCommands();
-        customCommands.remove(command);
-        PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
-        populateRecent();
-    }
-
     private void runCommand() {
         String command = textField.getCleanText();
         if (TextUtils.isEmpty(command)) return;
 
-        // remove "adb " from commands
-        if (command.startsWith("adb ")) {
-            command = command.substring("adb ".length());
-        }
-        // remove "shell " from commands
-        if (command.startsWith("shell ")) {
-            command = command.substring("shell ".length());
-        }
+        command = santizeCommand(command);
 
-        // update recent list
-        List<String> customCommands = getCustomCommands();
-        customCommands.remove(command);
-        // add to top of list
-        customCommands.add(0, command);
-        // only save last 10 entries
-        if (customCommands.size() > MAX_RECENT_COMMANDS) {
-            customCommands = customCommands.subList(0, MAX_RECENT_COMMANDS);
-        }
-
-        PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
+        addCustomCommand(command);
 
         // update displayed list
         populateRecent();
@@ -173,14 +152,18 @@ public class CommandDialog extends JPanel {
     }
 
     private void populateRecent() {
-        List<String> customCommandList = getCustomCommands();
         listModel.clear();
+        Map<String, String> namedCommands = getNamedCommands();
+        // TODO: use name
+        listModel.addAll(namedCommands.values());
+
+        List<String> customCommandList = getCustomCommands();
         listModel.addAll(customCommandList);
 
         if (!listModel.isEmpty()) list.setSelectedIndex(0);
     }
 
-    private List<String> getCustomCommands() {
+    public static List<String> getCustomCommands() {
         String customCommands = PreferenceUtils.getPreference(Pref.PREF_CUSTOM_COMMAND_LIST);
         List<String> commandList = GsonHelper.stringToList(customCommands, String.class);
         if (commandList.isEmpty()) {
@@ -189,5 +172,117 @@ public class CommandDialog extends JPanel {
         }
         return commandList;
     }
+
+    /**
+     * get any predefined commands which are saved in ~/.device-manager/commands.txt
+     * FORMAT: NAME = COMMAND
+     * -----------
+     * clear APP data = pm clear com.example.app
+     * open APP = ...
+     * -----------
+     */
+    public static Map<String, String> getNamedCommands() {
+        File home = Utils.getDeviceManagerFolder();
+        File namedCommandFile = new File(home, COMMANDS_TXT);
+        String commandsText = FileUtils.readFile(namedCommandFile);
+        TreeMap<String, String> resultMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        if (TextUtils.isEmpty(commandsText)) return resultMap;
+        String[] commandArr = commandsText.split("\n");
+        for (String command : commandArr) {
+            String[] lineArr = command.split("=");
+            if (lineArr.length < 2) continue;
+            resultMap.put(lineArr[0].trim(), lineArr[1].trim());
+        }
+        return resultMap;
+    }
+
+    public static void addCustomCommand(String command) {
+        // update recent list
+        List<String> customCommands = getCustomCommands();
+        customCommands.remove(command);
+        // add to top of list
+        customCommands.add(0, command);
+        // only save last 10 entries
+        if (customCommands.size() > MAX_RECENT_COMMANDS) {
+            customCommands = customCommands.subList(0, MAX_RECENT_COMMANDS);
+        }
+
+        PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
+    }
+
+    public static String santizeCommand(String command) {
+        // remove "adb " from commands
+        if (command.startsWith("adb ")) {
+            command = command.substring("adb ".length());
+        }
+        // remove "shell " from commands
+        if (command.startsWith("shell ")) {
+            command = command.substring("shell ".length());
+        }
+        return command;
+    }
+
+    public void deleteItem(String command) {
+        log.trace("deleteItem: {}", command);
+        List<String> customCommands = getCustomCommands();
+        customCommands.remove(command);
+        PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
+        populateRecent();
+    }
+
+    public static void setupCommandPopupMenu(JPopupMenu popup, Device device) {
+        JMenu commandMenu = new JMenu("Send Command");
+        Map<String, String> namedCommandMap = CommandDialog.getNamedCommands();
+        namedCommandMap.forEach((name, command) -> {
+            JMenuItem item = new JMenuItem(name);
+            item.setToolTipText(command);
+            item.addActionListener(e -> runCustomCommand(popup, device, command));
+            commandMenu.add(item);
+        });
+        if (!namedCommandMap.isEmpty()) commandMenu.addSeparator();
+
+        // add previously used commands (last 10)
+        List<String> customCommandList = CommandDialog.getCustomCommands();
+        for (String command : customCommandList) {
+            String truncatedCommand = TextUtils.truncate(command, 30);
+            JMenuItem item = new JMenuItem(truncatedCommand);
+            if (!TextUtils.equals(command, truncatedCommand)) {
+                item.setToolTipText(command);
+            }
+            item.addActionListener(e -> {
+                // move to top of recent list
+                CommandDialog.addCustomCommand(command);
+                runCustomCommand(popup, device, command);
+            });
+            commandMenu.add(item);
+        }
+        if (!customCommandList.isEmpty()) commandMenu.addSeparator();
+
+        JMenuItem item = new JMenuItem("Enter Command...", UiUtils.getImageIcon(Icons.FILE_ADB, UiUtils.IMG_SIZE_SMALL));
+        item.addActionListener(e -> handleSendCommand(popup, device));
+        commandMenu.add(item);
+
+        popup.add(commandMenu);
+        popup.addSeparator();
+    }
+
+    private static void runCustomCommand(Component component, Device device, String command) {
+        DeviceManager.getInstance().runCustomCommand(device, command, result -> {
+            String title = result.isSuccess ? "Success" : "Failed";
+            String text = TextUtils.join(result.resultList, "\n");
+            DialogHelper.showTextDialog(component, title, text);
+        });
+    }
+
+    private static void handleSendCommand(Component component, Device device) {
+        // prompt for adb command
+        String command = DialogHelper.showInputDialog(component, "ADB Command", "Enter command to run", null);
+        if (TextUtils.isEmpty(command)) return;
+
+        command = CommandDialog.santizeCommand(command);
+
+        runCustomCommand(component, device, command);
+    }
+
 }
 

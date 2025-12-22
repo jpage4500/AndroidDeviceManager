@@ -19,7 +19,7 @@ public class PreferenceUtils {
         PREF_GO_TO_FOLDER_LIST,
         PREF_RECENT_WIRELESS_DEVICES,
         PREF_LAST_DEVICE_IP,
-        PREF_CUSTOM_COMMAND_LIST,
+        PREF_CUSTOM_COMMAND_LIST,             // list of custom adb commands
         PREF_RECENT_INPUT,
         PREF_MESSAGE_FILTERS,
         PREF_HIDDEN_TOOLBAR_ITEMS,            // hidden toolbar items (enum name)

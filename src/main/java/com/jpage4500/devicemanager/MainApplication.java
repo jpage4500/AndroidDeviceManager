@@ -1,20 +1,21 @@
 package com.jpage4500.devicemanager;
 
 import com.formdev.flatlaf.FlatLightLaf;
-import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
-import com.jpage4500.devicemanager.utils.*;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
+import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
+import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.Utils;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -149,18 +150,6 @@ public class MainApplication {
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
         defaults.put("Button.defaultButtonFollowsFocus", Boolean.TRUE);
-
-        if (Taskbar.isTaskbarSupported()) {
-            try {
-                Taskbar taskbar = Taskbar.getTaskbar();
-                if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
-                    BufferedImage image = UiUtils.getImage(Icons.LOGO, 256);
-                    taskbar.setIconImage(image);
-                }
-            } catch (final Exception e) {
-                log.error("initializeUI: Taskbar Exception: {}", e.getMessage());
-            }
-        }
 
         deviceScreen = new DeviceScreen();
 

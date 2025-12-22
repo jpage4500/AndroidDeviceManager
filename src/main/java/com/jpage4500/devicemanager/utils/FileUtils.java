@@ -202,4 +202,25 @@ public class FileUtils {
         }
         return null;
     }
+
+    public static String readFile(File file) {
+        if (file == null || !file.exists()) {
+            log.trace("readFile: file doesn't exist: {}", file);
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        try {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+                sb.append('\n');
+            }
+            reader.close();
+        } catch (Exception e) {
+            log.error("readFile: Exception: file:{}, {}", file, e.getMessage());
+        }
+        return sb.toString();
+    }
+
 }

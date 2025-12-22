@@ -1327,20 +1327,30 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     public void disconnectDevice(String serial, TaskListener listener) {
         commandExecutorService.submit(() -> {
-            String[] deviceArr = TextUtils.split(serial, ":");
-            if (deviceArr.length < 2) {
-                log.error("disconnectDevice: bad device:{}", serial);
-                return;
-            }
-            String ip = deviceArr[0];
             try {
-                int port = Integer.parseInt(deviceArr[1]);
-                log.debug("disconnectDevice: {}:{}", ip, port);
-                connection.disconnectFromTcpDevice(new InetSocketAddress(ip, port));
+                log.debug("disconnectDevice: {}", serial);
+
+                // check if serial is in ip:port format or mDNS format
+                if (serial.contains("._adb") || serial.contains("._tcp")) {
+                    // mDNS format (e.g., adb-RFCX20NB5TY-DBjIg4._adb-tls-connect._tcp)
+                    connection.disconnectFromTcpDeviceBySerial(serial);
+                } else {
+                    // traditional ip:port format (e.g., 192.168.0.85:37171)
+                    String[] deviceArr = TextUtils.split(serial, ":");
+                    if (deviceArr.length < 2) {
+                        log.error("disconnectDevice: bad device format:{}", serial);
+                        listener.onTaskComplete(false, "Invalid device format");
+                        return;
+                    }
+                    String ip = deviceArr[0];
+                    int port = Integer.parseInt(deviceArr[1]);
+                    connection.disconnectFromTcpDevice(new InetSocketAddress(ip, port));
+                }
+
                 listener.onTaskComplete(true, null);
             } catch (Exception e) {
-                log.error("connectDevice: {}, Exception:{}", serial, e.getMessage());
-                listener.onTaskComplete(false, null);
+                log.error("disconnectDevice: {}, Exception:{}", serial, e.getMessage());
+                listener.onTaskComplete(false, e.getMessage());
             }
         });
     }
@@ -1349,7 +1359,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * Pair with a device using ADB wireless pairing
      * @param ip IP address of device
      * @param port Pairing port (not connection port)
-     * @param pairingCode 6-digit pairing code
+     * @param pairingCode Pairing code from QR code or device screen
      * @param listener Callback listener
      */
     public void pairDevice(String ip, int port, String pairingCode, TaskListener listener) {
@@ -1357,40 +1367,15 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             try {
                 log.debug("pairDevice: {}:{} with code:{}", ip, port, pairingCode);
 
-                // Run adb pair command
-                String command = String.format("adb pair %s:%d %s", ip, port, pairingCode);
-                Process process = Runtime.getRuntime().exec(command);
+                // use connection to pair instead of runtime.exec() to avoid "adb not found" errors
+                InetSocketAddress address = new InetSocketAddress(ip, port);
+                connection.pairWithTcpDevice(address, pairingCode);
 
-                // Read output
-                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                StringBuilder output = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
-                    log.trace("pairDevice output: {}", line);
-                }
-
-                // Read error output
-                BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-                StringBuilder errorOutput = new StringBuilder();
-                while ((line = errorReader.readLine()) != null) {
-                    errorOutput.append(line).append("\n");
-                    log.trace("pairDevice error: {}", line);
-                }
-
-                int exitCode = process.waitFor();
-                String result = output.toString();
-
-                if (exitCode == 0 && result.contains("Successfully paired")) {
-                    log.debug("pairDevice: Successfully paired with {}:{}", ip, port);
-                    listener.onTaskComplete(true, result);
-                } else {
-                    String errorMsg = errorOutput.length() > 0 ? errorOutput.toString() : result;
-                    log.error("pairDevice: Failed to pair with {}:{}, error:{}", ip, port, errorMsg);
-                    listener.onTaskComplete(false, errorMsg);
-                }
+                String successMsg = String.format("Successfully paired to %s:%d", ip, port);
+                log.debug("pairDevice: {}", successMsg);
+                listener.onTaskComplete(true, successMsg);
             } catch (Exception e) {
-                log.error("pairDevice: {}:{}, Exception:{}", ip, port, e.getMessage(), e);
+                log.error("pairDevice: {}:{}, Exception:{}", ip, port, e.getMessage());
                 listener.onTaskComplete(false, e.getMessage());
             }
         });

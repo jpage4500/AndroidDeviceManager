@@ -45,11 +45,7 @@ java -jar $ADM --server --port 5555 --auth-token "HELLO WORLD"
 
 ## Connecting to the Server
 
-Connect to a server using the Connect toolbar button -> "Connect to Server"
-![Connect to Server](resources/server_connect.png)
-
-You can manually connect to a server using the IP/port/auth token. Or, if you were able to use the "Copy Connection
-String" button above, hit "Paste Connection".
+See the [this page](CLIENT_SERVER.md) for more details on running a server and connecting to it from a client.
 
 ## Viewing Remote Devices
 
@@ -64,3 +60,5 @@ Most actions such as screenshot, install, remote command, etc can be run on remo
 Instead of running scrcpy which is used locally, remote mirroring a device sends a series of compressed screenshots from the server to the client. 
 
 You can interact with the device by clicking on the screen to send a click. Long-presses and swipes are also supported. Typing on the keyboard will send key events to the remote device as well. 
+
+![Mirror Client](resources/client_mirror.png)

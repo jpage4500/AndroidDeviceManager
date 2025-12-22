@@ -26,8 +26,6 @@ import org.slf4j.LoggerFactory;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -69,6 +67,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     // system tray
     private SystemTray systemTray;
     private String systemTrayHashCode;
+    private boolean isTaskbarSetup;
 
     // status bar items
     private HoverLabel updateLabel;         // update
@@ -488,21 +487,29 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             // device details
             UiUtils.addPopupMenuItem(popupMenu, "Device Details", Icons.LOGS, actionEvent -> handleDeviceDetails(device));
 
-            List<ToolbarButton> toolbarButtons = new ArrayList<>(List.of(ToolbarButton.values()));
-
-            // remove any non-device specific actions
-            toolbarButtons.removeAll(List.of(ToolbarButton.CONNECT, ToolbarButton.SCRIPTS, ToolbarButton.FILTER,
-                ToolbarButton.ADB, ToolbarButton.REFRESH, ToolbarButton.SERVER, ToolbarButton.SETTINGS));
-
-            for (ToolbarButton toolbarButton : toolbarButtons) {
-                UiUtils.addPopupMenuItem(popupMenu, toolbarButton.label, toolbarButton.icn, e -> {
-                    handleButtonClicked(toolbarButton, null);
-                });
+            // primary options
+            ToolbarButton[] mainOptions = new ToolbarButton[]{ToolbarButton.BROWSE, ToolbarButton.LOGS, ToolbarButton.MIRROR};
+            for (ToolbarButton toolbarButton : mainOptions) {
+                addPopupMenuItem(popupMenu, toolbarButton);
             }
+            // more...
+            JMenu moreMenu = new JMenu("More");
+            // secondary options
+            ToolbarButton[] secondaryOptions = new ToolbarButton[]{ToolbarButton.RECORD, ToolbarButton.SCREENSHOT, ToolbarButton.INPUT, ToolbarButton.INSTALL, ToolbarButton.TERMINAL, ToolbarButton.RESTART};
+            for (ToolbarButton toolbarButton : secondaryOptions) {
+                JMenuItem item = new JMenuItem(toolbarButton.label, UiUtils.getImageIcon(toolbarButton.icn, UiUtils.IMG_SIZE_SMALL));
+                item.addActionListener(e -> handleButtonClicked(toolbarButton, null));
+                moreMenu.add(item);
+            }
+            popupMenu.add(moreMenu);
+
+            popupMenu.addSeparator();
+
+            CommandDialog.setupCommandPopupMenu(popupMenu, device);
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
-                UiUtils.addPopupMenuItem(popupMenu, "Disconnect " + device.getDisplayName(), actionEvent -> handleDisconnect(device));
+                UiUtils.addPopupMenuItem(popupMenu, "Disconnect", actionEvent -> handleDisconnect(device));
             }
         } else {
             // offline device
@@ -514,11 +521,25 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         return popupMenu;
     }
 
-    private void setupTaskBar() {
+    private void addPopupMenuItem(JPopupMenu popupMenu, ToolbarButton toolbarButton) {
+        UiUtils.addPopupMenuItem(popupMenu, toolbarButton.label, toolbarButton.icn, e -> {
+            handleButtonClicked(toolbarButton, null);
+        });
+    }
+
+    private void setupTaskbar() {
         if (!Taskbar.isTaskbarSupported()) return;
-        // badge number
+
         try {
             Taskbar taskbar = Taskbar.getTaskbar();
+            // icon
+            if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE) && !isTaskbarSetup) {
+                // 1-time setup
+                BufferedImage image = UiUtils.getImage(Icons.LOGO, 256);
+                taskbar.setIconImage(image);
+                isTaskbarSetup = true;
+            }
+            // badge number
             if (taskbar.isSupported(Taskbar.Feature.ICON_BADGE_NUMBER)) {
                 int numOnline = 0;
                 for (Device device : DeviceManager.getInstance().getDevices()) {
@@ -528,7 +549,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 taskbar.setIconBadge(badge);
             }
         } catch (final Exception e) {
-            log.error("setupTaskBar: Exception: {}", e.getMessage());
+            log.error("setupTaskbar: Exception: {}", e.getMessage());
         }
     }
 
@@ -604,6 +625,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // sort by name
         remoteConnections.sort(Comparator.comparing(RemoteConnection::getName, String.CASE_INSENSITIVE_ORDER));
         for (RemoteConnection server : remoteConnections) {
+            if (!server.isConnected()) continue;
             String name = TextUtils.truncate("Server: " + server.getName(), 30);
             Color color = new Color(server.getServerConfig().color);
             Menu serverItem = new Menu(name, UiUtils.getImage(Icons.SERVER, 16, 16, color));
@@ -669,7 +691,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
 
             setupSystemTray();
-            setupTaskBar();
+            setupTaskbar();
         });
     }
 
@@ -681,7 +703,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             sorter.sort();
 
             setupSystemTray();
-            setupTaskBar();
+            setupTaskbar();
         });
     }
 
@@ -693,7 +715,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             sorter.sort();
 
             setupSystemTray();
-            setupTaskBar();
+            setupTaskbar();
         });
     }
 
@@ -1347,7 +1369,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         INSTALL(Icons.FILE_APK, "Install", "Install / Copy file"),
         RESTART(Icons.RESTART, "Reboot", "Reboot Device"),
         TERMINAL(Icons.TERMINAL, "Terminal", "Open Terminal"),
-        ADB(Icons.ADB, "ADB", "Run custom adb command"),
+        ADB(Icons.FILE_ADB, "ADB", "Run custom adb command"),
         SCRIPTS(Icons.FILE_SCRIPT, "Scripts", "Run custom scripts"),
         FILTER(Icons.CLEAR_FILTER, "Filter", "Filter devices..."),
         REFRESH(Icons.REFRESH, "Refresh", "Refresh Devices"),
