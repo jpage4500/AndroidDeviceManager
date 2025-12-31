@@ -821,7 +821,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 appResult = runApp(app, true, "-s", device.serial,
                     "-p", String.valueOf(port),
                     "--window-title", device.getDisplayName(),
-                    "--show-touches", "--stay-awake");
+                    "--show-touches", "--stay-awake", "--no-audio");
             }
 
             // TODO: figure out how to determine if scrcpy was run successfully..
@@ -1357,10 +1357,11 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     /**
      * Pair with a device using ADB wireless pairing
-     * @param ip IP address of device
-     * @param port Pairing port (not connection port)
+     *
+     * @param ip          IP address of device
+     * @param port        Pairing port (not connection port)
      * @param pairingCode Pairing code from QR code or device screen
-     * @param listener Callback listener
+     * @param listener    Callback listener
      */
     public void pairDevice(String ip, int port, String pairingCode, TaskListener listener) {
         commandExecutorService.submit(() -> {
