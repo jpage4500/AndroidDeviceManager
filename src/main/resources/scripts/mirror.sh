@@ -29,12 +29,8 @@ elif [ -x "$(command -v gshuf)" ]; then
   PORT="-p $(gshuf -i 2000-65000 -n 1)"
 fi
 
-# options: https://github.com/Genymobile/scrcpy?tab=readme-ov-file#user-documentation
-# --stay-awake
-# --always-on-top
-# --encoder ['OMX.qcom.video.encoder.avc', 'c2.android.avc.encoder', 'OMX.google.h264.encoder']
-
 echo "running scrcpy with DEVICE:${ADB_DEVICE}, PORT:${PORT}, NAME:${DEVICE_NAME}"
 
-# shellcheck disable=SC2086
-${SCRCPY} -s "${ADB_DEVICE}" ${PORT} --window-title "${DEVICE_NAME}" --show-touches --stay-awake
+# options: https://github.com/Genymobile/scrcpy?tab=readme-ov-file#user-documentation
+# --encoder ['OMX.qcom.video.encoder.avc', 'c2.android.avc.encoder', 'OMX.google.h264.encoder']
+${SCRCPY} -s "${ADB_DEVICE}" ${PORT} --window-title "${DEVICE_NAME}" --show-touches --stay-awake --no-audio

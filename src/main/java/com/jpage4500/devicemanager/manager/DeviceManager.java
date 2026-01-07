@@ -8,13 +8,17 @@ import com.jpage4500.devicemanager.manager.client.RemoteConnectionManager;
 import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.ui.RemoteScreenWindow;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
+import com.jpage4500.devicemanager.ui.dialog.RemoteServerDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
+import com.jpage4500.devicemanager.ui.dialog.ScrcpyOptionsDialog;
 import com.jpage4500.devicemanager.utils.*;
 import com.jpage4500.devicemanager.utils.Timer;
 import se.vidstige.jadb.*;
 import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
+import javax.swing.*;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -26,6 +30,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -799,7 +804,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     /**
      * run scrcpy app to mirror device
      */
-    public void mirrorDevice(Device device, TaskListener listener) {
+    public void mirrorDevice(Device device, boolean skipDialogCheck, TaskListener listener) {
         commandExecutorService.submit(() -> {
             // handle remote devices differently
             if (device.remoteConnection != null) {
@@ -807,25 +812,40 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 window.setVisible(true);
                 return;
             }
-            log.debug("mirrorDevice: {}", device.getDisplayName());
+            // check if scrcpy dialog needs to be displayed
+            String scrcpy = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SCRCPY_PATH);
+            if (TextUtils.isEmpty(scrcpy) || !new File(scrcpy).exists() || (!skipDialogCheck && !ScrcpyOptionsDialog.isDoNotShowAgain())) {
+                SwingUtilities.invokeLater(() -> {
+                    boolean isOk = ScrcpyOptionsDialog.showRemoteServerDialog(null);
+                    if (isOk) {
+                        // try again - skip dialog check
+                        mirrorDevice(device, true, listener);
+                    } else {
+                        listener.onTaskComplete(false, "cancelled by user");
+                    }
+                });
+                return;
+            }
+            // get args
+            List<String> argsList = ScrcpyOptionsDialog.getCustomArgs();
+            log.debug("mirrorDevice: {}, scrcpy:{}, args:{}", device.getDisplayName(), scrcpy, argsList);
             AppResult appResult = null;
-            File scriptFile = getScriptFile(SCRIPT_MIRROR);
-            if (scriptFile != null) {
-                appResult = runApp(scriptFile.getAbsolutePath(), true, device.serial, device.getDisplayName());
+            List<String> commandList = new ArrayList<>();
+            commandList.add(scrcpy);
+            commandList.add("-s");
+            commandList.add(device.serial);
+            commandList.add("--window-title");
+            commandList.add(device.getDisplayName());
+            commandList.addAll(argsList);
+            try {
+                appResult = runApp(commandList.get(0), true, commandList.subList(1, commandList.size()).toArray(new String[0]));
+            } catch (Exception e) {
+                log.error("mirrorDevice: Exception: {}", e.getMessage());
             }
-            if (appResult == null || !appResult.isSuccess) {
-                String app = findApp(APP_SCRCPY);
-                if (app == null) app = APP_SCRCPY;
-                int port = Utils.getRandomNumber(2000, 65000);
-                // NOTE: adb must be in PATH (or ADB env variable set)
-                appResult = runApp(app, true, "-s", device.serial,
-                    "-p", String.valueOf(port),
-                    "--window-title", device.getDisplayName(),
-                    "--show-touches", "--stay-awake");
+            if (appResult == null) {
+                listener.onTaskComplete(false, "failed to run scrcpy");
+                return;
             }
-
-            // TODO: figure out how to determine if scrcpy was run successfully..
-            // - scrcpy will log to stderr even when successful
             listener.onTaskComplete(appResult.isSuccess, TextUtils.join(appResult.stdErr, "\n"));
         });
     }
@@ -878,7 +898,8 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      *
      * @return full path or null if not found
      */
-    private String findApp(String app) {
+    public String findApp(String app) {
+        // step 1: search PATH
         String path = System.getenv("PATH");
         //log.trace("findApp: PATH:{}", path);
         String[] pathArr = path.split(File.pathSeparator);
@@ -888,7 +909,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             String fullPath = checkFile(p, app);
             if (fullPath != null) return fullPath;
         }
-        // try some other common locations
+        // step 2: try some common locations
         String[] arr = new String[]{};
         if (!Utils.isWindows()) {
             arr = new String[]{
@@ -1357,10 +1378,11 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     /**
      * Pair with a device using ADB wireless pairing
-     * @param ip IP address of device
-     * @param port Pairing port (not connection port)
+     *
+     * @param ip          IP address of device
+     * @param port        Pairing port (not connection port)
      * @param pairingCode Pairing code from QR code or device screen
-     * @param listener Callback listener
+     * @param listener    Callback listener
      */
     public void pairDevice(String ip, int port, String pairingCode, TaskListener listener) {
         commandExecutorService.submit(() -> {
@@ -1829,9 +1851,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         if (!TextUtils.containsAny(app, true, APP_SCRCPY)) return;
 
         Map<String, String> environment = processBuilder.environment();
-        String path = environment.get("PATH");
+        //String path = environment.get("PATH");
         String adbPath = environment.get("ADB");
-        log.trace("runApp: ADB:{}, PATH:{}", adbPath, path);
+        //log.trace("runApp: ADB:{}, PATH:{}", adbPath, path);
 
         if (TextUtils.isEmpty(adbPath)) {
             adbPath = findApp(APP_ADB);
