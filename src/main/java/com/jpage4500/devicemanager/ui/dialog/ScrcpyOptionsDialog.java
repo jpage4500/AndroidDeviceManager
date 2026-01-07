@@ -85,9 +85,9 @@ public class ScrcpyOptionsDialog extends JPanel {
         browseButton.setIcon(UiUtils.getImageIcon(Icons.OPEN_FOLDER, 20));
         browseButton.setToolTipText("Browse");
         browseButton.addActionListener(e -> browseForScrcpyPath());
-        JPanel pathPanel = new JPanel(new MigLayout("ins 0, fillx", "[grow][]", ""));
+        JPanel pathPanel = new JPanel(new MigLayout("ins 0, fillx", "[grow,fill][]", ""));
         pathPanel.add(new JLabel("Path:"));
-        pathPanel.add(scrcpyPathField, "growx, push");
+        pathPanel.add(scrcpyPathField, "growx, push, spanx 1");
         pathPanel.add(browseButton, "");
         add(pathPanel, "growx,span 2,wrap");
 

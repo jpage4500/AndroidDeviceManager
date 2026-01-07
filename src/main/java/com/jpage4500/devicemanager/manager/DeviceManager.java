@@ -915,7 +915,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             arr = new String[]{
                 "/opt/homebrew/bin",
                 "/usr/local/bin",
-                "/home/linuxbrew/.linuxbrew/bin/scrcpy"
+                "/home/linuxbrew/.linuxbrew/bin",
             };
         }
         for (String s : arr) {
