@@ -41,44 +41,42 @@ public class SettingsDialog extends JPanel {
     }
 
     private void initalizeUi() {
-        JPanel devicePanel = UiUtils.createPanel("Device Settings");
-        UiUtils.addSettingButton(devicePanel, "Refresh Time", "EDIT", () -> showRefreshTime());
-        UiUtils.addSettingButton(devicePanel, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen, this));
-        UiUtils.addSettingButton(devicePanel, "Custom Columns", "EDIT", this::showAppsSettings);
-        UiUtils.addSettingButton(devicePanel, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen, this));
-        add(devicePanel, "growx, wrap");
+        JPanel generalSettings = UiUtils.createPanel("General Settings");
+        UiUtils.addSettingCheckbox(generalSettings, "Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
+        UiUtils.addSettingButton(generalSettings, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(deviceScreen, this));
+        UiUtils.addSettingButton(generalSettings, "Custom Columns", "EDIT", this::showAppsSettings);
+        UiUtils.addSettingButton(generalSettings, "Customize Toolbar", "EDIT", () -> showManageToolbar(deviceScreen, this));
+        UiUtils.addSettingButton(generalSettings, "scrcpy Settings", "SHOW", this::showScrcpyOptionsDialog);
+        UiUtils.addSettingButton(generalSettings, "Download Location", "EDIT", this::showDownloadLocation);
+        add(generalSettings, "growx, wrap");
 
         JPanel remotePanel = UiUtils.createPanel("Remote Servers");
         UiUtils.addSettingButton(remotePanel, "Connect to Remote Servers", "MANAGE", () -> RemoteServerDialog.showRemoteServerDialog(this));
         UiUtils.addSettingButton(remotePanel, "Share My Devices", "SHARE", () -> ShareServerDialog.showShareServerDialog(this));
         add(remotePanel, "growx, wrap");
 
-        JPanel logPanel = UiUtils.createPanel("Log Settings");
-        UiUtils.addSettingButton(logPanel, "Buffer (lines)", "EDIT", () -> showLogBuffer());
-        add(logPanel, "growx, wrap");
-
-        JPanel explorePanel = UiUtils.createPanel("File Explorer Settings");
-        UiUtils.addSettingButton(explorePanel, "Download Location", "EDIT", this::showDownloadLocation);
-        add(explorePanel, "growx, wrap");
-
-        JPanel generalPanel = UiUtils.createPanel("General Settings");
-        UiUtils.addSettingCheckbox(generalPanel, "Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
-        UiUtils.addSettingCheckbox(generalPanel, "Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> deviceScreen.scheduleUpdateChecks());
-        UiUtils.addSettingCheckbox(generalPanel, "Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
+        JPanel advancedSettings = UiUtils.createPanel("Advanced Settings");
+        UiUtils.addSettingButton(advancedSettings, "Refresh Time", "EDIT", () -> showRefreshTime());
+        UiUtils.addSettingButton(advancedSettings, "Log Buffer", "EDIT", () -> showLogBuffer());
+        UiUtils.addSettingCheckbox(advancedSettings, "Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> deviceScreen.scheduleUpdateChecks());
+        UiUtils.addSettingCheckbox(advancedSettings, "Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> {
             // force table background to be repainted
             deviceScreen.model.fireTableDataChanged();
         });
-
-        JButton logButton = UiUtils.addSettingButton(generalPanel, "Log Level", "EDIT", null);
+        JButton logButton = UiUtils.addSettingButton(advancedSettings, "Log Level", "EDIT", null);
         UiUtils.addLeftClickListener(logButton, e -> toggleLogLevels(logButton));
         updateLogLevel(logButton);
 
-        UiUtils.addSettingButton(generalPanel, "View Logs", "VIEW", this::viewLogs);
-        UiUtils.addSettingButton(generalPanel, "Reset Preferences", "RESET", this::resetPreferences);
-        add(generalPanel, "growx, wrap");
+        UiUtils.addSettingButton(advancedSettings, "View Logs", "VIEW", this::viewLogs);
+        UiUtils.addSettingButton(advancedSettings, "Reset Preferences", "RESET", this::resetPreferences);
+        add(advancedSettings, "growx, wrap");
 
         doLayout();
         invalidate();
+    }
+
+    private void showScrcpyOptionsDialog() {
+        ScrcpyOptionsDialog.showRemoteServerDialog(this);
     }
 
     private void showLogBuffer() {

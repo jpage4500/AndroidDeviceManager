@@ -30,6 +30,9 @@ public class PreferenceUtils {
         PREF_SERVER_AUTH_TOKEN,               // remote server: authentication token
         PREF_SERVER_DEVICE_NAME,              // remote server: device name
         PREF_CONNECTED_SERVERS,               // connected servers: List<RemoteServerConfig>
+        PREF_SCRCPY_PATH,                     // path to scrcpy
+        PREF_SCRCPY_ARGS,                     // List<String> of scrcpy arguments
+        PREF_ADB_PATH,                        // path to adb (used to start server when not running)
     }
 
     /**
@@ -46,6 +49,7 @@ public class PreferenceUtils {
         PREF_DEVICE_AUTO_RESIZE,
         PREF_LOGS_AUTO_RESIZE,
         PREF_SERVER_ENABLED,
+        PREF_SCRCPY_DO_NOT_SHOW_AGAIN,        // true to prevent showing scrcpy dialog
     }
 
     /**

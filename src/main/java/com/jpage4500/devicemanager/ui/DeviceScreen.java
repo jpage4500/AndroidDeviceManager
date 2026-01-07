@@ -1296,7 +1296,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
         for (Device device : selectedDeviceList) {
             setDeviceBusy(device, true);
-            DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> {
+            DeviceManager.getInstance().mirrorDevice(device, false, (isSuccess, error) -> {
                 setDeviceBusy(device, false);
                 resultWatcher.handleResult(device.getDisplayName(), isSuccess, isSuccess ? null : error);
             });
