@@ -915,7 +915,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             arr = new String[]{
                 "/opt/homebrew/bin",
                 "/usr/local/bin",
+                "/usr/bin",
                 "/home/linuxbrew/.linuxbrew/bin",
+                System.getProperty("user.home") + "/Library/Android/sdk/platform-tools",
             };
         }
         for (String s : arr) {
