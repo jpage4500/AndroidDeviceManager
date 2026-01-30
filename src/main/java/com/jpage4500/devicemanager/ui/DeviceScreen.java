@@ -1652,6 +1652,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             for (Device device : selectedDeviceList) {
                 setDeviceBusy(device, false);
             }
+            if (!isSuccess && TextUtils.notEmpty(error)) {
+                DialogHelper.showDialog(this, "Error", "Failed to run: " + name + ", Error:\n\n" + error);
+            }
         }, script.getAbsolutePath(), serialArr);
     }
 
