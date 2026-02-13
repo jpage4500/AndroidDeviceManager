@@ -1256,7 +1256,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 path = path.substring(0, pos);
 
                 File saveFile = new File(appFolder, file.name);
-                deviceManager.downloadFile(device, path, file, saveFile, (isSuccess, error) -> {
+                deviceManager.downloadFile(device, path, file, saveFile, false, (isSuccess, error) -> {
                     log.trace("extractApk: {}: {}", isSuccess, error);
                 });
             }

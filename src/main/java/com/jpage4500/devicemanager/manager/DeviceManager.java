@@ -8,9 +8,8 @@ import com.jpage4500.devicemanager.manager.client.RemoteConnectionManager;
 import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.ui.RemoteScreenWindow;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
-import com.jpage4500.devicemanager.ui.dialog.RemoteServerDialog;
-import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.dialog.ScrcpyOptionsDialog;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.*;
 import com.jpage4500.devicemanager.utils.Timer;
 import se.vidstige.jadb.*;
@@ -18,7 +17,6 @@ import se.vidstige.jadb.managers.PackageManager;
 import se.vidstige.jadb.managers.PropertyManager;
 
 import javax.swing.*;
-import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -30,7 +28,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1256,10 +1253,10 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     /**
      * download a file or folder from device
      */
-    public void downloadFile(Device device, String path, DeviceFile file, File saveFile, TaskListener listener) {
+    public void downloadFile(Device device, String path, DeviceFile file, File saveFile, boolean useRoot, TaskListener listener) {
         //log.debug("downloadFile: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
         commandExecutorService.submit(() -> {
-            boolean isOk = downloadFileInternal(device, path, file, saveFile);
+            boolean isOk = downloadFileInternal(device, path, file, saveFile, useRoot);
             // test if file was created
             listener.onTaskComplete(isOk, null);
         });
@@ -1270,7 +1267,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      *
      * @return true if download was successful & file/folder exists
      */
-    public boolean downloadFileInternal(Device device, String path, DeviceFile file, File saveFile) {
+    public boolean downloadFileInternal(Device device, String path, DeviceFile file, File saveFile, boolean useRoot) {
         if (file.isDirectory) {
             // create local folder
             if (!saveFile.exists()) {
@@ -1283,7 +1280,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             }
             // get list of files in folder
             String dirPath = path + "/" + file.name;
-            FileResponse fileResponse = fetchFileListInternal(device, dirPath, false);
+            FileResponse fileResponse = fetchFileListInternal(device, dirPath, useRoot);
             if (fileResponse.fileList == null || fileResponse.error != null) {
                 log.error("downloadFileInternal: DIR:{}, ERROR:{}", dirPath, fileResponse.error);
                 return false;
@@ -1291,29 +1288,61 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             // download every file in folder
             for (DeviceFile deviceFile : fileResponse.fileList) {
                 File subFile = new File(saveFile, deviceFile.name);
-                downloadFileInternal(device, path, deviceFile, subFile);
+                downloadFileInternal(device, dirPath, deviceFile, subFile, useRoot);
             }
             return true;
-        } else {
-            // download file
-            log.trace("downloadFileInternal: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
+        }
 
-            if (device.remoteConnection != null) {
-                // remote device
-                device.remoteConnection.downloadFile(device.serial, path, file.name, saveFile);
-            } else {
-                // local device
-                RemoteFile remoteFile = new RemoteFileRecord(path, file.name, 0, 0, 0);
+        if (device.remoteConnection != null) {
+            // remote device
+            device.remoteConnection.downloadFile(device.serial, path, file.name, saveFile);
+        } else if (file.isReadOnly && useRoot) {
+            // local device, root required
+            String remoteFilePath = path + "/" + file.name;
+            String tmpFile = "/sdcard/adm_tmpfile";
+            // download file
+            log.trace("downloadFileInternal: ROOT: {}/{} -> {} -> {}", path, file.name, tmpFile, saveFile.getAbsolutePath());
+            try {
+                // copy file to tmp location with root
+                ShellResult cpResult = runShell(device, "su -c cp '" + remoteFilePath + "' '" + tmpFile + "'");
+                if (!cpResult.isSuccess) {
+                    log.error("downloadFileInternal: root cp failed for {}/{}", path, file.name);
+                    return false;
+                }
+                // set permissions
+                ShellResult chmodResult = runShell(device, "su -c chmod 644 '" + tmpFile + "'");
+                if (!chmodResult.isSuccess) {
+                    log.error("downloadFileInternal: root chmod failed for {}/{}", path, file.name);
+                    runShell(device, "su -c rm -f '" + tmpFile + "'");
+                    return false;
+                }
+                // pull file
+                RemoteFile remoteFile = new RemoteFileRecord("/sdcard", "adm_tmpfile", 0, 0, 0);
                 try {
                     device.jadbDevice.pull(remoteFile, saveFile);
                 } catch (Exception e) {
-                    log.error("downloadFileInternal: {}/{}, Exception:{}", path, file.name, e.getMessage());
+                    log.error("downloadFileInternal: Exception: {}, file:{}", e.getMessage(), remoteFile);
+                    runShell(device, "su -c rm -f '" + tmpFile + "'");
                     return false;
                 }
+            } finally {
+                // always remove tmp file
+                runShell(device, "su -c rm -f '" + tmpFile + "'");
             }
-
-            return saveFile.exists() && saveFile.length() > 0;
+        } else {
+            // download file
+            log.trace("downloadFileInternal: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
+            // local device, normal download
+            RemoteFile remoteFile = new RemoteFileRecord(path, file.name, 0, 0, 0);
+            try {
+                device.jadbDevice.pull(remoteFile, saveFile);
+            } catch (Exception e) {
+                log.error("downloadFileInternal: {}/{}, Exception:{}", path, file.name, e.getMessage());
+                return false;
+            }
         }
+
+        return saveFile.exists() && saveFile.length() > 0;
     }
 
     public void deleteFile(Device device, String path, DeviceFile file, TaskListener listener) {

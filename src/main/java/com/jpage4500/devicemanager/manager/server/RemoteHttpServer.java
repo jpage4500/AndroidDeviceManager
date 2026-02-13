@@ -337,7 +337,7 @@ public class RemoteHttpServer extends NanoWSD {
             deviceFile.isDirectory = false;
             deviceFile.name = filename;
 
-            boolean isOk = DeviceManager.getInstance().downloadFileInternal(device, path, deviceFile, tempFile);
+            boolean isOk = DeviceManager.getInstance().downloadFileInternal(device, path, deviceFile, tempFile, false);
             if (!isOk || !tempFile.exists() || tempFile.length() == 0) {
                 return createNotFoundResponse("File not found on device");
             }

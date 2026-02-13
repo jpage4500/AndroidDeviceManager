@@ -548,12 +548,12 @@ public class ExploreScreen extends BaseScreen {
 
         String downloadFolder = Utils.getDownloadFolder();
         for (DeviceFile file : selectedFileList) {
-            if (file.isReadOnly) {
+            if (file.isReadOnly && !useRoot) {
                 DialogHelper.showDialog(this, "Read-only", "File is read-only!", true);
                 return;
             }
             File downloadFile = new File(downloadFolder, file.name);
-            DeviceManager.getInstance().downloadFile(device, selectedPath, file, downloadFile, (isSuccess, error) -> {
+            DeviceManager.getInstance().downloadFile(device, selectedPath, file, downloadFile, useRoot, (isSuccess, error) -> {
                 if (isSuccess && isSingleFile) {
                     if (downloadFile.exists()) {
                         if (!DialogHelper.showConfirmDialog(this, "Open File?", "Open " + downloadFile.getName() + "?"))
