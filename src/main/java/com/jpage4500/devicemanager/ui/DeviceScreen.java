@@ -1256,7 +1256,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 path = path.substring(0, pos);
 
                 File saveFile = new File(appFolder, file.name);
-                deviceManager.downloadFile(device, path, file, saveFile, (isSuccess, error) -> {
+                deviceManager.downloadFile(device, path, file, saveFile, false, (isSuccess, error) -> {
                     log.trace("extractApk: {}: {}", isSuccess, error);
                 });
             }
@@ -1651,6 +1651,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             log.trace("handleCustomScriptClicked: DONE:{}, {}", isSuccess, error);
             for (Device device : selectedDeviceList) {
                 setDeviceBusy(device, false);
+            }
+            if (!isSuccess && TextUtils.notEmpty(error)) {
+                DialogHelper.showDialog(this, "Error", "Failed to run: " + name + ", Error:\n\n" + error);
             }
         }, script.getAbsolutePath(), serialArr);
     }
