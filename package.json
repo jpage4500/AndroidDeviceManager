@@ -6,7 +6,7 @@
     "preferGlobal": true,
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/jpage4500/AndroidDeviceManager.git",
+        "url": "git+https://github.com/jpage4500/AndroidDeviceManager.git"
     },
     "version": "24.10.18-2046",
     "jdeploy": {
