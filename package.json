@@ -4,7 +4,10 @@
     "description": "Java desktop app to manage multiple Android devices via adb",
     "main": "index.js",
     "preferGlobal": true,
-    "repository": "",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/jpage4500/AndroidDeviceManager.git"
+    },
     "version": "24.10.18-2046",
     "jdeploy": {
         "jdk": false,
