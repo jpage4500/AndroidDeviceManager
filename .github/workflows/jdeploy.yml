@@ -12,7 +12,7 @@ on:
 # npm Trusted Publishing
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -52,10 +52,14 @@ jobs:
 #      - name: set NPM token
 #        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
 
-      - name: Install and run jdeploy
-        run: |
-          npm install jdeploy
-          npx jdeploy publish
+      - name: Install jdeploy
+        run: npm install jdeploy
+
+      - name: Bundle with jdeploy (no publish)
+        run: npx jdeploy bundle
+
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public
 
       # create github release - https://github.com/jpage4500/AndroidDeviceManager/releases
       - name: "Create Release"
