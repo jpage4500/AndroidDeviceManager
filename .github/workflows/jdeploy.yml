@@ -56,7 +56,7 @@ jobs:
         run: npm install jdeploy
 
       - name: Bundle with jdeploy (no publish)
-        run: npx jdeploy bundle
+        run: npx jdeploy package
 
       - name: Publish to npm with provenance
         run: npm publish --provenance --access public
