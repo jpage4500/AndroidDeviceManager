@@ -26,16 +26,11 @@ import java.util.List;
 public class InputScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(InputScreen.class);
 
-    private final App app;
-    private Device device;
-
     private JTextField textField;
     private DefaultListModel<String> listModel;
 
     public InputScreen(App app, Device device) {
-        super("input-" + device.serial, 300, 300);
-        this.app = app;
-        this.device = device;
+        super(app, device, "input-" + device.serial, 300, 300);
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initalizeUi();
@@ -113,7 +108,7 @@ public class InputScreen extends BaseScreen {
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, device);
+        JMenu windowMenu = buildWindowMenu();
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);

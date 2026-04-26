@@ -280,15 +280,18 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
     @Override
     public void showFileBrowser(Device device) {
+        log.trace("showFileBrowser: BEFORE: device {}", device);
         if (device == null && deviceScreen != null) device = deviceScreen.getFirstSelectedDevice();
         if (device == null) return;
 
+        log.trace("showFileBrowser: device {}, isOnline:{}", device.getDisplayName(), device.isOnline);
         ExploreScreen exploreScreen = exploreViewMap.get(device.serial);
         if (exploreScreen == null) {
             if (!device.isOnline) return;
             exploreScreen = new ExploreScreen(this, device);
             exploreViewMap.put(device.serial, exploreScreen);
         }
+        log.trace("showFileBrowser: show..");
         exploreScreen.show();
     }
 

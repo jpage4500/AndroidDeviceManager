@@ -28,8 +28,6 @@ public class MessageViewScreen extends BaseScreen {
     public static final String TEXT_AUTO_FORMAT_OFF = "Auto Format OFF";
     public static final String TEXT_WRAP_OFF = "Wrap OFF";
 
-    private final App app;
-
     private LogEntry[] logEntryArr;
 
     private JTextArea textArea;
@@ -41,8 +39,7 @@ public class MessageViewScreen extends BaseScreen {
     private JButton editButton;
 
     public MessageViewScreen(App app) {
-        super("message", 500, 500);
-        this.app = app;
+        super(app, null, "message", 500, 500);
         initalizeUi();
         refreshUi();
     }
@@ -98,7 +95,7 @@ public class MessageViewScreen extends BaseScreen {
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, null);
+        JMenu windowMenu = buildWindowMenu();
 
         JMenu messageMenu = new JMenu("Message");
 

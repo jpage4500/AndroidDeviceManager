@@ -40,8 +40,6 @@ public class ExploreScreen extends BaseScreen {
     private static final String HINT_FILTER_DEVICES = "Filter files...";
     public static final int MAX_PATH_SAVE = 10;
 
-    private final App app;
-
     public CustomTable table;
     public ExploreTableModel model;
     public TableRowSorter<TableModel> rowSorter;
@@ -49,7 +47,6 @@ public class ExploreScreen extends BaseScreen {
 
     public JToolBar toolbar;
 
-    private Device device;
     private boolean wasOffline = true;
 
     private String selectedPath = "/sdcard";
@@ -66,9 +63,7 @@ public class ExploreScreen extends BaseScreen {
     private JLabel countLabel;          // total files / # selected
 
     public ExploreScreen(App app, Device device) {
-        super("browse-" + device.serial, 500, 500);
-        this.app = app;
-        this.device = device;
+        super(app, device, "browse-" + device.serial, 500, 500);
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         initializeUi();
         updateDevice(device);
@@ -213,7 +208,7 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, device);
+        JMenu windowMenu = buildWindowMenu();
 
         JMenu fileMenu = new JMenu("Files");
 

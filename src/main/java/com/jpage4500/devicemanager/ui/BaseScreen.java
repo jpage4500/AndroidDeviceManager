@@ -1,5 +1,8 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
@@ -18,8 +21,15 @@ public abstract class BaseScreen extends JFrame {
     private static final Logger log = LoggerFactory.getLogger(BaseScreen.class);
 
     private String prefKey;
+    protected final App app;
+    /**
+     * device this screen is bound to (null for non-device-specific screens like DeviceScreen, SaveLogsScreen)
+     */
+    protected Device device;
 
-    public BaseScreen(String prefKey, int defaultWidth, int defaultHeight) {
+    public BaseScreen(App app, Device device, String prefKey, int defaultWidth, int defaultHeight) {
+        this.app = app;
+        this.device = device;
         this.prefKey = prefKey;
         restoreFrameSize(defaultWidth, defaultHeight);
 
@@ -84,11 +94,64 @@ public abstract class BaseScreen extends JFrame {
         //log.trace("onWindowStateChanged: {}: {}", prefKey, state);
     }
 
-    /** close this window (each screen handles save/cleanup before disposing) */
+    /**
+     * close this window (each screen handles save/cleanup before disposing)
+     */
     public abstract void closeWindow();
 
-    /** show/hide this screen's main toolbar — default no-op for screens without one */
+    /**
+     * show/hide this screen's main toolbar — default no-op for screens without one
+     */
     public void toggleToolbar() {
+    }
+
+    /**
+     * Build the standard "Window" menu (Close, Show Devices/Logs/Browse, Settings, Hide Toolbar,
+     * Always-on-top). Each screen calls this from its menu setup and adds its own screen-specific
+     * menus alongside.
+     * <p>
+     * Show Logs / Show File Browser look up the device fresh via {@link DeviceManager#getDevice}
+     * by serial when clicked, so the menu always targets the current device state. For screens
+     * without a single device context (DeviceScreen, SaveLogsScreen) the lookup yields null and
+     * the App impl falls back to "first selected device" or no-op.
+     */
+    protected JMenu buildWindowMenu() {
+        JMenu menu = new JMenu("Window");
+        String contextSerial = (device != null) ? device.serial : null;
+
+        createCmdMenuItem(menu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
+
+        if (!app.isHeadlessMode()) {
+            // not available in headless mode
+            createCmdMenuItem(menu, "Show Device List", KeyEvent.VK_1, e -> app.showDeviceList());
+        }
+
+        createCmdMenuItem(menu, "Show File Browser", KeyEvent.VK_2, e -> app.showFileBrowser(lookupDevice(contextSerial)));
+        createCmdMenuItem(menu, "Show Device Logs", KeyEvent.VK_3, e -> app.showLogs(lookupDevice(contextSerial)));
+        createCmdMenuItem(menu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(app, this));
+        createCmdMenuItem(menu, "Hide Toolbar", KeyEvent.VK_T, e -> toggleToolbar());
+
+        // always on top toggle
+        JCheckBoxMenuItem onTopItem = new JCheckBoxMenuItem();
+        boolean isAlwaysOnTop = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_ALWAYS_ON_TOP, false);
+        setAlwaysOnTop(isAlwaysOnTop);
+        onTopItem.setState(isAlwaysOnTop);
+        onTopItem.setAction(new AbstractAction("Always on top") {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                boolean alwaysOnTop = !isAlwaysOnTop();
+                setAlwaysOnTop(alwaysOnTop);
+                PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_ALWAYS_ON_TOP, alwaysOnTop);
+            }
+        });
+        menu.add(onTopItem);
+
+        return menu;
+    }
+
+    private static Device lookupDevice(String serial) {
+        if (serial == null) return null;
+        return DeviceManager.getInstance().getDevice(serial);
     }
 
     protected JButton createSmallToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {

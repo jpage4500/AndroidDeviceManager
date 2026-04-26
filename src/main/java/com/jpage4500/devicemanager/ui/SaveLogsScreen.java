@@ -31,8 +31,6 @@ import java.util.Map;
 public class SaveLogsScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(SaveLogsScreen.class);
 
-    private final App app;
-
     private boolean isRecording;
     private final Icon iconStartRecording;
     private final Icon iconStopRecording;
@@ -53,10 +51,9 @@ public class SaveLogsScreen extends BaseScreen {
     private JButton filterButton;
 
     public SaveLogsScreen(App app) {
-        super("savelogs", 450, 230);
+        super(app, null, "savelogs", 450, 230);
         //setAlwaysOnTop(true);
         setTitle("Save Device Logs");
-        this.app = app;
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         BufferedImage startImg = UiUtils.getImage("icon_play.png", UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
@@ -278,7 +275,7 @@ public class SaveLogsScreen extends BaseScreen {
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, null);
+        JMenu windowMenu = buildWindowMenu();
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);

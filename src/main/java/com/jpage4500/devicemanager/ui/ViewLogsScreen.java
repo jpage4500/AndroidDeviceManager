@@ -41,9 +41,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private static final String HINT_FILTER = "Filter...";
     private static final String HINT_SEARCH = "Search...";
 
-    private final App app;
-    private Device device;
-
     public CustomTable table;
     public LogsTableModel model;
 
@@ -72,8 +69,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public boolean isQuickViewEnabled; // true when user clicks on 'quick view'
 
     public ViewLogsScreen(App app, Device device) {
-        super("logs-" + device.serial, 1100, 800);
-        this.app = app;
+        super(app, device, "logs-" + device.serial, 1100, 800);
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initalizeUi();
@@ -209,7 +205,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, device);
+        JMenu windowMenu = buildWindowMenu();
 
         // -----------------------------------------------------------
         // -----------------------------------------------------------
@@ -254,13 +250,13 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         createCmdMenuItem(logsMenu, "Edit selected", KeyEvent.VK_E, e -> handleEditLogsClicked());
 
         // [CMD + KEY_UP] = scroll to top
-        createCmdMenuItem(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
+        createCmdMenuItem(logsMenu, "Scroll to top", KeyEvent.VK_UP, e -> {
             autoScrollCheckBox.setSelected(false);
             table.scrollToTop();
         });
 
         // [CMD + KEY_DOWN] = scroll to bottom
-        createCmdMenuItem(logsMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
+        createCmdMenuItem(logsMenu, "Scroll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
 
         // [OPTION + KEY_UP] = page up
         KeyStroke optionUpKey = KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK);

@@ -9,10 +9,6 @@ import java.util.List;
  * Implemented by AppController (which owns app-lifecycle: ADB, tray, update checks, child windows).
  */
 public interface App {
-    // shared menu strings (referenced by CommonMenu and any direct callers)
-    String SHOW_DEVICE_LIST = "Show Device List";
-    String SHOW_BROWSE = "Show File Browser";
-    String SHOW_LOG_VIEWER = "Show Device Logs";
 
     // ------------------------------------------------------------------
     // navigation — used by menu items in every screen
@@ -48,19 +44,29 @@ public interface App {
     // ------------------------------------------------------------------
     void scheduleUpdateChecks();
 
-    /** soft refresh — fire table data changed on the device list */
+    /**
+     * soft refresh — fire table data changed on the device list
+     */
     void refreshDeviceListView();
 
-    /** full rebuild of the device table (column setup + repopulate) */
+    /**
+     * full rebuild of the device table (column setup + repopulate)
+     */
     void rebuildDeviceTable();
 
-    /** restore device table layout from saved preferences */
+    /**
+     * restore device table layout from saved preferences
+     */
     void restoreDeviceTable();
 
-    /** rebuild the device-list toolbar (after a hidden-button toggle) */
+    /**
+     * rebuild the device-list toolbar (after a hidden-button toggle)
+     */
     void rebuildDeviceToolbar();
 
-    /** custom columns list changed — refresh device data */
+    /**
+     * custom columns list changed — refresh device data
+     */
     void notifyCustomColumnsChanged();
 
     // ------------------------------------------------------------------
@@ -73,6 +79,8 @@ public interface App {
     // ------------------------------------------------------------------
     void exit(boolean forceQuit);
 
-    /** true when no DeviceScreen is shown (e.g., logs-only launch mode) */
+    /**
+     * true when no DeviceScreen is shown (e.g., logs-only launch mode)
+     */
     boolean isHeadlessMode();
 }

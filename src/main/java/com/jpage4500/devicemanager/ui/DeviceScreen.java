@@ -45,8 +45,6 @@ public class DeviceScreen extends BaseScreen {
     public static final String PREF_KEY_DEVICES = "devices";
     public static final String PACKAGE_PREFIX = "package:";
 
-    private final App app;
-
     public CustomTable table;
     public DeviceTableModel model;
     private DeviceRowSorter sorter;
@@ -62,9 +60,7 @@ public class DeviceScreen extends BaseScreen {
     private boolean hasSelectedDevice;
 
     public DeviceScreen(App app) {
-        super("main", 900, 300);
-        this.app = app;
-
+        super(app, null, "main", 900, 300);
         initalizeUi();
     }
 
@@ -151,7 +147,7 @@ public class DeviceScreen extends BaseScreen {
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, null);
+        JMenu windowMenu = buildWindowMenu();
 
         JMenu deviceMenu = new JMenu("Devices");
 
