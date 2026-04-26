@@ -14,7 +14,7 @@ import java.util.prefs.Preferences;
 /**
  * create and manage device view
  */
-public class BaseScreen extends JFrame {
+public abstract class BaseScreen extends JFrame {
     private static final Logger log = LoggerFactory.getLogger(BaseScreen.class);
 
     private String prefKey;
@@ -82,6 +82,13 @@ public class BaseScreen extends JFrame {
 
     protected void onWindowStateChanged(WindowState state) {
         //log.trace("onWindowStateChanged: {}: {}", prefKey, state);
+    }
+
+    /** close this window (each screen handles save/cleanup before disposing) */
+    public abstract void closeWindow();
+
+    /** show/hide this screen's main toolbar — default no-op for screens without one */
+    public void toggleToolbar() {
     }
 
     protected JButton createSmallToolbarButton(JToolBar toolbar, String imageName, String label, String tooltip, ActionListener listener) {

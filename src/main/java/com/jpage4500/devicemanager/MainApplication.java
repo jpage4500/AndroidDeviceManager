@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
+import com.jpage4500.devicemanager.ui.AppController;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
@@ -23,16 +24,35 @@ import java.util.Properties;
 public class MainApplication {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
-    private DeviceScreen deviceScreen;
-    private List<File> openFileList;
+    public enum LaunchMode {
+        DEFAULT,
+        LOGS_ONLY;
+
+        /** Detect launch mode from CLI args + jdeploy launcher path basename. */
+        static LaunchMode detect(String[] args) {
+            if (args != null && args.length > 0) {
+                String arg = args[0].toLowerCase();
+                if (arg.equals("logs") || arg.equals("--logs") || arg.equals("--logs-only")) {
+                    return LOGS_ONLY;
+                }
+            }
+            String launcherPath = System.getProperty("jdeploy.launcher.path", "").toLowerCase();
+            if (launcherPath.contains("adm-logs")) return LOGS_ONLY;
+            return DEFAULT;
+        }
+    }
+
+    private final AppController appController = new AppController();
+    private final LaunchMode launchMode;
 
     public static String version;
 
-    public MainApplication() {
+    public MainApplication(LaunchMode launchMode) {
+        this.launchMode = launchMode;
         setupLogging();
         handleLaunchParams();
         SwingUtilities.invokeLater(this::initializeUI);
-        log.debug("APP START: {}, java:{}, os:{}", version, Runtime.version(), System.getProperty("os.name"));
+        log.debug("APP START: mode:{}, {}, java:{}, os:{}", launchMode, version, Runtime.version(), System.getProperty("os.name"));
     }
 
     public static void main(String[] args) {
@@ -50,7 +70,7 @@ public class MainApplication {
         } catch (IOException ex) {
             System.out.println("Failed to load app.properties");
         }
-        new MainApplication();
+        new MainApplication(LaunchMode.detect(args));
     }
 
     /**
@@ -108,8 +128,18 @@ public class MainApplication {
             }
         }
 
-        deviceScreen = new DeviceScreen();
-        sendFilesToDevice();
+        appController.installLifecycleHooks();
+
+        if (launchMode == LaunchMode.LOGS_ONLY) {
+            appController.startLogsOnly();
+            appController.connectAdbServer();
+        } else {
+            appController.connectAdbServer();
+            DeviceScreen deviceScreen = new DeviceScreen(appController);
+            appController.setDeviceScreen(deviceScreen);
+            appController.setupSystemTray();
+            appController.scheduleUpdateChecks();
+        }
     }
 
     private void handleLaunchParams() {
@@ -117,18 +147,24 @@ public class MainApplication {
         if (desktop.isSupported(Desktop.Action.APP_OPEN_FILE)) {
             desktop.setOpenFileHandler(e -> {
                 List<File> files = e.getFiles();
-                if (openFileList == null) openFileList = new ArrayList<>();
-                openFileList.addAll(files);
-                log.debug("handleLaunchParams: {}", openFileList);
-                sendFilesToDevice();
+                log.debug("handleLaunchParams: openFile {}", files);
+                appController.handleFilesOpened(new ArrayList<>(files));
             });
         }
-    }
-
-    private void sendFilesToDevice() {
-        if (deviceScreen != null && openFileList != null && !openFileList.isEmpty()) {
-            deviceScreen.handleFilesOpened(openFileList);
-            openFileList = null;
+        if (desktop.isSupported(Desktop.Action.APP_OPEN_URI)) {
+            desktop.setOpenURIHandler(e -> {
+                java.net.URI uri = e.getURI();
+                if (uri == null) return;
+                log.debug("handleLaunchParams: openURI {}", uri);
+                if (!"adm".equalsIgnoreCase(uri.getScheme())) return;
+                if ("logs".equalsIgnoreCase(uri.getHost())) {
+                    // adm://logs[/<serial>]
+                    String path = uri.getPath();
+                    String serial = (path != null && path.length() > 1) ? path.substring(1) : null;
+                    appController.openLogsViaUrl(serial);
+                }
+                // other adm:// URIs (e.g. share/connect) are handled elsewhere
+            });
         }
     }
 

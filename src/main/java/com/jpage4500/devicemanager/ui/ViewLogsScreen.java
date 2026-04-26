@@ -41,7 +41,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private static final String HINT_FILTER = "Filter...";
     private static final String HINT_SEARCH = "Search...";
 
-    private final DeviceScreen deviceScreen;
+    private final App app;
     private Device device;
 
     public CustomTable table;
@@ -71,9 +71,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public JButton quickViewButton;
     public boolean isQuickViewEnabled; // true when user clicks on 'quick view'
 
-    public ViewLogsScreen(DeviceScreen deviceScreen, Device device) {
+    public ViewLogsScreen(App app, Device device) {
         super("logs-" + device.serial, 1100, 800);
-        this.deviceScreen = deviceScreen;
+        this.app = app;
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initalizeUi();
@@ -209,25 +209,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = new JMenu("Window");
-
-        // [CMD + W] = close window
-        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
-
-        // [CMD + 1] = show devices
-        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
-            deviceScreen.setVisible(true);
-            deviceScreen.toFront();
-        });
-
-        // [CMD + 2] = show explorer
-        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand(device));
-
-        // [CMD + ,] = settings
-        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(deviceScreen));
-
-        // [CMD + T] = hide toolbar
-        createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
+        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, device);
 
         // -----------------------------------------------------------
         // -----------------------------------------------------------
@@ -370,7 +352,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         JFontChooser fontChooser = new JFontChooser();
         LogsCellRenderer cellRenderer = (LogsCellRenderer) table.getDefaultRenderer(LogEntry.class);
         fontChooser.setSelectedFont(cellRenderer.getFont());
-        int rc = fontChooser.showDialog(deviceScreen);
+        int rc = fontChooser.showDialog(this);
         if (rc != JOptionPane.YES_OPTION) return;
         Font font = fontChooser.getSelectedFont();
         log.trace("showFontSelection: font:{}", font);
@@ -381,7 +363,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         notifyFontChanged();
     }
 
-    private void closeWindow() {
+    @Override
+    public void closeWindow() {
         log.trace("closeWindow: {}", device.getDisplayName());
         // save last filter
         String filterText = filterField.getCleanText();
@@ -394,11 +377,12 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS, GsonHelper.toJson(selectedFilterList));
 
         stopLogging();
-        deviceScreen.handleLogsClosed(device.serial);
+        app.onLogsClosed(device.serial);
         dispose();
     }
 
-    private void hideToolbar() {
+    @Override
+    public void toggleToolbar() {
         toolbar.setVisible(!toolbar.isVisible());
     }
 
@@ -703,7 +687,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void viewMessage(LogEntry... logEntry) {
-        if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
+        if (viewScreen == null) viewScreen = new MessageViewScreen(app);
         viewScreen.setLogEntry(logEntry);
         viewScreen.setVisible(true);
     }
@@ -712,7 +696,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         List<LogEntry> logEntryList = getSelectedLogEntries();
         if (logEntryList.isEmpty()) return;
 
-        if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
+        if (viewScreen == null) viewScreen = new MessageViewScreen(app);
         viewScreen.setLogEntry(logEntryList.toArray(new LogEntry[0]));
 
         viewScreen.editMessage();
@@ -730,13 +714,13 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void stopLogging() {
-        deviceScreen.setDeviceBusy(device, false);
+        app.setDeviceBusy(device, false);
         DeviceManager.getInstance().stopLogging(device);
     }
 
     private void startLogging() {
         if (device.isOnline && !DeviceManager.getInstance().isLogging(device)) {
-            deviceScreen.setDeviceBusy(device, true);
+            app.setDeviceBusy(device, true);
             // get last log entry and start from there
             String lastLogTime = model.getLastLogTime();
             DeviceManager.getInstance().startLogging(device, lastLogTime, this);

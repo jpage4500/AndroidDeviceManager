@@ -28,7 +28,7 @@ public class MessageViewScreen extends BaseScreen {
     public static final String TEXT_AUTO_FORMAT_OFF = "Auto Format OFF";
     public static final String TEXT_WRAP_OFF = "Wrap OFF";
 
-    private final DeviceScreen deviceScreen;
+    private final App app;
 
     private LogEntry[] logEntryArr;
 
@@ -40,9 +40,9 @@ public class MessageViewScreen extends BaseScreen {
     private JButton autoFormatButton;
     private JButton editButton;
 
-    public MessageViewScreen(DeviceScreen deviceScreen) {
+    public MessageViewScreen(App app) {
         super("message", 500, 500);
-        this.deviceScreen = deviceScreen;
+        this.app = app;
         initalizeUi();
         refreshUi();
     }
@@ -98,19 +98,7 @@ public class MessageViewScreen extends BaseScreen {
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = new JMenu("Window");
-
-        // [CMD + W] = close window
-        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
-
-        // [CMD + 1] = show devices
-        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
-            deviceScreen.setVisible(true);
-            deviceScreen.toFront();
-        });
-
-        // [CMD + 2] = show explorer
-        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand(null));
+        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, null);
 
         JMenu messageMenu = new JMenu("Message");
 
@@ -131,7 +119,8 @@ public class MessageViewScreen extends BaseScreen {
         }
     }
 
-    private void closeWindow() {
+    @Override
+    public void closeWindow() {
         log.trace("closeWindow");
         saveFrameSize();
         dispose();

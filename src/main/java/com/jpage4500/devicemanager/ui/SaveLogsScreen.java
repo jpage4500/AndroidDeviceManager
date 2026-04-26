@@ -31,7 +31,7 @@ import java.util.Map;
 public class SaveLogsScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(SaveLogsScreen.class);
 
-    private final DeviceScreen deviceScreen;
+    private final App app;
 
     private boolean isRecording;
     private final Icon iconStartRecording;
@@ -52,11 +52,11 @@ public class SaveLogsScreen extends BaseScreen {
     private JButton deleteButton;
     private JButton filterButton;
 
-    public SaveLogsScreen(DeviceScreen deviceScreen) {
+    public SaveLogsScreen(App app) {
         super("savelogs", 450, 230);
         //setAlwaysOnTop(true);
         setTitle("Save Device Logs");
-        this.deviceScreen = deviceScreen;
+        this.app = app;
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         BufferedImage startImg = UiUtils.getImage("icon_play.png", UiUtils.IMG_SIZE_TOOLBAR, UiUtils.IMG_SIZE_TOOLBAR);
@@ -94,7 +94,7 @@ public class SaveLogsScreen extends BaseScreen {
         if (!isRecording) return;
         List<SaveLogEntry> entryList = model.getEntryList();
         for (SaveLogEntry entry : entryList) {
-            deviceScreen.setDeviceBusy(entry.device, false);
+            app.setDeviceBusy(entry.device, false);
             DeviceManager.getInstance().stopLogging(entry.device);
         }
         isRecording = false;
@@ -112,7 +112,7 @@ public class SaveLogsScreen extends BaseScreen {
             entry.size = 0;
             entry.saveFile = new File(lastLogsFolder, entry.device.serial + ".txt");
 
-            deviceScreen.setDeviceBusy(entry.device, true);
+            app.setDeviceBusy(entry.device, true);
             DeviceManager.getInstance().startLogging(entry.device, null, new DeviceManager.DeviceLogListener() {
                 @Override
                 public void handleLogEntries(List<LogEntry> logEntryList) {
@@ -278,16 +278,7 @@ public class SaveLogsScreen extends BaseScreen {
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = new JMenu("Window");
-
-        // [CMD + W] = close window
-        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
-
-        // [CMD + 1] = show devices
-        createCmdMenuItem(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
-
-        // [CMD + 3] = show logs
-        createCmdMenuItem(windowMenu, "View Logs", KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
+        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, null);
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -389,11 +380,12 @@ public class SaveLogsScreen extends BaseScreen {
         }
     }
 
-    private void closeWindow() {
+    @Override
+    public void closeWindow() {
         log.trace("closeWindow");
         stopLogging();
         saveFrameSize();
-        deviceScreen.handleSaveLogsClosed();
+        app.onSaveLogsClosed();
         dispose();
     }
 

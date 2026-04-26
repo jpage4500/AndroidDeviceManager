@@ -154,6 +154,14 @@
                                 </CFBundleTypeExtensions>
                             </CFBundleDocumentTypes>
                         </CFBundleDocumentTypes>
+                        <CFBundleURLTypes>
+                            <CFBundleURLTypes>
+                                <CFBundleURLName>com.jpage4500.devicemanager.adm</CFBundleURLName>
+                                <CFBundleURLSchemes>
+                                    <string>adm</string>
+                                </CFBundleURLSchemes>
+                            </CFBundleURLTypes>
+                        </CFBundleURLTypes>
                     </plist>
                     <jdk>
                         <!-- set to true to package entire JRE -->

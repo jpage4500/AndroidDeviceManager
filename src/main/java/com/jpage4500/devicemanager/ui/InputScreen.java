@@ -26,15 +26,15 @@ import java.util.List;
 public class InputScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(InputScreen.class);
 
-    private final DeviceScreen deviceScreen;
+    private final App app;
     private Device device;
 
     private JTextField textField;
     private DefaultListModel<String> listModel;
 
-    public InputScreen(DeviceScreen deviceScreen, Device device) {
+    public InputScreen(App app, Device device) {
         super("input-" + device.serial, 300, 300);
-        this.deviceScreen = deviceScreen;
+        this.app = app;
         this.device = device;
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
@@ -113,16 +113,7 @@ public class InputScreen extends BaseScreen {
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = new JMenu("Window");
-
-        // [CMD + W] = close window
-        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
-
-        // [CMD + 1] = show devices
-        createCmdMenuItem(windowMenu, "Show Devices", KeyEvent.VK_1, e -> deviceScreen.toFront());
-
-        // [CMD + 3] = show logs
-        createCmdMenuItem(windowMenu, "View Logs", KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
+        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, device);
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -137,10 +128,11 @@ public class InputScreen extends BaseScreen {
         }
     }
 
-    private void closeWindow() {
+    @Override
+    public void closeWindow() {
         log.trace("closeWindow: {}", device.getDisplayName());
         saveFrameSize();
-        deviceScreen.handleInputClosed(device.serial);
+        app.onInputClosed(device.serial);
         dispose();
     }
 

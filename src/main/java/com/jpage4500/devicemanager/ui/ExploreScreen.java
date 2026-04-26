@@ -40,7 +40,7 @@ public class ExploreScreen extends BaseScreen {
     private static final String HINT_FILTER_DEVICES = "Filter files...";
     public static final int MAX_PATH_SAVE = 10;
 
-    private final DeviceScreen deviceScreen;
+    private final App app;
 
     public CustomTable table;
     public ExploreTableModel model;
@@ -65,9 +65,9 @@ public class ExploreScreen extends BaseScreen {
     private JLabel errorLabel;
     private JLabel countLabel;          // total files / # selected
 
-    public ExploreScreen(DeviceScreen deviceScreen, Device device) {
+    public ExploreScreen(App app, Device device) {
         super("browse-" + device.serial, 500, 500);
-        this.deviceScreen = deviceScreen;
+        this.app = app;
         this.device = device;
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         initializeUi();
@@ -213,22 +213,7 @@ public class ExploreScreen extends BaseScreen {
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = new JMenu("Window");
-
-        // [CMD + W] = close window
-        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
-
-        // [CMD + 1] = show devices
-        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
-            deviceScreen.setVisible(true);
-            deviceScreen.toFront();
-        });
-
-        // [CMD + 3] = show logs
-        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> deviceScreen.handleViewLogsCommand(null));
-
-        // [CMD + T] = hide toolbar
-        createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
+        JMenu windowMenu = CommonMenu.buildWindowMenu(this, app, device);
 
         JMenu fileMenu = new JMenu("Files");
 
@@ -244,15 +229,17 @@ public class ExploreScreen extends BaseScreen {
         setJMenuBar(menubar);
     }
 
-    private void closeWindow() {
+    @Override
+    public void closeWindow() {
         log.trace("closeWindow: {}", device.getDisplayName());
         saveFrameSize();
         table.saveTable();
-        deviceScreen.handleBrowseClosed(device.serial);
+        app.onBrowseClosed(device.serial);
         dispose();
     }
 
-    private void hideToolbar() {
+    @Override
+    public void toggleToolbar() {
         toolbar.setVisible(!toolbar.isVisible());
     }
 
@@ -471,13 +458,13 @@ public class ExploreScreen extends BaseScreen {
         String msg = "Copy " + stats.numTotal + " file(s) to " + selectedPath + "?";
         if (!DialogHelper.showConfirmDialog(dialog, title, msg)) return;
 
-        deviceScreen.setDeviceBusy(device, true);
+        app.setDeviceBusy(device, true);
         DeviceManager deviceManager = DeviceManager.getInstance();
         deviceManager.copyFiles(device, fileList, selectedPath, (numCompleted, numTotal, msg1) -> {
             String status = String.format("%d/%d - %s", numCompleted, numTotal, msg1);
             errorLabel.setText(status);
         }, (isSuccess, error) -> {
-            deviceScreen.setDeviceBusy(device, false);
+            app.setDeviceBusy(device, false);
             errorLabel.setText(error);
             refreshFiles();
         });
