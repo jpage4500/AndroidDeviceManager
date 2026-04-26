@@ -1,8 +1,5 @@
 {
-    "bin": {
-        "adm": "jdeploy-bundle/jdeploy.js",
-        "adm-logs": "jdeploy-bundle/jdeploy.js"
-    },
+    "bin": {"adm": "jdeploy-bundle/jdeploy.js"},
     "author": "Joe Page",
     "description": "Java desktop app to manage multiple Android devices via adb",
     "main": "index.js",

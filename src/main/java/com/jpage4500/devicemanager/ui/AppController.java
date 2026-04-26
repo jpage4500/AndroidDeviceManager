@@ -497,6 +497,12 @@ public class AppController implements App, DeviceManager.DeviceListener {
         SwingUtilities.invokeLater(() -> {
             if (deviceScreen != null) deviceScreen.handleDeviceUpdated(device);
             updateChildWindows(device);
+
+            // a device transitioning to online (or arriving fresh) may only fire here, not via
+            // handleDevicesUpdated — re-check the splash gate so logs-only mode dismisses promptly
+            if (awaitingFirstDeviceList && device.isOnline) {
+                onFirstDeviceListAvailable(DeviceManager.getInstance().getDevices());
+            }
         });
     }
 
