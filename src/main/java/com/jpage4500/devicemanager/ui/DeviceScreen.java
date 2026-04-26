@@ -410,9 +410,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                     if (device.powerStatus != Device.PowerStatus.POWER_NONE)
                         tooltip += " (" + device.powerStatus + ")";
                     return tooltip;
-                } else if (columnType == DeviceTableModel.Columns.NAME && device.isRemote) {
-                    // Show remote server name for remote devices
-                    return "Remote device from: " + device.remoteServerName;
                 }
             }
             return table.getTextIfTruncated(row, col);
