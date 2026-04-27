@@ -258,13 +258,21 @@ public class CustomTable extends JTable {
     }
 
     @Override
-    public void setModel(TableModel dataModel) {
-        super.setModel(dataModel);
-
-        dataModel.addTableModelListener(tableModelEvent -> {
-            showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
-            scrollPane.repaint();
-        });
+    public void tableChanged(javax.swing.event.TableModelEvent e) {
+        // super handles structureChanged via createDefaultColumnsFromModel, which wipes
+        // the TableColumn instances. Re-apply registered max/min widths AFTER super runs
+        // so they land on the new columns. (Overriding here instead of subscribing as a
+        // listener guarantees ordering — TableModelEvent listeners fire in reverse
+        // registration order, so a late-added listener runs before JTable's handler.)
+        super.tableChanged(e);
+        // guard: JTable's super-constructor calls setModel which calls tableChanged before
+        // our instance fields (scrollPane, the constraint maps) are initialized
+        if (scrollPane == null || maxWidthByName == null) return;
+        showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
+        scrollPane.repaint();
+        if (e != null && e.getFirstRow() == javax.swing.event.TableModelEvent.HEADER_ROW) {
+            applyConstraints();
+        }
     }
 
     @Override
@@ -396,7 +404,7 @@ public class CustomTable extends JTable {
 
             TableColumn column = getColumnByName(details.name);
             if (column == null) {
-                log.warn("restoreTable: column '{}' not found, skipping", details.name);
+                //log.warn("restoreTable: column '{}' not found, skipping", details.name);
                 continue;
             }
             orderedColumns.add(column);
@@ -422,7 +430,7 @@ public class CustomTable extends JTable {
         }
 
         if (!needsReorder) {
-            if (log.isTraceEnabled()) log.trace("restoreTable: columns already in correct order for {}", prefKey);
+            //if (log.isTraceEnabled()) log.trace("restoreTable: columns already in correct order for {}", prefKey);
             // Still apply widths even if order is correct
             applyColumnWidths(detailsList);
             applyConstraints();
@@ -462,6 +470,9 @@ public class CustomTable extends JTable {
             if (column != null && details.width >= MIN_COLUMN_WIDTH && details.width <= MAX_COLUMN_WIDTH) {
                 log.trace("applyColumnWidths: setting width {} for column '{}'", details.width, details.name);
                 column.setPreferredWidth(details.width);
+                // setPreferredWidth alone doesn't change the actual visible width when
+                // AUTO_RESIZE_OFF is in effect; set both so columns visually snap back
+                column.setWidth(details.width);
             }
         }
     }
@@ -479,7 +490,7 @@ public class CustomTable extends JTable {
                 return column;
             }
         }
-        if (log.isTraceEnabled()) log.trace("getColumnByName: NOT_FOUND:{}", searchName);
+        //if (log.isTraceEnabled()) log.trace("getColumnByName: NOT_FOUND:{}", searchName);
         return null;
     }
 

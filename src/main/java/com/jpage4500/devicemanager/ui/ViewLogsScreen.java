@@ -22,7 +22,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.table.TableColumn;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -130,6 +129,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     protected void initalizeUi() {
+        // restore distraction-free mode from preference
+        isQuickViewEnabled = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_DISTRACTION_FREE_MODE, false);
+
         // ** MAIN PANEL **
         // ---- [toolbar] -----
         // -- [ split pane ] --
@@ -473,6 +475,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
         table.setMaxColWidth(LogsTableModel.Columns.PID.toString(), 100);
         table.setMaxColWidth(LogsTableModel.Columns.TID.toString(), 100);
+
+        // apply distraction-free mode (restored from preference in initalizeUi)
+        if (isQuickViewEnabled) applyDistractionFreeMode();
 
         // ENTER -> view message
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
@@ -863,48 +868,27 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private void toggleQuickViewButton() {
         isQuickViewEnabled = !isQuickViewEnabled;
+        log.debug("toggleQuickViewButton: isQuickViewEnabled:{}", isQuickViewEnabled);
+        PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_DISTRACTION_FREE_MODE, isQuickViewEnabled);
         updateQuickViewButton();
+        applyDistractionFreeMode();
+    }
 
+    /**
+     * Apply distraction-free state by hiding/unhiding columns. Does not change
+     * setAutoResizeMode (user setting via PREF_LOGS_AUTO_RESIZE) or column widths.
+     * restoreTable is called so the restored columns come back in the user's saved order.
+     */
+    private void applyDistractionFreeMode() {
+        List<String> hiddenColList = new ArrayList<>();
         if (isQuickViewEnabled) {
-            // Save current table state before enabling quick view
-            table.saveTable();
-
-            // Hide columns: DATE, APP, TID, PID
-            List<String> hiddenColList = new ArrayList<>();
             hiddenColList.add(LogsTableModel.Columns.DATE.name());
             hiddenColList.add(LogsTableModel.Columns.APP.name());
             hiddenColList.add(LogsTableModel.Columns.TID.name());
             hiddenColList.add(LogsTableModel.Columns.PID.name());
-            model.setHiddenColumns(hiddenColList);
-
-            // Size LEVEL and TAG columns to fit their content BEFORE enabling auto-resize
-            TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
-
-            // Find column indices by name (after columns have been hidden)
-            TableColumn levelColumn = table.getColumnByName(LogsTableModel.Columns.LEVEL.name());
-            TableColumn tagColumn = table.getColumnByName(LogsTableModel.Columns.TAG.name());
-
-            if (levelColumn != null) {
-                int levelCol = table.convertColumnIndexToView(levelColumn.getModelIndex());
-                if (levelCol >= 0) adjuster.adjustColumn(levelCol);
-            }
-            if (tagColumn != null) {
-                int tagCol = table.convertColumnIndexToView(tagColumn.getModelIndex());
-                if (tagCol >= 0) adjuster.adjustColumn(tagCol);
-            }
-
-            // Enable auto-resize for last column (MSG) to fill remaining space
-            table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
-        } else {
-            // Restore previous auto-resize mode FIRST
-            table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-
-            // Restore: show all columns
-            model.setHiddenColumns(new ArrayList<>());
-
-            // Restore saved column widths and order
-            table.restoreTable();
         }
+        model.setHiddenColumns(hiddenColList);
+        table.restoreTable();
     }
 
     private void updateQuickViewButton() {

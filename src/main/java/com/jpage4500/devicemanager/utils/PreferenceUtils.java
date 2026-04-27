@@ -45,6 +45,7 @@ public class PreferenceUtils {
         PREF_EXIT_TO_TRAY,
         PREF_DEVICE_AUTO_RESIZE,
         PREF_LOGS_AUTO_RESIZE,
+        PREF_LOGS_DISTRACTION_FREE_MODE,
         PREF_SERVER_ENABLED,
     }
 
