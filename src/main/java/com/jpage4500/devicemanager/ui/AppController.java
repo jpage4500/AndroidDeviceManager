@@ -6,6 +6,7 @@ import com.jpage4500.devicemanager.data.GithubRelease;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.NetworkHelper;
@@ -15,6 +16,11 @@ import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import com.jpage4500.devicemanager.utils.Utils;
 
+import dorkbox.systemTray.Entry;
+import dorkbox.systemTray.Menu;
+import dorkbox.systemTray.MenuItem;
+import dorkbox.systemTray.Separator;
+import dorkbox.systemTray.SystemTray;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +34,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,10 +69,9 @@ public class AppController implements App, DeviceManager.DeviceListener {
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
     private SaveLogsScreen saveLogsScreen;
 
-    // system tray
-    private TrayIcon trayIcon;
-    private JPopupMenu trayPopupMenu;
-    private int trayIconDevices = -1;
+    // system tray (dorkbox)
+    private SystemTray systemTray;
+    private String systemTrayHashCode;
 
     // update checking
     private ScheduledExecutorService updateExecutorService;
@@ -389,9 +395,13 @@ public class AppController implements App, DeviceManager.DeviceListener {
             updateExecutorService = null;
         }
 
-        if (SystemTray.isSupported() && trayIcon != null) {
-            SystemTray.getSystemTray().remove(trayIcon);
-            trayIcon = null;
+        if (systemTray != null) {
+            try {
+                systemTray.shutdown();
+            } catch (Exception e) {
+                log.warn("exit: systemTray shutdown: {}", e.getMessage());
+            }
+            systemTray = null;
         }
 
         try {
@@ -493,15 +503,122 @@ public class AppController implements App, DeviceManager.DeviceListener {
     // System tray
     // ========================================================================
 
-    // TODO(merge): system-tray feature disabled — feature branch's TrayMenuItem
-    //   class no longer exists. Re-add system tray once a replacement renderer
-    //   (or revived TrayMenuItem) is available.
     public void setupSystemTray() {
-        // no-op until system tray is re-implemented
+        DeviceManager deviceManager = DeviceManager.getInstance();
+        List<Device> deviceList = deviceManager.getDevices();
+        // sort by display name
+        deviceList.sort((d1, d2) -> d1.getDisplayName().compareToIgnoreCase(d2.getDisplayName()));
+        // compare list to previous list so we don't have to update tray anytime a device property is updated
+        StringBuilder sb = new StringBuilder();
+        for (Device device : deviceList) {
+            sb.append(device.getDisplayName()).append("|").append(device.isOnline ? "1" : "0").append(";");
+        }
+        String hashCode = sb.toString();
+        if (TextUtils.equals(systemTrayHashCode, hashCode)) return;
+        systemTrayHashCode = hashCode;
+
+        Menu menu;
+        try {
+            if (systemTray == null) {
+                // Configure Dorkbox SystemTray before initialization
+                // These settings prevent LinkageError on Java 17+ by disabling runtime class modifications
+                SystemTray.ENABLE_ROOT_CHECK = false;
+                SystemTray.AUTO_FIX_INCONSISTENCIES = false;
+                SystemTray.AUTO_SIZE = true;
+                if (Utils.isMac()) {
+                    // Osx works the best but doesn't show icons; Swing shows icons but isn't native
+                    SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Swing;
+                }
+                systemTray = SystemTray.get();
+                if (systemTray == null) {
+                    log.warn("setupSystemTray: SystemTray not supported on this platform");
+                    return;
+                }
+                log.trace("setupSystemTray: {}", systemTray.getTrayImageSize());
+            }
+            BufferedImage trayImage = UiUtils.getTrayIconWithCount(deviceList.size());
+            systemTray.setImage(trayImage);
+            if (!Utils.isLinux()) {
+                systemTray.setTooltip(deviceList.size() + " Devices");
+            }
+            menu = systemTray.getMenu();
+        } catch (LinkageError e) {
+            log.error("setupSystemTray: LinkageError: {}", e.getMessage());
+            return;
+        } catch (Exception e) {
+            log.error("setupSystemTray: Exception: {}", e.getMessage());
+            return;
+        }
+        if (menu == null) return;
+
+        // clear menu
+        for (Entry entry : menu.getEntries()) menu.remove(entry);
+
+        MenuItem openItem = new MenuItem("Open", UiUtils.getImage(Icons.OPEN, 16, 16, Color.BLACK));
+        openItem.setCallback(e2 -> bringMainWindowToFront());
+        menu.add(openItem);
+
+        menu.add(new Separator());
+
+        // show local devices first
+        deviceList.removeIf(device -> device.remoteConnection != null);
+        addSystemTrayDevices(menu, deviceList);
+
+        // show servers and their devices
+        List<RemoteConnection> remoteConnections = deviceManager.getRemoteConnectionManager().getActiveConnections();
+        remoteConnections.sort(Comparator.comparing(RemoteConnection::getName, String.CASE_INSENSITIVE_ORDER));
+        for (RemoteConnection server : remoteConnections) {
+            if (!server.isConnected()) continue;
+            String name = TextUtils.truncate("Server: " + server.getName(), 30);
+            Color color = new Color(server.getServerConfig().color);
+            Menu serverItem = new Menu(name, UiUtils.getImage(Icons.SERVER, 16, 16, color));
+            List<Device> serverDeviceList = server.getDeviceList();
+            serverDeviceList.sort((d1, d2) -> d1.getDisplayName().compareToIgnoreCase(d2.getDisplayName()));
+            addSystemTrayDevices(serverItem, serverDeviceList);
+            menu.add(serverItem);
+        }
+
+        menu.add(new Separator());
+
+        MenuItem quitItem = new MenuItem("Quit", UiUtils.getImage(Icons.POWER, 16, 16, Color.BLACK));
+        quitItem.setCallback(e2 -> exit(true));
+        menu.add(quitItem);
+    }
+
+    private void addSystemTrayDevices(Menu menu, List<Device> deviceList) {
+        for (Device device : deviceList) {
+            Icons icn = device.getDeviceIcon();
+            Color color = device.getDeviceColor();
+            Image imageIcon = UiUtils.getImage(icn, 16, 16, color);
+            String displayName = device.getDisplayName();
+            Menu submenu = new Menu(TextUtils.truncate(displayName, 30), imageIcon);
+            submenu.setEnabled(device.isOnline);
+
+            if (device.isOnline) {
+                MenuItem mirrorItem = new MenuItem("Mirror", UiUtils.getImage(Icons.MIRROR, 16, 16, Color.BLACK));
+                mirrorItem.setCallback(e2 -> mirrorDeviceFromTray(device));
+                submenu.add(mirrorItem);
+
+                MenuItem browseItem = new MenuItem("Browse", UiUtils.getImage(Icons.BROWSE, 16, 16, Color.BLACK));
+                browseItem.setCallback(e2 -> showFileBrowser(device));
+                submenu.add(browseItem);
+
+                MenuItem logsItem = new MenuItem("Logs", UiUtils.getImage(Icons.LOGS, 16, 16, Color.BLACK));
+                logsItem.setCallback(e2 -> showLogs(device));
+                submenu.add(logsItem);
+            }
+
+            menu.add(submenu);
+        }
+    }
+
+    private void mirrorDeviceFromTray(Device device) {
+        setDeviceBusy(device, true);
+        DeviceManager.getInstance().mirrorDevice(device, false, (isSuccess, error) -> setDeviceBusy(device, false));
     }
 
     public void hideTrayPopup() {
-        if (trayPopupMenu != null) trayPopupMenu.setVisible(false);
+        // dorkbox SystemTray manages its own menu visibility — no-op kept for caller compat
     }
 
     private void bringMainWindowToFront() {
