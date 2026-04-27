@@ -103,11 +103,9 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
     /** wire up DeviceManager: set listener, start ADB, init remote managers. */
     public void connectAdbServer() {
-        DeviceManager deviceManager = DeviceManager.getInstance();
-        deviceManager.initialize(this);
-        deviceManager.connectAdbServer(true);
-        deviceManager.getRemoteConnectionManager().initialize();
-        deviceManager.getRemoteServerManager().initialize();
+        // initialize() registers listener, calls connectAdbServer(true), and constructs
+        // both remote managers (whose constructors call their own initialize()).
+        DeviceManager.getInstance().initialize(this);
     }
 
     public void setDeviceScreen(DeviceScreen ds) {
