@@ -1,7 +1,10 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.MainApplication;
-import com.jpage4500.devicemanager.data.*;
+import com.jpage4500.devicemanager.data.Colors;
+import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.DeviceFile;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
@@ -10,52 +13,42 @@ import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
-import com.jpage4500.devicemanager.ui.dialog.*;
+import com.jpage4500.devicemanager.ui.dialog.ActivityDialog;
+import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
+import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
+import com.jpage4500.devicemanager.ui.dialog.RemoteServerDialog;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
+import com.jpage4500.devicemanager.ui.dialog.ShareServerDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.*;
-import dorkbox.systemTray.*;
-import dorkbox.systemTray.Menu;
-import dorkbox.systemTray.MenuItem;
-import dorkbox.systemTray.SystemTray;
+
 import net.miginfocom.swing.MigLayout;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.imageio.ImageIO;
 import javax.swing.*;
+
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DropTarget;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * create and manage device view
  */
-public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceListener {
+public class DeviceScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(DeviceScreen.class);
 
     private static final String HINT_FILTER_DEVICES = "Search";
-    public static final String SHOW_DEVICE_LIST = "Show Device List";
-    public static final String SHOW_BROWSE = "Show File Browser";
-    public static final String SHOW_LOG_VIEWER = "Show Device Logs";
-    public static final String SHOW_ACTIVITIES = "Show Activities";
     public static final String PREF_KEY_DEVICES = "devices";
-
-    // update check for github releases
-    public static final String UPDATE_SOURCE_GITHUB = "https://api.github.com/repos/jpage4500/AndroidDeviceManager/releases";
-    public static final String URL_GITHUB = "https://github.com/jpage4500/AndroidDeviceManager/releases";
     public static final String PACKAGE_PREFIX = "package:";
 
     public CustomTable table;
@@ -64,11 +57,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public JToolBar toolbar;
     private HintTextField filterTextField;
 
-    // system tray
-    private SystemTray systemTray;
-    private String systemTrayHashCode;
-    private boolean isTaskbarSetup;
-
     // status bar items
     private HoverLabel updateLabel;         // update
     private HoverLabel versionLabel;        // version
@@ -76,46 +64,12 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private JLabel countLabel;             // total devices
 
     private boolean hasSelectedDevice;
-    // update checking
-    private String updateVersion;
-    private String updateDesc;
 
-    private ScheduledExecutorService updateExecutorService;
-
-    // open windows (per device)
-    private final Map<String, ExploreScreen> exploreViewMap = new HashMap<>();
-    private final Map<String, ViewLogsScreen> logsViewMap = new HashMap<>();
-    private final Map<String, InputScreen> inputViewMap = new HashMap<>();
-    private SaveLogsScreen saveLogsScreen;
     private ActivityDialog activityDialog;
 
-    private static volatile boolean hasExited = false; // idempotent exit flag
-
-    public DeviceScreen() {
-        super("main", 900, 300);
-
-        // create and initialize Device Manager
-        DeviceManager.getInstance().initialize(this);
-
+    public DeviceScreen(App app) {
+        super(app, null, "main", 900, 300);
         initalizeUi();
-
-        scheduleUpdateChecks();
-    }
-
-    public void scheduleUpdateChecks() {
-        // cancel any current scheduled update checks
-        if (updateExecutorService != null) {
-            updateExecutorService.shutdownNow();
-            updateExecutorService = null;
-        }
-
-        // check for updates (default: true)
-        boolean checkUpdates = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true);
-        if (checkUpdates) {
-            updateExecutorService = Executors.newSingleThreadScheduledExecutor();
-            // check after 5 seconds, then again every 12 hours
-            updateExecutorService.scheduleAtFixedRate(() -> checkForUpdates(null), 5, TimeUnit.HOURS.toSeconds(12), TimeUnit.SECONDS);
-        }
     }
 
     protected void initalizeUi() {
@@ -124,7 +78,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         // -- toolbar --
         toolbar = new JToolBar("Applications");
-        filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
         setupToolbar();
         panel.add(toolbar, BorderLayout.NORTH);
 
@@ -137,7 +90,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         setupStatusBar(panel);
 
         setupMenuBar();
-        setupSystemTray();
         setContentPane(panel);
 
         setVisible(true);
@@ -150,76 +102,16 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
         switch (state) {
-            case CLOSING -> exitApp(false);
+            case CLOSING -> closeWindow();
+            case DEACTIVATED -> {
+                if (app instanceof AppController controller) controller.hideTrayPopup();
+            }
         }
     }
 
-    /**
-     * exit app or just hide screen if user has 'exit to tray' setting enabled
-     *
-     * @param forceQuit true to exit regardless of setting
-     */
-    private void exitApp(boolean forceQuit) {
-        if (hasExited) {
-            log.debug("exitApp: already executed (force:{})", forceQuit);
-            return;
-        }
-        boolean exitToTray = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY);
-        log.debug("exitApp: force:{} exitToTray:{}", forceQuit, exitToTray);
-
-        // Check if server is running and prompt user before exiting
-        if (!forceQuit && !exitToTray) {
-            RemoteServerManager serverManager = DeviceManager.getInstance().getRemoteServerManager();
-            if (serverManager != null && serverManager.isRunning()) {
-                boolean shouldExit = DialogHelper.showConfirmDialog(this, "Server Running",
-                    "The remote server is currently running. Exiting will stop the server.\n\nDo you want to exit?");
-                if (!shouldExit) return;
-            }
-        }
-
-        setVisible(false);
-        if (!forceQuit && exitToTray) {
-            log.trace("exitApp: exit-to-tray preference active -> keeping process running");
-            return;
-        }
-
-        hasExited = true;
-        saveFrameSize();
-        table.saveTable();
-
-        // save positions/sizes of any other open windows
-        // NOTE: only saving FIRST open window position
-        if (!exploreViewMap.isEmpty())
-            (exploreViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSING);
-        if (!logsViewMap.isEmpty())
-            (logsViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSING);
-        if (!inputViewMap.isEmpty())
-            (inputViewMap.values().iterator().next()).onWindowStateChanged(WindowState.CLOSING);
-        if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(WindowState.CLOSING);
-
-        DeviceManager.getInstance().handleExit();
-
-        // shutdown update executor service
-        if (updateExecutorService != null) {
-            updateExecutorService.shutdown();
-            updateExecutorService = null;
-        }
-
-        // Shutdown SystemTray
-        if (systemTray != null) {
-            systemTray.shutdown();
-        }
-
-        // shutdown file logging executor
-        try {
-            AppLoggerFactory loggerFactory = (AppLoggerFactory) org.slf4j.LoggerFactory.getILoggerFactory();
-            loggerFactory.shutdown();
-        } catch (Exception ignored) {
-        }
-
-        dispose();
-
-        System.exit(0);
+    @Override
+    public void closeWindow() {
+        app.exit(false);
     }
 
     private void setupStatusBar(JPanel panel) {
@@ -235,7 +127,9 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         updateLabel = new HoverLabel(icon);
         updateLabel.setToolTipText("Check for updates");
         leftPanel.add(updateLabel);
-        UiUtils.addLeftClickListener(updateLabel, this::handleUpdateClicked);
+        UiUtils.addLeftClickListener(updateLabel, e -> {
+            if (app instanceof AppController controller) controller.handleUpdateClicked(this);
+        });
 
         // version
         versionLabel = new HoverLabel();
@@ -261,40 +155,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = new JMenu("Window");
-
-        // [CMD + W] = close window
-        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> exitApp(false));
-
-        // [CMD + 2] = show explorer
-        createCmdMenuItem(windowMenu, SHOW_BROWSE, KeyEvent.VK_2, e -> handleBrowseCommand(null));
-
-        // [CMD + 3] = show logs
-        createCmdMenuItem(windowMenu, SHOW_LOG_VIEWER, KeyEvent.VK_3, e -> handleViewLogsCommand(null));
+        JMenu windowMenu = buildWindowMenu();
 
         // [CMD + 4] = show activities
-        createCmdMenuItem(windowMenu, SHOW_ACTIVITIES, KeyEvent.VK_4, e -> showActivityDialog());
-
-        // [CMD + ,] = settings
-        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(this));
-
-        // [CMD + T] = hide toolbar
-        createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
-
-        // always on top
-        JCheckBoxMenuItem onTopItem = new JCheckBoxMenuItem();
-        boolean isAlwaysOnTop = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_ALWAYS_ON_TOP, false);
-        setAlwaysOnTop(isAlwaysOnTop);
-        onTopItem.setState(isAlwaysOnTop);
-        onTopItem.setAction(new AbstractAction("Always on top") {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                boolean alwaysOnTop = !isAlwaysOnTop();
-                setAlwaysOnTop(alwaysOnTop);
-                PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_ALWAYS_ON_TOP, alwaysOnTop);
-            }
-        });
-        windowMenu.add(onTopItem);
+        createCmdMenuItem(windowMenu, "Show Activities", KeyEvent.VK_4, e -> showActivityDialog());
 
         JMenu deviceMenu = new JMenu("Devices");
 
@@ -302,7 +166,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         createCmdMenuItem(deviceMenu, "Filter", KeyEvent.VK_F, e -> filterTextField.requestFocus());
 
         // [CMD + N] = connect device
-        createCmdMenuItem(deviceMenu, "Connect to Device", KeyEvent.VK_N, e -> showConnectAdbWirelessDialog());
+        createCmdMenuItem(deviceMenu, "Connect Device", KeyEvent.VK_N, e -> handleConnectDevice());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -318,7 +182,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         return activityDialog;
     }
 
-    private void hideToolbar() {
+    @Override
+    public void toggleToolbar() {
         toolbar.setVisible(!toolbar.isVisible());
     }
 
@@ -377,7 +242,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 }
             }
             // default double-click action
-            handleMirrorCommand(null);
+            handleMirrorCommand();
         });
 
         // support drag and drop of files IN TO deviceView
@@ -434,37 +299,36 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             DeviceTableModel.Columns columnType = model.getColumnType(column);
             if (columnType != null) {
                 // standard columns (all others are custom)
-                UiUtils.addPopupMenuItem(popupMenu, "Hide " + columnType.name(), Icons.EYE_CLOSED, actionEvent -> handleHideColumn(column));
+                UiUtils.addPopupMenuItem(popupMenu, "Hide " + columnType.name(), actionEvent -> handleHideColumn(column));
             }
-            UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", Icons.SIZE, actionEvent -> {
+            UiUtils.addPopupMenuItem(popupMenu, "Size to Fit", actionEvent -> {
                 TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                 adjuster.adjustColumn(column);
             });
 
             popupMenu.addSeparator();
 
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", Icons.SETTINGS, actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(this, this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Columns", actionEvent -> SettingsDialog.showManageDeviceColumnsDialog(app, this));
 
             boolean autoResize = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, true);
             String resizeDesc = autoResize ? "ON" : "OFF";
-            UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, Icons.SIZE, actionEvent -> {
+            UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, actionEvent -> {
                 boolean update = !autoResize;
                 PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_DEVICE_AUTO_RESIZE, update);
                 int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
                 table.setAutoResizeMode(flag);
             });
             if (!autoResize) {
-                UiUtils.addPopupMenuItem(popupMenu, "Size ALL to Fit", Icons.SIZE, actionEvent -> {
+                UiUtils.addPopupMenuItem(popupMenu, "Size ALL to Fit", actionEvent -> {
                     TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
                     adjuster.adjustColumns();
                 });
             }
             return popupMenu;
         }
-
-        // device popup
         Device device = model.getDeviceAtRow(row);
         if (device == null) return null;
+
         JPopupMenu popupMenu = new JPopupMenu();
 
         if (device.isOnline) {
@@ -480,36 +344,52 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 popupMenu.addSeparator();
             }
 
-            UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", Icons.COPY, actionEvent -> handleCopyClipboardFieldCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", Icons.COPY, actionEvent -> handleCopyClipboardCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", actionEvent -> handleCopyClipboardFieldCommand());
+            UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
-
-            // device details
-            UiUtils.addPopupMenuItem(popupMenu, "Device Details", Icons.LOGS, actionEvent -> handleDeviceDetails(device));
+            UiUtils.addPopupMenuItem(popupMenu, "Device Details", actionEvent -> handleDeviceDetails(device));
 
             // primary options
-            ToolbarButton[] mainOptions = new ToolbarButton[]{ToolbarButton.BROWSE, ToolbarButton.LOGS, ToolbarButton.MIRROR};
-            for (ToolbarButton toolbarButton : mainOptions) {
-                addPopupMenuItem(popupMenu, toolbarButton);
-            }
-            // more...
+            UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.BROWSE.label, actionEvent -> app.showFileBrowser(device));
+            UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.LOGS.label, actionEvent -> app.showLogs(device));
+            UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.MIRROR.label, actionEvent -> handleMirrorCommand());
+
+            // secondary options under "More"
             JMenu moreMenu = new JMenu("More");
-            // secondary options
-            ToolbarButton[] secondaryOptions = new ToolbarButton[]{ToolbarButton.RECORD, ToolbarButton.SCREENSHOT, ToolbarButton.INPUT, ToolbarButton.INSTALL, ToolbarButton.TERMINAL, ToolbarButton.RESTART};
-            for (ToolbarButton toolbarButton : secondaryOptions) {
-                JMenuItem item = new JMenuItem(toolbarButton.label, UiUtils.getImageIcon(toolbarButton.icn, UiUtils.IMG_SIZE_SMALL));
-                item.addActionListener(e -> handleButtonClicked(toolbarButton, null));
-                moreMenu.add(item);
-            }
+            JMenuItem recordItem = new JMenuItem(ToolbarButton.RECORD.label, UiUtils.getImageIcon(ToolbarButton.RECORD.image, UiUtils.IMG_SIZE_SMALL));
+            recordItem.addActionListener(e -> handleRecordCommand());
+            moreMenu.add(recordItem);
+
+            JMenuItem screenshotItem = new JMenuItem(ToolbarButton.SCREENSHOT.label, UiUtils.getImageIcon(ToolbarButton.SCREENSHOT.image, UiUtils.IMG_SIZE_SMALL));
+            screenshotItem.addActionListener(e -> handleScreenshotCommand());
+            moreMenu.add(screenshotItem);
+
+            JMenuItem inputItem = new JMenuItem(ToolbarButton.INPUT.label, UiUtils.getImageIcon(ToolbarButton.INPUT.image, UiUtils.IMG_SIZE_SMALL));
+            inputItem.addActionListener(e -> handleInputCommand());
+            moreMenu.add(inputItem);
+
+            JMenuItem installItem = new JMenuItem(ToolbarButton.INSTALL.label, UiUtils.getImageIcon(ToolbarButton.INSTALL.image, UiUtils.IMG_SIZE_SMALL));
+            installItem.addActionListener(e -> handleInstallCommand());
+            moreMenu.add(installItem);
+
+            JMenuItem terminalItem = new JMenuItem(ToolbarButton.TERMINAL.label, UiUtils.getImageIcon(ToolbarButton.TERMINAL.image, UiUtils.IMG_SIZE_SMALL));
+            terminalItem.addActionListener(e -> handleTermCommand());
+            moreMenu.add(terminalItem);
+
+            JMenuItem restartItem = new JMenuItem("Restart", UiUtils.getImageIcon(Icons.REFRESH, UiUtils.IMG_SIZE_SMALL));
+            restartItem.addActionListener(e -> handleRestartCommand());
+            moreMenu.add(restartItem);
+
             popupMenu.add(moreMenu);
 
             popupMenu.addSeparator();
 
+            // user-defined adb commands ("Predefined ADB Commands" right-click menu)
             CommandDialog.setupCommandPopupMenu(popupMenu, device);
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
-                UiUtils.addPopupMenuItem(popupMenu, "Disconnect", actionEvent -> handleDisconnect(device));
+                UiUtils.addPopupMenuItem(popupMenu, "Disconnect " + device.getDisplayName(), actionEvent -> handleDisconnect(device));
             }
         } else {
             // offline device
@@ -521,241 +401,36 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         return popupMenu;
     }
 
-    private void addPopupMenuItem(JPopupMenu popupMenu, ToolbarButton toolbarButton) {
-        UiUtils.addPopupMenuItem(popupMenu, toolbarButton.label, toolbarButton.icn, e -> {
-            handleButtonClicked(toolbarButton, null);
-        });
-    }
-
-    private void setupTaskbar() {
-        if (!Taskbar.isTaskbarSupported()) return;
-
-        try {
-            Taskbar taskbar = Taskbar.getTaskbar();
-            // icon
-            if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE) && !isTaskbarSetup) {
-                // 1-time setup
-                BufferedImage image = UiUtils.getImage(Icons.LOGO, 256);
-                taskbar.setIconImage(image);
-                isTaskbarSetup = true;
-            }
-            // badge number
-            if (taskbar.isSupported(Taskbar.Feature.ICON_BADGE_NUMBER)) {
-                int numOnline = 0;
-                for (Device device : DeviceManager.getInstance().getDevices()) {
-                    if (device.isOnline) numOnline++;
-                }
-                String badge = numOnline > 0 ? String.valueOf(numOnline) : null;
-                taskbar.setIconBadge(badge);
-            }
-        } catch (final Exception e) {
-            log.error("setupTaskbar: Exception: {}", e.getMessage());
-        }
-    }
-
-    private void setupSystemTray() {
-        DeviceManager deviceManager = DeviceManager.getInstance();
-        List<Device> deviceList = deviceManager.getDevices();
-        // sort by display name
-        deviceList.sort((d1, d2) -> d1.getDisplayName().compareToIgnoreCase(d2.getDisplayName()));
-        // compare list to previous list so we don't have to update tray anytime a device property is updated
-        StringBuilder sb = new StringBuilder();
-        for (Device device : deviceList) {
-            sb.append(device.getDisplayName()).append("|").append(device.isOnline ? "1" : "0").append(";");
-        }
-        String hashCode = sb.toString();
-        if (TextUtils.equals(systemTrayHashCode, hashCode)) return;
-        systemTrayHashCode = hashCode;
-
-        Menu menu;
-        try {
-            if (systemTray == null) {
-                // Configure Dorkbox SystemTray before initialization
-                // These settings prevent LinkageError on Java 17+ by disabling runtime class modifications
-                //SystemTray.DEBUG = true;
-                SystemTray.ENABLE_ROOT_CHECK = false;
-                SystemTray.AUTO_FIX_INCONSISTENCIES = false;
-                SystemTray.AUTO_SIZE = true;
-                // Osx works the best but doesn't show icons
-                // Swing shows icons but doesn't look native and has focus issues
-                if (Utils.isMac()) {
-                    //SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Osx;
-                    SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Swing;
-                }
-                //
-                // Disable javafx/swt/gtk detection to avoid class loading issues
-                // System.setProperty("SystemTray.PREFER_GTK3", "false");
-                systemTray = SystemTray.get();
-                if (systemTray == null) {
-                    log.warn("setupSystemTray: SystemTray not supported on this platform");
-                    return;
-                }
-                log.trace("setupSystemTray: {}", systemTray.getTrayImageSize());
-            }
-            BufferedImage trayImage = UiUtils.getTrayIconWithCount(deviceList.size());
-            systemTray.setImage(trayImage);
-            if (!Utils.isLinux()) {
-                systemTray.setTooltip(deviceList.size() + " Devices");
-            }
-            menu = systemTray.getMenu();
-        } catch (LinkageError e) {
-            log.error("setupSystemTray: LinkageError: {}", e.getMessage());
-            return;
-        } catch (Exception e) {
-            log.error("setupSystemTray: Exception: {}", e.getMessage());
-            return;
-        }
-        if (menu == null) return;
-
-        // clear menu
-        for (Entry entry : menu.getEntries()) menu.remove(entry);
-
-        MenuItem openItem = new MenuItem("Open", UiUtils.getImage(Icons.OPEN, 16, 16, Color.BLACK));
-        openItem.setCallback(e2 -> bringWindowToFront());
-        menu.add(openItem);
-
-        menu.add(new Separator());
-
-        // show local devices first
-        deviceList.removeIf(device -> device.remoteConnection != null);
-        addSystemTrayDevices(menu, deviceList);
-
-        // show servers and their devices
-        List<RemoteConnection> remoteConnections = deviceManager.getRemoteConnectionManager().getActiveConnections();
-        // sort by name
-        remoteConnections.sort(Comparator.comparing(RemoteConnection::getName, String.CASE_INSENSITIVE_ORDER));
-        for (RemoteConnection server : remoteConnections) {
-            if (!server.isConnected()) continue;
-            String name = TextUtils.truncate("Server: " + server.getName(), 30);
-            Color color = new Color(server.getServerConfig().color);
-            Menu serverItem = new Menu(name, UiUtils.getImage(Icons.SERVER, 16, 16, color));
-            List<Device> serverDeviceList = server.getDeviceList();
-            // sort by display name
-            serverDeviceList.sort((d1, d2) -> d1.getDisplayName().compareToIgnoreCase(d2.getDisplayName()));
-            addSystemTrayDevices(serverItem, serverDeviceList);
-
-            menu.add(serverItem);
-        }
-
-        menu.add(new Separator());
-
-        MenuItem quitItem = new MenuItem("Quit", UiUtils.getImage(Icons.POWER, 16, 16, Color.BLACK));
-        quitItem.setCallback(e2 -> exitApp(true));
-        menu.add(quitItem);
-    }
-
-    private void addSystemTrayDevices(Menu menu, List<Device> deviceList) {
-        for (Device device : deviceList) {
-            Icons icn = device.getDeviceIcon();
-            Color color = device.getDeviceColor();
-            Image imageIcon = UiUtils.getImage(icn, 16, 16, color);
-            String displayName = device.getDisplayName();
-            Menu submenu = new Menu(TextUtils.truncate(displayName, 30), imageIcon);
-            submenu.setEnabled(device.isOnline);
-            // note: tooltips don't display on mac
-            //submenu.setTooltip(TextUtils.truncate(displayName, 64));
-
-            if (device.isOnline) {
-                MenuItem mirrorItem = new MenuItem("Mirror", UiUtils.getImage(Icons.MIRROR, 16, 16, Color.BLACK));
-                mirrorItem.setCallback(e2 -> handleMirrorCommand(device));
-                submenu.add(mirrorItem);
-
-                MenuItem browseItem = new MenuItem("Browse", UiUtils.getImage(Icons.BROWSE, 16, 16, Color.BLACK));
-                browseItem.setCallback(e2 -> handleBrowseCommand(device));
-                submenu.add(browseItem);
-
-                MenuItem logsItem = new MenuItem("Logs", UiUtils.getImage(Icons.LOGS, 16, 16, Color.BLACK));
-                logsItem.setCallback(e2 -> handleViewLogsCommand(device));
-                submenu.add(logsItem);
-            }
-
-            menu.add(submenu);
-        }
-    }
-
-    @Override
     public void handleDevicesUpdated(List<Device> deviceList) {
-        SwingUtilities.invokeLater(() -> {
-            model.setDeviceList(deviceList);
+        if (deviceList == null) return;
+        model.setDeviceList(deviceList);
 
-            // auto-select first device
-            if (!hasSelectedDevice && !deviceList.isEmpty() && table.getSelectedRow() == -1) {
-                table.changeSelection(0, 0, false, false);
-                hasSelectedDevice = true;
-            }
+        // auto-select first device
+        if (!hasSelectedDevice && !deviceList.isEmpty() && table.getSelectedRow() == -1) {
+            table.changeSelection(0, 0, false, false);
+            hasSelectedDevice = true;
+        }
 
-            refreshUi();
-
-            for (Device device : deviceList) {
-                updateDeviceState(device);
-            }
-
-            setupSystemTray();
-            setupTaskbar();
-        });
+        refreshUi();
+        log.trace("handleDevicesUpdated: deviceList: {}", deviceList.size());
     }
 
-    @Override
     public void handleDeviceUpdated(Device device) {
-        SwingUtilities.invokeLater(() -> {
-            model.updateDevice(device);
-            updateDeviceState(device);
-            sorter.sort();
-
-            setupSystemTray();
-            setupTaskbar();
-        });
+        model.updateDevice(device);
+        sorter.sort();
     }
 
-    @Override
     public void handleDeviceRemoved(Device device) {
-        SwingUtilities.invokeLater(() -> {
-            model.removeDevice(device);
-            updateDeviceState(device);
-            sorter.sort();
-
-            setupSystemTray();
-            setupTaskbar();
-        });
+        model.removeDevice(device);
+        sorter.sort();
     }
 
-    @Override
-    public void handleException(Exception e) {
-        SwingUtilities.invokeLater(() -> {
-            String[] choices = {"Retry", "Cancel"};
-            int rc = DialogHelper.showOptionDialog(this, "ADB Server", "Unable to connect to ADB server. Please check that it's running and re-try", choices);
-            if (rc == 0) DeviceManager.getInstance().connectAdbServer(true);
-        });
-    }
-
-    private void bringWindowToFront() {
-        if (isActive()) return;
-        // requires multiple steps otherwise this won't work..
-        SwingUtilities.invokeLater(() -> {
-            if (!isVisible()) {
-                setVisible(true);
-                setState(JFrame.NORMAL);
-                return;
-            }
-            setState(JFrame.ICONIFIED);
-            Utils.runDelayed(300, true, () -> {
-                setState(JFrame.NORMAL);
-                Utils.runDelayed(300, true, () -> setState(JFrame.NORMAL));
-            });
-        });
-    }
-
-    private void updateDeviceState(Device device) {
-        ExploreScreen exploreScreen = exploreViewMap.get(device.serial);
-        if (exploreScreen != null) exploreScreen.updateDevice(device);
-
-        ViewLogsScreen logsScreen = logsViewMap.get(device.serial);
-        if (logsScreen != null) logsScreen.updateDevice(device);
-
-        InputScreen inputScreen = inputViewMap.get(device.serial);
-        if (inputScreen != null) inputScreen.updateDevice(device);
-
-        if (saveLogsScreen != null) saveLogsScreen.updateDevice();
+    /** called by AppController when an update is found */
+    public void notifyUpdateAvailable(String version, String desc) {
+        updateLabel.setToolTipText("Update Available " + version + ", desc: " + desc);
+        BufferedImage image = UiUtils.getImage(Icons.UPDATE, UiUtils.IMG_SIZE_SMALL, UiUtils.IMG_SIZE_SMALL, Colors.COLOR_ERROR);
+        if (image != null) updateLabel.setIcon(new ImageIcon(image));
+        updateLabel.setVisible(true);
     }
 
     private void refreshUi() {
@@ -798,6 +473,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleCopyClipboardFieldCommand() {
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
         int selectedColumn = table.getSelectedColumn();
@@ -811,10 +488,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             String value = model.deviceValue(device, modelCol);
             sb.append(value != null ? value : "");
         }
-        Utils.setClipboardText(sb.toString());
+        StringSelection stringSelection = new StringSelection(sb.toString());
+        clipboard.setContents(stringSelection, null);
     }
 
     private void handleCopyClipboardCommand() {
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
 
@@ -827,13 +507,13 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 sb.append(value != null ? value : "");
             }
         }
-        Utils.setClipboardText(sb.toString());
+        StringSelection stringSelection = new StringSelection(sb.toString());
+        clipboard.setContents(stringSelection, null);
     }
 
     private void handleTermCommand() {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
-        else if (checkRemoteDevices(selectedDeviceList, true)) return;
 
         if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
@@ -848,63 +528,19 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     /**
-     * check if any devices in the list is a remote device
-     *
-     * @param showWarning - true to show a warning if 1 or more devices are remote
-     * @return true if any are remote; however if showWarning is true and the user chooses to continue, false is returned
-     */
-    private boolean checkRemoteDevices(List<Device> list, boolean showWarning) {
-        int numRemote = 0;
-        for (Device device : list) {
-            if (device.remoteConnection != null) {
-                numRemote++;
-            }
-        }
-        if (numRemote > 0 && showWarning) {
-            boolean isYes = DialogHelper.showConfirmDialog(this, "Remote Devices", "Remote Devices aren't supported with this feature. Continue anyway?");
-            if (isYes) {
-                // remove remote devices
-                list.removeIf(device -> device.remoteConnection != null);
-                // return false to continue
-                return false;
-            } else {
-                return true;
-            }
-        } else if (numRemote > 0) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * called when user double-clicks on .apk file in OS file manager
+     * called when user double-clicks on .apk file or selects open with device manager
      * - similar to handleFilesDropped() but waits a bit until a device is connected
      */
-    public void handleFilesOpened(List<File> fileList, int attempt) {
-        log.debug("handleFilesOpened: {} files, attempt:{}", fileList.size(), attempt);
-        List<Device> deviceList = DeviceManager.getInstance().getDevices();
-        if (deviceList.isEmpty()) {
-            // try again later (until 5 attempts)
-            if (attempt <= 5) {
-                Utils.runDelayed(1000, true, () -> handleFilesOpened(fileList, attempt + 1));
-            } else {
-                DialogHelper.showDialog(this, "Device Manager", "No devices connected. Please connect a device and try again.");
-            }
-        } else if (deviceList.size() == 1) {
-            // install/copy to this device
-            installOrCopyFiles(deviceList, fileList);
+    public void handleFilesOpened(List<File> fileList) {
+        log.debug("handleFilesOpened: {}", fileList.size());
+        if (table.getRowCount() > 0) {
+            handleFilesDropped(fileList);
         } else {
-            // Show device selection dialog
-            DialogHelper.showDeviceSelectionDialog(this, "Install/Copy Files", null, selectedDevices -> {
-                installOrCopyFiles(selectedDevices, fileList);
-            });
+            Utils.runDelayed(1000, true, () -> handleFilesDropped(fileList));
         }
     }
 
-    /**
-     * called from drag & drop of files to device manager window
-     */
-    private void handleFilesDropped(List<File> fileList) {
+    public void handleFilesDropped(List<File> fileList) {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) {
             log.error("handleFilesDropped: no devices! {}", fileList);
@@ -915,7 +551,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     public void installOrCopyFiles(List<Device> selectedDeviceList, List<File> fileList) {
-        if (selectedDeviceList == null || selectedDeviceList.isEmpty()) return;
         FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
         // if all files are .apk, do install instead of copy
         boolean isInstall = stats.numApk == stats.numTotal;
@@ -941,7 +576,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         StringBuilder fileNames = new StringBuilder();
         for (File file : fileList) {
-            if (!fileNames.isEmpty()) fileNames.append(", ");
+            if (fileNames.length() > 0) fileNames.append(", ");
             else fileNames.append("[");
             fileNames.append(file.getName());
         }
@@ -950,7 +585,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         // TODO: where to put files on device?
         String destFolder = "/sdcard/Download/";
         for (Device device : selectedDeviceList) {
-            setDeviceBusy(device, true);
+            app.setDeviceBusy(device, true);
             // copy [abc.jpg, hello.text] to "device name"
             String operationDesc = String.format("Copy %s -> %s", fileNames, device.getDisplayName());
             int activityId = activityDialog.addOperation(operationDesc, Icons.COPY);
@@ -958,7 +593,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 int progress = (numCompleted * 100) / numTotal;
                 activityDialog.updateOperation(activityId, progress, msg);
             }, (isSuccess, error) -> {
-                setDeviceBusy(device, false);
+                app.setDeviceBusy(device, false);
                 String msg = isSuccess ? "✅ Success" : "❌ Failed";
                 if (!isSuccess && error != null) msg += ": " + error;
                 activityDialog.updateOperation(activityId, 100, msg);
@@ -985,41 +620,39 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         for (File file : fileList) {
             // install on local devices first
             for (Device device : localDeviceList) {
-                setDeviceBusy(device, true);
+                app.setDeviceBusy(device, true);
                 String label = String.format("Install %s -> %s", file.getName(), device.getDisplayName());
                 final int activityId = activityDialog.addOperation(label, Icons.FILE_APK);
                 DeviceManager.getInstance().installApp(device, file,
-                    (currentStep, totalSteps, message) -> {
-                        int percent = Math.max(0, Math.min(100, (int) Math.round((totalSteps > 0 ? (currentStep * 100.0 / totalSteps) : 0))));
-                        activityDialog.updateOperation(activityId, percent, message);
-                    },
-                    (isSuccess, error) -> {
-                        setDeviceBusy(device, false);
-                        String msg = isSuccess ? "✅ Success" : "❌ Failed";
-                        if (!isSuccess && error != null) msg += ": " + error;
-                        activityDialog.updateOperation(activityId, 100, msg);
-                        if (isSuccess) DeviceManager.getInstance().fetchDeviceDetails(device, true);
-                    }
+                        (currentStep, totalSteps, message) -> {
+                            int percent = Math.max(0, Math.min(100, (int) Math.round((totalSteps > 0 ? (currentStep * 100.0 / totalSteps) : 0))));
+                            activityDialog.updateOperation(activityId, percent, message);
+                        },
+                        (isSuccess, error) -> {
+                            app.setDeviceBusy(device, false);
+                            String msg = isSuccess ? "✅ Success" : "❌ Failed";
+                            if (!isSuccess && error != null) msg += ": " + error;
+                            activityDialog.updateOperation(activityId, 100, msg);
+                            if (isSuccess) DeviceManager.getInstance().fetchDeviceDetails(device, true);
+                        }
                 );
             }
             // install on remote devices (grouped)
             remoteDeviceMap.forEach((remoteConnection, deviceList) -> {
-                deviceList.forEach(device -> setDeviceBusy(device, true));
+                deviceList.forEach(device -> app.setDeviceBusy(device, true));
                 String label = String.format("Install %s -> %s (%d devices)", file.getName(), remoteConnection.getName(), deviceList.size());
                 final int activityId = activityDialog.addOperation(label, Icons.FILE_APK);
                 DeviceManager.getInstance().installApp(remoteConnection, deviceList, file,
-                    (currentStep, totalSteps, message) -> {
-                        int percent = Math.max(0, Math.min(100, (int) Math.round((totalSteps > 0 ? (currentStep * 100.0 / totalSteps) : 0))));
-                        activityDialog.updateOperation(activityId, percent, message);
-                    },
-                    (isSuccess, error) -> {
-                        deviceList.forEach(device -> setDeviceBusy(device, false));
-                        String msg = isSuccess ? "✅ Success" : "❌ Failed";
-                        if (!isSuccess && error != null) msg += ": " + error;
-                        activityDialog.updateOperation(activityId, 100, msg);
-                        // TODO: refresh remote connection's devices
-                        // remoteConnection.scheduleRefresh();
-                    });
+                        (currentStep, totalSteps, message) -> {
+                            int percent = Math.max(0, Math.min(100, (int) Math.round((totalSteps > 0 ? (currentStep * 100.0 / totalSteps) : 0))));
+                            activityDialog.updateOperation(activityId, percent, message);
+                        },
+                        (isSuccess, error) -> {
+                            deviceList.forEach(device -> app.setDeviceBusy(device, false));
+                            String msg = isSuccess ? "✅ Success" : "❌ Failed";
+                            if (!isSuccess && error != null) msg += ": " + error;
+                            activityDialog.updateOperation(activityId, 100, msg);
+                        });
             });
         }
     }
@@ -1047,7 +680,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         for (Device device : selectedDeviceList) {
             DeviceManager.getInstance().setProperty(device, property, result, (isSuccess, error) -> {
-                handleDeviceUpdated(device);
+
             });
         }
     }
@@ -1055,14 +688,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     private void handleInputCommand() {
         Device selectedDevice = getFirstSelectedDevice();
         if (selectedDevice == null) return;
-
-        InputScreen inputScreen = inputViewMap.get(selectedDevice.serial);
-        if (inputScreen == null) {
-            if (!selectedDevice.isOnline) return;
-            inputScreen = new InputScreen(this, selectedDevice);
-            inputViewMap.put(selectedDevice.serial, inputScreen);
-        }
-        inputScreen.show();
+        app.showInput(selectedDevice);
     }
 
     private void handleScreenshotCommand() {
@@ -1075,60 +701,46 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
         for (Device device : selectedDeviceList) {
-            setDeviceBusy(device, true);
+            app.setDeviceBusy(device, true);
             DeviceManager.getInstance().captureScreenshot(device, image -> {
-                setDeviceBusy(device, false);
-                boolean isSuccess = image != null;
-                if (isSuccess) {
-                    // save image to file
-                    String downloadFolder = Utils.getDownloadFolder();
-                    // 20211215-1441PM-1.png
-                    String name = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date()) + ".png";
-                    try {
-                        // save to file
-                        File outputfile = new File(downloadFolder, name);
-                        ImageIO.write(image, "png", outputfile);
-                        log.debug("captureScreenshot: DONE: {}x{}, {}", image.getWidth(), image.getHeight(), outputfile.getAbsolutePath());
-                        // open with default viewer
-                        Utils.openFile(outputfile);
-                    } catch (Exception e) {
-                        log.error("captureScreenshot: {}", e.getMessage());
-                    }
+                app.setDeviceBusy(device, false);
+                if (image == null) {
+                    resultWatcher.handleResult(device.serial, false, "screenshot failed");
+                    return;
                 }
-                resultWatcher.handleResult(device.getDisplayName(), isSuccess, null);
+                try {
+                    String name = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(new java.util.Date()) + ".png";
+                    File outFile = new File(Utils.getDownloadFolder(), name);
+                    javax.imageio.ImageIO.write(image, "png", outFile);
+                    Utils.openFile(outFile);
+                    resultWatcher.handleResult(device.serial, true, null);
+                } catch (Exception e) {
+                    log.error("handleScreenshotCommand: {}", e.getMessage());
+                    resultWatcher.handleResult(device.serial, false, e.getMessage());
+                }
             });
         }
     }
 
-    public void setDeviceBusy(Device device, boolean isBusy) {
-        device.setBusy(isBusy);
-
-        // only update model on UI thread
-        if (SwingUtilities.isEventDispatchThread()) {
-            model.updateDevice(device);
-        } else SwingUtilities.invokeLater(() -> {
-            model.updateDevice(device);
-        });
-    }
-
-    private void handleConnectButtonClicked(MouseEvent mouseEvent) {
+    private void handleConnectButtonClicked(JButton button) {
         JPopupMenu popupMenu = new JPopupMenu();
 
         // adb wireless
         JMenuItem adbItem = new JMenuItem("Connect to ADB Wireless Device", UiUtils.getImageIcon(Icons.ADB, UiUtils.IMG_SIZE_SMALL));
-        adbItem.addActionListener(e -> {
-            showConnectAdbWirelessDialog();
-        });
+        adbItem.addActionListener(e -> showConnectAdbWirelessDialog());
         popupMenu.add(adbItem);
 
         // connect to server
         JMenuItem serverItem = new JMenuItem("Connect to Remote Server", UiUtils.getImageIcon(Icons.SERVER, UiUtils.IMG_SIZE_SMALL));
-        serverItem.addActionListener(e -> {
-            RemoteServerDialog.showRemoteServerDialog(this);
-        });
+        serverItem.addActionListener(e -> RemoteServerDialog.showRemoteServerDialog(this));
         popupMenu.add(serverItem);
 
-        popupMenu.show(mouseEvent.getComponent(), mouseEvent.getX(), mouseEvent.getY());
+        // anchor below the toolbar button
+        popupMenu.show(button, 0, button.getHeight());
+    }
+
+    private void handleConnectDevice() {
+        showConnectAdbWirelessDialog();
     }
 
     private void showConnectAdbWirelessDialog() {
@@ -1279,13 +891,8 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
-    private void handleMirrorCommand(Device selectedDevice) {
-        List<Device> selectedDeviceList;
-        if (selectedDevice == null) {
-            selectedDeviceList = getSelectedDevices(true);
-        } else {
-            selectedDeviceList = Collections.singletonList(selectedDevice);
-        }
+    private void handleMirrorCommand() {
+        List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
         if (selectedDeviceList.size() > 1) {
             // prompt to open multiple devices at once
@@ -1295,10 +902,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
 
         ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
         for (Device device : selectedDeviceList) {
-            setDeviceBusy(device, true);
+            app.setDeviceBusy(device, true);
             DeviceManager.getInstance().mirrorDevice(device, false, (isSuccess, error) -> {
-                setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.getDisplayName(), isSuccess, isSuccess ? null : error);
+                app.setDeviceBusy(device, false);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
             });
         }
     }
@@ -1317,15 +924,15 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
         });
         for (Device device : selectedDeviceList) {
-            setDeviceBusy(device, true);
+            app.setDeviceBusy(device, true);
             DeviceManager.getInstance().recordScreen(device, (isSuccess, error) -> {
-                setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.getDisplayName(), isSuccess, isSuccess ? null : error);
+                app.setDeviceBusy(device, false);
+                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
             });
         }
     }
 
-    private Device getFirstSelectedDevice() {
+    public Device getFirstSelectedDevice() {
         List<Device> selectedDevices = getSelectedDevices(false);
         if (!selectedDevices.isEmpty()) return selectedDevices.get(0);
         else return null;
@@ -1360,56 +967,30 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     public enum ToolbarButton {
         CONNECT(Icons.ADD, "Connect", "Connect Device"),
         BROWSE(Icons.BROWSE, "Browse", "File Explorer"),
-        LOGS(Icons.FILE_LOGS, "View Logs", "Log Viewer"),
-        SAVE_LOGS(Icons.FILE_SAVE, "Save Logs", "Save Logs to Disk"),
+        LOGS(Icons.LOGS, "View Logs", "Log Viewer"),
+        SAVE_LOGS(Icons.SAVE, "Save Logs", "Save Logs to Disk"),
         INPUT(Icons.KEYBOARD, "Input", "Enter text"),
-        MIRROR(Icons.MIRROR, "Mirror", "Remote Control / Mirror Device"),
+        MIRROR(Icons.SCRCPY, "Mirror", "Mirror Device (scrcpy)"),
         RECORD(Icons.SCREEN_RECORD, "Record", "Record Device (scrcpy)"),
         SCREENSHOT(Icons.SCREENSHOT, "Screenshot", "Screenshot"),
-        INSTALL(Icons.FILE_APK, "Install", "Install / Copy file"),
-        RESTART(Icons.RESTART, "Reboot", "Reboot Device"),
+        INSTALL(Icons.DOWNLOAD, "Install", "Install / Copy file"),
         TERMINAL(Icons.TERMINAL, "Terminal", "Open Terminal"),
-        ADB(Icons.FILE_ADB, "ADB", "Run custom adb command"),
-        SCRIPTS(Icons.FILE_SCRIPT, "Scripts", "Run custom scripts"),
-        FILTER(Icons.CLEAR_FILTER, "Filter", "Filter devices..."),
+        ADB(Icons.ADB, "ADB", "Run custom adb command"),
+        SCRIPTS(Icons.SCRIPT, "Scripts", "Run custom scripts"),
+        FILTER(null, "Filter", "Filter devices..."),
         REFRESH(Icons.REFRESH, "Refresh", "Refresh Devices"),
-        SERVER(Icons.SERVER, "Server", "Start server to share devices"),
+        SHARE_SERVER(Icons.SHARE_OFF, "Share", "Share Devices"),
         SETTINGS(Icons.SETTINGS, "Settings", "Settings"),
         ;
 
-        public final Icons icn;
+        public final Icons image;
         public final String label;
         public final String tooltip;
 
-        ToolbarButton(Icons icn, String label, String tooltip) {
-            this.icn = icn;
+        ToolbarButton(Icons image, String label, String tooltip) {
+            this.image = image;
             this.label = label;
             this.tooltip = tooltip;
-        }
-
-        // Backwards compatibility method
-        public String getImage() {
-            return icn.getName();
-        }
-
-        /**
-         * HIDE these icons by default
-         */
-        public boolean hideByDefault() {
-            return switch (this) {
-                case SAVE_LOGS, INPUT, RECORD, TERMINAL, RESTART, ADB -> true;
-                default -> false;
-            };
-        }
-
-        /**
-         * right-align these toolbar buttons
-         */
-        public boolean isRightAlign() {
-            return switch (this) {
-                case FILTER, REFRESH, SERVER, SETTINGS -> true;
-                default -> false;
-            };
         }
 
         public static ToolbarButton buttonFromLabel(String label) {
@@ -1418,184 +999,151 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
             }
             return null;
         }
+
+        /** HIDE these icons by default (until user customizes the toolbar) */
+        public boolean hideByDefault() {
+            return switch (this) {
+                case SAVE_LOGS, INPUT, RECORD, TERMINAL, ADB -> true;
+                default -> false;
+            };
+        }
     }
 
     public void setupToolbar() {
         if (toolbar.getComponentCount() > 0) {
             toolbar.removeAll();
-            // TODO: not sure this is necessary
             toolbar.revalidate();
             toolbar.doLayout();
             toolbar.repaint();
         }
+
         toolbar.setRollover(true);
+        JButton connectBtn = createToolbarButton(toolbar, ToolbarButton.CONNECT, actionEvent -> handleConnectButtonClicked((JButton) actionEvent.getSource()));
+        if (connectBtn != null) toolbar.addSeparator();
 
-        // get list of all toolbar buttons in default order
-        List<ToolbarButton> toolbarButtons = new ArrayList<>(List.of(ToolbarButton.values()));
+        JButton browseBtn = createToolbarButton(toolbar, ToolbarButton.BROWSE, actionEvent -> app.showFileBrowser(null));
 
-        // get and remove hidden toolbar buttons
-        List<ToolbarButton> hiddenList = getHiddenToolbarButtons();
-        // remove hidden buttons
-        toolbarButtons.removeAll(hiddenList);
+        JButton viewLogsBtn = createToolbarButton(toolbar, ToolbarButton.LOGS, actionEvent -> app.showLogs(null));
 
-        // TODO: allow re-ordering toolbar
-        // List<ToolbarButton> orderList = getToolbarOrder();
+        JButton saveLogsBtn = createToolbarButton(toolbar, ToolbarButton.SAVE_LOGS, actionEvent -> handleSaveLogsCommand());
 
-        boolean hasRightAlignButtons = false;
-        for (ToolbarButton toolbarButton : toolbarButtons) {
-            // check if button should be right-aligned
-            if (toolbarButton.isRightAlign() && !hasRightAlignButtons) {
-                hasRightAlignButtons = true;
-                toolbar.add(Box.createHorizontalGlue());
-            }
-            // special toobar buttons
-            switch (toolbarButton) {
-                case FILTER:
-                    // not a toolbar button
-                    addToolbarFilter();
-                    continue;
-                case SCRIPTS:
-                    // this toolbar button only shows up if a script exists
-                    addScriptsToolbarButton();
-                    continue;
-            }
+        JButton inputBtn = createToolbarButton(toolbar, ToolbarButton.INPUT, actionEvent -> handleInputCommand());
 
-            createToolbarButton(toolbar, toolbarButton, e -> {
-                handleButtonClicked(toolbarButton, e);
+        if (browseBtn != null || viewLogsBtn != null || inputBtn != null || saveLogsBtn != null)
+            toolbar.addSeparator();
+
+        JButton mirrorBtn = createToolbarButton(toolbar, ToolbarButton.MIRROR, actionEvent -> handleMirrorCommand());
+
+        JButton recordBtn = createToolbarButton(toolbar, ToolbarButton.RECORD, actionEvent -> handleRecordCommand());
+
+        JButton screenBtn = createToolbarButton(toolbar, ToolbarButton.SCREENSHOT, actionEvent -> handleScreenshotCommand());
+
+        JButton installBtn = createToolbarButton(toolbar, ToolbarButton.INSTALL, actionEvent -> handleInstallCommand());
+        JButton termBtn = createToolbarButton(toolbar, ToolbarButton.TERMINAL, actionEvent -> handleTermCommand());
+
+        if (mirrorBtn != null || recordBtn != null || screenBtn != null || installBtn != null || termBtn != null)
+            toolbar.addSeparator();
+
+        // create custom action buttons
+        createToolbarButton(toolbar, ToolbarButton.ADB, actionEvent -> handleRunCustomCommand());
+
+        loadCustomScripts(toolbar);
+
+        // -- right side toolbar buttons --
+
+        toolbar.add(Box.createHorizontalGlue());
+
+        filterTextField = new HintTextField(HINT_FILTER_DEVICES, this::filterDevices);
+        if (!isToobarHidden(ToolbarButton.FILTER)) {
+            filterTextField.setPreferredSize(new Dimension(150, 40));
+            filterTextField.setMinimumSize(new Dimension(10, 40));
+            filterTextField.setMaximumSize(new Dimension(200, 40));
+            UiUtils.addRightClickListener(filterTextField, e -> {
+                JPopupMenu popupMenu = new JPopupMenu();
+                JMenuItem hideItem = new JMenuItem("Hide " + ToolbarButton.FILTER.label);
+                hideItem.addActionListener(actionEvent -> {
+                    popupMenu.setVisible(false);
+                    SettingsDialog.addHiddenToolbarItem(ToolbarButton.FILTER.name());
+                    setupToolbar();
+                });
+                popupMenu.add(hideItem);
+                UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(app, DeviceScreen.this));
+                popupMenu.show(e.getComponent(), e.getX(), e.getY());
             });
-
-            if (toolbarButton == ToolbarButton.CONNECT) toolbar.addSeparator();
-            else if (toolbarButton == ToolbarButton.SERVER) updateServerButton();
+            toolbar.add(filterTextField);
         }
+
+        createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
+
+        // start/stop server
+        createToolbarButton(toolbar, ToolbarButton.SHARE_SERVER, actionEvent -> {
+            ShareServerDialog.showShareServerDialog(this);
+            updateServerButton();
+        });
+        updateServerButton();
+
+        createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(app, this));
     }
 
+    /**
+     * refresh the SHARE_SERVER toolbar button to reflect current running state + connected client count
+     */
     private void updateServerButton() {
-        // find SERVER toolbar button
-        JButton button = getToolbarButton(ToolbarButton.SERVER);
-        if (button != null) {
-            RemoteServerManager server = DeviceManager.getInstance().getRemoteServerManager();
-            BufferedImage image = UiUtils.getImage(ToolbarButton.SERVER.icn, UiUtils.IMG_SIZE_TOOLBAR);
-            if (image != null) {
-                if (server.isRunning()) {
-                    image = UiUtils.replaceColor(image, Colors.COLOR_SERVER_RUNNING);
-                }
-                button.setIcon(new ImageIcon(image));
-            }
+        JButton serverButton = getToolbarButton(ToolbarButton.SHARE_SERVER);
+        if (serverButton == null) return;
+        RemoteServerManager server = DeviceManager.getInstance().getRemoteServerManager();
+        if (server.isRunning()) {
+            serverButton.setIcon(UiUtils.getImageIcon(Icons.SHARE_ON, UiUtils.IMG_SIZE_TOOLBAR));
+            int numConnected = server.getConnectedClients().size();
+            serverButton.setText(numConnected > 0 ? String.format("#%d", numConnected) : ToolbarButton.SHARE_SERVER.label);
+        } else {
+            serverButton.setIcon(UiUtils.getImageIcon(Icons.SHARE_OFF, UiUtils.IMG_SIZE_TOOLBAR));
+            serverButton.setText(ToolbarButton.SHARE_SERVER.label);
         }
     }
 
     private JButton getToolbarButton(ToolbarButton toolbarButton) {
         for (Component component : toolbar.getComponents()) {
-            if (component instanceof JButton button && button.getText().equals(toolbarButton.label)) {
+            if (component instanceof JButton button && toolbarButton.label.equals(button.getText())) {
+                return button;
+            }
+            if (component instanceof JButton button && button.getIcon() != null && toolbarButton.label.equals(button.getToolTipText())) {
+                // fall back to tooltip when label has been swapped (e.g. "#3" while connected)
                 return button;
             }
         }
         return null;
     }
 
-    private void handleButtonClicked(ToolbarButton toolbarButton, MouseEvent mouseEvent) {
-        switch (toolbarButton) {
-            case CONNECT -> handleConnectButtonClicked(mouseEvent);
-            case BROWSE -> handleBrowseCommand(null);
-            case LOGS -> handleViewLogsCommand(null);
-            case SAVE_LOGS -> handleSaveLogsCommand();
-            case INPUT -> handleInputCommand();
-            case MIRROR -> handleMirrorCommand(null);
-            case RECORD -> handleRecordCommand();
-            case SCREENSHOT -> handleScreenshotCommand();
-            case INSTALL -> handleInstallCommand();
-            case RESTART -> handleRestartCommand();
-            case TERMINAL -> handleTermCommand();
-            case ADB -> handleRunCustomCommand();
-            case REFRESH -> refreshDevices();
-            case SERVER -> {
-                ShareServerDialog.showShareServerDialog(this);
-                updateServerButton();
-            }
-            case SETTINGS -> SettingsDialog.showSettings(DeviceScreen.this);
-            default -> log.warn("handleButtonClicked: unhandled button: {}", toolbarButton);
-        }
-    }
+    protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {
+        if (isToobarHidden(toolbarButton)) return null;
 
-    private void addToolbarFilter() {
-        filterTextField.setPreferredSize(new Dimension(150, UiUtils.IMG_SIZE_TOOLBAR));
-        filterTextField.setMinimumSize(new Dimension(10, UiUtils.IMG_SIZE_TOOLBAR));
-        filterTextField.setMaximumSize(new Dimension(200, UiUtils.IMG_SIZE_TOOLBAR));
-        UiUtils.addRightClickListener(filterTextField, e -> {
-            JPopupMenu popupMenu = new JPopupMenu();
-            // hide column
-            UiUtils.addPopupMenuItem(popupMenu, "Hide " + ToolbarButton.FILTER.label, Icons.EYE_CLOSED, actionEvent -> {
-                popupMenu.setVisible(false);
-                hideToobarButton(ToolbarButton.FILTER);
-                setupToolbar();
-            });
-            // manage toolbar
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", Icons.SETTINGS, actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
-
-            popupMenu.show(e.getComponent(), e.getX(), e.getY());
-        });
-        toolbar.add(filterTextField);
-    }
-
-    /**
-     * @return list of hidden toolbar buttons
-     */
-    public List<ToolbarButton> getHiddenToolbarButtons() {
-        List<ToolbarButton> hiddenList = getToolbarList(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS);
-        if (hiddenList == null) {
-            // populate list with default hidden buttons
-            hiddenList = new ArrayList<>();
-            for (ToolbarButton button : ToolbarButton.values()) {
-                if (button.hideByDefault()) hiddenList.add(button);
-            }
-        }
-        return hiddenList;
-    }
-
-    private static List<ToolbarButton> getToolbarList(PreferenceUtils.Pref pref) {
-        String prefStr = PreferenceUtils.getPreference(pref);
-        if (prefStr == null) return null;
-        List<String> prefList = GsonHelper.stringToList(prefStr, String.class);
-        List<ToolbarButton> list = new ArrayList<>();
-        for (String item : prefList) {
-            try {
-                list.add(ToolbarButton.valueOf(item));
-            } catch (IllegalArgumentException e) {
-                log.warn("getToolbarList: invalid: {}, {}", item, pref);
-            }
-        }
-        return list;
-    }
-
-    /**
-     * hide toolbar button
-     */
-    public void hideToobarButton(ToolbarButton toolbarButton) {
-        List<ToolbarButton> hiddenList = getHiddenToolbarButtons();
-        hiddenList.add(toolbarButton);
-        // convert enum list to string list
-        List<String> hiddenListStr = new ArrayList<>();
-        for (ToolbarButton button : hiddenList) hiddenListStr.add(button.name());
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenListStr));
-    }
-
-    protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ClickListener listener) {
+        Icons icn = toolbarButton.image;
         String label = toolbarButton.label;
         String tooltip = toolbarButton.tooltip;
 
-        JButton button = createToolbarButton(toolbar, toolbarButton.icn, label, tooltip, UiUtils.IMG_SIZE_TOOLBAR, listener);
+        // adapt ActionListener -> ClickListener for the base helper
+        ClickListener clickListener = mouseEvent -> {
+            if (listener != null) listener.actionPerformed(new ActionEvent(mouseEvent.getSource(), ActionEvent.ACTION_PERFORMED, null));
+        };
+        JButton button = createToolbarButton(toolbar, icn, label, tooltip, 40, clickListener);
         UiUtils.addRightClickListener(button, e -> {
             if (toolbarButton == ToolbarButton.SETTINGS) return;
             JPopupMenu popupMenu = new JPopupMenu();
-            UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, Icons.EYE_CLOSED, actionEvent -> {
-                hideToobarButton(toolbarButton);
+            UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
+                SettingsDialog.addHiddenToolbarItem(toolbarButton.name());
                 setupToolbar();
             });
-            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", Icons.SETTINGS, actionEvent -> SettingsDialog.showManageToolbar(DeviceScreen.this, DeviceScreen.this));
+            UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(app, DeviceScreen.this));
             popupMenu.show(e.getComponent(), e.getX(), e.getY());
         });
 
         return button;
+    }
+
+    private boolean isToobarHidden(ToolbarButton toolbarButton) {
+        List<String> hiddenToolbarList = SettingsDialog.getHiddenToolbarList();
+        return hiddenToolbarList.contains(toolbarButton.name());
     }
 
     private List<File> getCustomScripts() {
@@ -1609,24 +1157,20 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
                 scriptList.add(file);
             }
         }
-        // sort scriptList alphabetically (case insensitive)
-        scriptList.sort(Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
-
         return scriptList;
     }
 
-    /**
-     * add scripts toolbar button if any custom scripts exist
-     */
-    private void addScriptsToolbarButton() {
+    private void loadCustomScripts(JToolBar toolbar) {
         List<File> scriptList = getCustomScripts();
         if (scriptList == null || scriptList.isEmpty()) return;
-        createToolbarButton(toolbar, ToolbarButton.SCRIPTS, e -> {
+        JButton scriptButton = createToolbarButton(toolbar, ToolbarButton.SCRIPTS, null);
+        if (scriptButton == null) return;
+        UiUtils.addLeftClickListener(scriptButton, e -> {
             JPopupMenu popupMenu = new JPopupMenu();
             List<File> list = getCustomScripts();
             for (File script : list) {
                 String name = FileUtils.getNameNoExt(script).replaceAll("_", " ");
-                JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon(Icons.FILE_SCRIPT, UiUtils.IMG_SIZE_SMALL));
+                JMenuItem item = new JMenuItem(name, UiUtils.getImageIcon(Icons.SCRIPT, UiUtils.IMG_SIZE_SMALL));
                 item.addActionListener(e2 -> handleCustomScriptClicked(script, name));
                 popupMenu.add(item);
             }
@@ -1635,7 +1179,7 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
     }
 
     private void handleCustomScriptClicked(File script, String name) {
-        List<Device> selectedDeviceList = getSelectedDevices(false);
+        List<Device> selectedDeviceList = getSelectedDevices(true);
         //if (selectedDeviceList.isEmpty()) return;
 
         log.trace("handleCustomScriptClicked: {}, {}", name, script.getAbsolutePath());
@@ -1643,26 +1187,20 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         String[] serialArr = new String[selectedDeviceList.size()];
         for (int i = 0; i < selectedDeviceList.size(); i++) {
             Device device = selectedDeviceList.get(i);
-            setDeviceBusy(device, true);
+            app.setDeviceBusy(device, true);
             serialArr[i] = device.serial;
         }
 
         DeviceManager.getInstance().runCustomScript((isSuccess, error) -> {
             log.trace("handleCustomScriptClicked: DONE:{}, {}", isSuccess, error);
             for (Device device : selectedDeviceList) {
-                setDeviceBusy(device, false);
-            }
-            if (!isSuccess && TextUtils.notEmpty(error)) {
-                DialogHelper.showDialog(this, "Error", "Failed to run: " + name + ", Error:\n\n" + error);
+                app.setDeviceBusy(device, false);
             }
         }, script.getAbsolutePath(), serialArr);
     }
 
     private void refreshDevices() {
-        // refresh local devices
         DeviceManager.getInstance().refreshDevices(true);
-        // refresh remote devices
-        DeviceManager.getInstance().getRemoteConnectionManager().refreshAllDevices(true);
     }
 
     private void handleRunCustomCommand() {
@@ -1723,102 +1261,10 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
     }
 
-    public void handleBrowseCommand(Device selectedDevice) {
-        if (selectedDevice == null) selectedDevice = getFirstSelectedDevice();
-        if (selectedDevice == null) return;
-
-        ExploreScreen exploreScreen = exploreViewMap.get(selectedDevice.serial);
-        if (exploreScreen == null) {
-            if (!selectedDevice.isOnline) return;
-            exploreScreen = new ExploreScreen(this, selectedDevice);
-            exploreViewMap.put(selectedDevice.serial, exploreScreen);
-        }
-        exploreScreen.show();
-    }
-
-    public void handleBrowseClosed(String serial) {
-        exploreViewMap.remove(serial);
-    }
-
-    public void handleLogsClosed(String serial) {
-        logsViewMap.remove(serial);
-    }
-
-    public void handleInputClosed(String serial) {
-        inputViewMap.remove(serial);
-    }
-
-    public void handleSaveLogsClosed() {
-        if (saveLogsScreen != null) {
-            saveLogsScreen = null;
-        }
-    }
-
-    public void handleViewLogsCommand(Device selectedDevice) {
-        if (selectedDevice == null) selectedDevice = getFirstSelectedDevice();
-        if (selectedDevice == null) return;
-
-        ViewLogsScreen logsScreen = logsViewMap.get(selectedDevice.serial);
-        if (logsScreen == null) {
-            if (!selectedDevice.isOnline) return;
-            logsScreen = new ViewLogsScreen(this, selectedDevice);
-            logsViewMap.put(selectedDevice.serial, logsScreen);
-        }
-        logsScreen.setVisible(true);
-    }
-
     private void handleSaveLogsCommand() {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
-
-        if (saveLogsScreen == null) {
-            saveLogsScreen = new SaveLogsScreen(this);
-        }
-        saveLogsScreen.setDeviceList(selectedDeviceList);
-        saveLogsScreen.show();
-    }
-
-    private interface UpdateListener {
-        void onUpdateCheckComplete(String version, String desc);
-    }
-
-    private void checkForUpdates(UpdateListener updateListener) {
-        // must be run off main/UI thread
-        if (SwingUtilities.isEventDispatchThread()) {
-            Utils.runBackground(() -> checkForUpdates(updateListener));
-            return;
-        }
-        String version = null;
-        String desc = null;
-        NetworkHelper.HttpResponse response = NetworkHelper.getRequest(UPDATE_SOURCE_GITHUB);
-        List<GithubRelease> releases = GsonHelper.stringToList(response.body, GithubRelease.class);
-        if (!releases.isEmpty()) {
-            GithubRelease latestRelease = releases.get(0);
-            Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);
-            if (compareResult == Utils.CompareResult.VERSION_NEWER) {
-                version = latestRelease.tagName;
-                desc = latestRelease.body;
-            }
-        }
-
-        // update UI on main thread
-        String finalVersion = version;
-        String finalDesc = desc;
-        if (version != null) {
-            log.debug("checkForUpdates: LATEST:{}, CURRENT:{}", version, MainApplication.version);
-            SwingUtilities.invokeLater(() -> {
-                updateVersion = finalVersion;
-                updateDesc = finalDesc;
-                updateLabel.setToolTipText("Update Available " + updateVersion + ", desc: " + finalDesc);
-                BufferedImage image = UiUtils.getImage(Icons.UPDATE, UiUtils.IMG_SIZE_SMALL, UiUtils.IMG_SIZE_SMALL, Colors.COLOR_ERROR);
-                if (image != null) updateLabel.setIcon(new ImageIcon(image));
-                updateLabel.setVisible(true);
-                if (updateListener != null)
-                    updateListener.onUpdateCheckComplete(finalVersion, finalDesc);
-            });
-        } else if (updateListener != null) {
-            SwingUtilities.invokeLater(() -> updateListener.onUpdateCheckComplete(null, null));
-        }
+        app.showSaveLogs(selectedDeviceList);
     }
 
     /**
@@ -1841,68 +1287,6 @@ public class DeviceScreen extends BaseScreen implements DeviceManager.DeviceList
         }
 
         DialogHelper.showListDialog(this, "System Environment", sortedEnvMap, null);
-    }
-
-    private void handleUpdateClicked(MouseEvent e) {
-        if (updateVersion == null) {
-            // prompt to check for new version
-            if (!DialogHelper.showConfirmDialog(this, "Update Check", "Check for update?")) return;
-
-            checkForUpdates((version, desc) -> {
-                if (updateVersion != null) {
-                    handleUpdateClicked(null);
-                } else {
-                    DialogHelper.showDialog(this, null, "No Updates");
-                }
-            });
-            return;
-        }
-        // jdeploy will auto-update app on start
-        String jdeployPath = System.getProperty("jdeploy.launcher.path");
-        boolean isJdeploy = jdeployPath != null;
-        int index = TextUtils.indexOf(jdeployPath, "/Contents/MacOS/Client4JLauncher");
-        if (index > 0) {
-            // remove the launcher part and just open "Android Device Manager.app"
-            // "/Users/USERNAME/Applications/Android Device Manager.app/Contents/MacOS/Client4JLauncher";
-            jdeployPath = jdeployPath.substring(0, index);
-        }
-
-        JPanel panel = new JPanel(new MigLayout());
-        panel.add(new JLabel(String.format("Update %s Available", updateVersion)), "wrap");
-        JTextArea textArea = new JTextArea(updateDesc);
-        textArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        panel.add(scrollPane, "newline 20px, wrap");
-        String yesOption;
-        if (isJdeploy) {
-            panel.add(new JLabel("Restart App?"), "newline 20px, wrap");
-            yesOption = "Restart";
-        } else {
-            panel.add(new JLabel("View release in browser?"), "newline 20px, wrap");
-            yesOption = "View";
-        }
-        String[] choices = {yesOption, "Cancel"};
-        if (DialogHelper.showCustomDialog(this, panel, "Update Available", choices) != JOptionPane.YES_OPTION) return;
-
-        if (isJdeploy) {
-            // exit and restart app
-            //  ~/Applications/Android Device Manager.app/Contents/MacOS/Client4JLauncher
-            final ArrayList<String> command = new ArrayList<>();
-            command.add("open");
-            command.add(jdeployPath);
-
-            final ProcessBuilder builder = new ProcessBuilder(command);
-            try {
-                builder.start();
-                System.exit(0);
-            } catch (IOException ex) {
-                log.error("handleVersionClicked: IOException: {}", ex.getMessage());
-            }
-        } else {
-            // NOTE: check if app was launched from console or other (IntelliJ, .app)
-            // log.debug("handleVersionClicked: CONSOLE:{}", System.console());
-            Utils.openBrowser(URL_GITHUB);
-        }
     }
 
     private void handleVersionClicked(MouseEvent e) {

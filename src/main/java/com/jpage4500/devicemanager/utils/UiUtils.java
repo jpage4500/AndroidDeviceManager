@@ -171,24 +171,16 @@ public class UiUtils {
 
     public static BufferedImage getTrayIconWithCount(int count) {
         int size = 16;
-        BufferedImage baseImage = getImage(Icons.ANDROID, size, size, Color.WHITE);
+        boolean isDark = OsThemeDetector.getInstance().isDark();
+        Color iconColor = isDark ? Color.WHITE : Color.BLACK;
+        Color textColor = isDark ? Color.BLACK : Color.WHITE;
+        BufferedImage baseImage = getImage(Icons.ANDROID, size, size, iconColor);
         if (count == 0) return baseImage;
 
-        // Create square image
         BufferedImage combined = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = combined.createGraphics();
-        // Enable anti-aliasing for smoother rendering
-//        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-//        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-        // Draw base icon with semi-transparency (40% opacity) so number is easier to read
-//        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f));
         g.drawImage(baseImage, 0, 0, null);
 
-        // Reset to full opacity for text
-//        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
-
-        // Draw count with large bold font centered in the image
         String text = String.valueOf(count);
         Font font = new Font("Arial", Font.PLAIN, 8);
         g.setFont(font);
@@ -196,20 +188,10 @@ public class UiUtils {
         int textWidth = fm.stringWidth(text);
         int textHeight = fm.getAscent();
 
-        // Center text in the image
         int textX = (size - textWidth) / 2;
         int textY = (size - textHeight) / 2 + textHeight;
 
-        // Draw outline around text for better visibility
-//        g.setColor(Color.BLACK);
-//        g.setStroke(new BasicStroke(3.0f));
-//        g.drawString(text, textX - 1, textY - 1);
-//        g.drawString(text, textX + 1, textY - 1);
-//        g.drawString(text, textX - 1, textY + 1);
-//        g.drawString(text, textX + 1, textY + 1);
-
-        // Draw text on top
-        g.setColor(Color.BLACK);
+        g.setColor(textColor);
         g.drawString(text, textX, textY);
         g.dispose();
         return combined;

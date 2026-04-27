@@ -1,6 +1,10 @@
 package com.jpage4500.devicemanager.ui;
 
-import com.jpage4500.devicemanager.data.*;
+import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.Icons;
+import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.data.LogFilter;
+import com.jpage4500.devicemanager.data.LogFilterEntry;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.table.utils.LogFilterRenderer;
@@ -8,7 +12,6 @@ import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
-import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.MessageTooltipPanel;
@@ -20,9 +23,12 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -38,9 +44,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     private static final String HINT_FILTER = "Filter...";
     private static final String HINT_SEARCH = "Search...";
-
-    private final DeviceScreen deviceScreen;
-    private Device device;
 
     public CustomTable table;
     public LogsTableModel model;
@@ -58,7 +61,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private LogsRowSorter sorter;
     private MessageViewScreen viewScreen;
 
-    // custom tooltip for message column
+    // Custom tooltip for message column
     private MessageTooltipPanel tooltip;
     private int tooltipRow = -1;
     private int tooltipCol = -1;
@@ -66,27 +69,70 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
-    public JButton quickViewButton;
-    public boolean isQuickViewEnabled; // true when user clicks on 'quick view'
 
-    public ViewLogsScreen(DeviceScreen deviceScreen, Device device) {
-        super("logs-" + device.serial, 1100, 800);
-        this.deviceScreen = deviceScreen;
-        this.device = device;
+    // headless / logs-only mode: show embedded "Connected Devices" picker
+    private final boolean isHeadless;
+    private JList<Device> connectedDevicesList;
+    private JPanel connectedDevicesContainer;
+    private CardLayout connectedDevicesCards;
+    private boolean suppressDeviceSelection;
+
+    private JSplitPane mainSplit;       // filters/devices | logs table
+    private JSplitPane leftSplit;       // filters / devices (headless only)
+
+    private static final String CARD_LIST = "list";
+    private static final String CARD_EMPTY = "empty";
+
+    private static final Comparator<Device> CONNECTED_ORDER =
+            Comparator.<Device, Boolean>comparing(d -> !d.isOnline)
+                    .thenComparing(d -> {
+                        String name = d.getDisplayName();
+                        return name != null ? name : "";
+                    }, String.CASE_INSENSITIVE_ORDER);
+
+    public ViewLogsScreen(App app, Device device) {
+        super(app, device, "logs-" + device.serial, 1100, 800);
+        this.isHeadless = false;
 
         initalizeUi();
         updateDevice(device);
     }
 
+    /**
+     * Logs-only / headless mode: window opens with no device; an embedded picker drives selection.
+     */
+    public ViewLogsScreen(App app) {
+        super(app, null, "logs-headless", 1100, 800);
+        this.isHeadless = true;
+
+        initalizeUi();
+        setTitle("Logs: [No Device]");
+        setVisible(true);
+    }
+
     public void updateDevice(Device device) {
         this.device = device;
+        if (device == null) {
+            setTitle("Logs: [No Device]");
+            return;
+        }
+        log.trace("updateDeviceState: ONLINE:{}", device.isOnline);
         if (device.isOnline) {
             setTitle("Logs: [" + device.getDisplayName() + "]");
-            if (!isLoggedPaused) startLogging();
+            startLogging();
         } else {
             setTitle("OFFLINE [" + device.getDisplayName() + "]");
-            if (!isLoggedPaused) stopLogging();
+            stopLogging();
         }
+    }
+
+    public boolean isShowingDevice(Device device) {
+        return device != null && this.device != null
+                && TextUtils.equals(device.serial, this.device.serial);
+    }
+
+    public String getCurrentSerial() {
+        return device != null ? device.serial : null;
     }
 
     protected void initalizeUi() {
@@ -110,14 +156,37 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         // -- filter list --
         filterList = new JList<>();
+        JScrollPane filterScroll = new JScrollPane(filterList);
         setupFilterList();
-        leftPanel.add(filterList, BorderLayout.CENTER);
 
         // -- add filter button --
         JButton addFilterButton = new JButton("Add Filter");
         addFilterButton.setIcon(UiUtils.getImageIcon(Icons.ADD, UiUtils.IMG_SIZE_ICON));
         addFilterButton.addActionListener(this::handleAddFilterClicked);
-        leftPanel.add(addFilterButton, BorderLayout.SOUTH);
+
+        if (isHeadless) {
+            // filters panel: list + Add Filter button
+            JPanel filtersPanel = new JPanel(new BorderLayout());
+            filtersPanel.add(filterScroll, BorderLayout.CENTER);
+            filtersPanel.add(addFilterButton, BorderLayout.SOUTH);
+
+            // devices panel: label + list
+            JPanel devicesPanel = new JPanel(new BorderLayout());
+            JLabel devicesLabel = new JLabel("Devices");
+            devicesLabel.setFont(devicesLabel.getFont().deriveFont(Font.BOLD));
+            devicesLabel.setBorder(new EmptyBorder(4, 4, 4, 4));
+            devicesPanel.add(devicesLabel, BorderLayout.NORTH);
+
+            setupConnectedDevicesList();
+            devicesPanel.add(connectedDevicesContainer, BorderLayout.CENTER);
+
+            leftSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, filtersPanel, devicesPanel);
+            leftSplit.setResizeWeight(0.7);
+            leftPanel.add(leftSplit, BorderLayout.CENTER);
+        } else {
+            leftPanel.add(filterScroll, BorderLayout.CENTER);
+            leftPanel.add(addFilterButton, BorderLayout.SOUTH);
+        }
 
         JPanel rightPanel = new JPanel(new BorderLayout());
 
@@ -131,10 +200,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         setupStatusBar();
         mainPanel.add(statusBar, BorderLayout.SOUTH);
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        splitPane.setLeftComponent(leftPanel);
-        splitPane.setRightComponent(rightPanel);
-        mainPanel.add(splitPane, BorderLayout.CENTER);
+        mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        mainSplit.setLeftComponent(leftPanel);
+        mainSplit.setRightComponent(rightPanel);
+        mainPanel.add(mainSplit, BorderLayout.CENTER);
 
         setupMenuBar();
 
@@ -144,6 +213,26 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         autoScrollCheckBox.setSelected(true);
 
         restoreSelectedFilters();
+        restoreDividerLocations();
+    }
+
+    private void restoreDividerLocations() {
+        int mainDivider = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_DIVIDER_MAIN, -1);
+        if (mainDivider > 0) mainSplit.setDividerLocation(mainDivider);
+
+        if (leftSplit != null) {
+            int leftDivider = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_DIVIDER_LEFT, -1);
+            if (leftDivider > 0) leftSplit.setDividerLocation(leftDivider);
+        }
+    }
+
+    private void saveDividerLocations() {
+        if (mainSplit != null) {
+            PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOGS_DIVIDER_MAIN, mainSplit.getDividerLocation());
+        }
+        if (leftSplit != null) {
+            PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOGS_DIVIDER_LEFT, leftSplit.getDividerLocation());
+        }
     }
 
     @Override
@@ -155,26 +244,26 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             }
             case ACTIVATED -> {
                 // start logging if user didn't stop
-                if (!isLoggedPaused) {
+                if (!isLoggedPaused && device != null) {
                     startLogging();
                 }
             }
             case DEACTIVATED -> {
-                // hide tooltip when window loses focus
+                // Hide tooltip when window loses focus
                 hideTooltip();
             }
             default -> {
-                // handle other states (OPENED, CLOSING, etc.)
+                // Handle other states (OPENED, CLOSING, etc.)
             }
         }
     }
 
     private void setupStatusBar() {
-        // create a panel to hold both checkboxes
+        // Create a panel to hold both checkboxes
         JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         checkboxPanel.setOpaque(false);
 
-        // show Tooltip checkbox
+        // Show Tooltip checkbox
         showTooltipCheckBox = new JCheckBox("Tooltip");
         showTooltipCheckBox.setToolTipText("Show tooltip when hovering over long messages");
         showTooltipCheckBox.setBorder(new EmptyBorder(0, 10, 0, 10));
@@ -189,7 +278,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         });
         checkboxPanel.add(showTooltipCheckBox);
 
-        // auto Scroll checkbox
+        // Auto Scroll checkbox
         autoScrollCheckBox = new JCheckBox("Auto Scroll");
         autoScrollCheckBox.setToolTipText("Check to automatically scroll to latest messages");
         autoScrollCheckBox.setBorder(new EmptyBorder(0, 10, 0, 10));
@@ -206,28 +295,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void setupMenuBar() {
-        JMenu windowMenu = new JMenu("Window");
-
-        // [CMD + W] = close window
-        createCmdMenuItem(windowMenu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
-
-        // [CMD + 1] = show devices
-        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_DEVICE_LIST, KeyEvent.VK_1, e -> {
-            deviceScreen.setVisible(true);
-            deviceScreen.toFront();
-        });
-
-        // [CMD + 2] = show explorer
-        createCmdMenuItem(windowMenu, DeviceScreen.SHOW_BROWSE, KeyEvent.VK_2, e -> deviceScreen.handleBrowseCommand(device));
-
-        // [CMD + ,] = settings
-        createCmdMenuItem(windowMenu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(deviceScreen));
-
-        // [CMD + T] = hide toolbar
-        createCmdMenuItem(windowMenu, "Hide Toolbar", KeyEvent.VK_T, e -> hideToolbar());
-
-        // [CMD + D] = distraction free
-        createCmdMenuItem(windowMenu, "Toggle Distraction Free View", KeyEvent.VK_D, e -> toggleQuickViewButton());
+        JMenu windowMenu = buildWindowMenu();
 
         // -----------------------------------------------------------
         // -----------------------------------------------------------
@@ -275,13 +343,13 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         createCmdMenuItem(logsMenu, "Edit selected", KeyEvent.VK_E, e -> handleEditLogsClicked());
 
         // [CMD + KEY_UP] = scroll to top
-        createCmdMenuItem(logsMenu, "Scoll to top", KeyEvent.VK_UP, e -> {
+        createCmdMenuItem(logsMenu, "Scroll to top", KeyEvent.VK_UP, e -> {
             autoScrollCheckBox.setSelected(false);
             table.scrollToTop();
         });
 
         // [CMD + KEY_DOWN] = scroll to bottom
-        createCmdMenuItem(logsMenu, "Scoll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
+        createCmdMenuItem(logsMenu, "Scroll to bottom", KeyEvent.VK_DOWN, e -> table.scrollToBottom());
 
         // [OPTION + KEY_UP] = page up
         KeyStroke optionUpKey = KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK);
@@ -358,7 +426,15 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private void notifyFontChanged() {
         LogsCellRenderer cellRenderer = (LogsCellRenderer) table.getDefaultRenderer(LogEntry.class);
         cellRenderer.notifyFontChanged();
+        applyRowHeight(cellRenderer.getFont());
         model.fireTableDataChanged();
+    }
+
+    private void applyRowHeight(Font font) {
+        FontMetrics fm = table.getFontMetrics(font);
+        // tight row height: ascent + descent + small fixed padding (no leading)
+        int rowHeight = fm.getAscent() + fm.getDescent() + 2;
+        table.setRowHeight(rowHeight);
     }
 
     public void decreaseFontSize() {
@@ -373,7 +449,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         JFontChooser fontChooser = new JFontChooser();
         LogsCellRenderer cellRenderer = (LogsCellRenderer) table.getDefaultRenderer(LogEntry.class);
         fontChooser.setSelectedFont(cellRenderer.getFont());
-        int rc = fontChooser.showDialog(deviceScreen);
+        int rc = fontChooser.showDialog(this);
         if (rc != JOptionPane.YES_OPTION) return;
         Font font = fontChooser.getSelectedFont();
         log.trace("showFontSelection: font:{}", font);
@@ -384,8 +460,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         notifyFontChanged();
     }
 
-    private void closeWindow() {
-        log.trace("closeWindow: {}", device.getDisplayName());
+    @Override
+    public void closeWindow() {
+        String name = device != null ? device.getDisplayName() : "no device";
+        log.trace("closeWindow: {}", name);
         // save last filter
         String filterText = filterField.getCleanText();
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_CUSTOM_FILTER, filterText.trim());
@@ -396,35 +474,42 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         for (LogFilter filter : selectedList) selectedFilterList.add(filter.name);
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS, GsonHelper.toJson(selectedFilterList));
 
+        // persist column widths/order
+        table.saveTable();
+
+        saveDividerLocations();
+
         stopLogging();
-        deviceScreen.handleLogsClosed(device.serial);
+        app.onLogsClosed(device != null ? device.serial : null);
         dispose();
     }
 
-    private void hideToolbar() {
+    @Override
+    public void toggleToolbar() {
         toolbar.setVisible(!toolbar.isVisible());
     }
 
     private void setupTable() {
         model = new LogsTableModel();
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setModel(model);
-        table.setDefaultRenderer(LogEntry.class, new LogsCellRenderer());
+        LogsCellRenderer cellRenderer = new LogsCellRenderer();
+        table.setDefaultRenderer(LogEntry.class, cellRenderer);
+        applyRowHeight(cellRenderer.getFont());
 
         // restore user-defined column sizes
-//        if (!table.restoreTable()) {
-//            // use some default column sizes
-//            table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
-//            table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
-//            table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
-//            table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
-//            table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
-//            table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
-//            table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
-//        }
+        if (!table.restoreTable()) {
+            // use some default column sizes
+            table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
+            table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
+            table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
+            table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
+            table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
+            table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
+        }
 
-        // use some default column sizes
-        setDefaultColumnSizes();
+        table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
+        table.setMaxColWidth(LogsTableModel.Columns.TID.toString(), 100);
 
         // ENTER -> view message
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
@@ -471,15 +556,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 UiUtils.addPopupMenuItem(popupMenu, "Auto Resize: " + resizeDesc, actionEvent -> {
                     boolean update = !autoResize;
                     PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_AUTO_RESIZE, update);
-                    int flag = update ? JTable.AUTO_RESIZE_LAST_COLUMN : JTable.AUTO_RESIZE_OFF;
+                    int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
                     table.setAutoResizeMode(flag);
                 });
-                if (!autoResize) {
-                    UiUtils.addPopupMenuItem(popupMenu, "Size ALL to Fit", actionEvent -> {
-                        TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
-                        adjuster.adjustColumns();
-                    });
-                }
                 return popupMenu;
             }
 
@@ -489,7 +568,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 switch (columnType) {
                     case APP:
                     case TID:
-                    case PID:
                     case LEVEL:
                     case TAG:
                         // filter by value
@@ -497,7 +575,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                         UiUtils.addPopupMenuItem(popupMenu, "Add Filter", actionEvent -> handleQuickAddFilter(columnType, text));
                         break;
                     default:
-                        // other columns don't support filtering
+                        // Other columns don't support filtering
                         break;
                 }
             }
@@ -564,23 +642,18 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         searchField.setupSearch(table);
         searchField.setupSearch(filterList);
 
-        // setup custom tooltip for MSG column
+        // Setup custom tooltip for MSG column
         tooltip = new MessageTooltipPanel(this);
 
-        // add mouse motion listener to track hover
+        // Add mouse motion listener to track hover
         table.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
             @Override
             public void mouseMoved(java.awt.event.MouseEvent e) {
-                // only show tooltip if autoscroll is disabled
-                if (!autoScrollCheckBox.isSelected()) {
-                    handleMouseMovedForTooltip(e);
-                } else {
-                    hideTooltip();
-                }
+                handleMouseMovedForTooltip(e);
             }
         });
 
-        // hide tooltip when mouse exits table
+        // Hide tooltip when mouse exits table
         table.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseExited(java.awt.event.MouseEvent e) {
@@ -588,10 +661,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             }
         });
 
-        // hide tooltip when viewport position actually changes (not just on adjustment events)
+        // Hide tooltip when viewport position actually changes (not just on adjustment events)
         JScrollBar verticalScrollBar = table.getScrollPane().getVerticalScrollBar();
         verticalScrollBar.addAdjustmentListener(e -> {
-            // only hide if the value actually changed (not just during drag)
+            // Only hide if the value actually changed (not just during drag)
             if (!e.getValueIsAdjusting()) {
                 int currentPosition = e.getValue();
                 if (currentPosition != lastScrollPosition) {
@@ -602,22 +675,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         });
     }
 
-    private void setDefaultColumnSizes() {
-        table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
-        table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
-        table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
-        table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
-        table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
-        table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
-        table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
-
-        table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
-        table.setMaxColWidth(LogsTableModel.Columns.PID.toString(), 100);
-        table.setMaxColWidth(LogsTableModel.Columns.TID.toString(), 100);
-    }
-
     private void handleMouseMovedForTooltip(java.awt.event.MouseEvent e) {
-        // check if tooltip is enabled
+        // Check if tooltip is enabled
         if (!showTooltipCheckBox.isSelected()) {
             return;
         }
@@ -631,33 +690,33 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             return;
         }
 
-        // check if same cell as before
+        // Check if same cell as before
         if (row == tooltipRow && col == tooltipCol) return;
 
-        // hide previous tooltip
+        // Hide previous tooltip
         hideTooltip();
 
-        // convert to model coordinates
+        // Convert to model coordinates
         int modelCol = table.convertColumnIndexToModel(col);
 
-        // only show tooltip for message column
+        // Only show tooltip for message column
         LogsTableModel.Columns columnType = model.getColumnType(modelCol);
         if (columnType != LogsTableModel.Columns.MSG) {
             return;
         }
 
-        // check if content is truncated
+        // Check if content is truncated
         String text = table.getTextIfTruncated(row, col);
         if (TextUtils.isEmpty(text)) return;
         tooltipRow = row;
         tooltipCol = col;
 
-        // get table bounds for positioning
+        // Get table bounds for positioning
         JScrollPane scrollPane = table.getScrollPane();
         Rectangle viewportBounds = scrollPane.getViewport().getViewRect();
         Point viewportLocation = scrollPane.getViewport().getLocationOnScreen();
 
-        // get mouse position on screen
+        // Get mouse position on screen
         Point mouseOnScreen = e.getLocationOnScreen();
 
         int x = viewportLocation.x;
@@ -686,7 +745,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
         if (sb.isEmpty()) return;
 
-        Utils.setClipboardText(sb.toString());
+        StringSelection stringSelection = new StringSelection(sb.toString());
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        clipboard.setContents(stringSelection, null);
     }
 
     private void handleCopyClicked() {
@@ -698,7 +759,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
         if (sb.isEmpty()) return;
 
-        Utils.setClipboardText(sb.toString());
+        StringSelection stringSelection = new StringSelection(sb.toString());
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        clipboard.setContents(stringSelection, null);
     }
 
     private void handleViewLogsClicked() {
@@ -720,7 +783,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void viewMessage(LogEntry... logEntry) {
-        if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
+        if (viewScreen == null) viewScreen = new MessageViewScreen(app);
         viewScreen.setLogEntry(logEntry);
         viewScreen.setVisible(true);
     }
@@ -729,7 +792,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         List<LogEntry> logEntryList = getSelectedLogEntries();
         if (logEntryList.isEmpty()) return;
 
-        if (viewScreen == null) viewScreen = new MessageViewScreen(deviceScreen);
+        if (viewScreen == null) viewScreen = new MessageViewScreen(app);
         viewScreen.setLogEntry(logEntryList.toArray(new LogEntry[0]));
 
         viewScreen.editMessage();
@@ -747,22 +810,25 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void stopLogging() {
+        if (device == null) return;
+        app.setDeviceBusy(device, false);
         DeviceManager.getInstance().stopLogging(device);
-        isLoggedPaused = true;
-        updateLoggingButton();
     }
 
     private void startLogging() {
-        if (!device.isOnline) return;
-        // if already actively logging, skip
-        if (DeviceManager.getInstance().isLogging(device)) return;
+        if (device == null) return;
+        if (device.isOnline && !DeviceManager.getInstance().isLogging(device)) {
+            app.setDeviceBusy(device, true);
+            // get last log entry and start from there
+            String lastLogTime = model.getLastLogTime();
+            DeviceManager.getInstance().startLogging(device, lastLogTime, null, this);
+        }
+    }
 
-        String lastLogTime = model.getLastLogTime();
-//        if (lastLogTime == null) {
-//            // default start time is 10 minutes ago (10-16 11:34)
-//            lastLogTime = new SimpleDateFormat("MM-dd HH:mm").format(new Date(System.currentTimeMillis() - 10 * 60 * 1000));
-//        }
-        DeviceManager.getInstance().startLogging(device, lastLogTime, null, this);
+    private void scrollToFollow() {
+        if (autoScrollCheckBox.isSelected()) {
+            table.scrollToBottom();
+        }
     }
 
     private void refreshUi() {
@@ -786,9 +852,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         logButton = createSmallToolbarButton(toolbar, null, null, "Start Logging", actionEvent -> toggleLoggingButton());
         updateLoggingButton();
 
-        quickViewButton = createSmallToolbarButton(toolbar, null, null, "", actionEvent -> toggleQuickViewButton());
-        updateQuickViewButton();
-
         toolbar.add(Box.createHorizontalGlue());
 
         // toolbar.addSeparator(new Dimension(10, 0));
@@ -809,7 +872,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void toggleLoggingButton() {
-        if (!device.isOnline) return;
         isLoggedPaused = !isLoggedPaused;
         updateLoggingButton();
         if (isLoggedPaused) {
@@ -820,53 +882,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void updateLoggingButton() {
-        Icons imageName = isLoggedPaused ? Icons.PLAY : Icons.STOP;
-        ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
+        Icons iconEnum = isLoggedPaused ? Icons.PLAY : Icons.STOP;
+        ImageIcon icon = UiUtils.getImageIcon(iconEnum, UiUtils.IMG_SIZE_ICON);
         logButton.setIcon(icon);
         logButton.setText(isLoggedPaused ? "Start" : "Stop");
-    }
-
-    private void toggleQuickViewButton() {
-        isQuickViewEnabled = !isQuickViewEnabled;
-        updateQuickViewButton();
-
-        if (isQuickViewEnabled) {
-            // save current table state before enabling quick view
-            table.saveTable();
-
-            // hide columns: DATE, APP, TID, PID
-            List<String> hiddenColList = new ArrayList<>();
-            hiddenColList.add(LogsTableModel.Columns.DATE.name());
-            hiddenColList.add(LogsTableModel.Columns.APP.name());
-            hiddenColList.add(LogsTableModel.Columns.TID.name());
-            hiddenColList.add(LogsTableModel.Columns.PID.name());
-            model.setHiddenColumns(hiddenColList);
-
-            // enable auto-resize for last column (MSG) to fill remaining space
-            table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
-
-            table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
-            table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
-            table.setMaxColWidth(LogsTableModel.Columns.TAG.toString(), 200);
-            table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
-        } else {
-            // restore previous auto-resize mode FIRST
-            table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
-
-            // restore: show all columns
-            model.setHiddenColumns(null);
-
-            // restore saved column widths and order
-            table.restoreTable();
-        }
-    }
-
-    private void updateQuickViewButton() {
-        Icons icon = isQuickViewEnabled ? Icons.EYE_CLOSED : Icons.EYE_OPEN;
-        ImageIcon imageIcon = UiUtils.getImageIcon(icon, UiUtils.IMG_SIZE_ICON);
-        quickViewButton.setIcon(imageIcon);
-        quickViewButton.setText(isQuickViewEnabled ? "Restore" : "Hide");
-        quickViewButton.setToolTipText(isQuickViewEnabled ? "Restore Distraction Free Mode" : "Enter Distraction Free Mode");
     }
 
     private void doSearch(String text) {
@@ -876,6 +895,100 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             model.setSearchText(text);
         }
         refreshUi();
+    }
+
+    private void setupConnectedDevicesList() {
+        connectedDevicesList = new JList<>();
+        connectedDevicesList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        connectedDevicesList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof Device d) {
+                    setText(d.getDisplayName());
+                    BufferedImage image = UiUtils.getImage(Icons.ANDROID, 16, 16);
+                    if (d.isOnline) image = UiUtils.replaceColor(image, new Color(24, 134, 0));
+                    setIcon(new ImageIcon(image));
+                }
+                return this;
+            }
+        });
+        connectedDevicesList.addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            if (suppressDeviceSelection) return;
+            Device picked = connectedDevicesList.getSelectedValue();
+            if (picked == null) return;
+            String currentSerial = device != null ? device.serial : null;
+            if (TextUtils.equals(picked.serial, currentSerial)) return;
+            // user switched device: stop the previous one and clear log buffer
+            if (device != null) DeviceManager.getInstance().stopLogging(device);
+            model.clearLogs();
+            updateDevice(picked);
+        });
+
+        connectedDevicesCards = new CardLayout();
+        connectedDevicesContainer = new JPanel(connectedDevicesCards);
+
+        JScrollPane scrollPane = new JScrollPane(connectedDevicesList);
+        connectedDevicesContainer.add(scrollPane, CARD_LIST);
+
+        JLabel emptyLabel = new JLabel("No Devices", SwingConstants.CENTER);
+        emptyLabel.setFont(emptyLabel.getFont().deriveFont(Font.ITALIC));
+        emptyLabel.setForeground(Color.GRAY);
+        connectedDevicesContainer.add(emptyLabel, CARD_EMPTY);
+
+        connectedDevicesCards.show(connectedDevicesContainer, CARD_EMPTY);
+    }
+
+    public void setConnectedDevices(List<Device> devices) {
+        if (!isHeadless || connectedDevicesList == null) return;
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> setConnectedDevices(devices));
+            return;
+        }
+
+        if (devices == null || devices.isEmpty()) {
+            suppressDeviceSelection = true;
+            connectedDevicesList.setListData(new Device[0]);
+            suppressDeviceSelection = false;
+            connectedDevicesCards.show(connectedDevicesContainer, CARD_EMPTY);
+            return;
+        }
+
+        List<Device> sorted = new ArrayList<>(devices);
+        sorted.sort(CONNECTED_ORDER);
+
+        String currentSerial = device != null ? device.serial : null;
+
+        suppressDeviceSelection = true;
+        connectedDevicesList.setListData(sorted.toArray(new Device[0]));
+        connectedDevicesCards.show(connectedDevicesContainer, CARD_LIST);
+
+        int targetIndex = -1;
+        if (currentSerial != null) {
+            for (int i = 0; i < sorted.size(); i++) {
+                if (TextUtils.equals(sorted.get(i).serial, currentSerial)) {
+                    targetIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (targetIndex >= 0) {
+            // re-select the screen's current device (may be in offline section now)
+            connectedDevicesList.setSelectedIndex(targetIndex);
+            suppressDeviceSelection = false;
+        } else if (device == null) {
+            // first populate, no selection yet — auto-select the top device
+            connectedDevicesList.setSelectedIndex(0);
+            suppressDeviceSelection = false;
+            updateDevice(sorted.get(0));
+        } else {
+            // current device was removed entirely; keep showing OFFLINE for it,
+            // user must manually pick another to switch
+            connectedDevicesList.clearSelection();
+            suppressDeviceSelection = false;
+        }
     }
 
     private void setupFilterList() {
@@ -908,9 +1021,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void restoreSelectedFilters() {
-        // remote device doesn't filter locally
-        if (device.remoteConnection != null) return;
-
         // select last used filter(s)
         String recentFilterStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS);
         List<String> recentFilterList = GsonHelper.stringToList(recentFilterStr, String.class);
@@ -924,9 +1034,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
         if (!selectedIndexList.isEmpty()) {
             int[] indexArr = selectedIndexList.stream()
-                .filter(Objects::nonNull)
-                .mapToInt(Integer::intValue)
-                .toArray();
+                    .filter(Objects::nonNull)
+                    .mapToInt(Integer::intValue)
+                    .toArray();
             log.trace("setupFilterList: re-select:{}", GsonHelper.toJson(indexArr));
             filterList.setSelectedIndices(indexArr);
         }
@@ -1061,12 +1171,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void doFilter(String text) {
-        // remote device doesn't filter locally
-//        if (device.remoteConnection != null) {
-//            device.remoteConnection.updateLogFilter(device.serial, text);
-//            return;
-//        }
-
         if (sorter == null) return;
         List<LogFilter> list = new ArrayList<>();
 
@@ -1091,9 +1195,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             } else {
                 searchFilter = LogFilter.parse("*:*" + text + "*");
             }
+            //log.trace("filterDevices: {}", searchFilter);
             list.add(searchFilter);
             if (!sb.isEmpty()) sb.append(" && ");
-            sb.append('"').append(text).append('"');
+            sb.append("\"" + text + "\"");
         }
 
         sorter.setFilter(list.toArray(new LogFilter[0]));
@@ -1103,63 +1208,25 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         refreshUi();
     }
 
-    private void scrollToFollow() {
-        if (autoScrollCheckBox != null && autoScrollCheckBox.isSelected()) {
-            table.clearSelection();
-            table.scrollToBottom();
-        }
-    }
-
     @Override
     public void handleLogEntries(List<LogEntry> logEntryList) {
         // save log entries as they'll get cleared after this method returns
         List<LogEntry> logList = new ArrayList<>(logEntryList);
         SwingUtilities.invokeLater(() -> {
-            // get selected rows
-            int[] selectedViewRows = table.getSelectedRows();
-            // convert VIEW indices to MODEL indices
-            int[] selectedModelRows = new int[selectedViewRows.length];
-            for (int i = 0; i < selectedViewRows.length; i++) {
-                selectedModelRows[i] = table.convertRowIndexToModel(selectedViewRows[i]);
-            }
+            // capture selected rows
+//            int[] selectedRows = table.getSelectedRows();
+//            log.trace("handleLogEntries: selected rows: {}", GsonHelper.toJson(selectedRows));
 
-            int beforeSize = model.getRowCount();
-            int addedSize = logList.size();
-
-            // disable selection events during update to prevent interference
-            ListSelectionModel selectionModel = table.getSelectionModel();
-            selectionModel.setValueIsAdjusting(true);
-
-            // add new log entries (NOTE: old logs might be removed from TOP if over limit)
             model.addLogEntry(logList);
 
-            int afterSize = model.getRowCount();
-
-            // restore selected rows by adjusting MODEL indices if rows were removed from top
-            if (selectedModelRows.length > 0) {
-                int numRemoved = 0;
-                if (beforeSize + addedSize != afterSize) {
-                    // Logs were truncated from the top; adjust MODEL indices
-                    numRemoved = (beforeSize + addedSize) - afterSize;
-                }
-
-                table.clearSelection();
-                for (int modelRow : selectedModelRows) {
-                    // adjust for removed rows
-                    int adjustedModelRow = modelRow - numRemoved;
-                    // skip if this row was removed
-                    if (adjustedModelRow >= 0 && adjustedModelRow < afterSize) {
-                        // convert MODEL index to VIEW index
-                        int viewRow = table.convertRowIndexToView(adjustedModelRow);
-                        if (viewRow >= 0) {
-                            table.addRowSelectionInterval(viewRow, viewRow);
-                        }
-                    }
-                }
-            }
-
-            // re-enable selection events
-            selectionModel.setValueIsAdjusting(false);
+            // restore selected rows
+//            table.clearSelection();
+//            int rowCount = table.getRowCount();
+//            for (int row : selectedRows) {
+//                if (row < rowCount) {
+//                    table.addRowSelectionInterval(row, row);
+//                }
+//            }
 
             scrollToFollow();
             refreshUi();
@@ -1173,7 +1240,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     @Override
     public void handleError(String error) {
-        stopLogging();
+        log.error("handleError: {}", error);
     }
 
     private void handleSaveLogsClicked() {
@@ -1210,7 +1277,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             return;
         }
 
-        // show file chooser
         saveLogs(logEntriesToSave);
     }
 

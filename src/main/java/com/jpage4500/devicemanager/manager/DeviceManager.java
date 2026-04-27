@@ -1484,7 +1484,8 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     /**
      * start capturing device logs
      *
-     * @param lastLogTime - last log entry (if logging had started previousl) - 10-16 11:34:17.824
+     * @param lastLogTime - last log entry (if logging had started previously) - 10-16 11:34:17.824
+     *                   - if null, defaults to 1 hour ago
      */
     public void startLogging(Device device, String lastLogTime, String filterText, DeviceLogListener listener) {
         stopLogging(device);
@@ -1497,14 +1498,24 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         }
 
         // local device - existing implementation
+        final String logStartTime;
+        if (lastLogTime == null) {
+            // default to 1 hour ago
+            SimpleDateFormat sdf = new SimpleDateFormat("MM-dd HH:mm:ss.SSS");
+            logStartTime = sdf.format(new Date(System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1)));
+        } else if (!lastLogTime.contains(".")) {
+            // logcat -T expects MM-dd HH:mm:ss.SSS
+            logStartTime = lastLogTime + ".000";
+        } else {
+            logStartTime = lastLogTime;
+        }
         commandExecutorService.submit(() -> {
-            String logStartTime = lastLogTime;
-            log.debug("startLogging: {}, last:{}, filter:{}", device.serial, lastLogTime, filterText);
+            log.debug("startLogging: {}, from:{}, filter:{}", device.serial, logStartTime, filterText);
             AtomicBoolean loggingState = getLoggingState(device.serial, true);
             loggingState.set(true);
             InputStream inputStream = null;
             try {
-                String[] args = new String[]{"-v", "threadtime"};
+                String[] args = new String[]{"-v", "threadtime", "-T", logStartTime};
                 inputStream = device.jadbDevice.executeShell("logcat", args);
                 BufferedReader input = new BufferedReader(new InputStreamReader(inputStream));
 
@@ -1512,19 +1523,8 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 List<LogEntry> logList = new ArrayList<>();
                 String line;
                 long id = 0;
-                int numSkipped = 0;
                 while ((line = input.readLine()) != null) {
                     LogEntry logEntry = new LogEntry(line, id++);
-                    if (logStartTime != null && logEntry.date != null) {
-                        // start capturing logs after logStartTime
-                        if (logStartTime.compareTo(logEntry.date) > 0) {
-                            numSkipped++;
-                            continue;
-                        }
-                        log.trace("startLogging: READY: skipped:{}, from:{}", numSkipped, logStartTime);
-                        // stop looking once we hit a new log entry
-                        logStartTime = null;
-                    }
                     logList.add(logEntry);
 
                     // only update every X ms
