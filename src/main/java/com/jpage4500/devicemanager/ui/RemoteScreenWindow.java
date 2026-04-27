@@ -32,7 +32,6 @@ import java.util.Date;
 public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.ScreenStreamListener {
     private static final Logger log = LoggerFactory.getLogger(RemoteScreenWindow.class);
 
-    private final Device device;
     private final RemoteConnection remoteConnection;
     private DeviceManager.TaskListener listener;
     // Connection state + reconnect
@@ -99,9 +98,8 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     }
 
     public RemoteScreenWindow(Device device, DeviceManager.TaskListener listener) {
-        super("RemoteScreenWindow", 600, 900);
+        super(null, device, "RemoteScreenWindow", 600, 900);
 
-        this.device = device;
         this.listener = listener;
         this.remoteConnection = device.remoteConnection;
 
@@ -172,17 +170,22 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
         if (state == WindowState.CLOSING) {
-            closing = true;
-            if (reconnectTimer != null) {
-                reconnectTimer.stop();
-                reconnectTimer = null;
-            }
-            cleanup();
-            saveFrameSize();
-            dispose();
-
-            listener.onTaskComplete(true, null);
+            closeWindow();
         }
+    }
+
+    @Override
+    public void closeWindow() {
+        closing = true;
+        if (reconnectTimer != null) {
+            reconnectTimer.stop();
+            reconnectTimer = null;
+        }
+        cleanup();
+        saveFrameSize();
+        dispose();
+
+        if (listener != null) listener.onTaskComplete(true, null);
     }
 
     private void cleanup() {

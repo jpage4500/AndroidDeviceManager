@@ -64,6 +64,8 @@ public class PreferenceUtils {
         PREF_LOGS_MAX_LINES,
         PREF_REFRESH_TIME_MINS,
         PREF_SERVER_PORT,                      // remote server: port
+        PREF_LOGS_DIVIDER_MAIN,                // logs: filters | table divider position (px)
+        PREF_LOGS_DIVIDER_LEFT,                // logs: filters / devices divider position (px, headless mode)
     }
 
     public static String getPreference(Pref pref) {

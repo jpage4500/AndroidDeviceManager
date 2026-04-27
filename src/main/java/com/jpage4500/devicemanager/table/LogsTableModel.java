@@ -41,13 +41,16 @@ public class LogsTableModel extends AbstractTableModel {
             case APP -> {
                 // set app using app <-> pid list
                 logEntry.app = getAppForPid(logEntry.pid);
-                yield logEntry.app;
+                if (TextUtils.notEmpty(logEntry.app)) {
+                    yield logEntry.app;
+                } else {
+                    yield logEntry.pid;
+                }
             }
             case TID -> {
                 if (TextUtils.equals(logEntry.tid, logEntry.pid)) yield "-";
                 yield logEntry.tid;
             }
-            case PID -> logEntry.pid;
             case LEVEL -> logEntry.level;
             case TAG -> logEntry.tag;
             case MSG -> logEntry.message;
@@ -58,7 +61,6 @@ public class LogsTableModel extends AbstractTableModel {
         DATE("Date"),
         APP("App"),
         TID("TID"),
-        PID("PID"),
         LEVEL("Level"),
         TAG("Tag"),
         MSG("Message"),

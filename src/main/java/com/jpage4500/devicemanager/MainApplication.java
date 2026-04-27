@@ -5,6 +5,7 @@ import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
+import com.jpage4500.devicemanager.ui.AppController;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
@@ -18,6 +19,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -25,16 +27,35 @@ import java.util.Properties;
 public class MainApplication {
     private static final Logger log = LoggerFactory.getLogger(MainApplication.class);
 
-    private DeviceScreen deviceScreen;
-    private final List<File> openFileList;
+    public enum LaunchMode {
+        DEFAULT,
+        LOGS_ONLY;
+
+        /** Detect launch mode from CLI args + jdeploy launcher path basename. */
+        static LaunchMode detect(String[] args) {
+            if (args != null && args.length > 0) {
+                String arg = args[0].toLowerCase();
+                if (arg.equals("logs") || arg.equals("--logs") || arg.equals("--logs-only")) {
+                    return LOGS_ONLY;
+                }
+            }
+            String launcherPath = System.getProperty("jdeploy.launcher.path", "").toLowerCase();
+            if (launcherPath.contains("adm-logs")) return LOGS_ONLY;
+            return DEFAULT;
+        }
+    }
+
+    private final AppController appController = new AppController();
+    private final LaunchMode launchMode;
+    private final List<File> openFileList = new ArrayList<>();
 
     public static String version;
 
-    public MainApplication(String[] args) {
-        openFileList = new ArrayList<>();
+    public MainApplication(String[] args, LaunchMode launchMode) {
+        this.launchMode = launchMode;
 
         setupLogging();
-        log.debug("APP START: {}, java:{}, os:{}", version, Runtime.version(), System.getProperty("os.name"));
+        log.debug("APP START: mode:{}, {}, java:{}, os:{}", launchMode, version, Runtime.version(), System.getProperty("os.name"));
 
         // handle command-line args
         boolean serverMode = false;
@@ -119,7 +140,7 @@ public class MainApplication {
         } catch (IOException ex) {
             System.out.println("Failed to load app.properties");
         }
-        new MainApplication(args);
+        new MainApplication(args, LaunchMode.detect(args));
     }
 
     /**
@@ -147,11 +168,10 @@ public class MainApplication {
 
     private void initializeUI(String[] args) {
         FlatLightLaf.setup();
+        registerEmbeddedFonts();
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
         defaults.put("Button.defaultButtonFollowsFocus", Boolean.TRUE);
-
-        deviceScreen = new DeviceScreen();
 
         // handle command line args
         // --install <apk>
@@ -168,7 +188,40 @@ public class MainApplication {
             }
         }
 
-        sendFilesToDevice();
+        appController.installLifecycleHooks();
+
+        if (launchMode == LaunchMode.LOGS_ONLY) {
+            appController.startLogsOnly();
+            appController.connectAdbServer();
+        } else {
+            appController.connectAdbServer();
+            DeviceScreen deviceScreen = new DeviceScreen(appController);
+            appController.setDeviceScreen(deviceScreen);
+            appController.setupSystemTray();
+            appController.scheduleUpdateChecks();
+
+            if (!openFileList.isEmpty()) {
+                appController.handleFilesOpened(new ArrayList<>(openFileList));
+                openFileList.clear();
+            }
+        }
+    }
+
+    private void registerEmbeddedFonts() {
+        String[] fontResources = {"fonts/JetBrainsMono-Regular.ttf"};
+        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        for (String resource : fontResources) {
+            try (InputStream in = MainApplication.class.getClassLoader().getResourceAsStream(resource)) {
+                if (in == null) {
+                    log.warn("registerEmbeddedFonts: not found: {}", resource);
+                    continue;
+                }
+                Font font = Font.createFont(Font.TRUETYPE_FONT, in);
+                ge.registerFont(font);
+            } catch (Exception e) {
+                log.error("registerEmbeddedFonts: {} - {}", resource, e.getMessage());
+            }
+        }
     }
 
     private void registerFileHandler() {
@@ -178,17 +231,24 @@ public class MainApplication {
         if (desktop.isSupported(Desktop.Action.APP_OPEN_FILE)) {
             desktop.setOpenFileHandler(e -> {
                 List<File> files = e.getFiles();
-                openFileList.addAll(files);
-                log.debug("handleLaunchParams: {}", openFileList);
-                sendFilesToDevice();
+                log.debug("handleLaunchParams: openFile {}", files);
+                appController.handleFilesOpened(new ArrayList<>(files));
             });
         }
-    }
-
-    private void sendFilesToDevice() {
-        if (deviceScreen != null && !openFileList.isEmpty()) {
-            deviceScreen.handleFilesOpened(openFileList, 1);
-            openFileList.clear();
+        if (desktop.isSupported(Desktop.Action.APP_OPEN_URI)) {
+            desktop.setOpenURIHandler(e -> {
+                java.net.URI uri = e.getURI();
+                if (uri == null) return;
+                log.debug("handleLaunchParams: openURI {}", uri);
+                if (!"adm".equalsIgnoreCase(uri.getScheme())) return;
+                if ("logs".equalsIgnoreCase(uri.getHost())) {
+                    // adm://logs[/<serial>]
+                    String path = uri.getPath();
+                    String serial = (path != null && path.length() > 1) ? path.substring(1) : null;
+                    appController.openLogsViaUrl(serial);
+                }
+                // other adm:// URIs (e.g. share/connect) are handled elsewhere
+            });
         }
     }
 

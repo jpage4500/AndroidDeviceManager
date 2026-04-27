@@ -15,8 +15,10 @@ import java.awt.dnd.DropTargetEvent;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.prefs.Preferences;
 
 /**
@@ -33,6 +35,11 @@ public class CustomTable extends JTable {
     private DoubleClickListener doubleClickListener;
     private PopupMenuListener popupMenuListener;
     private JScrollPane scrollPane;
+
+    // column-name -> max/min width; re-applied after every restore so constraints
+    // survive structure changes that rebuild TableColumn instances
+    private final Map<String, Integer> maxWidthByName = new HashMap<>();
+    private final Map<String, Integer> minWidthByName = new HashMap<>();
 
     private int selectedColumn = -1;
 
@@ -255,13 +262,21 @@ public class CustomTable extends JTable {
     }
 
     @Override
-    public void setModel(TableModel dataModel) {
-        super.setModel(dataModel);
-
-        dataModel.addTableModelListener(tableModelEvent -> {
-            showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
-            scrollPane.repaint();
-        });
+    public void tableChanged(javax.swing.event.TableModelEvent e) {
+        // super handles structureChanged via createDefaultColumnsFromModel, which wipes
+        // the TableColumn instances. Re-apply registered max/min widths AFTER super runs
+        // so they land on the new columns. (Overriding here instead of subscribing as a
+        // listener guarantees ordering — TableModelEvent listeners fire in reverse
+        // registration order, so a late-added listener runs before JTable's handler.)
+        super.tableChanged(e);
+        // guard: JTable's super-constructor calls setModel which calls tableChanged before
+        // our instance fields (scrollPane, the constraint maps) are initialized
+        if (scrollPane == null || maxWidthByName == null) return;
+        showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
+        scrollPane.repaint();
+        if (e != null && e.getFirstRow() == javax.swing.event.TableModelEvent.HEADER_ROW) {
+            applyConstraints();
+        }
     }
 
     @Override
@@ -393,7 +408,7 @@ public class CustomTable extends JTable {
 
             TableColumn column = getColumnByName(details.name);
             if (column == null) {
-                log.warn("restoreTable: column '{}' not found, skipping", details.name);
+                //log.warn("restoreTable: column '{}' not found, skipping", details.name);
                 continue;
             }
             orderedColumns.add(column);
@@ -422,6 +437,7 @@ public class CustomTable extends JTable {
             //if (log.isTraceEnabled()) log.trace("restoreTable: columns already in correct order for {}", prefKey);
             // Still apply widths even if order is correct
             applyColumnWidths(detailsList);
+            applyConstraints();
             return true;
         }
 
@@ -446,6 +462,7 @@ public class CustomTable extends JTable {
         }
 
         applyColumnWidths(detailsList);
+        applyConstraints();
         //log.trace("restoreTable: restored {} columns for {}", orderedColumns.size(), prefKey);
         return true;
     }
@@ -457,6 +474,9 @@ public class CustomTable extends JTable {
             if (column != null && details.width >= MIN_COLUMN_WIDTH && details.width <= MAX_COLUMN_WIDTH) {
                 //log.trace("applyColumnWidths: setting width {} for column '{}'", details.width, details.name);
                 column.setPreferredWidth(details.width);
+                // setPreferredWidth alone doesn't change the actual visible width when
+                // AUTO_RESIZE_OFF is in effect; set both so columns visually snap back
+                column.setWidth(details.width);
             }
         }
     }
@@ -474,7 +494,7 @@ public class CustomTable extends JTable {
                 return column;
             }
         }
-        if (log.isTraceEnabled()) log.trace("getColumnByName: NOT_FOUND:{}", searchName);
+        //if (log.isTraceEnabled()) log.trace("getColumnByName: NOT_FOUND:{}", searchName);
         return null;
     }
 
@@ -485,9 +505,32 @@ public class CustomTable extends JTable {
     }
 
     public void setMaxColWidth(String colName, int maxWidth) {
+        maxWidthByName.put(colName, maxWidth);
         TableColumn column = getColumnByName(colName);
         if (column == null) return;
         column.setMaxWidth(maxWidth);
+    }
+
+    public void setMinColWidth(String colName, int minWidth) {
+        minWidthByName.put(colName, minWidth);
+        TableColumn column = getColumnByName(colName);
+        if (column == null) return;
+        column.setMinWidth(minWidth);
+    }
+
+    /**
+     * Re-apply registered min/max width constraints. Called after restoreTable so constraints
+     * survive structure changes that recreate TableColumn instances.
+     */
+    private void applyConstraints() {
+        for (Map.Entry<String, Integer> e : maxWidthByName.entrySet()) {
+            TableColumn column = getColumnByName(e.getKey());
+            if (column != null) column.setMaxWidth(e.getValue());
+        }
+        for (Map.Entry<String, Integer> e : minWidthByName.entrySet()) {
+            TableColumn column = getColumnByName(e.getKey());
+            if (column != null) column.setMinWidth(e.getValue());
+        }
     }
 
     public void saveTable() {

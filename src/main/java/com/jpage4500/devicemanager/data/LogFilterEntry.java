@@ -61,7 +61,6 @@ public class LogFilterEntry {
                 case DATE -> logValue = logEntry.date;
                 case APP -> logValue = logEntry.app;
                 case TID -> logValue = logEntry.tid;
-                case PID -> logValue = logEntry.pid;
                 case LEVEL -> {
                     logValue = logEntry.level;
                     //log.trace("isMatch: {}, val:{}, expr:{}", logValue, value, expression);

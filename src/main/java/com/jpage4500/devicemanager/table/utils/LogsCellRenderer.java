@@ -38,6 +38,8 @@ public class LogsCellRenderer extends CustomTextField implements TableCellRender
         setEditable(false);
         Border border = new EmptyBorder(0, 10, 0, 0);
         setBorder(border);
+        // remove JTextField's default internal margin so rows can be tight
+        setMargin(new Insets(0, 0, 0, 0));
 
         defaultFontSize = getFont().getSize();
         notifyFontChanged();
@@ -116,7 +118,7 @@ public class LogsCellRenderer extends CustomTextField implements TableCellRender
     }
 
     public void notifyFontChanged() {
-        String fontName = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LOGS_FONT_NAME, "Courier");
+        String fontName = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LOGS_FONT_NAME, "JetBrains Mono");
         int fontStyle = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_FONT_STYLE, Font.PLAIN);
         int fontSize = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_FONT_SIZE, defaultFontSize);
         int fontOffset = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_FONT_SIZE_OFFSET, 0);
