@@ -1063,7 +1063,7 @@ public class DeviceScreen extends BaseScreen {
                 JMenuItem hideItem = new JMenuItem("Hide " + ToolbarButton.FILTER.label);
                 hideItem.addActionListener(actionEvent -> {
                     popupMenu.setVisible(false);
-                    SettingsDialog.addHiddenToolbarItem(ToolbarButton.FILTER.label);
+                    SettingsDialog.addHiddenToolbarItem(ToolbarButton.FILTER.name());
                     setupToolbar();
                 });
                 popupMenu.add(hideItem);
@@ -1131,7 +1131,7 @@ public class DeviceScreen extends BaseScreen {
             if (toolbarButton == ToolbarButton.SETTINGS) return;
             JPopupMenu popupMenu = new JPopupMenu();
             UiUtils.addPopupMenuItem(popupMenu, "Hide " + label, actionEvent -> {
-                SettingsDialog.addHiddenToolbarItem(toolbarButton.label);
+                SettingsDialog.addHiddenToolbarItem(toolbarButton.name());
                 setupToolbar();
             });
             UiUtils.addPopupMenuItem(popupMenu, "Manage Toolbar", actionEvent -> SettingsDialog.showManageToolbar(app, DeviceScreen.this));
@@ -1143,7 +1143,7 @@ public class DeviceScreen extends BaseScreen {
 
     private boolean isToobarHidden(ToolbarButton toolbarButton) {
         List<String> hiddenToolbarList = SettingsDialog.getHiddenToolbarList();
-        return hiddenToolbarList.contains(toolbarButton.label);
+        return hiddenToolbarList.contains(toolbarButton.name());
     }
 
     private List<File> getCustomScripts() {

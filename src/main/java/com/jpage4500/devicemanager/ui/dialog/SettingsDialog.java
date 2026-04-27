@@ -217,8 +217,9 @@ public class SettingsDialog extends JPanel {
     }
 
     /**
-     * @return labels of toolbar buttons that should be hidden. When the user has never customized
-     * the toolbar (pref is null), falls back to {@link DeviceScreen.ToolbarButton#hideByDefault()}.
+     * @return enum names of toolbar buttons that should be hidden. When the user has never
+     * customized the toolbar (pref is null/empty), falls back to
+     * {@link DeviceScreen.ToolbarButton#hideByDefault()}.
      */
     public static List<String> getHiddenToolbarList() {
         String hiddenStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS);
@@ -226,21 +227,22 @@ public class SettingsDialog extends JPanel {
             // never customized — apply defaults
             List<String> defaults = new ArrayList<>();
             for (DeviceScreen.ToolbarButton button : DeviceScreen.ToolbarButton.values()) {
-                if (button.hideByDefault()) defaults.add(button.label);
+                if (button.hideByDefault()) defaults.add(button.name());
             }
             return defaults;
         }
         return GsonHelper.stringToList(hiddenStr, String.class);
     }
 
-    public static void addHiddenToolbarItem(String item) {
+    /** @param enumName ToolbarButton enum name (e.g. {@code ToolbarButton.SAVE_LOGS.name()}) */
+    public static void addHiddenToolbarItem(String enumName) {
         List<String> hiddenToolbarList = SettingsDialog.getHiddenToolbarList();
-        if (!hiddenToolbarList.contains(item)) hiddenToolbarList.add(item);
+        if (!hiddenToolbarList.contains(enumName)) hiddenToolbarList.add(enumName);
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenToolbarList));
     }
 
     public static void showManageToolbar(App app, Component component) {
-        List<String> hiddenColList = getHiddenToolbarList();
+        List<String> hiddenList = getHiddenToolbarList();
 
         DraggableCheckBoxList checkBoxList = new DraggableCheckBoxList();
         // TODO: support re-ordering
@@ -253,7 +255,7 @@ public class SettingsDialog extends JPanel {
                 case SETTINGS:
                     continue;
             }
-            boolean isHidden = hiddenColList.contains(button.label);
+            boolean isHidden = hiddenList.contains(button.name());
             ImageIcon icon = button.image != null ? UiUtils.getImageIcon(button.image, 32) : null;
             checkBoxList.addItem(button.label, !isHidden, icon);
         }
@@ -283,10 +285,15 @@ public class SettingsDialog extends JPanel {
 
         JButton okButton = new JButton("OK");
         okButton.addActionListener(e -> {
-            // save items that are NOT selected (user wants hidden)
-            List<String> hiddenItems = checkBoxList.getUnSelectedItems();
-            log.debug("HIDDEN: {}", GsonHelper.toJson(hiddenItems));
-            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenItems));
+            // checkbox list returns labels — convert to enum names
+            List<String> hiddenLabels = checkBoxList.getUnSelectedItems();
+            List<String> hiddenNames = new ArrayList<>();
+            for (String label : hiddenLabels) {
+                DeviceScreen.ToolbarButton button = DeviceScreen.ToolbarButton.buttonFromLabel(label);
+                if (button != null) hiddenNames.add(button.name());
+            }
+            log.debug("HIDDEN: {}", GsonHelper.toJson(hiddenNames));
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_TOOLBAR_ITEMS, GsonHelper.toJson(hiddenNames));
             app.rebuildDeviceToolbar();
             UiUtils.closeWindow(panel);
         });
