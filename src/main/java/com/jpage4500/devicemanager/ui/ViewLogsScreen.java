@@ -418,7 +418,15 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private void notifyFontChanged() {
         LogsCellRenderer cellRenderer = (LogsCellRenderer) table.getDefaultRenderer(LogEntry.class);
         cellRenderer.notifyFontChanged();
+        applyRowHeight(cellRenderer.getFont());
         model.fireTableDataChanged();
+    }
+
+    private void applyRowHeight(Font font) {
+        FontMetrics fm = table.getFontMetrics(font);
+        // tight row height: ascent + descent + small fixed padding (no leading)
+        int rowHeight = fm.getAscent() + fm.getDescent() + 2;
+        table.setRowHeight(rowHeight);
     }
 
     public void decreaseFontSize() {
@@ -477,7 +485,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         model = new LogsTableModel();
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setModel(model);
-        table.setDefaultRenderer(LogEntry.class, new LogsCellRenderer());
+        LogsCellRenderer cellRenderer = new LogsCellRenderer();
+        table.setDefaultRenderer(LogEntry.class, cellRenderer);
+        applyRowHeight(cellRenderer.getFont());
 
         // restore user-defined column sizes
         if (!table.restoreTable()) {

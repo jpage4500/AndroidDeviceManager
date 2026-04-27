@@ -17,6 +17,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -112,6 +113,7 @@ public class MainApplication {
 
     private void initializeUI() {
         FlatLightLaf.setup();
+        registerEmbeddedFonts();
         UIDefaults defaults = UIManager.getLookAndFeelDefaults();
         defaults.put("defaultFont", new Font("Arial", Font.PLAIN, 16));
         defaults.put("Button.defaultButtonFollowsFocus", Boolean.TRUE);
@@ -139,6 +141,23 @@ public class MainApplication {
             appController.setDeviceScreen(deviceScreen);
             appController.setupSystemTray();
             appController.scheduleUpdateChecks();
+        }
+    }
+
+    private void registerEmbeddedFonts() {
+        String[] fontResources = {"fonts/JetBrainsMono-Regular.ttf"};
+        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        for (String resource : fontResources) {
+            try (InputStream in = MainApplication.class.getClassLoader().getResourceAsStream(resource)) {
+                if (in == null) {
+                    log.warn("registerEmbeddedFonts: not found: {}", resource);
+                    continue;
+                }
+                Font font = Font.createFont(Font.TRUETYPE_FONT, in);
+                ge.registerFont(font);
+            } catch (Exception e) {
+                log.error("registerEmbeddedFonts: {} - {}", resource, e.getMessage());
+            }
         }
     }
 
