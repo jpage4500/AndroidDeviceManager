@@ -535,6 +535,11 @@ public class AppController implements App, DeviceManager.DeviceListener {
                     return;
                 }
                 log.trace("setupSystemTray: {}", systemTray.getTrayImageSize());
+                OsThemeDetector.getInstance().registerListener(isDark ->
+                        SwingUtilities.invokeLater(() -> {
+                            systemTrayHashCode = null;
+                            setupSystemTray();
+                        }));
             }
             BufferedImage trayImage = UiUtils.getTrayIconWithCount(deviceList.size());
             systemTray.setImage(trayImage);
