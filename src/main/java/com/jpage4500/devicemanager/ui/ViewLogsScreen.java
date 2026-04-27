@@ -29,6 +29,10 @@ import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
 
@@ -319,6 +323,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // -----------------------------------------------------------
         // -----------------------------------------------------------
         JMenu logsMenu = new JMenu("Logs");
+
+        // [CMD + S] = save logs
+        createCmdMenuItem(logsMenu, "Save Logs", KeyEvent.VK_S, e -> handleSaveLogsClicked());
 
         // [CMD + ENTER] = toggle auto scroll
         createCmdMenuItem(logsMenu, "Auto Scroll", KeyEvent.VK_ENTER, e -> {
@@ -1234,6 +1241,100 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     @Override
     public void handleError(String error) {
         log.error("handleError: {}", error);
+    }
+
+    private void handleSaveLogsClicked() {
+        // ask user what to save
+        List<String> optionList = new ArrayList<>();
+        int numSelected = table.getSelectedRowCount();
+        if (numSelected > 0) {
+            optionList.add("Selected Lines (" + numSelected + ")");
+        }
+        List<LogFilter> selectedFilters = filterList.getSelectedValuesList();
+        if (!selectedFilters.isEmpty()) {
+            optionList.add("Visible Lines");
+        }
+        optionList.add("Entire Log Buffer");
+
+        List<LogEntry> logEntriesToSave = null;
+        // only show dialog if more than one option
+        if (optionList.size() > 1) {
+            int choice = DialogHelper.showOptionDialog(this, "What would you like to save?", "Save Logs", optionList);
+            if (choice < 0 || choice >= optionList.size()) return;
+            String selectedValue = optionList.get(choice);
+            if (TextUtils.startsWith(selectedValue, "Selected")) {
+                logEntriesToSave = getSelectedLogEntries();
+            } else if (TextUtils.startsWith(selectedValue, "Visible")) {
+                logEntriesToSave = getVisibleLogEntries();
+            }
+        }
+        if (logEntriesToSave == null) {
+            // default: save entire log buffer
+            logEntriesToSave = getAllLogEntries();
+        }
+        if (logEntriesToSave.isEmpty()) {
+            DialogHelper.showDialog(this, "Nothing to save", "No log entries to save");
+            return;
+        }
+
+        saveLogs(logEntriesToSave);
+    }
+
+    private List<LogEntry> getVisibleLogEntries() {
+        List<LogEntry> logEntries = new ArrayList<>();
+        int rowCount = table.getRowCount();
+        for (int i = 0; i < rowCount; i++) {
+            int modelRow = table.convertRowIndexToModel(i);
+            LogEntry logEntry = (LogEntry) model.getValueAt(modelRow, 0);
+            if (logEntry != null) {
+                logEntries.add(logEntry);
+            }
+        }
+        return logEntries;
+    }
+
+    private List<LogEntry> getAllLogEntries() {
+        List<LogEntry> logEntries = new ArrayList<>();
+        int rowCount = model.getRowCount();
+        for (int i = 0; i < rowCount; i++) {
+            LogEntry logEntry = (LogEntry) model.getValueAt(i, 0);
+            if (logEntry != null) {
+                logEntries.add(logEntry);
+            }
+        }
+        return logEntries;
+    }
+
+    private void saveLogs(List<LogEntry> logEntries) {
+        // generate default filename with current date
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+        String defaultFileName = "log-" + dateFormat.format(new Date()) + ".txt";
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Save Logs");
+        fileChooser.setCurrentDirectory(new File(Utils.getDownloadFolder()));
+        fileChooser.setSelectedFile(new File(defaultFileName));
+
+        int result = fileChooser.showSaveDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION) return;
+        File file = fileChooser.getSelectedFile();
+
+        // check if file exists and confirm overwrite
+        if (file.exists()) {
+            if (!DialogHelper.showConfirmDialog(this, "File Exists", "File already exists. Do you want to overwrite it?")) return;
+        }
+
+        // write logs to file
+        try (FileWriter writer = new FileWriter(file)) {
+            for (LogEntry logEntry : logEntries) {
+                writer.write(logEntry.toString());
+                writer.write(System.lineSeparator());
+            }
+            DialogHelper.showDialog(this, "Logs Saved", "Successfully saved " + logEntries.size() + " log entries to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            log.error("saveLogs: IOException: {}", e.getMessage());
+            DialogHelper.showDialog(this, "Save Error", "Error saving logs: " + e.getMessage());
+        }
     }
 
 }
