@@ -11,7 +11,6 @@ import com.jpage4500.devicemanager.table.utils.LogsCellRenderer;
 import com.jpage4500.devicemanager.table.utils.LogsRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.AddFilterDialog;
-import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.ui.views.MessageTooltipPanel;
@@ -65,8 +64,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
-    public JButton quickViewButton;
-    public boolean isQuickViewEnabled; // true when user clicks on 'quick view'
 
     // headless / logs-only mode: show embedded "Connected Devices" picker
     private final boolean isHeadless;
@@ -79,11 +76,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private static final String CARD_EMPTY = "empty";
 
     private static final Comparator<Device> CONNECTED_ORDER =
-        Comparator.<Device, Boolean>comparing(d -> !d.isOnline)
-                  .thenComparing(d -> {
-                      String name = d.getDisplayName();
-                      return name != null ? name : "";
-                  }, String.CASE_INSENSITIVE_ORDER);
+            Comparator.<Device, Boolean>comparing(d -> !d.isOnline)
+                    .thenComparing(d -> {
+                        String name = d.getDisplayName();
+                        return name != null ? name : "";
+                    }, String.CASE_INSENSITIVE_ORDER);
 
     public ViewLogsScreen(App app, Device device) {
         super(app, device, "logs-" + device.serial, 1100, 800);
@@ -93,7 +90,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         updateDevice(device);
     }
 
-    /** Logs-only / headless mode: window opens with no device; an embedded picker drives selection. */
+    /**
+     * Logs-only / headless mode: window opens with no device; an embedded picker drives selection.
+     */
     public ViewLogsScreen(App app) {
         super(app, null, "logs-headless", 1100, 800);
         this.isHeadless = true;
@@ -121,7 +120,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     public boolean isShowingDevice(Device device) {
         return device != null && this.device != null
-            && TextUtils.equals(device.serial, this.device.serial);
+                && TextUtils.equals(device.serial, this.device.serial);
     }
 
     public String getCurrentSerial() {
@@ -129,9 +128,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     protected void initalizeUi() {
-        // restore distraction-free mode from preference
-        isQuickViewEnabled = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_DISTRACTION_FREE_MODE, false);
-
         // ** MAIN PANEL **
         // ---- [toolbar] -----
         // -- [ split pane ] --
@@ -152,8 +148,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         // -- filter list --
         filterList = new JList<>();
+        JScrollPane filterScroll = new JScrollPane(filterList);
         setupFilterList();
-        leftPanel.add(filterList, BorderLayout.CENTER);
+        leftPanel.add(filterScroll, BorderLayout.CENTER);
 
         // -- add filter button --
         JButton addFilterButton = new JButton("Add Filter");
@@ -464,7 +461,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         if (!table.restoreTable()) {
             // use some default column sizes
             table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
-            table.setPreferredColWidth(LogsTableModel.Columns.PID.toString(), 60);
             table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
             table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
             table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
@@ -473,11 +469,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
 
         table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
-        table.setMaxColWidth(LogsTableModel.Columns.PID.toString(), 100);
         table.setMaxColWidth(LogsTableModel.Columns.TID.toString(), 100);
-
-        // apply distraction-free mode (restored from preference in initalizeUi)
-        if (isQuickViewEnabled) applyDistractionFreeMode();
 
         // ENTER -> view message
         KeyStroke enter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
@@ -527,12 +519,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                     int flag = update ? JTable.AUTO_RESIZE_ALL_COLUMNS : JTable.AUTO_RESIZE_OFF;
                     table.setAutoResizeMode(flag);
                 });
-                if (!autoResize) {
-                    UiUtils.addPopupMenuItem(popupMenu, "Size ALL to Fit", actionEvent -> {
-                        TableColumnAdjuster adjuster = new TableColumnAdjuster(table, 0);
-                        adjuster.adjustColumns();
-                    });
-                }
                 return popupMenu;
             }
 
@@ -542,7 +528,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 switch (columnType) {
                     case APP:
                     case TID:
-                    case PID:
                     case LEVEL:
                     case TAG:
                         // filter by value
@@ -827,9 +812,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         logButton = createSmallToolbarButton(toolbar, null, null, "Start Logging", actionEvent -> toggleLoggingButton());
         updateLoggingButton();
 
-        quickViewButton = createSmallToolbarButton(toolbar, null, null, "", actionEvent -> toggleQuickViewButton());
-        updateQuickViewButton();
-
         toolbar.add(Box.createHorizontalGlue());
 
         // toolbar.addSeparator(new Dimension(10, 0));
@@ -864,39 +846,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
         logButton.setIcon(icon);
         logButton.setText(isLoggedPaused ? "Start" : "Stop");
-    }
-
-    private void toggleQuickViewButton() {
-        isQuickViewEnabled = !isQuickViewEnabled;
-        log.debug("toggleQuickViewButton: isQuickViewEnabled:{}", isQuickViewEnabled);
-        PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_DISTRACTION_FREE_MODE, isQuickViewEnabled);
-        updateQuickViewButton();
-        applyDistractionFreeMode();
-    }
-
-    /**
-     * Apply distraction-free state by hiding/unhiding columns. Does not change
-     * setAutoResizeMode (user setting via PREF_LOGS_AUTO_RESIZE) or column widths.
-     * restoreTable is called so the restored columns come back in the user's saved order.
-     */
-    private void applyDistractionFreeMode() {
-        List<String> hiddenColList = new ArrayList<>();
-        if (isQuickViewEnabled) {
-            hiddenColList.add(LogsTableModel.Columns.DATE.name());
-            hiddenColList.add(LogsTableModel.Columns.APP.name());
-            hiddenColList.add(LogsTableModel.Columns.TID.name());
-            hiddenColList.add(LogsTableModel.Columns.PID.name());
-        }
-        model.setHiddenColumns(hiddenColList);
-        table.restoreTable();
-    }
-
-    private void updateQuickViewButton() {
-        String imageName = isQuickViewEnabled ? "eye_closed.png" : "eye_open.png";
-        ImageIcon icon = UiUtils.getImageIcon(imageName, UiUtils.IMG_SIZE_ICON);
-        quickViewButton.setIcon(icon);
-        quickViewButton.setText(isQuickViewEnabled ? "Restore" : "Hide");
-        quickViewButton.setToolTipText(isQuickViewEnabled ? "Restore Distraction Free Mode" : "Enter Distraction Free Mode");
     }
 
     private void doSearch(String text) {
@@ -1045,9 +994,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         }
         if (!selectedIndexList.isEmpty()) {
             int[] indexArr = selectedIndexList.stream()
-                .filter(Objects::nonNull)
-                .mapToInt(Integer::intValue)
-                .toArray();
+                    .filter(Objects::nonNull)
+                    .mapToInt(Integer::intValue)
+                    .toArray();
             log.trace("setupFilterList: re-select:{}", GsonHelper.toJson(indexArr));
             filterList.setSelectedIndices(indexArr);
         }
