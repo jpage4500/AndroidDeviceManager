@@ -8,6 +8,7 @@ import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
+import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
@@ -15,6 +16,7 @@ import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.ActivityDialog;
 import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
+import com.jpage4500.devicemanager.ui.dialog.RemoteServerDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.dialog.ShareServerDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
@@ -346,11 +348,44 @@ public class DeviceScreen extends BaseScreen {
             UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
             UiUtils.addPopupMenuItem(popupMenu, "Device Details", actionEvent -> handleDeviceDetails(device));
-            UiUtils.addPopupMenuItem(popupMenu, "Mirror Device", actionEvent -> handleMirrorCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Record Device", actionEvent -> handleRecordCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Capture Screenshot", actionEvent -> handleScreenshotCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Restart Device", actionEvent -> handleRestartCommand());
-            UiUtils.addPopupMenuItem(popupMenu, "Open Terminal", actionEvent -> handleTermCommand());
+
+            // primary options
+            UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.BROWSE.label, actionEvent -> app.showFileBrowser(device));
+            UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.LOGS.label, actionEvent -> app.showLogs(device));
+            UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.MIRROR.label, actionEvent -> handleMirrorCommand());
+
+            // secondary options under "More"
+            JMenu moreMenu = new JMenu("More");
+            JMenuItem recordItem = new JMenuItem(ToolbarButton.RECORD.label, UiUtils.getImageIcon(ToolbarButton.RECORD.image, UiUtils.IMG_SIZE_SMALL));
+            recordItem.addActionListener(e -> handleRecordCommand());
+            moreMenu.add(recordItem);
+
+            JMenuItem screenshotItem = new JMenuItem(ToolbarButton.SCREENSHOT.label, UiUtils.getImageIcon(ToolbarButton.SCREENSHOT.image, UiUtils.IMG_SIZE_SMALL));
+            screenshotItem.addActionListener(e -> handleScreenshotCommand());
+            moreMenu.add(screenshotItem);
+
+            JMenuItem inputItem = new JMenuItem(ToolbarButton.INPUT.label, UiUtils.getImageIcon(ToolbarButton.INPUT.image, UiUtils.IMG_SIZE_SMALL));
+            inputItem.addActionListener(e -> handleInputCommand());
+            moreMenu.add(inputItem);
+
+            JMenuItem installItem = new JMenuItem(ToolbarButton.INSTALL.label, UiUtils.getImageIcon(ToolbarButton.INSTALL.image, UiUtils.IMG_SIZE_SMALL));
+            installItem.addActionListener(e -> handleInstallCommand());
+            moreMenu.add(installItem);
+
+            JMenuItem terminalItem = new JMenuItem(ToolbarButton.TERMINAL.label, UiUtils.getImageIcon(ToolbarButton.TERMINAL.image, UiUtils.IMG_SIZE_SMALL));
+            terminalItem.addActionListener(e -> handleTermCommand());
+            moreMenu.add(terminalItem);
+
+            JMenuItem restartItem = new JMenuItem("Restart", UiUtils.getImageIcon(Icons.REFRESH, UiUtils.IMG_SIZE_SMALL));
+            restartItem.addActionListener(e -> handleRestartCommand());
+            moreMenu.add(restartItem);
+
+            popupMenu.add(moreMenu);
+
+            popupMenu.addSeparator();
+
+            // user-defined adb commands ("Predefined ADB Commands" right-click menu)
+            CommandDialog.setupCommandPopupMenu(popupMenu, device);
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
@@ -687,7 +722,28 @@ public class DeviceScreen extends BaseScreen {
         }
     }
 
+    private void handleConnectButtonClicked(JButton button) {
+        JPopupMenu popupMenu = new JPopupMenu();
+
+        // adb wireless
+        JMenuItem adbItem = new JMenuItem("Connect to ADB Wireless Device", UiUtils.getImageIcon(Icons.ADB, UiUtils.IMG_SIZE_SMALL));
+        adbItem.addActionListener(e -> showConnectAdbWirelessDialog());
+        popupMenu.add(adbItem);
+
+        // connect to server
+        JMenuItem serverItem = new JMenuItem("Connect to Remote Server", UiUtils.getImageIcon(Icons.SERVER, UiUtils.IMG_SIZE_SMALL));
+        serverItem.addActionListener(e -> RemoteServerDialog.showRemoteServerDialog(this));
+        popupMenu.add(serverItem);
+
+        // anchor below the toolbar button
+        popupMenu.show(button, 0, button.getHeight());
+    }
+
     private void handleConnectDevice() {
+        showConnectAdbWirelessDialog();
+    }
+
+    private void showConnectAdbWirelessDialog() {
         ConnectDialog.showConnectDialog(this, (isSuccess, error) -> {
             log.debug("handleConnectDevice: {}", isSuccess);
             if (!isSuccess) {
@@ -954,7 +1010,7 @@ public class DeviceScreen extends BaseScreen {
         }
 
         toolbar.setRollover(true);
-        JButton connectBtn = createToolbarButton(toolbar, ToolbarButton.CONNECT, actionEvent -> handleConnectDevice());
+        JButton connectBtn = createToolbarButton(toolbar, ToolbarButton.CONNECT, actionEvent -> handleConnectButtonClicked((JButton) actionEvent.getSource()));
         if (connectBtn != null) toolbar.addSeparator();
 
         JButton browseBtn = createToolbarButton(toolbar, ToolbarButton.BROWSE, actionEvent -> app.showFileBrowser(null));
@@ -1012,17 +1068,43 @@ public class DeviceScreen extends BaseScreen {
         createToolbarButton(toolbar, ToolbarButton.REFRESH, actionEvent -> refreshDevices());
 
         // start/stop server
-        JButton serverButton = createToolbarButton(toolbar, ToolbarButton.SHARE_SERVER, actionEvent -> ShareServerDialog.showShareServerDialog(this));
-        boolean isServerRunning = DeviceManager.getInstance().getRemoteServerManager().isRunning();
-        if (isServerRunning) {
-            serverButton.setIcon(UiUtils.getImageIcon(Icons.SHARE_ON, UiUtils.IMG_SIZE_TOOLBAR));
-            int numConnected = DeviceManager.getInstance().getRemoteServerManager().getConnectedClients().size();
-            if (numConnected > 0) {
-                serverButton.setText(String.format("#%d", numConnected));
-            }
-        }
+        createToolbarButton(toolbar, ToolbarButton.SHARE_SERVER, actionEvent -> {
+            ShareServerDialog.showShareServerDialog(this);
+            updateServerButton();
+        });
+        updateServerButton();
 
         createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(app, this));
+    }
+
+    /**
+     * refresh the SHARE_SERVER toolbar button to reflect current running state + connected client count
+     */
+    private void updateServerButton() {
+        JButton serverButton = getToolbarButton(ToolbarButton.SHARE_SERVER);
+        if (serverButton == null) return;
+        RemoteServerManager server = DeviceManager.getInstance().getRemoteServerManager();
+        if (server.isRunning()) {
+            serverButton.setIcon(UiUtils.getImageIcon(Icons.SHARE_ON, UiUtils.IMG_SIZE_TOOLBAR));
+            int numConnected = server.getConnectedClients().size();
+            serverButton.setText(numConnected > 0 ? String.format("#%d", numConnected) : ToolbarButton.SHARE_SERVER.label);
+        } else {
+            serverButton.setIcon(UiUtils.getImageIcon(Icons.SHARE_OFF, UiUtils.IMG_SIZE_TOOLBAR));
+            serverButton.setText(ToolbarButton.SHARE_SERVER.label);
+        }
+    }
+
+    private JButton getToolbarButton(ToolbarButton toolbarButton) {
+        for (Component component : toolbar.getComponents()) {
+            if (component instanceof JButton button && toolbarButton.label.equals(button.getText())) {
+                return button;
+            }
+            if (component instanceof JButton button && button.getIcon() != null && toolbarButton.label.equals(button.getToolTipText())) {
+                // fall back to tooltip when label has been swapped (e.g. "#3" while connected)
+                return button;
+            }
+        }
+        return null;
     }
 
     protected JButton createToolbarButton(JToolBar toolbar, ToolbarButton toolbarButton, ActionListener listener) {
