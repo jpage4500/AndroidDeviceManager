@@ -947,7 +947,25 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             return;
         }
 
-        if (devices == null || devices.isEmpty()) {
+        List<Device> sorted = devices != null ? new ArrayList<>(devices) : new ArrayList<>();
+
+        // if the active device was disconnected, keep it in the list as offline (still selected)
+        String currentSerial = device != null ? device.serial : null;
+        if (currentSerial != null) {
+            boolean found = false;
+            for (Device d : sorted) {
+                if (TextUtils.equals(d.serial, currentSerial)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                device.isOnline = false;
+                sorted.add(device);
+            }
+        }
+
+        if (sorted.isEmpty()) {
             suppressDeviceSelection = true;
             connectedDevicesList.setListData(new Device[0]);
             suppressDeviceSelection = false;
@@ -955,10 +973,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             return;
         }
 
-        List<Device> sorted = new ArrayList<>(devices);
         sorted.sort(CONNECTED_ORDER);
-
-        String currentSerial = device != null ? device.serial : null;
 
         suppressDeviceSelection = true;
         connectedDevicesList.setListData(sorted.toArray(new Device[0]));
@@ -978,16 +993,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             // re-select the screen's current device (may be in offline section now)
             connectedDevicesList.setSelectedIndex(targetIndex);
             suppressDeviceSelection = false;
-        } else if (device == null) {
+        } else {
             // first populate, no selection yet — auto-select the top device
             connectedDevicesList.setSelectedIndex(0);
             suppressDeviceSelection = false;
             updateDevice(sorted.get(0));
-        } else {
-            // current device was removed entirely; keep showing OFFLINE for it,
-            // user must manually pick another to switch
-            connectedDevicesList.clearSelection();
-            suppressDeviceSelection = false;
         }
     }
 
