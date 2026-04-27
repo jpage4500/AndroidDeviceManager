@@ -439,6 +439,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         for (LogFilter filter : selectedList) selectedFilterList.add(filter.name);
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS, GsonHelper.toJson(selectedFilterList));
 
+        // persist column widths/order
+        table.saveTable();
+
         stopLogging();
         app.onLogsClosed(device != null ? device.serial : null);
         dispose();

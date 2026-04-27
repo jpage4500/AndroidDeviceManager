@@ -227,6 +227,7 @@ public class SaveLogsScreen extends BaseScreen {
             // default column sizes
             table.setPreferredColWidth(SaveLogsTableModel.Columns.SIZE.toString(), 80);
         }
+        table.setMaxColWidth(SaveLogsTableModel.Columns.SIZE.toString(), 100);
 
         table.getSelectionModel().addListSelectionListener(listSelectionEvent -> {
             if (!listSelectionEvent.getValueIsAdjusting()) {
@@ -382,6 +383,8 @@ public class SaveLogsScreen extends BaseScreen {
         log.trace("closeWindow");
         stopLogging();
         saveFrameSize();
+        // persist column widths/order
+        table.saveTable();
         app.onSaveLogsClosed();
         dispose();
     }

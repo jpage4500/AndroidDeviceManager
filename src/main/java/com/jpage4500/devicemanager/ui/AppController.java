@@ -371,15 +371,19 @@ public class AppController implements App, DeviceManager.DeviceListener {
             deviceScreen.table.saveTable();
         }
 
-        // save positions/sizes of any other open windows (only first of each map)
-        if (!exploreViewMap.isEmpty())
-            (exploreViewMap.values().iterator().next()).onWindowStateChanged(BaseScreen.WindowState.CLOSING);
-        if (!logsViewMap.isEmpty())
-            (logsViewMap.values().iterator().next()).onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        // save positions/sizes of any other open windows
+        // (snapshot values first - closeWindow callbacks mutate the maps)
+        for (ExploreScreen screen : new ArrayList<>(exploreViewMap.values())) {
+            screen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        }
+        for (ViewLogsScreen screen : new ArrayList<>(logsViewMap.values())) {
+            screen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        }
         if (headlessLogsScreen != null)
             headlessLogsScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
-        if (!inputViewMap.isEmpty())
-            (inputViewMap.values().iterator().next()).onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        for (InputScreen screen : new ArrayList<>(inputViewMap.values())) {
+            screen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        }
         if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
 
         DeviceManager.getInstance().handleExit();
