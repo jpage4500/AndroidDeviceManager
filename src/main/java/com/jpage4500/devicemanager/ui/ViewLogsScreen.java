@@ -72,6 +72,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private CardLayout connectedDevicesCards;
     private boolean suppressDeviceSelection;
 
+    private JSplitPane mainSplit;       // filters/devices | logs table
+    private JSplitPane leftSplit;       // filters / devices (headless only)
+
     private static final String CARD_LIST = "list";
     private static final String CARD_EMPTY = "empty";
 
@@ -150,7 +153,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         filterList = new JList<>();
         JScrollPane filterScroll = new JScrollPane(filterList);
         setupFilterList();
-        leftPanel.add(filterScroll, BorderLayout.CENTER);
 
         // -- add filter button --
         JButton addFilterButton = new JButton("Add Filter");
@@ -158,28 +160,26 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         addFilterButton.addActionListener(this::handleAddFilterClicked);
 
         if (isHeadless) {
-            // bottom-left: [Add Filter button / Connected Devices label / list]
-            JPanel southPanel = new JPanel();
-            southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
+            // filters panel: list + Add Filter button
+            JPanel filtersPanel = new JPanel(new BorderLayout());
+            filtersPanel.add(filterScroll, BorderLayout.CENTER);
+            filtersPanel.add(addFilterButton, BorderLayout.SOUTH);
 
-            addFilterButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-            addFilterButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, addFilterButton.getPreferredSize().height));
-            southPanel.add(addFilterButton);
-
+            // devices panel: label + list
+            JPanel devicesPanel = new JPanel(new BorderLayout());
             JLabel devicesLabel = new JLabel("Devices");
             devicesLabel.setFont(devicesLabel.getFont().deriveFont(Font.BOLD));
             devicesLabel.setBorder(new EmptyBorder(4, 4, 4, 4));
-            devicesLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            southPanel.add(devicesLabel);
+            devicesPanel.add(devicesLabel, BorderLayout.NORTH);
 
             setupConnectedDevicesList();
-            connectedDevicesContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
-            connectedDevicesContainer.setPreferredSize(new Dimension(200, 150));
-            connectedDevicesContainer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
-            southPanel.add(connectedDevicesContainer);
+            devicesPanel.add(connectedDevicesContainer, BorderLayout.CENTER);
 
-            leftPanel.add(southPanel, BorderLayout.SOUTH);
+            leftSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, filtersPanel, devicesPanel);
+            leftSplit.setResizeWeight(0.7);
+            leftPanel.add(leftSplit, BorderLayout.CENTER);
         } else {
+            leftPanel.add(filterScroll, BorderLayout.CENTER);
             leftPanel.add(addFilterButton, BorderLayout.SOUTH);
         }
 
@@ -195,10 +195,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         setupStatusBar();
         mainPanel.add(statusBar, BorderLayout.SOUTH);
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        splitPane.setLeftComponent(leftPanel);
-        splitPane.setRightComponent(rightPanel);
-        mainPanel.add(splitPane, BorderLayout.CENTER);
+        mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        mainSplit.setLeftComponent(leftPanel);
+        mainSplit.setRightComponent(rightPanel);
+        mainPanel.add(mainSplit, BorderLayout.CENTER);
 
         setupMenuBar();
 
@@ -208,6 +208,26 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         autoScrollCheckBox.setSelected(true);
 
         restoreSelectedFilters();
+        restoreDividerLocations();
+    }
+
+    private void restoreDividerLocations() {
+        int mainDivider = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_DIVIDER_MAIN, -1);
+        if (mainDivider > 0) mainSplit.setDividerLocation(mainDivider);
+
+        if (leftSplit != null) {
+            int leftDivider = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_DIVIDER_LEFT, -1);
+            if (leftDivider > 0) leftSplit.setDividerLocation(leftDivider);
+        }
+    }
+
+    private void saveDividerLocations() {
+        if (mainSplit != null) {
+            PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOGS_DIVIDER_MAIN, mainSplit.getDividerLocation());
+        }
+        if (leftSplit != null) {
+            PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOGS_DIVIDER_LEFT, leftSplit.getDividerLocation());
+        }
     }
 
     @Override
@@ -440,6 +460,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         // persist column widths/order
         table.saveTable();
+
+        saveDividerLocations();
 
         stopLogging();
         app.onLogsClosed(device != null ? device.serial : null);
