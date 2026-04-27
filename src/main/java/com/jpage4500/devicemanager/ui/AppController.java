@@ -11,6 +11,7 @@ import com.jpage4500.devicemanager.utils.Colors;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.NetworkHelper;
+import com.jpage4500.devicemanager.utils.OsThemeDetector;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
@@ -146,7 +147,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
         JPanel labelPanel = new JPanel(new GridBagLayout());
         labelPanel.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
-        labelPanel.add(new JLabel("Searching for connected devices…"));
+        labelPanel.add(new JLabel("No connected devices. Waiting…"));
 
         JButton cancel = new JButton(new AbstractAction("Cancel") {
             @Override
@@ -592,6 +593,10 @@ public class AppController implements App, DeviceManager.DeviceListener {
             } catch (Exception e) {
                 log.error("setupSystemTray: Exception: {}", e.getMessage());
             }
+            OsThemeDetector.getInstance().registerListener(isDark ->
+                    SwingUtilities.invokeLater(() -> {
+                        if (trayIcon != null) trayIcon.setImage(getTrayIconWithCount(trayIconDevices));
+                    }));
         } else {
             trayIcon.setImage(trayIconImage);
         }
@@ -602,7 +607,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
     }
 
     private BufferedImage getTrayIconWithCount(int count) {
-        Color iconColor = Utils.isLinux() ? Color.BLACK : Color.WHITE;
+        Color iconColor = OsThemeDetector.getInstance().isDark() ? Color.WHITE : Color.BLACK;
         BufferedImage baseImage = UiUtils.getImage("system_tray.png", 22, 22, iconColor);
         int w = baseImage.getWidth();
         int h = baseImage.getHeight();
@@ -623,7 +628,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
         Graphics2D g = combined.createGraphics();
         g.drawImage(baseImage, 0, 0, null);
         g.setFont(font);
-        g.setColor(Color.WHITE);
+        g.setColor(iconColor);
         int x = w + 6;
         int y = h / 2 + textHeight / 3;
         g.drawString(text, x, y);
