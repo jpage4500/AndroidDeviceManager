@@ -999,6 +999,14 @@ public class DeviceScreen extends BaseScreen {
             }
             return null;
         }
+
+        /** HIDE these icons by default (until user customizes the toolbar) */
+        public boolean hideByDefault() {
+            return switch (this) {
+                case SAVE_LOGS, INPUT, RECORD, TERMINAL, ADB -> true;
+                default -> false;
+            };
+        }
     }
 
     public void setupToolbar() {
