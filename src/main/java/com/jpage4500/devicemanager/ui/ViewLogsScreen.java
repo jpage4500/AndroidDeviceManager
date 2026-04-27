@@ -29,6 +29,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.List;
 
@@ -68,16 +69,47 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public JButton quickViewButton;
     public boolean isQuickViewEnabled; // true when user clicks on 'quick view'
 
+    // headless / logs-only mode: show embedded "Connected Devices" picker
+    private final boolean isHeadless;
+    private JList<Device> connectedDevicesList;
+    private JPanel connectedDevicesContainer;
+    private CardLayout connectedDevicesCards;
+    private boolean suppressDeviceSelection;
+
+    private static final String CARD_LIST = "list";
+    private static final String CARD_EMPTY = "empty";
+
+    private static final Comparator<Device> CONNECTED_ORDER =
+        Comparator.<Device, Boolean>comparing(d -> !d.isOnline)
+                  .thenComparing(d -> {
+                      String name = d.getDisplayName();
+                      return name != null ? name : "";
+                  }, String.CASE_INSENSITIVE_ORDER);
+
     public ViewLogsScreen(App app, Device device) {
         super(app, device, "logs-" + device.serial, 1100, 800);
-        //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        this.isHeadless = false;
 
         initalizeUi();
         updateDevice(device);
     }
 
+    /** Logs-only / headless mode: window opens with no device; an embedded picker drives selection. */
+    public ViewLogsScreen(App app) {
+        super(app, null, "logs-headless", 1100, 800);
+        this.isHeadless = true;
+
+        initalizeUi();
+        setTitle("Logs: [No Device]");
+        setVisible(true);
+    }
+
     public void updateDevice(Device device) {
         this.device = device;
+        if (device == null) {
+            setTitle("Logs: [No Device]");
+            return;
+        }
         log.trace("updateDeviceState: ONLINE:{}", device.isOnline);
         if (device.isOnline) {
             setTitle("Logs: [" + device.getDisplayName() + "]");
@@ -86,6 +118,15 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             setTitle("OFFLINE [" + device.getDisplayName() + "]");
             stopLogging();
         }
+    }
+
+    public boolean isShowingDevice(Device device) {
+        return device != null && this.device != null
+            && TextUtils.equals(device.serial, this.device.serial);
+    }
+
+    public String getCurrentSerial() {
+        return device != null ? device.serial : null;
     }
 
     protected void initalizeUi() {
@@ -116,7 +157,32 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         JButton addFilterButton = new JButton("Add Filter");
         addFilterButton.setIcon(UiUtils.getImageIcon("icon_add.png", UiUtils.IMG_SIZE_ICON));
         addFilterButton.addActionListener(this::handleAddFilterClicked);
-        leftPanel.add(addFilterButton, BorderLayout.SOUTH);
+
+        if (isHeadless) {
+            // bottom-left: [Add Filter button / Connected Devices label / list]
+            JPanel southPanel = new JPanel();
+            southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
+
+            addFilterButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+            addFilterButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, addFilterButton.getPreferredSize().height));
+            southPanel.add(addFilterButton);
+
+            JLabel devicesLabel = new JLabel("Devices");
+            devicesLabel.setFont(devicesLabel.getFont().deriveFont(Font.BOLD));
+            devicesLabel.setBorder(new EmptyBorder(4, 4, 4, 4));
+            devicesLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            southPanel.add(devicesLabel);
+
+            setupConnectedDevicesList();
+            connectedDevicesContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
+            connectedDevicesContainer.setPreferredSize(new Dimension(200, 150));
+            connectedDevicesContainer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
+            southPanel.add(connectedDevicesContainer);
+
+            leftPanel.add(southPanel, BorderLayout.SOUTH);
+        } else {
+            leftPanel.add(addFilterButton, BorderLayout.SOUTH);
+        }
 
         JPanel rightPanel = new JPanel(new BorderLayout());
 
@@ -154,7 +220,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             }
             case ACTIVATED -> {
                 // start logging if user didn't stop
-                if (!isLoggedPaused) {
+                if (!isLoggedPaused && device != null) {
                     startLogging();
                 }
             }
@@ -361,7 +427,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     @Override
     public void closeWindow() {
-        log.trace("closeWindow: {}", device.getDisplayName());
+        String name = device != null ? device.getDisplayName() : "no device";
+        log.trace("closeWindow: {}", name);
         // save last filter
         String filterText = filterField.getCleanText();
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_CUSTOM_FILTER, filterText.trim());
@@ -373,7 +440,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS, GsonHelper.toJson(selectedFilterList));
 
         stopLogging();
-        app.onLogsClosed(device.serial);
+        app.onLogsClosed(device != null ? device.serial : null);
         dispose();
     }
 
@@ -710,11 +777,13 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void stopLogging() {
+        if (device == null) return;
         app.setDeviceBusy(device, false);
         DeviceManager.getInstance().stopLogging(device);
     }
 
     private void startLogging() {
+        if (device == null) return;
         if (device.isOnline && !DeviceManager.getInstance().isLogging(device)) {
             app.setDeviceBusy(device, true);
             // get last log entry and start from there
@@ -850,6 +919,100 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             model.setSearchText(text);
         }
         refreshUi();
+    }
+
+    private void setupConnectedDevicesList() {
+        connectedDevicesList = new JList<>();
+        connectedDevicesList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        connectedDevicesList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof Device d) {
+                    setText(d.getDisplayName());
+                    BufferedImage image = UiUtils.getImage("device_status.png", 16, 16);
+                    if (d.isOnline) image = UiUtils.replaceColor(image, new Color(24, 134, 0));
+                    setIcon(new ImageIcon(image));
+                }
+                return this;
+            }
+        });
+        connectedDevicesList.addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            if (suppressDeviceSelection) return;
+            Device picked = connectedDevicesList.getSelectedValue();
+            if (picked == null) return;
+            String currentSerial = device != null ? device.serial : null;
+            if (TextUtils.equals(picked.serial, currentSerial)) return;
+            // user switched device: stop the previous one and clear log buffer
+            if (device != null) DeviceManager.getInstance().stopLogging(device);
+            model.clearLogs();
+            updateDevice(picked);
+        });
+
+        connectedDevicesCards = new CardLayout();
+        connectedDevicesContainer = new JPanel(connectedDevicesCards);
+
+        JScrollPane scrollPane = new JScrollPane(connectedDevicesList);
+        connectedDevicesContainer.add(scrollPane, CARD_LIST);
+
+        JLabel emptyLabel = new JLabel("No Devices", SwingConstants.CENTER);
+        emptyLabel.setFont(emptyLabel.getFont().deriveFont(Font.ITALIC));
+        emptyLabel.setForeground(Color.GRAY);
+        connectedDevicesContainer.add(emptyLabel, CARD_EMPTY);
+
+        connectedDevicesCards.show(connectedDevicesContainer, CARD_EMPTY);
+    }
+
+    public void setConnectedDevices(List<Device> devices) {
+        if (!isHeadless || connectedDevicesList == null) return;
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> setConnectedDevices(devices));
+            return;
+        }
+
+        if (devices == null || devices.isEmpty()) {
+            suppressDeviceSelection = true;
+            connectedDevicesList.setListData(new Device[0]);
+            suppressDeviceSelection = false;
+            connectedDevicesCards.show(connectedDevicesContainer, CARD_EMPTY);
+            return;
+        }
+
+        List<Device> sorted = new ArrayList<>(devices);
+        sorted.sort(CONNECTED_ORDER);
+
+        String currentSerial = device != null ? device.serial : null;
+
+        suppressDeviceSelection = true;
+        connectedDevicesList.setListData(sorted.toArray(new Device[0]));
+        connectedDevicesCards.show(connectedDevicesContainer, CARD_LIST);
+
+        int targetIndex = -1;
+        if (currentSerial != null) {
+            for (int i = 0; i < sorted.size(); i++) {
+                if (TextUtils.equals(sorted.get(i).serial, currentSerial)) {
+                    targetIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (targetIndex >= 0) {
+            // re-select the screen's current device (may be in offline section now)
+            connectedDevicesList.setSelectedIndex(targetIndex);
+            suppressDeviceSelection = false;
+        } else if (device == null) {
+            // first populate, no selection yet — auto-select the top device
+            connectedDevicesList.setSelectedIndex(0);
+            suppressDeviceSelection = false;
+            updateDevice(sorted.get(0));
+        } else {
+            // current device was removed entirely; keep showing OFFLINE for it,
+            // user must manually pick another to switch
+            connectedDevicesList.clearSelection();
+            suppressDeviceSelection = false;
+        }
     }
 
     private void setupFilterList() {

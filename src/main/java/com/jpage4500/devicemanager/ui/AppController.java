@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 /**
  * App-lifecycle owner. Implements {@link App} for the screens to depend on, and
@@ -80,9 +79,8 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
     private static volatile boolean hasExited = false;
 
-    // logs-only mode bootstrap
-    private boolean awaitingFirstDeviceList;
-    private JDialog searchingSplash;
+    // logs-only mode: single ViewLogsScreen with embedded device picker, not in logsViewMap
+    private ViewLogsScreen headlessLogsScreen;
 
     /** install Desktop.QUIT_HANDLER / shutdown hooks once. Safe to call multiple times. */
     public void installLifecycleHooks() {
@@ -132,90 +130,18 @@ public class AppController implements App, DeviceManager.DeviceListener {
     }
 
     /**
-     * Logs-only launch mode: skip DeviceScreen, wait for first online device, open ViewLogsScreen.
-     * If multiple devices, prompts the user to pick one.
+     * Logs-only launch mode: skip DeviceScreen and open the ViewLogsScreen immediately
+     * with an embedded "Connected Devices" picker. Devices populate as they're discovered.
      */
     public void startLogsOnly() {
         headlessMode = true;
-        awaitingFirstDeviceList = true;
-        showSearchingSplash();
-        // device list arrives via DeviceManager.DeviceListener -> handleDevicesUpdated
-    }
-
-    private void showSearchingSplash() {
-        if (searchingSplash != null) return;
-
-        JPanel labelPanel = new JPanel(new GridBagLayout());
-        labelPanel.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
-        labelPanel.add(new JLabel("No connected devices. Waiting…"));
-
-        JButton cancel = new JButton(new AbstractAction("Cancel") {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                exit(true);
-            }
-        });
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.add(cancel);
-
-        searchingSplash = new JDialog((Frame) null, "Android Device Manager", false);
-        searchingSplash.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
-        searchingSplash.getContentPane().setLayout(new BorderLayout());
-        searchingSplash.getContentPane().add(labelPanel, BorderLayout.CENTER);
-        searchingSplash.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-        searchingSplash.pack();
-        searchingSplash.setLocationRelativeTo(null);
-        searchingSplash.setVisible(true);
-    }
-
-    private void dismissSearchingSplash() {
-        if (searchingSplash != null) {
-            searchingSplash.setVisible(false);
-            searchingSplash.dispose();
-            searchingSplash = null;
-        }
-    }
-
-    /** Called from handleDevicesUpdated when waiting for a device in logs-only mode. */
-    private void onFirstDeviceListAvailable(List<Device> devices) {
-        if (devices == null) return;
-        List<Device> online = new ArrayList<>();
-        for (Device d : devices) if (d.isOnline) online.add(d);
-        if (online.isEmpty()) return; // keep waiting
-
-        awaitingFirstDeviceList = false;
-        dismissSearchingSplash();
-
-        if (online.size() == 1) {
-            showLogs(online.get(0));
-        } else {
-            pickDevice(online, this::showLogs);
-        }
-    }
-
-    /** Show a combobox picker for one of the given devices; invokes onPick (or exits in logs-only on cancel). */
-    public void pickDevice(List<Device> devices, Consumer<Device> onPick) {
-        JComboBox<Device> picker = new JComboBox<>(devices.toArray(new Device[0]));
-        picker.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int i, boolean s, boolean f) {
-                super.getListCellRendererComponent(list, value, i, s, f);
-                if (value instanceof Device d) setText(d.getDisplayName());
-                return this;
-            }
-        });
-        boolean ok = DialogHelper.showCustomDialog(null, picker, "Select Device", null);
-        Device chosen = ok ? (Device) picker.getSelectedItem() : null;
-        if (chosen == null) {
-            if (headlessMode) exit(true);
-            return;
-        }
-        onPick.accept(chosen);
+        headlessLogsScreen = new ViewLogsScreen(this);
+        headlessLogsScreen.setConnectedDevices(DeviceManager.getInstance().getDevices());
     }
 
     /**
-     * Handle an adm://logs[/serial] URL. Picks a device (auto if 1, dialog if more) and opens logs.
-     * Used by URL scheme handlers from any state.
+     * Handle an adm://logs[/serial] URL. Opens logs for the requested device (or first online).
+     * Silent no-op if no devices are online.
      */
     public void openLogsViaUrl(String optionalSerial) {
         SwingUtilities.invokeLater(() -> {
@@ -230,20 +156,13 @@ public class AppController implements App, DeviceManager.DeviceListener {
                         return;
                     }
                 }
-                // requested serial not online — fall through to picker
             }
 
             if (online.isEmpty()) {
-                // mark waiting; the next handleDevicesUpdated will pick up
-                awaitingFirstDeviceList = true;
-                showSearchingSplash();
+                log.warn("openLogsViaUrl: no online devices");
                 return;
             }
-            if (online.size() == 1) {
-                showLogs(online.get(0));
-            } else {
-                pickDevice(online, this::showLogs);
-            }
+            showLogs(online.get(0));
         });
     }
 
@@ -325,8 +244,13 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
     @Override
     public void onLogsClosed(String serial) {
-        logsViewMap.remove(serial);
-        if (headlessMode && logsViewMap.isEmpty()) {
+        if (headlessLogsScreen != null
+                && (serial == null || serial.equals(headlessLogsScreen.getCurrentSerial()))) {
+            headlessLogsScreen = null;
+        } else {
+            logsViewMap.remove(serial);
+        }
+        if (headlessMode && headlessLogsScreen == null && logsViewMap.isEmpty()) {
             // logs-only mode: closing the last logs window exits the app
             exit(true);
         }
@@ -452,6 +376,8 @@ public class AppController implements App, DeviceManager.DeviceListener {
             (exploreViewMap.values().iterator().next()).onWindowStateChanged(BaseScreen.WindowState.CLOSING);
         if (!logsViewMap.isEmpty())
             (logsViewMap.values().iterator().next()).onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        if (headlessLogsScreen != null)
+            headlessLogsScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
         if (!inputViewMap.isEmpty())
             (inputViewMap.values().iterator().next()).onWindowStateChanged(BaseScreen.WindowState.CLOSING);
         if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
@@ -491,8 +417,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
             for (Device device : deviceList) updateChildWindows(device);
             setupSystemTray();
             updateTaskbarBadge();
-
-            if (awaitingFirstDeviceList) onFirstDeviceListAvailable(deviceList);
+            if (headlessLogsScreen != null) headlessLogsScreen.setConnectedDevices(deviceList);
         });
     }
 
@@ -501,11 +426,8 @@ public class AppController implements App, DeviceManager.DeviceListener {
         SwingUtilities.invokeLater(() -> {
             if (deviceScreen != null) deviceScreen.handleDeviceUpdated(device);
             updateChildWindows(device);
-
-            // a device transitioning to online (or arriving fresh) may only fire here, not via
-            // handleDevicesUpdated — re-check the splash gate so logs-only mode dismisses promptly
-            if (awaitingFirstDeviceList && device.isOnline) {
-                onFirstDeviceListAvailable(DeviceManager.getInstance().getDevices());
+            if (headlessLogsScreen != null) {
+                headlessLogsScreen.setConnectedDevices(DeviceManager.getInstance().getDevices());
             }
         });
     }
@@ -515,6 +437,9 @@ public class AppController implements App, DeviceManager.DeviceListener {
         SwingUtilities.invokeLater(() -> {
             if (deviceScreen != null) deviceScreen.handleDeviceRemoved(device);
             updateChildWindows(device);
+            if (headlessLogsScreen != null) {
+                headlessLogsScreen.setConnectedDevices(DeviceManager.getInstance().getDevices());
+            }
         });
     }
 
@@ -539,6 +464,10 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
         InputScreen inputScreen = inputViewMap.get(device.serial);
         if (inputScreen != null) inputScreen.updateDevice(device);
+
+        if (headlessLogsScreen != null && headlessLogsScreen.isShowingDevice(device)) {
+            headlessLogsScreen.updateDevice(device);
+        }
 
         if (saveLogsScreen != null) saveLogsScreen.updateDevice();
     }
