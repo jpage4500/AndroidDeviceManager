@@ -73,7 +73,7 @@ public class ExploreScreen extends BaseScreen {
     public void updateDevice(Device device) {
         this.device = device;
         if (device.isOnline) {
-            setTitle("Browse [" + device.getDisplayName() + "]");
+            setTitle(device.getDisplayName());
             if (wasOffline) {
                 refreshFiles();
                 wasOffline = false;

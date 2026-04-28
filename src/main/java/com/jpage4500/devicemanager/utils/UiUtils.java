@@ -170,29 +170,49 @@ public class UiUtils {
     }
 
     public static BufferedImage getTrayIconWithCount(int count) {
-        int size = 16;
+        int size = 64;
         boolean isDark = OsThemeDetector.getInstance().isDark();
         Color iconColor = isDark ? Color.WHITE : Color.BLACK;
         Color textColor = isDark ? Color.BLACK : Color.WHITE;
-        BufferedImage baseImage = getImage(Icons.ANDROID, size, size, iconColor);
-        if (count == 0) return baseImage;
+        if (count == 0) return getImage(Icons.ANDROID, size, size, iconColor);
 
         BufferedImage combined = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = combined.createGraphics();
-        g.drawImage(baseImage, 0, 0, null);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+        int circleX = 6;
+        int circleY = 10;
+        int circleD = 52;
+        int circleCenterX = circleX + circleD / 2;
+        int circleCenterY = circleY + circleD / 2;
+
+        // antennae first; circle then covers their inner ends so they appear to sprout from the head
+        g.setColor(iconColor);
+        g.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.drawLine(19, 14, 15, 6);
+        g.drawLine(45, 14, 49, 6);
+        g.fillOval(circleX, circleY, circleD, circleD);
 
         String text = String.valueOf(count);
-        Font font = new Font("Arial", Font.PLAIN, 8);
-        g.setFont(font);
-        FontMetrics fm = g.getFontMetrics();
-        int textWidth = fm.stringWidth(text);
-        int textHeight = fm.getAscent();
+        int innerW = 36;
+        int innerH = 36;
+        int fontSize = 40;
+        Font font;
+        FontMetrics fm;
+        while (true) {
+            font = new Font("JetBrains Mono", Font.BOLD, fontSize);
+            g.setFont(font);
+            fm = g.getFontMetrics();
+            if (fm.stringWidth(text) <= innerW && fm.getAscent() <= innerH) break;
+            if (fontSize <= 10) break;
+            fontSize -= 2;
+        }
 
-        int textX = (size - textWidth) / 2;
-        int textY = (size - textHeight) / 2 + textHeight;
-
+        int textX = circleCenterX - fm.stringWidth(text) / 2;
+        int baselineY = circleCenterY + (fm.getAscent() - fm.getDescent()) / 2;
         g.setColor(textColor);
-        g.drawString(text, textX, textY);
+        g.drawString(text, textX, baselineY);
         g.dispose();
         return combined;
     }
