@@ -137,7 +137,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
      */
     public void startLogsOnly() {
         headlessMode = true;
-        headlessLogsScreen = new ViewLogsScreen(this);
+        headlessLogsScreen = new ViewLogsScreen(this, null);
         headlessLogsScreen.setConnectedDevices(DeviceManager.getInstance().getDevices());
     }
 
