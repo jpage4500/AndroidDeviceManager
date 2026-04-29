@@ -97,7 +97,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             setTitle("No Device");
             return;
         }
-        log.trace("updateDeviceState: ONLINE:{}", device.isOnline);
         if (device.isOnline) {
             setTitle(device.getDisplayName());
             startLogging();
