@@ -1,10 +1,6 @@
 package com.jpage4500.devicemanager.ui;
 
-import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.Icons;
-import com.jpage4500.devicemanager.data.LogEntry;
-import com.jpage4500.devicemanager.data.LogFilter;
-import com.jpage4500.devicemanager.data.LogFilterEntry;
+import com.jpage4500.devicemanager.data.*;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.table.utils.LogFilterRenderer;
@@ -70,8 +66,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
 
-    // headless / logs-only mode: show embedded "Connected Devices" picker
-    private final boolean isHeadless;
     private JList<Device> connectedDevicesList;
     private JPanel connectedDevicesContainer;
     private CardLayout connectedDevicesCards;
@@ -91,37 +85,23 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                     }, String.CASE_INSENSITIVE_ORDER);
 
     public ViewLogsScreen(App app, Device device) {
-        super(app, device, "logs-" + device.serial, 1100, 800);
-        this.isHeadless = false;
+        super(app, device, "logs-" + (device == null ? "headless" : device.serial), 1100, 800);
 
         initalizeUi();
         updateDevice(device);
     }
 
-    /**
-     * Logs-only / headless mode: window opens with no device; an embedded picker drives selection.
-     */
-    public ViewLogsScreen(App app) {
-        super(app, null, "logs-headless", 1100, 800);
-        this.isHeadless = true;
-
-        initalizeUi();
-        setTitle("Logs: [No Device]");
-        setVisible(true);
-    }
-
     public void updateDevice(Device device) {
         this.device = device;
         if (device == null) {
-            setTitle("Logs: [No Device]");
+            setTitle("No Device");
             return;
         }
-        log.trace("updateDeviceState: ONLINE:{}", device.isOnline);
         if (device.isOnline) {
-            setTitle("Logs: [" + device.getDisplayName() + "]");
+            setTitle(device.getDisplayName());
             startLogging();
         } else {
-            setTitle("OFFLINE [" + device.getDisplayName() + "]");
+            setTitle("[OFFLINE] " + device.getDisplayName());
             stopLogging();
         }
     }
@@ -164,7 +144,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         addFilterButton.setIcon(UiUtils.getImageIcon(Icons.ADD, UiUtils.IMG_SIZE_ICON));
         addFilterButton.addActionListener(this::handleAddFilterClicked);
 
-        if (isHeadless) {
+        if (app.isHeadlessMode()) {
             // filters panel: list + Add Filter button
             JPanel filtersPanel = new JPanel(new BorderLayout());
             filtersPanel.add(filterScroll, BorderLayout.CENTER);
@@ -906,9 +886,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof Device d) {
                     setText(d.getDisplayName());
-                    BufferedImage image = UiUtils.getImage(Icons.ANDROID, 16, 16);
-                    if (d.isOnline) image = UiUtils.replaceColor(image, new Color(24, 134, 0));
-                    setIcon(new ImageIcon(image));
+                    Icons icn = d.getDeviceIcon();
+                    Color color = d.getDeviceColor();
+                    ImageIcon imageIcon = UiUtils.getImageIcon(icn, UiUtils.IMG_SIZE_ICON, UiUtils.IMG_SIZE_ICON, color);
+                    setIcon(imageIcon);
                 }
                 return this;
             }
@@ -941,13 +922,31 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     public void setConnectedDevices(List<Device> devices) {
-        if (!isHeadless || connectedDevicesList == null) return;
+        if (!app.isHeadlessMode() || connectedDevicesList == null) return;
         if (!SwingUtilities.isEventDispatchThread()) {
             SwingUtilities.invokeLater(() -> setConnectedDevices(devices));
             return;
         }
 
-        if (devices == null || devices.isEmpty()) {
+        List<Device> sorted = devices != null ? new ArrayList<>(devices) : new ArrayList<>();
+
+        // if the active device was disconnected, keep it in the list as offline (still selected)
+        String currentSerial = device != null ? device.serial : null;
+        if (currentSerial != null) {
+            boolean found = false;
+            for (Device d : sorted) {
+                if (TextUtils.equals(d.serial, currentSerial)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                device.isOnline = false;
+                sorted.add(device);
+            }
+        }
+
+        if (sorted.isEmpty()) {
             suppressDeviceSelection = true;
             connectedDevicesList.setListData(new Device[0]);
             suppressDeviceSelection = false;
@@ -955,10 +954,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             return;
         }
 
-        List<Device> sorted = new ArrayList<>(devices);
         sorted.sort(CONNECTED_ORDER);
-
-        String currentSerial = device != null ? device.serial : null;
 
         suppressDeviceSelection = true;
         connectedDevicesList.setListData(sorted.toArray(new Device[0]));
@@ -978,16 +974,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             // re-select the screen's current device (may be in offline section now)
             connectedDevicesList.setSelectedIndex(targetIndex);
             suppressDeviceSelection = false;
-        } else if (device == null) {
+        } else {
             // first populate, no selection yet — auto-select the top device
             connectedDevicesList.setSelectedIndex(0);
             suppressDeviceSelection = false;
             updateDevice(sorted.get(0));
-        } else {
-            // current device was removed entirely; keep showing OFFLINE for it,
-            // user must manually pick another to switch
-            connectedDevicesList.clearSelection();
-            suppressDeviceSelection = false;
         }
     }
 
@@ -1321,7 +1312,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
         // check if file exists and confirm overwrite
         if (file.exists()) {
-            if (!DialogHelper.showConfirmDialog(this, "File Exists", "File already exists. Do you want to overwrite it?")) return;
+            if (!DialogHelper.showConfirmDialog(this, "File Exists", "File already exists. Do you want to overwrite it?"))
+                return;
         }
 
         // write logs to file

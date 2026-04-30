@@ -147,7 +147,6 @@ public abstract class BaseScreen extends JFrame {
      */
     protected JMenu buildWindowMenu() {
         JMenu menu = new JMenu("Window");
-        String contextSerial = (device != null) ? device.serial : null;
 
         createCmdMenuItem(menu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
@@ -156,8 +155,8 @@ public abstract class BaseScreen extends JFrame {
             createCmdMenuItem(menu, "Show Device List", KeyEvent.VK_1, e -> app.showDeviceList());
         }
 
-        createCmdMenuItem(menu, "Show File Browser", KeyEvent.VK_2, e -> app.showFileBrowser(lookupDevice(contextSerial)));
-        createCmdMenuItem(menu, "Show Device Logs", KeyEvent.VK_3, e -> app.showLogs(lookupDevice(contextSerial)));
+        createCmdMenuItem(menu, "Show File Browser", KeyEvent.VK_2, e -> app.showFileBrowser(device));
+        createCmdMenuItem(menu, "Show Device Logs", KeyEvent.VK_3, e -> app.showLogs(device));
         createCmdMenuItem(menu, "Settings", KeyEvent.VK_COMMA, e -> SettingsDialog.showSettings(app, this));
         createCmdMenuItem(menu, "Hide Toolbar", KeyEvent.VK_T, e -> toggleToolbar());
 
@@ -177,11 +176,6 @@ public abstract class BaseScreen extends JFrame {
         menu.add(onTopItem);
 
         return menu;
-    }
-
-    private static Device lookupDevice(String serial) {
-        if (serial == null) return null;
-        return DeviceManager.getInstance().getDevice(serial);
     }
 
     /**

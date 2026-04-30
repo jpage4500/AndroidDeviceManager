@@ -19,5 +19,6 @@ device.log
 device_manager_log.txt
 src/main/java/com/jpage4500/devicemanager/Build.java
 
-# ignore Copilot instructions file
+# AI
 copilot-*.md
+.claude
