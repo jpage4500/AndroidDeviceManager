@@ -86,6 +86,11 @@ public class AppController implements App, DeviceManager.DeviceListener {
     // logs-only mode: single ViewLogsScreen with embedded device picker, not in logsViewMap
     private ViewLogsScreen headlessLogsScreen;
 
+    // adm://logs URL request that arrived before any online device was discovered;
+    // fired from the device-listener callbacks once a matching device appears
+    private volatile boolean hasPendingLogsRequest;
+    private volatile String pendingLogsSerial;
+
     /** install Desktop.QUIT_HANDLER / shutdown hooks once. Safe to call multiple times. */
     public void installLifecycleHooks() {
         if (Desktop.isDesktopSupported()) {
@@ -143,29 +148,42 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
     /**
      * Handle an adm://logs[/serial] URL. Opens logs for the requested device (or first online).
-     * Silent no-op if no devices are online.
+     * If no matching device is online yet (URL events typically arrive before ADB discovery
+     * completes), the request is queued and fired from the device-listener callbacks.
      */
     public void openLogsViaUrl(String optionalSerial) {
         SwingUtilities.invokeLater(() -> {
-            List<Device> all = DeviceManager.getInstance().getDevices();
-            List<Device> online = new ArrayList<>();
-            for (Device d : all) if (d.isOnline) online.add(d);
+            if (tryOpenLogsForSerial(optionalSerial)) return;
+            hasPendingLogsRequest = true;
+            pendingLogsSerial = optionalSerial;
+            log.debug("openLogsViaUrl: queued, no matching online device yet (serial={})", optionalSerial);
+        });
+    }
 
-            if (TextUtils.notEmpty(optionalSerial)) {
-                for (Device d : online) {
-                    if (optionalSerial.equals(d.serial)) {
-                        showLogs(d);
-                        return;
-                    }
+    /** @return true if an online device matched and the logs window was opened */
+    private boolean tryOpenLogsForSerial(String optionalSerial) {
+        List<Device> online = new ArrayList<>();
+        for (Device d : DeviceManager.getInstance().getDevices()) if (d.isOnline) online.add(d);
+        if (online.isEmpty()) return false;
+        if (TextUtils.notEmpty(optionalSerial)) {
+            for (Device d : online) {
+                if (optionalSerial.equals(d.serial)) {
+                    showLogs(d);
+                    return true;
                 }
             }
+            return false;
+        }
+        showLogs(online.get(0));
+        return true;
+    }
 
-            if (online.isEmpty()) {
-                log.warn("openLogsViaUrl: no online devices");
-                return;
-            }
-            showLogs(online.get(0));
-        });
+    private void drainPendingLogsRequest() {
+        if (!hasPendingLogsRequest) return;
+        if (tryOpenLogsForSerial(pendingLogsSerial)) {
+            hasPendingLogsRequest = false;
+            pendingLogsSerial = null;
+        }
     }
 
     @Override
@@ -437,6 +455,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
             setupSystemTray();
             updateTaskbarBadge();
             if (headlessLogsScreen != null) headlessLogsScreen.setConnectedDevices(deviceList);
+            drainPendingLogsRequest();
         });
     }
 
@@ -448,6 +467,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
             if (headlessLogsScreen != null) {
                 headlessLogsScreen.setConnectedDevices(DeviceManager.getInstance().getDevices());
             }
+            drainPendingLogsRequest();
         });
     }
 

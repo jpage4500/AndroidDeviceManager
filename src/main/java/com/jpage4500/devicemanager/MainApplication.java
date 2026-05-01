@@ -7,10 +7,7 @@ import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.ui.AppController;
 import com.jpage4500.devicemanager.ui.DeviceScreen;
-import com.jpage4500.devicemanager.utils.PreferenceUtils;
-import com.jpage4500.devicemanager.utils.RemoteConnectionUtils;
-import com.jpage4500.devicemanager.utils.TextUtils;
-import com.jpage4500.devicemanager.utils.Utils;
+import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,39 +27,33 @@ public class MainApplication {
     public enum LaunchMode {
         DEFAULT,
         LOGS_ONLY;
-
-        /** Detect launch mode from CLI args + jdeploy launcher path basename. */
-        static LaunchMode detect(String[] args) {
-            if (args != null && args.length > 0) {
-                String arg = args[0].toLowerCase();
-                if (arg.equals("logs") || arg.equals("--logs") || arg.equals("--logs-only")) {
-                    return LOGS_ONLY;
-                }
-            }
-            String launcherPath = System.getProperty("jdeploy.launcher.path", "").toLowerCase();
-            if (launcherPath.contains("adm-logs")) return LOGS_ONLY;
-            return DEFAULT;
-        }
     }
 
     private final AppController appController = new AppController();
-    private final LaunchMode launchMode;
+    private LaunchMode launchMode = LaunchMode.DEFAULT;
     private final List<File> openFileList = new ArrayList<>();
 
     public static String version;
 
-    public MainApplication(String[] args, LaunchMode launchMode) {
-        this.launchMode = launchMode;
-
+    public MainApplication(String[] args) {
         setupLogging();
-        log.debug("APP START: mode:{}, {}, java:{}, os:{}", launchMode, version, Runtime.version(), System.getProperty("os.name"));
+        log.info("APP START: {}, args:{}, java:{}, os:{}", version, GsonHelper.toJson(args), Runtime.version(), System.getProperty("os.name"));
 
         // handle command-line args
         boolean serverMode = false;
         for (String arg : args) {
             if (TextUtils.equalsIgnoreCase(arg, "--server")) {
                 serverMode = true;
+            } else if (TextUtils.equalsIgnoreCaseAny(arg, "logs", "--logs", "--logs-only")) {
+                log.debug("- logs mode");
+                launchMode = LaunchMode.LOGS_ONLY;
             }
+        }
+
+        String launcherPath = System.getProperty("jdeploy.launcher.path", "").toLowerCase();
+        if (launcherPath.contains("adm-logs")) {
+            log.debug("- adm-logs mode: {}", launcherPath);
+            launchMode = LaunchMode.LOGS_ONLY;
         }
 
         // if run in a headless session this method will throw an exception..
@@ -140,7 +131,8 @@ public class MainApplication {
         } catch (IOException ex) {
             System.out.println("Failed to load app.properties");
         }
-        new MainApplication(args, LaunchMode.detect(args));
+
+        new MainApplication(args);
     }
 
     /**
@@ -231,7 +223,7 @@ public class MainApplication {
         if (desktop.isSupported(Desktop.Action.APP_OPEN_FILE)) {
             desktop.setOpenFileHandler(e -> {
                 List<File> files = e.getFiles();
-                log.debug("handleLaunchParams: openFile {}", files);
+                log.info("handleLaunchParams: openFile {}", files);
                 appController.handleFilesOpened(new ArrayList<>(files));
             });
         }
@@ -239,7 +231,7 @@ public class MainApplication {
             desktop.setOpenURIHandler(e -> {
                 java.net.URI uri = e.getURI();
                 if (uri == null) return;
-                log.debug("handleLaunchParams: openURI {}", uri);
+                log.info("handleLaunchParams: openURI {}", uri);
                 if (!"adm".equalsIgnoreCase(uri.getScheme())) return;
                 if ("logs".equalsIgnoreCase(uri.getHost())) {
                     // adm://logs[/<serial>]
