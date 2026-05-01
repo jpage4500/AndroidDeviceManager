@@ -115,6 +115,28 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         return device != null ? device.serial : null;
     }
 
+    /**
+     * Headless-mode entry point: point this screen at the given device. If the device is in the
+     * embedded picker, select it there (the list listener will call updateDevice); otherwise call
+     * updateDevice directly.
+     */
+    public void selectDevice(Device target) {
+        if (target == null) return;
+        if (isShowingDevice(target)) return;
+
+        if (app.isHeadlessMode() && connectedDevicesList != null) {
+            ListModel<Device> listModel = connectedDevicesList.getModel();
+            for (int i = 0; i < listModel.getSize(); i++) {
+                Device d = listModel.getElementAt(i);
+                if (TextUtils.equals(d.serial, target.serial)) {
+                    connectedDevicesList.setSelectedIndex(i);
+                    return;
+                }
+            }
+        }
+        updateDevice(target);
+    }
+
     protected void initalizeUi() {
         // ** MAIN PANEL **
         // ---- [toolbar] -----

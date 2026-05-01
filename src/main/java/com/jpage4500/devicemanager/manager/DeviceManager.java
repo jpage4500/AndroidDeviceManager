@@ -1509,10 +1509,13 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         } else {
             logStartTime = lastLogTime;
         }
+        // mark synchronously so callers checking isLogging() between rapid handleDeviceUpdated
+        // events don't race and submit a second logcat reader for the same device
+        final AtomicBoolean loggingState = getLoggingState(device.serial, true);
+        loggingState.set(true);
+
         commandExecutorService.submit(() -> {
             log.debug("startLogging: {}, from:{}, filter:{}", device.serial, logStartTime, filterText);
-            AtomicBoolean loggingState = getLoggingState(device.serial, true);
-            loggingState.set(true);
             InputStream inputStream = null;
             try {
                 String[] args = new String[]{"-v", "threadtime", "-T", logStartTime};
