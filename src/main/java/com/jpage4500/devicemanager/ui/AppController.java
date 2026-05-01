@@ -191,6 +191,15 @@ public class AppController implements App, DeviceManager.DeviceListener {
         if (device == null && deviceScreen != null) device = deviceScreen.getFirstSelectedDevice();
         if (device == null) return;
 
+        // headless/logs-only mode uses a single ViewLogsScreen with an embedded device picker;
+        // route to it instead of creating a per-serial instance
+        if (headlessLogsScreen != null) {
+            if (!device.isOnline) return;
+            headlessLogsScreen.selectDevice(device);
+            headlessLogsScreen.show();
+            return;
+        }
+
         ViewLogsScreen logsScreen = logsViewMap.get(device.serial);
         if (logsScreen == null) {
             if (!device.isOnline) return;
