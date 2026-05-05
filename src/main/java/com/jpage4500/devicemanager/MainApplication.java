@@ -56,6 +56,19 @@ public class MainApplication {
             launchMode = LaunchMode.LOGS_ONLY;
         }
 
+        // command line arguments won't survive a JDeploy app update so add an alternate path:
+        // - file in ~/.device_manager called "args.txt" which contains "logs" to enter logs-only mode
+        // - delete the file after reading
+        File argFile = new File(Utils.getDeviceManagerFolder(), "args.txt");
+        if (argFile.exists()) {
+            String argString = FileUtils.readFile(argFile);
+            log.debug("ARG_FILE: {}", argString);
+            if (TextUtils.containsIgnoreCase(argString, "logs")) {
+                launchMode = LaunchMode.LOGS_ONLY;
+            }
+            argFile.delete();
+        }
+
         // if run in a headless session this method will throw an exception..
         try {
             registerFileHandler();
