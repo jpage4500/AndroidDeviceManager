@@ -629,9 +629,11 @@ public class AppController implements App, DeviceManager.DeviceListener {
             submenu.setEnabled(device.isOnline);
 
             if (device.isOnline) {
-                MenuItem mirrorItem = new MenuItem("Mirror", UiUtils.getImage(Icons.MIRROR, 16, 16, Color.BLACK));
-                mirrorItem.setCallback(e2 -> mirrorDeviceFromTray(device));
-                submenu.add(mirrorItem);
+                if (!headlessMode) {
+                    MenuItem mirrorItem = new MenuItem("Mirror", UiUtils.getImage(Icons.MIRROR, 16, 16, Color.BLACK));
+                    mirrorItem.setCallback(e2 -> mirrorDeviceFromTray(device));
+                    submenu.add(mirrorItem);
+                }
 
                 MenuItem browseItem = new MenuItem("Browse", UiUtils.getImage(Icons.BROWSE, 16, 16, Color.BLACK));
                 browseItem.setCallback(e2 -> showFileBrowser(device));
@@ -656,18 +658,20 @@ public class AppController implements App, DeviceManager.DeviceListener {
     }
 
     private void bringMainWindowToFront() {
-        if (deviceScreen == null) return;
-        if (deviceScreen.isActive()) return;
+        JFrame frame = headlessMode ? headlessLogsScreen : deviceScreen;
+        if (frame == null) return;
+        if (frame.isActive()) return;
+        JFrame target = frame;
         SwingUtilities.invokeLater(() -> {
-            if (!deviceScreen.isVisible()) {
-                deviceScreen.setVisible(true);
-                deviceScreen.setState(JFrame.NORMAL);
+            if (!target.isVisible()) {
+                target.setVisible(true);
+                target.setState(JFrame.NORMAL);
                 return;
             }
-            deviceScreen.setState(JFrame.ICONIFIED);
+            target.setState(JFrame.ICONIFIED);
             Utils.runDelayed(300, true, () -> {
-                deviceScreen.setState(JFrame.NORMAL);
-                Utils.runDelayed(300, true, () -> deviceScreen.setState(JFrame.NORMAL));
+                target.setState(JFrame.NORMAL);
+                Utils.runDelayed(300, true, () -> target.setState(JFrame.NORMAL));
             });
         });
     }
