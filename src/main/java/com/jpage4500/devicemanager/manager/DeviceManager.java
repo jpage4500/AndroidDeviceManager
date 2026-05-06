@@ -1574,7 +1574,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         // make sure logging is still running
         if (!isLogging(device.serial)) return;
 
-        // run in 30 seconds
+        // run every 5 seconds
         scheduledExecutorService.schedule(() -> {
             // make sure logging is still running
             if (!isLogging(device.serial)) return;
@@ -1582,7 +1582,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             Map<String, String> pidMap = getProcessMap(device);
             listener.handleProcessMap(pidMap);
             scheduleNextProcessCheck(device, listener);
-        }, 30, TimeUnit.SECONDS);
+        }, 5, TimeUnit.SECONDS);
     }
 
     private Map<String, String> getProcessMap(Device device) {

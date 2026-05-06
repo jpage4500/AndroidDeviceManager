@@ -103,6 +103,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         } else {
             setTitle("[OFFLINE] " + device.getDisplayName());
             stopLogging();
+            model.setProcessMap(null);
         }
     }
 
@@ -924,7 +925,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             String currentSerial = device != null ? device.serial : null;
             if (TextUtils.equals(picked.serial, currentSerial)) return;
             // user switched device: stop the previous one and clear log buffer
-            if (device != null) DeviceManager.getInstance().stopLogging(device);
+            if (device != null) {
+                DeviceManager.getInstance().stopLogging(device);
+                model.setProcessMap(null);
+            }
             model.clearLogs();
             updateDevice(picked);
         });

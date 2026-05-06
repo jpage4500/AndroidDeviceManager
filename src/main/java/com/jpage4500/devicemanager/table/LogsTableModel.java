@@ -103,11 +103,14 @@ public class LogsTableModel extends AbstractTableModel {
     }
 
     public void setProcessMap(Map<String, String> processMap) {
-        this.processMap.clear();
+        if (processMap == null) {
+            this.processMap.clear();
+            return;
+        }
+        // don't clear old process ID's since they might still be visible in logs
+        //this.processMap.clear();
         this.processMap.putAll(processMap);
-
-        // NOTE: is it worth refreshing all rows just to update old log entries?
-        //fireTableDataChanged();
+        fireTableDataChanged();
     }
 
     public void setSearchText(String text) {
