@@ -1485,7 +1485,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * start capturing device logs
      *
      * @param lastLogTime - last log entry (if logging had started previously) - 10-16 11:34:17.824
-     *                   - if null, defaults to 1 hour ago
+     *                   - if null, defaults to 10 mins ago
      */
     public void startLogging(Device device, String lastLogTime, String filterText, DeviceLogListener listener) {
         stopLogging(device);
@@ -1500,9 +1500,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         // local device - existing implementation
         final String logStartTime;
         if (lastLogTime == null) {
-            // default to 1 hour ago
+            // default to 10 mins ago
             SimpleDateFormat sdf = new SimpleDateFormat("MM-dd HH:mm:ss.SSS");
-            logStartTime = sdf.format(new Date(System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1)));
+            logStartTime = sdf.format(new Date(System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(10)));
         } else if (!lastLogTime.contains(".")) {
             // logcat -T expects MM-dd HH:mm:ss.SSS
             logStartTime = lastLogTime + ".000";
