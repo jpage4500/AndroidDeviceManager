@@ -5,6 +5,7 @@ import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.Icons;
+import com.jpage4500.devicemanager.data.StatusEvent;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
@@ -38,6 +39,7 @@ import java.awt.dnd.DropTarget;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
 
@@ -61,7 +63,9 @@ public class DeviceScreen extends BaseScreen {
     private HoverLabel updateLabel;         // update
     private HoverLabel versionLabel;        // version
     private HoverLabel memoryLabel;
-    private JLabel countLabel;             // total devices
+    private JLabel countLabel;              // total devices
+    private HoverLabel statusLabel;             // status
+    private javax.swing.Timer statusRevertTimer;
 
     private boolean hasSelectedDevice;
 
@@ -143,8 +147,20 @@ public class DeviceScreen extends BaseScreen {
         memoryLabel.setBorder(0, 0);
         leftPanel.add(memoryLabel);
         UiUtils.addLeftClickListener(memoryLabel, this::showSystemEnvironmentDialog);
-
         statusBar.add(leftPanel, BorderLayout.WEST);
+
+        // history
+        icon = UiUtils.getImageIcon(Icons.LOGS, UiUtils.IMG_SIZE_SMALL);
+        statusLabel = new HoverLabel(icon);
+        UiUtils.setEmptyBorder(statusLabel);
+        statusLabel.setText("History");
+        UiUtils.addLeftClickListener(statusLabel, e -> showStatusHistoryDialog());
+
+        // GridBagLayout with a single, unconstrained child centers it both horizontally and vertically
+        JPanel centerPanel = new JPanel(new GridBagLayout());
+        UiUtils.setEmptyBorder(centerPanel);
+        centerPanel.add(statusLabel);
+        statusBar.add(centerPanel, BorderLayout.CENTER);
 
         // count
         countLabel = new JLabel();
@@ -423,6 +439,26 @@ public class DeviceScreen extends BaseScreen {
     public void handleDeviceRemoved(Device device) {
         model.removeDevice(device);
         sorter.sort();
+    }
+
+    public void handleStatusEvent(StatusEvent event) {
+        statusLabel.setText(event.label);
+        if (statusRevertTimer != null) statusRevertTimer.stop();
+        statusRevertTimer = new javax.swing.Timer(5000, e -> statusLabel.setText("History"));
+        statusRevertTimer.setRepeats(false);
+        statusRevertTimer.start();
+    }
+
+    private void showStatusHistoryDialog() {
+        List<StatusEvent> events = DeviceManager.getInstance().getStatusEvents();
+        SimpleDateFormat fmt = new SimpleDateFormat("M/d HH:mm:ss");
+        LinkedHashMap<String, String> map = new LinkedHashMap<>();
+        for (int i = 0; i < events.size(); i++) {
+            StatusEvent ev = events.get(i);
+            // index suffix keeps keys unique when multiple events share a second
+            map.put(fmt.format(new Date(ev.timestampMs)) + " #" + (events.size() - i), ev.label);
+        }
+        DialogHelper.showListDialog(this, "Status History", map, null);
     }
 
     /** called by AppController when an update is found */

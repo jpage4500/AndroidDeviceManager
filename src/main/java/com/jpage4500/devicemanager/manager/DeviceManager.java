@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.data.StatusEvent;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.manager.client.RemoteConnectionManager;
 import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
@@ -93,6 +94,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     private final Map<String, AtomicBoolean> loggingStateMap = new HashMap<>();
     private final List<String> queuedDetailList = new ArrayList<>();
 
+    private static final int MAX_STATUS_EVENTS = 50;
+    private final LinkedList<StatusEvent> statusEvents = new LinkedList<>();
+
     private JadbConnection connection;
 
     // remote connection manager
@@ -111,6 +115,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         void handleDeviceRemoved(Device device);
 
         void handleException(Exception e);
+
+        // a high-level status event (adb connect/disconnect, device connect/disconnect, etc.)
+        void handleStatusEvent(StatusEvent event);
     }
 
     public static DeviceManager getInstance() {
@@ -153,6 +160,21 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         }
     }
 
+    private void notifyStatusEvent(String label) {
+        StatusEvent event = new StatusEvent(label);
+        synchronized (statusEvents) {
+            statusEvents.addFirst(event);
+            while (statusEvents.size() > MAX_STATUS_EVENTS) statusEvents.removeLast();
+        }
+        if (deviceListener != null) deviceListener.handleStatusEvent(event);
+    }
+
+    public List<StatusEvent> getStatusEvents() {
+        synchronized (statusEvents) {
+            return new ArrayList<>(statusEvents);
+        }
+    }
+
     private List<Device> getDeviceForConnection(RemoteConnection connection) {
         List<Device> list = new ArrayList<>();
         synchronized (deviceList) {
@@ -167,10 +189,12 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     public void connectAdbServer(boolean allowRetry) {
         connection = new JadbConnection();
+        notifyStatusEvent("Connecting to adb server...");
         commandExecutorService.submit(() -> {
             try {
                 String hostVersion = connection.getHostVersion();
                 log.debug("connectAdbServer: v:{}", hostVersion);
+                notifyStatusEvent("Connected to adb server v" + hostVersion);
                 connection.createDeviceWatcher(new DeviceDetectionListener() {
                     @Override
                     public void onDetect(List<JadbDevice> devices) {
@@ -180,21 +204,30 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     @Override
                     public void onException(Exception e) {
                         log.error("connectAdbServer: onException: {}", e.getMessage());
+                        notifyStatusEvent("adb server disconnected");
                         // change all devices to offline
                         synchronized (deviceList) {
                             deviceList.forEach(device -> {
                                 if (device.remoteConnection == null) device.isOnline = false;
                             });
                         }
-                        if (deviceListener != null) deviceListener.handleException(e);
+                        // auto-reconnect: only prompt the user (via handleException) if this fails
+                        connectAdbServer(true);
                     }
                 }).run();
             } catch (Exception e) {
                 log.error("connectAdbServer: Exception: {}", e.getMessage());
+                notifyStatusEvent("adb server not running, starting...");
                 // likley because adb server isn't running.. try to start it now
                 startServer((isSuccess, error) -> {
-                    if (isSuccess && allowRetry) connectAdbServer(false);
-                    else {
+                    if (isSuccess && allowRetry) {
+                        // adb reports "daemon started successfully" before the daemon has actually
+                        // bound to port 5037; reconnecting immediately races and gets Connection
+                        // refused. Give it a moment, then retry.
+                        try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+                        connectAdbServer(false);
+                    } else {
+                        notifyStatusEvent("Failed to start adb server");
                         // change all devices to offline
                         synchronized (deviceList) {
                             deviceList.forEach(device -> {
@@ -255,6 +288,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     // -- DEVICE REMOVED --
                     device.isOnline = false;
                     device.lastUpdateMs = System.currentTimeMillis();
+                    notifyStatusEvent(device.getDisplayName() + " disconnected");
                     if (deviceListener != null) deviceListener.handleDeviceRemoved(device);
                 }
             }
@@ -273,6 +307,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                         addedDevice.isOnline = true;
                         addedDevice.status = null;
                         addedDevice.lastUpdateMs = System.currentTimeMillis();
+                        notifyStatusEvent(addedDevice.getDisplayName() + " connected");
                         notifyDeviceUpdated(addedDevice);
                         fetchDeviceDetails(addedDevice, true);
                     } else {
@@ -802,6 +837,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * run scrcpy app to mirror device
      */
     public void mirrorDevice(Device device, boolean skipDialogCheck, TaskListener listener) {
+        notifyStatusEvent("Mirroring " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             // handle remote devices differently
             if (device.remoteConnection != null) {
@@ -856,6 +892,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             return;
         }
 
+        notifyStatusEvent("Recording " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             String downloadFolder = Utils.getDownloadFolder();
             String prefix = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
@@ -961,6 +998,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     public void setProperty(Device device, String key, String value, TaskListener listener) {
+        notifyStatusEvent("Setting " + key + " on " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             boolean isOk = setPropertyInternal(device, key, value);
             listener.onTaskComplete(isOk, null);
@@ -1007,6 +1045,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * install file to given device with progress updates
      */
     public void installApp(Device device, File file, ProgressListener progressListener, TaskListener listener) {
+        notifyStatusEvent("Installing " + file.getName() + " on " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             Result result = installAppInternal(device, file, progressListener);
             if (listener != null) listener.onTaskComplete(result.isSuccess, result.result);
@@ -1017,6 +1056,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * special version of installApp which can install 1 file to multiple devices remotely without needing to upload the file multiple times
      */
     public void installApp(RemoteConnection connection, List<Device> deviceList, File file, ProgressListener progressListener, TaskListener listener) {
+        notifyStatusEvent("Installing " + file.getName() + " on " + deviceList.size() + " device(s)");
         commandExecutorService.submit(() -> {
             // convert list to serials
             List<String> serialList = new ArrayList<>();
@@ -1058,6 +1098,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     public void copyFiles(Device device, List<File> fileList, String dest, ProgressListener progressListener, TaskListener listener) {
+        notifyStatusEvent("Copying " + fileList.size() + " file(s) to " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             // come up with total files to copy
             FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
@@ -1103,6 +1144,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     public void restartDevice(Device device, TaskListener listener) {
+        notifyStatusEvent("Restarting " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             runShell(device, COMMAND_REBOOT);
             // TODO: detect success/fail
@@ -1136,6 +1178,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     public void runCustomCommand(Device device, String customCommand, CommandListener listener) {
+        notifyStatusEvent("Running command on " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             ShellResult result = runShell(device, customCommand);
             boolean isSuccess = result.isSuccess;
@@ -1255,6 +1298,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      */
     public void downloadFile(Device device, String path, DeviceFile file, File saveFile, boolean useRoot, TaskListener listener) {
         //log.debug("downloadFile: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
+        notifyStatusEvent("Downloading " + file.name + " from " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             boolean isOk = downloadFileInternal(device, path, file, saveFile, useRoot);
             // test if file was created
@@ -1416,6 +1460,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * @param listener    Callback listener
      */
     public void pairDevice(String ip, int port, String pairingCode, TaskListener listener) {
+        notifyStatusEvent("Pairing with " + ip + ":" + port);
         commandExecutorService.submit(() -> {
             try {
                 log.debug("pairDevice: {}:{} with code:{}", ip, port, pairingCode);
@@ -1435,6 +1480,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     public void sendInputText(Device device, String text, TaskListener listener) {
+        notifyStatusEvent("Sending input to " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             String command = "input text \"" + text + "\"";
             ShellResult result = runShell(device, command);
@@ -1489,6 +1535,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      */
     public void startLogging(Device device, String lastLogTime, String filterText, DeviceLogListener listener) {
         stopLogging(device);
+        notifyStatusEvent("Started logging " + device.getDisplayName());
 
         // handle remote device via WebSocket
         if (device.remoteConnection != null) {
@@ -1663,6 +1710,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         if (loggingState != null && loggingState.get()) {
             log.debug("stopLogging: {}", device.serial);
             loggingState.set(false);
+            notifyStatusEvent("Stopped logging " + device.getDisplayName());
         }
     }
 
@@ -2048,6 +2096,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         synchronized (deviceList) {
             deviceList.removeIf(device -> device.remoteConnection == connection);
         }
+        notifyStatusEvent("Removed server " + connection.getName());
         notifyDevicesUpdated();
     }
 
