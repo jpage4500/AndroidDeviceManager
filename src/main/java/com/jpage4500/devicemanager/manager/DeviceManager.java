@@ -92,6 +92,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     private ScheduledFuture<?> deviceRefreshRuture;
 
     private final Map<String, AtomicBoolean> loggingStateMap = new HashMap<>();
+    private final Map<String, InputStream> loggingStreamMap = new HashMap<>();
     private final List<String> queuedDetailList = new ArrayList<>();
 
     private static final int MAX_STATUS_EVENTS = 50;
@@ -1567,6 +1568,13 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             try {
                 String[] args = new String[]{"-v", "threadtime", "-T", logStartTime};
                 inputStream = device.jadbDevice.executeShell("logcat", args);
+                // track the stream so stopLogging() can close it and unblock readLine()
+                synchronized (loggingStreamMap) {
+                    InputStream prev = loggingStreamMap.put(device.serial, inputStream);
+                    if (prev != null) {
+                        try { prev.close(); } catch (IOException ignored) {}
+                    }
+                }
                 BufferedReader input = new BufferedReader(new InputStreamReader(inputStream));
 
                 long lastUpdateMs = System.currentTimeMillis();
@@ -1583,18 +1591,22 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                         listener.handleLogEntries(logList);
                         logList.clear();
                         lastUpdateMs = System.currentTimeMillis();
-
-                        // check if logging is still running
-                        if (!loggingState.get()) {
-                            loggingStateMap.remove(device.serial);
-                            break;
-                        }
                     }
                 }
             } catch (Exception e) {
-                log.error("startLogging: Exception:{}", e.getMessage());
-                listener.handleError("Error: " + e.getMessage());
+                // expected when stopLogging() closes the stream out from under readLine()
+                if (loggingState.get()) {
+                    log.error("startLogging: Exception:{}", e.getMessage());
+                    listener.handleError("Error: " + e.getMessage());
+                }
             } finally {
+                synchronized (loggingStreamMap) {
+                    // only clear if it's still ours (a newer startLogging may have replaced it)
+                    if (loggingStreamMap.get(device.serial) == inputStream) {
+                        loggingStreamMap.remove(device.serial);
+                    }
+                }
+                loggingStateMap.remove(device.serial);
                 if (inputStream != null) {
                     try {
                         inputStream.close();
@@ -1711,6 +1723,16 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             log.debug("stopLogging: {}", device.serial);
             loggingState.set(false);
             notifyStatusEvent("Stopped logging " + device.getDisplayName());
+        }
+        // close the logcat stream to unblock readLine() in the worker thread
+        // (necessary because a half-dead TCP socket - e.g. after laptop sleep -
+        // won't return EOF on its own and the worker would hang forever)
+        InputStream stream;
+        synchronized (loggingStreamMap) {
+            stream = loggingStreamMap.remove(device.serial);
+        }
+        if (stream != null) {
+            try { stream.close(); } catch (IOException ignored) {}
         }
     }
 
