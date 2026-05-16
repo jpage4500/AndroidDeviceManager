@@ -158,6 +158,10 @@ public class DialogHelper {
         void handleRightClick(String key, String value, JPopupMenu menu);
     }
 
+    public static void showListDialog(Component component, String title, List<String> valueList, ListListener listener) {
+        // TODO:
+    }
+
     /**
      * show a UI List of key-value pairs
      * NOTE: contains a filter to quickly narrow the list
