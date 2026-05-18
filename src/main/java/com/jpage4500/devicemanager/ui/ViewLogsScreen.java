@@ -913,6 +913,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         } else {
             model.setSearchText(text);
         }
+        // setSearchText intentionally fires no TableModelEvent (would clear selection);
+        // a direct repaint refreshes the highlighted cells
+        table.repaint();
         refreshUi();
     }
 
@@ -1241,11 +1244,36 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         if (Objects.equals(repr, lastFilterRepr)) return;
         lastFilterRepr = repr;
 
-        // Clear selection before re-filtering: JTable's SortManager runs an O(selection)
-        // save/restore inside setFilter, which freezes the EDT for huge selections
-        // (e.g. CMD+A on 97k rows). Empty selection makes that work O(1).
-        table.getSelectionModel().clearSelection();
-        sorter.setFilter(list.toArray(new LogFilter[0]));
+        LogFilter[] filterArray = list.toArray(new LogFilter[0]);
+        ListSelectionModel sm = table.getSelectionModel();
+        int min = sm.getMinSelectionIndex();
+        int max = sm.getMaxSelectionIndex();
+        boolean hugeSelection = min >= 0 && max - min + 1 > MAX_PRESERVE_SELECTION_RANGE;
+
+        if (hugeSelection) {
+            // huge selection (e.g. CMD+A on 97k rows): preserving by identity would be
+            // O(n) and freeze the EDT. Instead detect "select all" intent and re-apply
+            // it to the newly-filtered view; otherwise just drop the selection.
+            int viewRowsBefore = table.getRowCount();
+            boolean wasSelectAll = min == 0 && max == viewRowsBefore - 1;
+            sm.setValueIsAdjusting(true);
+            try {
+                sm.clearSelection();
+                sorter.setFilter(filterArray);
+                int viewRowsAfter = table.getRowCount();
+                if (wasSelectAll && viewRowsAfter > 0) {
+                    sm.setSelectionInterval(0, viewRowsAfter - 1);
+                }
+            } finally {
+                sm.setValueIsAdjusting(false);
+            }
+        } else {
+            // small selection: snapshot LogEntries by identity, re-apply after the
+            // filter. Entries no longer visible (filtered out) drop from selection.
+            SelectionSnapshot snap = snapshotSelection();
+            sorter.setFilter(filterArray);
+            restoreSelection(snap);
+        }
 
         statusBar.setCenterLabel(repr);
         refreshUi();

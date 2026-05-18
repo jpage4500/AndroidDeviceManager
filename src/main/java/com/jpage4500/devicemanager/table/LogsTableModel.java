@@ -118,7 +118,9 @@ public class LogsTableModel extends AbstractTableModel {
     public void setSearchText(String text) {
         if (TextUtils.equals(searchText, text)) return;
         searchText = text;
-        fireTableDataChanged();
+        // searchText only affects in-cell highlighting (LogsCellRenderer) — it doesn't
+        // change which rows are visible, so don't fire a TableModelEvent that would
+        // clear the user's selection. The caller should table.repaint() to refresh cells.
     }
 
     /**
