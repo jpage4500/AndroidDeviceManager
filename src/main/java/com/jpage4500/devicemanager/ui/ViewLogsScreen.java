@@ -65,6 +65,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
 
+    // tracks the last applied filter expression so doFilter() can no-op when nothing
+    // actually changed (e.g. focus-gained on the filter field swaps hint→"" and fires
+    // a spurious DocumentListener event — without this we'd clear the user's selection)
+    private String lastFilterRepr;
+
     private JList<Device> connectedDevicesList;
     private JPanel connectedDevicesContainer;
     private CardLayout connectedDevicesCards;
@@ -1229,10 +1234,20 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             sb.append("\"" + text + "\"");
         }
 
+        // Skip the re-filter (and selection clear) if the filter expression is
+        // unchanged. Otherwise spurious DocumentListener fires — e.g. clicking into the
+        // filter field swaps the hint text for "" — would wipe the user's row selection.
+        String repr = sb.toString();
+        if (Objects.equals(repr, lastFilterRepr)) return;
+        lastFilterRepr = repr;
+
+        // Clear selection before re-filtering: JTable's SortManager runs an O(selection)
+        // save/restore inside setFilter, which freezes the EDT for huge selections
+        // (e.g. CMD+A on 97k rows). Empty selection makes that work O(1).
+        table.getSelectionModel().clearSelection();
         sorter.setFilter(list.toArray(new LogFilter[0]));
 
-        statusBar.setCenterLabel(sb.toString());
-        model.fireTableDataChanged();
+        statusBar.setCenterLabel(repr);
         refreshUi();
     }
 
@@ -1332,7 +1347,10 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private LogEntry logEntryAtViewRow(int viewRow) {
-        if (viewRow < 0) return null;
+        // anchor/lead indices on the selection model can survive a filter shrink, so
+        // bounds-check against the current view row count before convertRowIndexToModel
+        // (which throws ArrayIndexOutOfBoundsException for out-of-range view rows)
+        if (viewRow < 0 || viewRow >= table.getRowCount()) return null;
         int modelRow = table.convertRowIndexToModel(viewRow);
         if (modelRow < 0 || modelRow >= model.getRowCount()) return null;
         return (LogEntry) model.getValueAt(modelRow, 0);
