@@ -110,7 +110,9 @@ public class LogsTableModel extends AbstractTableModel {
         // don't clear old process ID's since they might still be visible in logs
         //this.processMap.clear();
         this.processMap.putAll(processMap);
-        fireTableDataChanged();
+        // intentionally don't fire a TableModelEvent: every model event runs through the
+        // TableRowSorter and can disturb the JTable selection (esp. mid-drag). The caller
+        // should table.repaint() to refresh visible APP cells.
     }
 
     public void setSearchText(String text) {
