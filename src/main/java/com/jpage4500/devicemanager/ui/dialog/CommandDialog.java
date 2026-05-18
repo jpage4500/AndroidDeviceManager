@@ -1,12 +1,10 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
-import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
-import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -16,7 +14,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
@@ -33,14 +30,10 @@ public class CommandDialog extends JPanel {
     public static final int MAX_RECENT_COMMANDS = 10;
     public static final String COMMANDS_TXT = "commands.txt";
 
-    private Component frame;
     private HintTextField textField;
     private JList<String> list;
     private DefaultListModel<String> listModel;
     private List<Device> selectedDeviceList;
-
-    private HoverLabel resultsLabel;
-    private String resultsMsg;
 
     public static void showCommandDialog(Component frame, List<Device> selectedDeviceList) {
         CommandDialog screen = new CommandDialog(selectedDeviceList);
@@ -103,20 +96,9 @@ public class CommandDialog extends JPanel {
 
         add(textField, "growx, span 2, wrap");
 
-        resultsLabel = new HoverLabel();
-        resultsLabel.setVisible(false);
-        resultsLabel.addActionListener(e -> handleResultsClicked());
-        add(resultsLabel, "span 2, wrap");
-
         JButton sendButton = new JButton("Send Command");
         sendButton.addActionListener(e -> runCommand());
         add(sendButton, "newline, al right, span 2, wrap");
-    }
-
-    private void handleResultsClicked() {
-        if (resultsMsg == null) return;
-        // display results in dialog
-        DialogHelper.showTextDialog(this, "Results", resultsMsg);
     }
 
     private void runCommand() {
@@ -131,24 +113,12 @@ public class CommandDialog extends JPanel {
         populateRecent();
 
         log.debug("runCommand: {}, devices:{}", command, selectedDeviceList.size());
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
-            log.trace("runCommand: {}, {}", isSuccess, error);
-            Icons icn = isSuccess ? Icons.SUCCESS : Icons.ERROR;
-            BufferedImage image = UiUtils.getImage(icn, UiUtils.IMG_SIZE_ICON);
-            Color color = isSuccess ? Colors.COLOR_SUCCESS : Colors.COLOR_ERROR;
-            image = UiUtils.replaceColor(image, color);
-            resultsLabel.setVisible(true);
-            resultsLabel.setIcon(new ImageIcon(image));
-            String msg = (isSuccess ? "Success" : "Error") + " - click for results";
-            resultsLabel.setText(msg);
-            resultsMsg = error;
+        DeviceManager.getInstance().runCustomCommand(selectedDeviceList, command, new DeviceManager.BatchCommandListener() {
+            @Override
+            public void onAllComplete(boolean allSucceeded, String joinedDetail) {
+                log.trace("runCommand: {}, detail:\n{}", allSucceeded, joinedDetail);
+            }
         });
-        for (Device device : selectedDeviceList) {
-            DeviceManager.getInstance().runCustomCommand(device, command, (result) -> {
-                String displayStr = TextUtils.join(result.resultList, "\n");
-                resultWatcher.handleResult(device.serial, result.isSuccess, displayStr);
-            });
-        }
     }
 
     private void populateRecent() {

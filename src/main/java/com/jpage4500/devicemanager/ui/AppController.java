@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.GithubRelease;
 import com.jpage4500.devicemanager.data.Icons;
+import com.jpage4500.devicemanager.data.StatusEvent;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
@@ -486,12 +487,20 @@ public class AppController implements App, DeviceManager.DeviceListener {
     public void handleException(Exception e) {
         SwingUtilities.invokeLater(() -> {
             Component parent = deviceScreen;
-            String[] choices = {"Retry", "Cancel"};
-            // showOptionDialog returns index of selected choice (0 = Retry, 1 = Cancel, -1 = closed)
-            if (DialogHelper.showOptionDialog(parent, "ADB Server",
-                "Unable to connect to ADB server. Please check that it's running and re-try", choices) != 0)
-                return;
+            String[] choices = {"Retry"};
+            // only option is Retry; if reconnect fails, handleException re-fires and the dialog
+            // reappears. Closing the dialog via X also triggers a retry — there is no way out
+            // of the loop until adb is reachable.
+            DialogHelper.showOptionDialog(parent, "ADB Server",
+                "Unable to connect to ADB server. Please check that it's running and re-try", choices);
             connectAdbServer();
+        });
+    }
+
+    @Override
+    public void handleStatusEvent(StatusEvent event) {
+        SwingUtilities.invokeLater(() -> {
+            if (deviceScreen != null) deviceScreen.handleStatusEvent(event);
         });
     }
 

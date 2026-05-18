@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.manager;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
+import com.jpage4500.devicemanager.data.StatusEvent;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.manager.client.RemoteConnectionManager;
 import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
@@ -91,7 +92,11 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     private ScheduledFuture<?> deviceRefreshRuture;
 
     private final Map<String, AtomicBoolean> loggingStateMap = new HashMap<>();
+    private final Map<String, InputStream> loggingStreamMap = new HashMap<>();
     private final List<String> queuedDetailList = new ArrayList<>();
+
+    private static final int MAX_STATUS_EVENTS = 50;
+    private final LinkedList<StatusEvent> statusEvents = new LinkedList<>();
 
     private JadbConnection connection;
 
@@ -111,6 +116,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         void handleDeviceRemoved(Device device);
 
         void handleException(Exception e);
+
+        // a high-level status event (adb connect/disconnect, device connect/disconnect, etc.)
+        void handleStatusEvent(StatusEvent event);
     }
 
     public static DeviceManager getInstance() {
@@ -153,6 +161,36 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         }
     }
 
+    private void notifyStatusEvent(String label) {
+        notifyStatusEvent(new StatusEvent(label));
+    }
+
+    private void notifyStatusEvent(String label, int progress) {
+        notifyStatusEvent(new StatusEvent(label, progress));
+    }
+
+    private void notifyStatusEvent(String label, int progress, boolean isError, String detail) {
+        notifyStatusEvent(new StatusEvent(label, progress, isError, detail));
+    }
+
+    private void notifyStatusEvent(StatusEvent event) {
+        // only retain terminal / informational events in history (skip intermediate progress)
+        boolean keep = event.progress == -1 || event.progress == 100 || event.isError;
+        if (keep) {
+            synchronized (statusEvents) {
+                statusEvents.addFirst(event);
+                while (statusEvents.size() > MAX_STATUS_EVENTS) statusEvents.removeLast();
+            }
+        }
+        if (deviceListener != null) deviceListener.handleStatusEvent(event);
+    }
+
+    public List<StatusEvent> getStatusEvents() {
+        synchronized (statusEvents) {
+            return new ArrayList<>(statusEvents);
+        }
+    }
+
     private List<Device> getDeviceForConnection(RemoteConnection connection) {
         List<Device> list = new ArrayList<>();
         synchronized (deviceList) {
@@ -167,10 +205,12 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     public void connectAdbServer(boolean allowRetry) {
         connection = new JadbConnection();
+        notifyStatusEvent("Connecting to adb server...");
         commandExecutorService.submit(() -> {
             try {
                 String hostVersion = connection.getHostVersion();
                 log.debug("connectAdbServer: v:{}", hostVersion);
+                notifyStatusEvent("Connected to adb server v" + hostVersion);
                 connection.createDeviceWatcher(new DeviceDetectionListener() {
                     @Override
                     public void onDetect(List<JadbDevice> devices) {
@@ -180,21 +220,30 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     @Override
                     public void onException(Exception e) {
                         log.error("connectAdbServer: onException: {}", e.getMessage());
+                        notifyStatusEvent("adb server disconnected");
                         // change all devices to offline
                         synchronized (deviceList) {
                             deviceList.forEach(device -> {
                                 if (device.remoteConnection == null) device.isOnline = false;
                             });
                         }
-                        if (deviceListener != null) deviceListener.handleException(e);
+                        // auto-reconnect: only prompt the user (via handleException) if this fails
+                        connectAdbServer(true);
                     }
                 }).run();
             } catch (Exception e) {
                 log.error("connectAdbServer: Exception: {}", e.getMessage());
+                notifyStatusEvent("adb server not running, starting...");
                 // likley because adb server isn't running.. try to start it now
                 startServer((isSuccess, error) -> {
-                    if (isSuccess && allowRetry) connectAdbServer(false);
-                    else {
+                    if (isSuccess && allowRetry) {
+                        // adb reports "daemon started successfully" before the daemon has actually
+                        // bound to port 5037; reconnecting immediately races and gets Connection
+                        // refused. Give it a moment, then retry.
+                        try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+                        connectAdbServer(false);
+                    } else {
+                        notifyStatusEvent("Failed to start adb server");
                         // change all devices to offline
                         synchronized (deviceList) {
                             deviceList.forEach(device -> {
@@ -255,6 +304,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     // -- DEVICE REMOVED --
                     device.isOnline = false;
                     device.lastUpdateMs = System.currentTimeMillis();
+                    notifyStatusEvent(device.getDisplayName() + " disconnected");
                     if (deviceListener != null) deviceListener.handleDeviceRemoved(device);
                 }
             }
@@ -273,6 +323,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                         addedDevice.isOnline = true;
                         addedDevice.status = null;
                         addedDevice.lastUpdateMs = System.currentTimeMillis();
+                        notifyStatusEvent(addedDevice.getDisplayName() + " connected");
                         notifyDeviceUpdated(addedDevice);
                         fetchDeviceDetails(addedDevice, true);
                     } else {
@@ -798,10 +849,47 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         return null;
     }
 
+    public void mirrorDevice(List<Device> deviceList, BatchTaskListener listener) {
+        if (deviceList == null || deviceList.isEmpty()) return;
+        int total = deviceList.size();
+        String label = "Mirroring " + total + " device(s)";
+        notifyStatusEvent(label, 0);
+
+        BatchTracker tracker = new BatchTracker(total, "Mirroring",
+            allOk -> allOk ? "Mirrored " + total + " device(s)"
+                : "Mirror failed on some devices",
+            listener);
+
+        for (Device device : deviceList) {
+            if (listener != null) listener.onDeviceStarted(device);
+            mirrorDevice(device, false, (isSuccess, error) ->
+                tracker.recordCompletion(device, isSuccess, error));
+        }
+    }
+
+    public void recordScreen(List<Device> deviceList, BatchTaskListener listener) {
+        if (deviceList == null || deviceList.isEmpty()) return;
+        int total = deviceList.size();
+        String label = "Recording " + total + " device(s)";
+        notifyStatusEvent(label, 0);
+
+        BatchTracker tracker = new BatchTracker(total, "Recording",
+            allOk -> allOk ? "Recorded " + total + " device(s)"
+                : "Recording failed on some devices",
+            listener);
+
+        for (Device device : deviceList) {
+            if (listener != null) listener.onDeviceStarted(device);
+            recordScreen(device, (isSuccess, error) ->
+                tracker.recordCompletion(device, isSuccess, error));
+        }
+    }
+
     /**
      * run scrcpy app to mirror device
      */
     public void mirrorDevice(Device device, boolean skipDialogCheck, TaskListener listener) {
+        notifyStatusEvent("Mirroring " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             // handle remote devices differently
             if (device.remoteConnection != null) {
@@ -856,6 +944,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             return;
         }
 
+        notifyStatusEvent("Recording " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             String downloadFolder = Utils.getDownloadFolder();
             String prefix = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
@@ -945,6 +1034,48 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         });
     }
 
+    public void captureScreenshot(List<Device> deviceList, BatchScreenshotListener listener) {
+        if (deviceList == null || deviceList.isEmpty()) return;
+        int total = deviceList.size();
+        String label = "Screenshot " + total + " device(s)";
+        notifyStatusEvent(label, 0);
+
+        long start = System.currentTimeMillis();
+        AtomicInteger completed = new AtomicInteger();
+        AtomicInteger failed = new AtomicInteger();
+        List<String> detailLines = Collections.synchronizedList(new ArrayList<>());
+
+        for (Device device : deviceList) {
+            if (listener != null) listener.onDeviceStarted(device);
+            commandExecutorService.submit(() -> {
+                BufferedImage image = captureScreenshotInternal(device);
+                boolean isSuccess = image != null;
+                if (!isSuccess) failed.incrementAndGet();
+                detailLines.add((isSuccess ? "✅ " : "❌ ") + device.getDisplayName());
+                if (listener != null) listener.onScreenshot(device, image);
+
+                int done = completed.incrementAndGet();
+                if (done < total) {
+                    notifyStatusEvent("Screenshot (" + done + "/" + total + ")", done * 100 / total);
+                } else {
+                    long elapsed = System.currentTimeMillis() - start;
+                    boolean allOk = failed.get() == 0;
+                    StringBuilder detail = new StringBuilder();
+                    detail.append(allOk ? "✅ Success" : (failed.get() + " of " + total + " failed"));
+                    detail.append(" - ").append(Utils.formatTime(elapsed));
+                    synchronized (detailLines) {
+                        for (String l : detailLines) detail.append('\n').append(l);
+                    }
+                    String summary = allOk
+                        ? "Captured " + total + " screenshot(s)"
+                        : "Screenshot failed on " + failed.get() + " of " + total;
+                    notifyStatusEvent(summary, 100, !allOk, detail.toString());
+                    if (listener != null) listener.onAllComplete(allOk, detail.toString());
+                }
+            });
+        }
+    }
+
     public BufferedImage captureScreenshotInternal(Device device) {
         if (device.remoteConnection != null) {
             // remote device
@@ -961,6 +1092,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     public void setProperty(Device device, String key, String value, TaskListener listener) {
+        notifyStatusEvent("Setting " + key + " on " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             boolean isOk = setPropertyInternal(device, key, value);
             listener.onTaskComplete(isOk, null);
@@ -997,55 +1129,106 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     /**
-     * install file to given device
+     * install file to given device, reporting progress via {@link #notifyStatusEvent}
      */
     public void installApp(Device device, File file, TaskListener listener) {
-        installApp(device, file, null, listener);
-    }
-
-    /**
-     * install file to given device with progress updates
-     */
-    public void installApp(Device device, File file, ProgressListener progressListener, TaskListener listener) {
+        String label = "Installing " + file.getName() + " on " + device.getDisplayName();
+        notifyStatusEvent(label, 0);
         commandExecutorService.submit(() -> {
-            Result result = installAppInternal(device, file, progressListener);
+            long start = System.currentTimeMillis();
+            Result result = installAppInternal(device, file, label, true);
+            long elapsed = System.currentTimeMillis() - start;
+            fireTerminalEvent(label, result.isSuccess, result.result, elapsed);
             if (listener != null) listener.onTaskComplete(result.isSuccess, result.result);
         });
     }
 
     /**
-     * special version of installApp which can install 1 file to multiple devices remotely without needing to upload the file multiple times
+     * install file to multiple devices. Local devices get individual installs, remote devices
+     * are grouped per connection so the file uploads once per remote server.
      */
-    public void installApp(RemoteConnection connection, List<Device> deviceList, File file, ProgressListener progressListener, TaskListener listener) {
-        commandExecutorService.submit(() -> {
-            // convert list to serials
-            List<String> serialList = new ArrayList<>();
-            for (Device device : deviceList) serialList.add(device.serial);
-            progressListener.onProgress(0, 0, "Uploading " + FileUtils.bytesToDisplayString(file.length()) + "...");
-            Result result = connection.installApp(serialList, file);
-            if (listener != null) listener.onTaskComplete(result.isSuccess, result.result);
+    public void installApp(List<Device> deviceList, File file, BatchTaskListener listener) {
+        if (deviceList == null || deviceList.isEmpty()) return;
+        String fileName = file.getName();
+        int total = deviceList.size();
+        String label = "Installing " + fileName + " on " + total + " device(s)";
+        notifyStatusEvent(label, 0);
+
+        // group remote devices by connection
+        Map<RemoteConnection, List<Device>> remoteMap = new LinkedHashMap<>();
+        List<Device> localList = new ArrayList<>();
+        for (Device device : deviceList) {
+            if (device.remoteConnection != null) {
+                remoteMap.computeIfAbsent(device.remoteConnection, k -> new ArrayList<>()).add(device);
+            } else {
+                localList.add(device);
+            }
+        }
+
+        BatchTracker tracker = new BatchTracker(total, "Installing " + fileName,
+            allOk -> allOk ? "Installed " + fileName + " on " + total + " device(s)"
+                : "Failed to install " + fileName + " on some devices",
+            listener);
+
+        // for single-device batches forward intermediate progress so the bar actually moves
+        boolean fireInternalProgress = total == 1;
+
+        for (Device device : localList) {
+            if (listener != null) listener.onDeviceStarted(device);
+            commandExecutorService.submit(() -> {
+                String perDeviceLabel = "Installing " + fileName + " on " + device.getDisplayName();
+                Result result = installAppInternal(device, file, perDeviceLabel, fireInternalProgress);
+                tracker.recordCompletion(device, result.isSuccess, result.result);
+            });
+        }
+
+        remoteMap.forEach((connection, devices) -> {
+            for (Device d : devices) {
+                if (listener != null) listener.onDeviceStarted(d);
+            }
+            commandExecutorService.submit(() -> {
+                if (fireInternalProgress) {
+                    notifyStatusEvent("Installing " + fileName + " on " + connection.getName()
+                        + " - uploading " + FileUtils.bytesToDisplayString(file.length()), 10);
+                }
+                List<String> serials = new ArrayList<>();
+                for (Device d : devices) serials.add(d.serial);
+                Result result = connection.installApp(serials, file);
+                for (Device d : devices) {
+                    tracker.recordCompletion(d, result.isSuccess, result.result);
+                }
+            });
         });
     }
 
     public Result installAppInternal(Device device, File file) {
-        return installAppInternal(device, file, null);
+        return installAppInternal(device, file, null, false);
     }
 
-    public Result installAppInternal(Device device, File file, ProgressListener progressListener) {
+    /**
+     * @param progressLabel if non-null and fireProgress is true, intermediate progress events
+     *                      are fired under this label
+     */
+    private Result installAppInternal(Device device, File file, String progressLabel, boolean fireProgress) {
         if (device.remoteConnection != null) {
-            progressListener.onProgress(0, 0, "Uploading " + FileUtils.bytesToDisplayString(file.length()) + "...");
+            if (fireProgress && progressLabel != null) {
+                notifyStatusEvent(progressLabel + " - uploading " + FileUtils.bytesToDisplayString(file.length()), 0);
+            }
             return device.remoteConnection.installApp(List.of(device.serial), file);
         }
         Timer timer = new Timer();
         log.trace("installAppInternal: file:{}, size:{}", file.getName(), FileUtils.bytesToDisplayString(file.length()));
         try {
-            if (progressListener != null) progressListener.onProgress(1, 4, "Uploading " + FileUtils.bytesToDisplayString(file.length()) + "...");
+            if (fireProgress && progressLabel != null) {
+                notifyStatusEvent(progressLabel + " - uploading " + FileUtils.bytesToDisplayString(file.length()), 10);
+            }
             PackageManager packageManager = new PackageManager(device.jadbDevice);
             packageManager.install(file, (currentStep, totalSteps, message) -> {
-                // ignore step 1 "Uploading" since we're doing it above and with the file size
+                // ignore step 1 "Uploading" - already reported above with the file size
                 if (currentStep == 1 && totalSteps == 4) return;
-                if (progressListener != null) {
-                    progressListener.onProgress(currentStep, totalSteps, message);
+                if (fireProgress && progressLabel != null) {
+                    int percent = totalSteps > 0 ? (int) Math.round(currentStep * 99.0 / totalSteps) : 0;
+                    notifyStatusEvent(progressLabel + " - " + message, Math.min(99, Math.max(0, percent)));
                 }
             });
             log.trace("installAppInternal: DONE:{}", timer);
@@ -1057,52 +1240,172 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         }
     }
 
-    public void copyFiles(Device device, List<File> fileList, String dest, ProgressListener progressListener, TaskListener listener) {
+    public void copyFiles(Device device, List<File> fileList, String dest, TaskListener listener) {
+        String label = "Copying " + fileList.size() + " file(s) to " + device.getDisplayName();
+        notifyStatusEvent(label, 0);
         commandExecutorService.submit(() -> {
-            // come up with total files to copy
+            long start = System.currentTimeMillis();
             FileUtils.FileStats stats = FileUtils.getFileStats(fileList);
             AtomicInteger count = new AtomicInteger();
-            copyFilesInternal(device, fileList, dest, (numCompleted, numTotal, msg) -> {
-                int i = count.incrementAndGet();
-                progressListener.onProgress(i, stats.numTotal, msg);
+            boolean[] hasError = { false };
+            String[] lastError = { null };
+            copyFilesInternal(device, fileList, dest, (filename, isSuccess, error) -> {
+                int done = count.incrementAndGet();
+                if (!isSuccess) {
+                    hasError[0] = true;
+                    lastError[0] = error;
+                }
+                int total = Math.max(1, stats.numTotal);
+                int percent = Math.min(99, done * 100 / total);
+                notifyStatusEvent(label + " - " + filename, percent);
             });
-            listener.onTaskComplete(true, null);
+            long elapsed = System.currentTimeMillis() - start;
+            fireTerminalEvent(label, !hasError[0], lastError[0], elapsed);
+            if (listener != null) listener.onTaskComplete(!hasError[0], lastError[0]);
         });
     }
 
-    private void copyFilesInternal(Device device, List<File> fileList, String dest, ProgressListener progressListener) {
+    public void copyFiles(List<Device> deviceList, List<File> fileList, String dest, BatchTaskListener listener) {
+        if (deviceList == null || deviceList.isEmpty()) return;
+        int total = deviceList.size();
+        String filesLabel = fileList.size() == 1 ? fileList.get(0).getName() : (fileList.size() + " file(s)");
+        String label = "Copying " + filesLabel + " to " + total + " device(s)";
+        notifyStatusEvent(label, 0);
+
+        BatchTracker tracker = new BatchTracker(total, "Copying " + filesLabel,
+            allOk -> allOk ? "Copied " + filesLabel + " to " + total + " device(s)"
+                : "Failed to copy " + filesLabel + " to some devices",
+            listener);
+
+        // for single-device batches forward per-file progress so the bar actually moves
+        boolean fireInternalProgress = total == 1;
+        FileUtils.FileStats stats = fireInternalProgress ? FileUtils.getFileStats(fileList) : null;
+
+        for (Device device : deviceList) {
+            if (listener != null) listener.onDeviceStarted(device);
+            commandExecutorService.submit(() -> {
+                boolean[] hasError = { false };
+                String[] lastError = { null };
+                AtomicInteger fileCount = new AtomicInteger();
+                String perDeviceLabel = "Copying " + filesLabel + " to " + device.getDisplayName();
+                copyFilesInternal(device, fileList, dest, (filename, isSuccess, error) -> {
+                    if (!isSuccess) {
+                        hasError[0] = true;
+                        lastError[0] = error;
+                    }
+                    if (fireInternalProgress && stats != null) {
+                        int done = fileCount.incrementAndGet();
+                        int totalFiles = Math.max(1, stats.numTotal);
+                        int percent = Math.min(99, done * 100 / totalFiles);
+                        notifyStatusEvent(perDeviceLabel + " - " + filename, percent);
+                    }
+                });
+                tracker.recordCompletion(device, !hasError[0], lastError[0]);
+            });
+        }
+    }
+
+    private interface CopyFileCallback {
+        void onFileCopied(String filename, boolean isSuccess, String error);
+    }
+
+    private void copyFilesInternal(Device device, List<File> fileList, String dest, CopyFileCallback callback) {
         for (File file : fileList) {
             String filename = file.getName();
             String destFilename = dest + "/" + filename;
-            progressListener.onProgress(0, 0, filename);
             if (file.isDirectory()) {
                 ShellResult result = runShell(device, "mkdir \"" + destFilename + "\"");
                 log.trace("copyFilesInternal: FOLDER: {}: {}", destFilename, result);
-                // copy all children
                 File[] childrenArr = file.listFiles();
                 if (childrenArr != null) {
-                    copyFilesInternal(device, List.of(childrenArr), destFilename, progressListener);
+                    copyFilesInternal(device, List.of(childrenArr), destFilename, callback);
                 }
             } else {
                 log.trace("copyFilesInternal: FILE: {}", destFilename);
-
-                // check if device is remote
+                boolean isSuccess = true;
+                String error = null;
                 if (device.remoteConnection != null) {
-                    device.remoteConnection.uploadFile(device.serial, dest, filename, file);
+                    isSuccess = device.remoteConnection.uploadFile(device.serial, dest, filename, file);
+                    if (!isSuccess) error = "upload failed";
                 } else {
-                    // local device - use JADB
                     try {
                         RemoteFile remoteFile = new RemoteFileRecord(dest, filename, 0, 0, 0);
                         device.jadbDevice.push(file, remoteFile);
                     } catch (Exception e) {
                         log.error("copyFile: {} -> {}, Exception:{}", file.getAbsolutePath(), dest, e.getMessage());
+                        isSuccess = false;
+                        error = e.getMessage();
                     }
                 }
+                if (callback != null) callback.onFileCopied(filename, isSuccess, error);
+            }
+        }
+    }
+
+    private void fireTerminalEvent(String label, boolean isSuccess, String error, long elapsedMs) {
+        String detail;
+        if (isSuccess) {
+            detail = "✅ Success - " + Utils.formatTime(elapsedMs);
+        } else {
+            detail = "❌ Failed";
+            if (error != null) detail += ": " + error;
+            detail += " (" + Utils.formatTime(elapsedMs) + ")";
+        }
+        notifyStatusEvent(label, 100, !isSuccess, detail);
+    }
+
+    /**
+     * Helper for batch operations - tracks per-device completions, fires aggregate progress
+     * events, and produces a final terminal event + listener callback.
+     */
+    private class BatchTracker {
+        private final int total;
+        private final String progressLabelPrefix;
+        private final java.util.function.Function<Boolean, String> summaryFn;
+        private final BatchTaskListener listener;
+        private final long startTime = System.currentTimeMillis();
+        private final AtomicInteger completed = new AtomicInteger();
+        private final AtomicInteger failed = new AtomicInteger();
+        private final List<String> detailLines = Collections.synchronizedList(new ArrayList<>());
+
+        BatchTracker(int total, String progressLabelPrefix,
+                     java.util.function.Function<Boolean, String> summaryFn,
+                     BatchTaskListener listener) {
+            this.total = total;
+            this.progressLabelPrefix = progressLabelPrefix;
+            this.summaryFn = summaryFn;
+            this.listener = listener;
+        }
+
+        void recordCompletion(Device device, boolean isSuccess, String error) {
+            if (!isSuccess) failed.incrementAndGet();
+            String line = (isSuccess ? "✅ " : "❌ ") + device.getDisplayName();
+            if (!isSuccess && error != null) line += ": " + error;
+            detailLines.add(line);
+            if (listener != null) listener.onDeviceComplete(device, isSuccess, error);
+
+            int done = completed.incrementAndGet();
+            if (done < total) {
+                int percent = done * 100 / total;
+                notifyStatusEvent(progressLabelPrefix + " (" + done + "/" + total + ")", percent);
+            } else {
+                long elapsed = System.currentTimeMillis() - startTime;
+                boolean allOk = failed.get() == 0;
+                StringBuilder detail = new StringBuilder();
+                detail.append(allOk ? "✅ " : "❌ ").append(allOk ? "Success" : (failed.get() + " of " + total + " failed"));
+                detail.append(" - ").append(Utils.formatTime(elapsed));
+                synchronized (detailLines) {
+                    for (String l : detailLines) detail.append('\n').append(l);
+                }
+                String summary = summaryFn.apply(allOk);
+                notifyStatusEvent(summary, 100, !allOk, detail.toString());
+                if (listener != null) listener.onAllComplete(allOk, detail.toString());
             }
         }
     }
 
     public void restartDevice(Device device, TaskListener listener) {
+        notifyStatusEvent("Restarting " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             runShell(device, COMMAND_REBOOT);
             // TODO: detect success/fail
@@ -1136,12 +1439,60 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     public void runCustomCommand(Device device, String customCommand, CommandListener listener) {
+        notifyStatusEvent("Running command on " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             ShellResult result = runShell(device, customCommand);
             boolean isSuccess = result.isSuccess;
             log.trace("runCustomCommand: DONE: success:{}, {}", isSuccess, GsonHelper.toJson(result.resultList));
             if (listener != null) listener.onTaskComplete(result);
         });
+    }
+
+    public void runCustomCommand(List<Device> deviceList, String customCommand, BatchCommandListener listener) {
+        if (deviceList == null || deviceList.isEmpty()) return;
+        int total = deviceList.size();
+        String label = "Running command on " + total + " device(s)";
+        notifyStatusEvent(label, 0);
+
+        long start = System.currentTimeMillis();
+        AtomicInteger completed = new AtomicInteger();
+        AtomicInteger failed = new AtomicInteger();
+        List<String> detailLines = Collections.synchronizedList(new ArrayList<>());
+
+        for (Device device : deviceList) {
+            if (listener != null) listener.onDeviceStarted(device);
+            commandExecutorService.submit(() -> {
+                ShellResult result = runShell(device, customCommand);
+                boolean isSuccess = result.isSuccess;
+                if (!isSuccess) failed.incrementAndGet();
+
+                StringBuilder line = new StringBuilder();
+                line.append(isSuccess ? "✅ " : "❌ ").append(device.getDisplayName());
+                String output = TextUtils.join(result.resultList, "\n");
+                if (!output.isEmpty()) line.append(":\n    ").append(output.replace("\n", "\n    "));
+                detailLines.add(line.toString());
+                if (listener != null) listener.onDeviceComplete(device, result);
+
+                int done = completed.incrementAndGet();
+                if (done < total) {
+                    notifyStatusEvent("Running command (" + done + "/" + total + ")", done * 100 / total);
+                } else {
+                    long elapsed = System.currentTimeMillis() - start;
+                    boolean allOk = failed.get() == 0;
+                    StringBuilder detail = new StringBuilder();
+                    detail.append(allOk ? "✅ Success" : (failed.get() + " of " + total + " failed"));
+                    detail.append(" - ").append(Utils.formatTime(elapsed));
+                    synchronized (detailLines) {
+                        for (String l : detailLines) detail.append('\n').append(l);
+                    }
+                    String summary = allOk
+                        ? "Command succeeded on " + total + " device(s)"
+                        : "Command failed on " + failed.get() + " of " + total;
+                    notifyStatusEvent(summary, 100, !allOk, detail.toString());
+                    if (listener != null) listener.onAllComplete(allOk, detail.toString());
+                }
+            });
+        }
     }
 
     public void openTerminal(Device device, TaskListener listener) {
@@ -1238,10 +1589,6 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         return new FileResponse(fileList, null);
     }
 
-    public interface ProgressListener {
-        void onProgress(int numCompleted, int numTotal, String msg);
-    }
-
     public interface TaskListener {
         void onTaskComplete(boolean isSuccess, String error);
     }
@@ -1251,14 +1598,59 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     /**
+     * batch listener for multi-device operations - per-device hooks let callers
+     * keep doing things like {@code setDeviceBusy} per device.
+     */
+    public interface BatchTaskListener {
+        default void onDeviceStarted(Device device) {}
+        default void onDeviceComplete(Device device, boolean isSuccess, String error) {}
+        void onAllComplete(boolean allSucceeded, String joinedDetail);
+    }
+
+    public interface BatchScreenshotListener {
+        default void onDeviceStarted(Device device) {}
+        default void onScreenshot(Device device, BufferedImage image) {}
+        void onAllComplete(boolean allSucceeded, String joinedDetail);
+    }
+
+    public interface BatchCommandListener {
+        default void onDeviceStarted(Device device) {}
+        default void onDeviceComplete(Device device, ShellResult result) {}
+        void onAllComplete(boolean allSucceeded, String joinedDetail);
+    }
+
+    /**
      * download a file or folder from device
      */
     public void downloadFile(Device device, String path, DeviceFile file, File saveFile, boolean useRoot, TaskListener listener) {
         //log.debug("downloadFile: {}/{} -> {}", path, file.name, saveFile.getAbsolutePath());
+        String label = "Downloading " + file.name + " from " + device.getDisplayName();
+        notifyStatusEvent(label, 0);
         commandExecutorService.submit(() -> {
-            boolean isOk = downloadFileInternal(device, path, file, saveFile, useRoot);
-            // test if file was created
-            listener.onTaskComplete(isOk, null);
+            long start = System.currentTimeMillis();
+
+            // for single files of known size, poll saveFile.length() on a scheduler
+            // so the bar animates during the otherwise-opaque jadb pull
+            ScheduledFuture<?> poller = null;
+            if (!file.isDirectory && file.size > 0) {
+                final long expectedSize = file.size;
+                poller = scheduledExecutorService.scheduleAtFixedRate(() -> {
+                    long current = saveFile.exists() ? saveFile.length() : 0;
+                    int percent = (int) Math.min(99, current * 100 / expectedSize);
+                    notifyStatusEvent(label, percent);
+                }, 200, 200, TimeUnit.MILLISECONDS);
+            }
+
+            boolean isOk;
+            try {
+                isOk = downloadFileInternal(device, path, file, saveFile, useRoot);
+            } finally {
+                if (poller != null) poller.cancel(false);
+            }
+
+            long elapsed = System.currentTimeMillis() - start;
+            fireTerminalEvent(label, isOk, isOk ? null : "download failed", elapsed);
+            if (listener != null) listener.onTaskComplete(isOk, null);
         });
     }
 
@@ -1416,6 +1808,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * @param listener    Callback listener
      */
     public void pairDevice(String ip, int port, String pairingCode, TaskListener listener) {
+        notifyStatusEvent("Pairing with " + ip + ":" + port);
         commandExecutorService.submit(() -> {
             try {
                 log.debug("pairDevice: {}:{} with code:{}", ip, port, pairingCode);
@@ -1435,6 +1828,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     public void sendInputText(Device device, String text, TaskListener listener) {
+        notifyStatusEvent("Sending input to " + device.getDisplayName());
         commandExecutorService.submit(() -> {
             String command = "input text \"" + text + "\"";
             ShellResult result = runShell(device, command);
@@ -1485,10 +1879,11 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * start capturing device logs
      *
      * @param lastLogTime - last log entry (if logging had started previously) - 10-16 11:34:17.824
-     *                   - if null, defaults to 1 hour ago
+     *                   - if null, defaults to 10 mins ago
      */
     public void startLogging(Device device, String lastLogTime, String filterText, DeviceLogListener listener) {
         stopLogging(device);
+        notifyStatusEvent("Started logging " + device.getDisplayName());
 
         // handle remote device via WebSocket
         if (device.remoteConnection != null) {
@@ -1500,9 +1895,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         // local device - existing implementation
         final String logStartTime;
         if (lastLogTime == null) {
-            // default to 1 hour ago
+            // default to 10 mins ago
             SimpleDateFormat sdf = new SimpleDateFormat("MM-dd HH:mm:ss.SSS");
-            logStartTime = sdf.format(new Date(System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1)));
+            logStartTime = sdf.format(new Date(System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(10)));
         } else if (!lastLogTime.contains(".")) {
             // logcat -T expects MM-dd HH:mm:ss.SSS
             logStartTime = lastLogTime + ".000";
@@ -1520,6 +1915,13 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             try {
                 String[] args = new String[]{"-v", "threadtime", "-T", logStartTime};
                 inputStream = device.jadbDevice.executeShell("logcat", args);
+                // track the stream so stopLogging() can close it and unblock readLine()
+                synchronized (loggingStreamMap) {
+                    InputStream prev = loggingStreamMap.put(device.serial, inputStream);
+                    if (prev != null) {
+                        try { prev.close(); } catch (IOException ignored) {}
+                    }
+                }
                 BufferedReader input = new BufferedReader(new InputStreamReader(inputStream));
 
                 long lastUpdateMs = System.currentTimeMillis();
@@ -1536,18 +1938,22 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                         listener.handleLogEntries(logList);
                         logList.clear();
                         lastUpdateMs = System.currentTimeMillis();
-
-                        // check if logging is still running
-                        if (!loggingState.get()) {
-                            loggingStateMap.remove(device.serial);
-                            break;
-                        }
                     }
                 }
             } catch (Exception e) {
-                log.error("startLogging: Exception:{}", e.getMessage());
-                listener.handleError("Error: " + e.getMessage());
+                // expected when stopLogging() closes the stream out from under readLine()
+                if (loggingState.get()) {
+                    log.error("startLogging: Exception:{}", e.getMessage());
+                    listener.handleError("Error: " + e.getMessage());
+                }
             } finally {
+                synchronized (loggingStreamMap) {
+                    // only clear if it's still ours (a newer startLogging may have replaced it)
+                    if (loggingStreamMap.get(device.serial) == inputStream) {
+                        loggingStreamMap.remove(device.serial);
+                    }
+                }
+                loggingStateMap.remove(device.serial);
                 if (inputStream != null) {
                     try {
                         inputStream.close();
@@ -1574,7 +1980,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         // make sure logging is still running
         if (!isLogging(device.serial)) return;
 
-        // run in 30 seconds
+        // run every 5 seconds
         scheduledExecutorService.schedule(() -> {
             // make sure logging is still running
             if (!isLogging(device.serial)) return;
@@ -1582,7 +1988,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             Map<String, String> pidMap = getProcessMap(device);
             listener.handleProcessMap(pidMap);
             scheduleNextProcessCheck(device, listener);
-        }, 30, TimeUnit.SECONDS);
+        }, 5, TimeUnit.SECONDS);
     }
 
     private Map<String, String> getProcessMap(Device device) {
@@ -1663,6 +2069,17 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         if (loggingState != null && loggingState.get()) {
             log.debug("stopLogging: {}", device.serial);
             loggingState.set(false);
+            notifyStatusEvent("Stopped logging " + device.getDisplayName());
+        }
+        // close the logcat stream to unblock readLine() in the worker thread
+        // (necessary because a half-dead TCP socket - e.g. after laptop sleep -
+        // won't return EOF on its own and the worker would hang forever)
+        InputStream stream;
+        synchronized (loggingStreamMap) {
+            stream = loggingStreamMap.remove(device.serial);
+        }
+        if (stream != null) {
+            try { stream.close(); } catch (IOException ignored) {}
         }
     }
 
@@ -2048,6 +2465,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         synchronized (deviceList) {
             deviceList.removeIf(device -> device.remoteConnection == connection);
         }
+        notifyStatusEvent("Removed server " + connection.getName());
         notifyDevicesUpdated();
     }
 

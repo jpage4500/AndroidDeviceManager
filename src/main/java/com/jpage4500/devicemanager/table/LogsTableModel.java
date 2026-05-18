@@ -103,17 +103,24 @@ public class LogsTableModel extends AbstractTableModel {
     }
 
     public void setProcessMap(Map<String, String> processMap) {
-        this.processMap.clear();
+        if (processMap == null) {
+            this.processMap.clear();
+            return;
+        }
+        // don't clear old process ID's since they might still be visible in logs
+        //this.processMap.clear();
         this.processMap.putAll(processMap);
-
-        // NOTE: is it worth refreshing all rows just to update old log entries?
-        //fireTableDataChanged();
+        // intentionally don't fire a TableModelEvent: every model event runs through the
+        // TableRowSorter and can disturb the JTable selection (esp. mid-drag). The caller
+        // should table.repaint() to refresh visible APP cells.
     }
 
     public void setSearchText(String text) {
         if (TextUtils.equals(searchText, text)) return;
         searchText = text;
-        fireTableDataChanged();
+        // searchText only affects in-cell highlighting (LogsCellRenderer) — it doesn't
+        // change which rows are visible, so don't fire a TableModelEvent that would
+        // clear the user's selection. The caller should table.repaint() to refresh cells.
     }
 
     /**
