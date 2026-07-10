@@ -15,7 +15,6 @@ import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
 import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
-import com.jpage4500.devicemanager.ui.dialog.RemoteServerDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.dialog.ShareServerDialog;
 import com.jpage4500.devicemanager.ui.views.CustomTable;
@@ -141,6 +140,11 @@ public class DeviceScreen extends BaseScreen {
         icon = UiUtils.getImageIcon(Icons.MEMORY, UiUtils.IMG_SIZE_SMALL);
         memoryLabel = new HoverLabel(icon);
         memoryLabel.setBorder(0, 0);
+        // give memory label a fixed size to prevent it from shifting the UI around as the value
+        // changes. FlowLayout (leftPanel's layout) sizes to preferred size and ignores minimum size,
+        // so set preferred size and left-align the content (JButton centers it by default).
+        memoryLabel.setPreferredSize(new Dimension(90, 20));
+        memoryLabel.setHorizontalAlignment(SwingConstants.LEFT);
         leftPanel.add(memoryLabel);
         UiUtils.addLeftClickListener(memoryLabel, this::showSystemEnvironmentDialog);
         statusBar.add(leftPanel, BorderLayout.WEST);
@@ -713,23 +717,6 @@ public class DeviceScreen extends BaseScreen {
         });
     }
 
-    private void handleConnectButtonClicked(JButton button) {
-        JPopupMenu popupMenu = new JPopupMenu();
-
-        // adb wireless
-        JMenuItem adbItem = new JMenuItem("Connect to ADB Wireless Device", UiUtils.getImageIcon(Icons.ADB, UiUtils.IMG_SIZE_SMALL));
-        adbItem.addActionListener(e -> showConnectAdbWirelessDialog());
-        popupMenu.add(adbItem);
-
-        // connect to server
-        JMenuItem serverItem = new JMenuItem("Connect to Remote Server", UiUtils.getImageIcon(Icons.SERVER, UiUtils.IMG_SIZE_SMALL));
-        serverItem.addActionListener(e -> RemoteServerDialog.showRemoteServerDialog(this));
-        popupMenu.add(serverItem);
-
-        // anchor below the toolbar button
-        popupMenu.show(button, 0, button.getHeight());
-    }
-
     private void handleConnectDevice() {
         showConnectAdbWirelessDialog();
     }
@@ -1017,7 +1004,7 @@ public class DeviceScreen extends BaseScreen {
         }
 
         toolbar.setRollover(true);
-        JButton connectBtn = createToolbarButton(toolbar, ToolbarButton.CONNECT, actionEvent -> handleConnectButtonClicked((JButton) actionEvent.getSource()));
+        JButton connectBtn = createToolbarButton(toolbar, ToolbarButton.CONNECT, actionEvent -> showConnectAdbWirelessDialog());
         if (connectBtn != null) toolbar.addSeparator();
 
         JButton browseBtn = createToolbarButton(toolbar, ToolbarButton.BROWSE, actionEvent -> app.showFileBrowser(null));

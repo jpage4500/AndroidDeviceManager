@@ -9,11 +9,6 @@ on:
     paths-ignore:
       - 'README.md'
 
-# npm Trusted Publishing
-#permissions:
-#  id-token: write
-#  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -48,7 +43,7 @@ jobs:
           cat package.new
           mv package.new package.json
 
-      # NOTE: should not need this anymore with npm Trusted Publishing
+      # get NPM token from https://www.npmjs.com/settings/jpage4500/tokens/ and add it to github secrets
       - name: set NPM token
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
 
