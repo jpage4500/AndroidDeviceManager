@@ -8,13 +8,11 @@ import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.data.StatusEvent;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.client.RemoteConnection;
 import com.jpage4500.devicemanager.manager.server.RemoteServerManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
-import com.jpage4500.devicemanager.ui.dialog.ActivityDialog;
 import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
@@ -67,8 +65,6 @@ public class DeviceScreen extends BaseScreen {
     private javax.swing.Timer statusRevertTimer;
 
     private boolean hasSelectedDevice;
-
-    private ActivityDialog activityDialog;
 
     public DeviceScreen(App app) {
         super(app, null, "main", 900, 300);
@@ -172,9 +168,6 @@ public class DeviceScreen extends BaseScreen {
     private void setupMenuBar() {
         JMenu windowMenu = buildWindowMenu();
 
-        // [CMD + 4] = show activities
-        createCmdMenuItem(windowMenu, "Show Activities", KeyEvent.VK_4, e -> showActivityDialog());
-
         JMenu deviceMenu = new JMenu("Devices");
 
         // [CMD + F] = focus search box
@@ -187,14 +180,6 @@ public class DeviceScreen extends BaseScreen {
         menubar.add(windowMenu);
         menubar.add(deviceMenu);
         setJMenuBar(menubar);
-    }
-
-    public ActivityDialog showActivityDialog() {
-        if (activityDialog == null) {
-            activityDialog = new ActivityDialog(this);
-        }
-        activityDialog.showDialog();
-        return activityDialog;
     }
 
     @Override
@@ -442,20 +427,31 @@ public class DeviceScreen extends BaseScreen {
 
     public void handleStatusEvent(StatusEvent event) {
         statusLabel.setText(event.label);
+        statusLabel.setProgress(event.progress, event.isError);
+        boolean terminal = event.progress == 100 || event.isError || event.progress == -1;
         if (statusRevertTimer != null) statusRevertTimer.stop();
-        statusRevertTimer = new javax.swing.Timer(5000, e -> statusLabel.setText("History"));
-        statusRevertTimer.setRepeats(false);
-        statusRevertTimer.start();
+        if (terminal) {
+            statusRevertTimer = new javax.swing.Timer(5000, e -> {
+                statusLabel.setText("History");
+                statusLabel.setProgress(-1, false);
+            });
+            statusRevertTimer.setRepeats(false);
+            statusRevertTimer.start();
+        }
     }
 
     private void showStatusHistoryDialog() {
         List<StatusEvent> events = DeviceManager.getInstance().getStatusEvents();
-        SimpleDateFormat fmt = new SimpleDateFormat("M/d HH:mm:ss");
+        SimpleDateFormat fmt = new SimpleDateFormat("HH:mm:ss");
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
         for (int i = 0; i < events.size(); i++) {
             StatusEvent ev = events.get(i);
+            String value = ev.label;
+            if (ev.detail != null && !ev.detail.isEmpty()) {
+                value += " - " + ev.detail.replace("\n", " | ");
+            }
             // index suffix keeps keys unique when multiple events share a second
-            map.put(fmt.format(new Date(ev.timestampMs)) + " #" + (events.size() - i), ev.label);
+            map.put(fmt.format(new Date(ev.timestampMs)) + " #" + (events.size() - i), value);
         }
         DialogHelper.showListDialog(this, "Status History", map, null);
     }
@@ -607,87 +603,43 @@ public class DeviceScreen extends BaseScreen {
     }
 
     private void copyFiles(List<Device> selectedDeviceList, List<File> fileList) {
-        ActivityDialog activityDialog = showActivityDialog();
-
-        StringBuilder fileNames = new StringBuilder();
-        for (File file : fileList) {
-            if (fileNames.length() > 0) fileNames.append(", ");
-            else fileNames.append("[");
-            fileNames.append(file.getName());
-        }
-        fileNames.append("]");
-
         // TODO: where to put files on device?
         String destFolder = "/sdcard/Download/";
-        for (Device device : selectedDeviceList) {
-            app.setDeviceBusy(device, true);
-            // copy [abc.jpg, hello.text] to "device name"
-            String operationDesc = String.format("Copy %s -> %s", fileNames, device.getDisplayName());
-            int activityId = activityDialog.addOperation(operationDesc, Icons.COPY);
-            DeviceManager.getInstance().copyFiles(device, fileList, destFolder, (numCompleted, numTotal, msg) -> {
-                int progress = (numCompleted * 100) / numTotal;
-                activityDialog.updateOperation(activityId, progress, msg);
-            }, (isSuccess, error) -> {
+        DeviceManager.getInstance().copyFiles(selectedDeviceList, fileList, destFolder, new DeviceManager.BatchTaskListener() {
+            @Override
+            public void onDeviceStarted(Device device) {
+                app.setDeviceBusy(device, true);
+            }
+
+            @Override
+            public void onDeviceComplete(Device device, boolean isSuccess, String error) {
                 app.setDeviceBusy(device, false);
-                String msg = isSuccess ? "✅ Success" : "❌ Failed";
-                if (!isSuccess && error != null) msg += ": " + error;
-                activityDialog.updateOperation(activityId, 100, msg);
-            });
-        }
+            }
+
+            @Override
+            public void onAllComplete(boolean allSucceeded, String joinedDetail) {
+            }
+        });
     }
 
     private void installFiles(List<Device> selectedDeviceList, List<File> fileList) {
         if (fileList.isEmpty() || selectedDeviceList.isEmpty()) return;
-        // separate out all remote devices so we run 1 install action per remote server/connection
-        Map<RemoteConnection, List<Device>> remoteDeviceMap = new HashMap<>();
-        List<Device> localDeviceList = new ArrayList<>();
-        for (Device device : selectedDeviceList) {
-            if (device.remoteConnection != null) {
-                List<Device> remoteDeviceList = remoteDeviceMap.computeIfAbsent(device.remoteConnection, k -> new ArrayList<>());
-                remoteDeviceList.add(device);
-            } else {
-                localDeviceList.add(device);
-            }
-        }
-
-        ActivityDialog activityDialog = showActivityDialog();
-
         for (File file : fileList) {
-            // install on local devices first
-            for (Device device : localDeviceList) {
-                app.setDeviceBusy(device, true);
-                String label = String.format("Install %s -> %s", file.getName(), device.getDisplayName());
-                final int activityId = activityDialog.addOperation(label, Icons.FILE_APK);
-                DeviceManager.getInstance().installApp(device, file,
-                        (currentStep, totalSteps, message) -> {
-                            int percent = Math.max(0, Math.min(100, (int) Math.round((totalSteps > 0 ? (currentStep * 100.0 / totalSteps) : 0))));
-                            activityDialog.updateOperation(activityId, percent, message);
-                        },
-                        (isSuccess, error) -> {
-                            app.setDeviceBusy(device, false);
-                            String msg = isSuccess ? "✅ Success" : "❌ Failed";
-                            if (!isSuccess && error != null) msg += ": " + error;
-                            activityDialog.updateOperation(activityId, 100, msg);
-                            if (isSuccess) DeviceManager.getInstance().fetchDeviceDetails(device, true);
-                        }
-                );
-            }
-            // install on remote devices (grouped)
-            remoteDeviceMap.forEach((remoteConnection, deviceList) -> {
-                deviceList.forEach(device -> app.setDeviceBusy(device, true));
-                String label = String.format("Install %s -> %s (%d devices)", file.getName(), remoteConnection.getName(), deviceList.size());
-                final int activityId = activityDialog.addOperation(label, Icons.FILE_APK);
-                DeviceManager.getInstance().installApp(remoteConnection, deviceList, file,
-                        (currentStep, totalSteps, message) -> {
-                            int percent = Math.max(0, Math.min(100, (int) Math.round((totalSteps > 0 ? (currentStep * 100.0 / totalSteps) : 0))));
-                            activityDialog.updateOperation(activityId, percent, message);
-                        },
-                        (isSuccess, error) -> {
-                            deviceList.forEach(device -> app.setDeviceBusy(device, false));
-                            String msg = isSuccess ? "✅ Success" : "❌ Failed";
-                            if (!isSuccess && error != null) msg += ": " + error;
-                            activityDialog.updateOperation(activityId, 100, msg);
-                        });
+            DeviceManager.getInstance().installApp(selectedDeviceList, file, new DeviceManager.BatchTaskListener() {
+                @Override
+                public void onDeviceStarted(Device device) {
+                    app.setDeviceBusy(device, true);
+                }
+
+                @Override
+                public void onDeviceComplete(Device device, boolean isSuccess, String error) {
+                    app.setDeviceBusy(device, false);
+                    if (isSuccess) DeviceManager.getInstance().fetchDeviceDetails(device, true);
+                }
+
+                @Override
+                public void onAllComplete(boolean allSucceeded, String joinedDetail) {
+                }
             });
         }
     }
@@ -734,27 +686,30 @@ public class DeviceScreen extends BaseScreen {
             if (!DialogHelper.showConfirmDialog(this, "Screenshot", "Take screenshot of " + selectedDeviceList.size() + " devices?"))
                 return;
         }
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
-        for (Device device : selectedDeviceList) {
-            app.setDeviceBusy(device, true);
-            DeviceManager.getInstance().captureScreenshot(device, image -> {
+        DeviceManager.getInstance().captureScreenshot(selectedDeviceList, new DeviceManager.BatchScreenshotListener() {
+            @Override
+            public void onDeviceStarted(Device device) {
+                app.setDeviceBusy(device, true);
+            }
+
+            @Override
+            public void onScreenshot(Device device, java.awt.image.BufferedImage image) {
                 app.setDeviceBusy(device, false);
-                if (image == null) {
-                    resultWatcher.handleResult(device.serial, false, "screenshot failed");
-                    return;
-                }
+                if (image == null) return;
                 try {
                     String name = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(new java.util.Date()) + ".png";
                     File outFile = new File(Utils.getDownloadFolder(), name);
                     javax.imageio.ImageIO.write(image, "png", outFile);
                     Utils.openFile(outFile);
-                    resultWatcher.handleResult(device.serial, true, null);
                 } catch (Exception e) {
                     log.error("handleScreenshotCommand: {}", e.getMessage());
-                    resultWatcher.handleResult(device.serial, false, e.getMessage());
                 }
-            });
-        }
+            }
+
+            @Override
+            public void onAllComplete(boolean allSucceeded, String joinedDetail) {
+            }
+        });
     }
 
     private void handleConnectDevice() {
@@ -917,15 +872,21 @@ public class DeviceScreen extends BaseScreen {
             if (!DialogHelper.showConfirmDialog(this, "Mirror Device", "Mirror " + selectedDeviceList.size() + " devices?"))
                 return;
         }
+        DeviceManager.getInstance().mirrorDevice(selectedDeviceList, new DeviceManager.BatchTaskListener() {
+            @Override
+            public void onDeviceStarted(Device device) {
+                app.setDeviceBusy(device, true);
+            }
 
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size());
-        for (Device device : selectedDeviceList) {
-            app.setDeviceBusy(device, true);
-            DeviceManager.getInstance().mirrorDevice(device, false, (isSuccess, error) -> {
+            @Override
+            public void onDeviceComplete(Device device, boolean isSuccess, String error) {
                 app.setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
-            });
-        }
+            }
+
+            @Override
+            public void onAllComplete(boolean allSucceeded, String joinedDetail) {
+            }
+        });
     }
 
     private void handleRecordCommand() {
@@ -935,19 +896,21 @@ public class DeviceScreen extends BaseScreen {
             if (!DialogHelper.showConfirmDialog(this, "Record Device", "Record " + selectedDeviceList.size() + " devices?"))
                 return;
         }
+        DeviceManager.getInstance().recordScreen(selectedDeviceList, new DeviceManager.BatchTaskListener() {
+            @Override
+            public void onDeviceStarted(Device device) {
+                app.setDeviceBusy(device, true);
+            }
 
-        ResultWatcher resultWatcher = new ResultWatcher(getRootPane(), selectedDeviceList.size(), (isSuccess, error) -> {
-            if (!isSuccess) {
-                DialogHelper.showTextDialog(getRootPane(), "Results", error);
+            @Override
+            public void onDeviceComplete(Device device, boolean isSuccess, String error) {
+                app.setDeviceBusy(device, false);
+            }
+
+            @Override
+            public void onAllComplete(boolean allSucceeded, String joinedDetail) {
             }
         });
-        for (Device device : selectedDeviceList) {
-            app.setDeviceBusy(device, true);
-            DeviceManager.getInstance().recordScreen(device, (isSuccess, error) -> {
-                app.setDeviceBusy(device, false);
-                resultWatcher.handleResult(device.serial, isSuccess, isSuccess ? null : error);
-            });
-        }
     }
 
     public Device getFirstSelectedDevice() {

@@ -24,7 +24,6 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -65,6 +64,11 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
+
+    // tracks the last applied filter expression so doFilter() can no-op when nothing
+    // actually changed (e.g. focus-gained on the filter field swaps hint→"" and fires
+    // a spurious DocumentListener event — without this we'd clear the user's selection)
+    private String lastFilterRepr;
 
     private JList<Device> connectedDevicesList;
     private JPanel connectedDevicesContainer;
@@ -535,9 +539,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         });
 
         table.getSelectionModel().addListSelectionListener(event -> {
-            if (event.getValueIsAdjusting()) return;
-
-            // if row selected, stop auto-scroll
+            // disable auto-scroll the moment selection changes — even mid-drag — so
+            // newly-arriving logs don't scroll the viewport out from under the user's drag
             int numSelected = table.getSelectedRowCount();
             if (numSelected > 0 && autoScrollCheckBox.isSelected()) {
                 log.trace("setupTable: disabled auto scroll");
@@ -835,16 +838,29 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     private void refreshUi() {
-        int rowCount = table.getRowCount();
-        String msg = "viewing " + rowCount;
-
+        int visibleRows = table.getRowCount();
+        int selectedCount = table.getSelectedRowCount();
+        int totalRows = visibleRows;
         LogFilter[] filter = sorter.getFilter();
         if (filter != null) {
-            int totalRows = model.getRowCount();
-            // viewing X / Y
-            if (totalRows > 0 && totalRows > rowCount) {
-                msg += " / " + totalRows;
+            totalRows = model.getRowCount();
+        }
+
+        String msg;
+        if (selectedCount > 1) {
+            if (selectedCount == visibleRows) {
+                msg = "Selected all " + selectedCount;
+            } else {
+                // selected SELECTED of TOTAL
+                msg = "selected " + selectedCount + " of " + visibleRows;
             }
+        } else {
+            // viewing VIEWING of TOTAL
+            msg = "viewing " + visibleRows;
+        }
+
+        if (totalRows > visibleRows) {
+            msg += " / " + totalRows;
         }
         statusBar.setLeftLabel(msg);
     }
@@ -897,6 +913,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         } else {
             model.setSearchText(text);
         }
+        // setSearchText intentionally fires no TableModelEvent (would clear selection);
+        // a direct repaint refreshes the highlighted cells
+        table.repaint();
         refreshUi();
     }
 
@@ -1218,10 +1237,45 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             sb.append("\"" + text + "\"");
         }
 
-        sorter.setFilter(list.toArray(new LogFilter[0]));
+        // Skip the re-filter (and selection clear) if the filter expression is
+        // unchanged. Otherwise spurious DocumentListener fires — e.g. clicking into the
+        // filter field swaps the hint text for "" — would wipe the user's row selection.
+        String repr = sb.toString();
+        if (Objects.equals(repr, lastFilterRepr)) return;
+        lastFilterRepr = repr;
 
-        statusBar.setCenterLabel(sb.toString());
-        model.fireTableDataChanged();
+        LogFilter[] filterArray = list.toArray(new LogFilter[0]);
+        ListSelectionModel sm = table.getSelectionModel();
+        int min = sm.getMinSelectionIndex();
+        int max = sm.getMaxSelectionIndex();
+        boolean hugeSelection = min >= 0 && max - min + 1 > MAX_PRESERVE_SELECTION_RANGE;
+
+        if (hugeSelection) {
+            // huge selection (e.g. CMD+A on 97k rows): preserving by identity would be
+            // O(n) and freeze the EDT. Instead detect "select all" intent and re-apply
+            // it to the newly-filtered view; otherwise just drop the selection.
+            int viewRowsBefore = table.getRowCount();
+            boolean wasSelectAll = min == 0 && max == viewRowsBefore - 1;
+            sm.setValueIsAdjusting(true);
+            try {
+                sm.clearSelection();
+                sorter.setFilter(filterArray);
+                int viewRowsAfter = table.getRowCount();
+                if (wasSelectAll && viewRowsAfter > 0) {
+                    sm.setSelectionInterval(0, viewRowsAfter - 1);
+                }
+            } finally {
+                sm.setValueIsAdjusting(false);
+            }
+        } else {
+            // small selection: snapshot LogEntries by identity, re-apply after the
+            // filter. Entries no longer visible (filtered out) drop from selection.
+            SelectionSnapshot snap = snapshotSelection();
+            sorter.setFilter(filterArray);
+            restoreSelection(snap);
+        }
+
+        statusBar.setCenterLabel(repr);
         refreshUi();
     }
 
@@ -1230,21 +1284,41 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         // save log entries as they'll get cleared after this method returns
         List<LogEntry> logList = new ArrayList<>(logEntryList);
         SwingUtilities.invokeLater(() -> {
-            // capture selected rows
-//            int[] selectedRows = table.getSelectedRows();
-//            log.trace("handleLogEntries: selected rows: {}", GsonHelper.toJson(selectedRows));
+            ListSelectionModel sm = table.getSelectionModel();
+            int min = sm.getMinSelectionIndex();
+            int max = sm.getMaxSelectionIndex();
+            boolean hugeSelection = min >= 0 && max - min + 1 > MAX_PRESERVE_SELECTION_RANGE;
 
-            model.addLogEntry(logList);
-
-            // restore selected rows
-//            table.clearSelection();
-//            int rowCount = table.getRowCount();
-//            for (int row : selectedRows) {
-//                if (row < rowCount) {
-//                    table.addRowSelectionInterval(row, row);
-//                }
-//            }
-
+            if (hugeSelection) {
+                // CMD+A on a 200k-row buffer: JTable's internal sortManager allocates
+                // int[selectionSize] and iterates the whole selection on every model event
+                // (every 100ms here), freezing the EDT. Clear it before the insert (so
+                // sortManager's save/restore sees an empty selection) and re-apply via a
+                // single range setSelectionInterval after — both O(1).
+                int viewRowsBefore = table.getRowCount();
+                boolean wasSelectAll = min == 0 && max == viewRowsBefore - 1;
+                sm.setValueIsAdjusting(true);
+                try {
+                    sm.clearSelection();
+                    model.addLogEntry(logList);
+                    int viewRowsAfter = table.getRowCount();
+                    if (viewRowsAfter > 0) {
+                        // for select-all, extend over any newly-added rows too; otherwise
+                        // restore the original [min, max] range (clamped if buffer trim
+                        // pushed `max` out of range)
+                        int restoreEnd = wasSelectAll ? viewRowsAfter - 1 : Math.min(max, viewRowsAfter - 1);
+                        if (restoreEnd >= min && min < viewRowsAfter) {
+                            sm.setSelectionInterval(min, restoreEnd);
+                        }
+                    }
+                } finally {
+                    sm.setValueIsAdjusting(false);
+                }
+            } else {
+                SelectionSnapshot snap = snapshotSelection();
+                model.addLogEntry(logList);
+                restoreSelection(snap);
+            }
             scrollToFollow();
             refreshUi();
         });
@@ -1252,7 +1326,128 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
 
     @Override
     public void handleProcessMap(Map<String, String> processMap) {
-        SwingUtilities.invokeLater(() -> model.setProcessMap(processMap));
+        SwingUtilities.invokeLater(() -> {
+            model.setProcessMap(processMap);
+            // setProcessMap deliberately fires no TableModelEvent (would disturb the user's
+            // selection / in-progress drag) — repaint to refresh the APP column directly
+            table.repaint();
+        });
+    }
+
+    /**
+     * Selection snapshot keyed by LogEntry identity, plus the anchor / lead entries.
+     * The anchor matters because JTable's drag handler extends from anchor → cursor on
+     * each mouseDragged. When a model event fires, the TableRowSorter's save/restore
+     * cycle uses addSelectionInterval(), which resets the anchor to the last-added row —
+     * so the next drag event "forgets" the rows before that anchor. Capturing anchor/lead
+     * and restoring them by identity keeps drag-select working across model updates.
+     */
+    private record SelectionSnapshot(Set<LogEntry> selected, LogEntry anchor, LogEntry lead) {
+    }
+
+    /**
+     * Cap on how big a selection we'll try to track across model events. Beyond this we
+     * fall back to JTable's native handling — a multi-thousand-row selection won't be a
+     * mid-drag (drags don't span that many rows in one go), and snapshot/restore at that
+     * size would burn measurable CPU every 100ms.
+     */
+    private static final int MAX_PRESERVE_SELECTION_RANGE = 1000;
+
+    private SelectionSnapshot snapshotSelection() {
+        ListSelectionModel sm = table.getSelectionModel();
+        int min = sm.getMinSelectionIndex();
+        int max = sm.getMaxSelectionIndex();
+        LogEntry anchor = logEntryAtViewRow(sm.getAnchorSelectionIndex());
+        LogEntry lead = logEntryAtViewRow(sm.getLeadSelectionIndex());
+        if (min < 0) {
+            return new SelectionSnapshot(Collections.emptySet(), anchor, lead);
+        }
+        // huge selection (e.g. CMD+A on a 200k-row buffer) — skip; iterating + rebuilding
+        // it every 100ms freezes the UI, and JTable handles bulk selections fine on its own
+        if (max - min + 1 > MAX_PRESERVE_SELECTION_RANGE) return null;
+        Set<LogEntry> selected = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (int viewRow = min; viewRow <= max; viewRow++) {
+            if (!sm.isSelectedIndex(viewRow)) continue;
+            LogEntry e = logEntryAtViewRow(viewRow);
+            if (e != null) selected.add(e);
+        }
+        return new SelectionSnapshot(selected, anchor, lead);
+    }
+
+    private LogEntry logEntryAtViewRow(int viewRow) {
+        // anchor/lead indices on the selection model can survive a filter shrink, so
+        // bounds-check against the current view row count before convertRowIndexToModel
+        // (which throws ArrayIndexOutOfBoundsException for out-of-range view rows)
+        if (viewRow < 0 || viewRow >= table.getRowCount()) return null;
+        int modelRow = table.convertRowIndexToModel(viewRow);
+        if (modelRow < 0 || modelRow >= model.getRowCount()) return null;
+        return (LogEntry) model.getValueAt(modelRow, 0);
+    }
+
+    private void restoreSelection(SelectionSnapshot snap) {
+        if (snap == null) return;
+        if (snap.selected.isEmpty() && snap.anchor == null && snap.lead == null) return;
+
+        // fast path: if selection + anchor + lead are already intact, leave them alone.
+        // Critical mid-drag: rewriting an already-correct selection moves the anchor and
+        // breaks the next mouseDragged event.
+        ListSelectionModel sm = table.getSelectionModel();
+        if (selectionIntact(snap, sm)) return;
+
+        int rowCount = model.getRowCount();
+        int anchorViewRow = -1;
+        int leadViewRow = -1;
+        int rangeStart = -1;
+        int rangeEnd = -1;
+        sm.setValueIsAdjusting(true);
+        try {
+            sm.clearSelection();
+            for (int modelRow = 0; modelRow < rowCount; modelRow++) {
+                LogEntry e = (LogEntry) model.getValueAt(modelRow, 0);
+                if (e == null) continue;
+                int viewRow = table.convertRowIndexToView(modelRow);
+                if (viewRow < 0) continue;
+                if (e == snap.anchor) anchorViewRow = viewRow;
+                if (e == snap.lead) leadViewRow = viewRow;
+                if (!snap.selected.contains(e)) continue;
+                // coalesce consecutive view rows into a single addSelectionInterval call
+                if (rangeStart < 0) {
+                    rangeStart = rangeEnd = viewRow;
+                } else if (viewRow == rangeEnd + 1) {
+                    rangeEnd = viewRow;
+                } else {
+                    sm.addSelectionInterval(rangeStart, rangeEnd);
+                    rangeStart = rangeEnd = viewRow;
+                }
+            }
+            if (rangeStart >= 0) sm.addSelectionInterval(rangeStart, rangeEnd);
+            // restore anchor/lead AFTER addSelectionInterval — those calls reset both.
+            // moveLeadSelectionIndex (DefaultListSelectionModel only) moves lead without
+            // touching selected indices; setLeadSelectionIndex would modify the selection.
+            if (anchorViewRow >= 0) sm.setAnchorSelectionIndex(anchorViewRow);
+            if (leadViewRow >= 0 && sm instanceof DefaultListSelectionModel dsm) {
+                dsm.moveLeadSelectionIndex(leadViewRow);
+            }
+        } finally {
+            sm.setValueIsAdjusting(false);
+        }
+    }
+
+    private boolean selectionIntact(SelectionSnapshot snap, ListSelectionModel sm) {
+        int min = sm.getMinSelectionIndex();
+        int max = sm.getMaxSelectionIndex();
+        if (min < 0) return snap.selected.isEmpty();
+        int count = 0;
+        for (int viewRow = min; viewRow <= max; viewRow++) {
+            if (!sm.isSelectedIndex(viewRow)) continue;
+            count++;
+            if (count > snap.selected.size()) return false;
+            LogEntry e = logEntryAtViewRow(viewRow);
+            if (e == null || !snap.selected.contains(e)) return false;
+        }
+        if (count != snap.selected.size()) return false;
+        return logEntryAtViewRow(sm.getAnchorSelectionIndex()) == snap.anchor
+                && logEntryAtViewRow(sm.getLeadSelectionIndex()) == snap.lead;
     }
 
     @Override

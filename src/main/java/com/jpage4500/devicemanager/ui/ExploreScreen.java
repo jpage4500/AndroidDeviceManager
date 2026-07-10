@@ -455,10 +455,7 @@ public class ExploreScreen extends BaseScreen {
 
         app.setDeviceBusy(device, true);
         DeviceManager deviceManager = DeviceManager.getInstance();
-        deviceManager.copyFiles(device, fileList, selectedPath, (numCompleted, numTotal, msg1) -> {
-            String status = String.format("%d/%d - %s", numCompleted, numTotal, msg1);
-            errorLabel.setText(status);
-        }, (isSuccess, error) -> {
+        deviceManager.copyFiles(device, fileList, selectedPath, (isSuccess, error) -> {
             app.setDeviceBusy(device, false);
             errorLabel.setText(error);
             refreshFiles();
