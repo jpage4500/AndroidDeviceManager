@@ -112,7 +112,7 @@ public abstract class BaseScreen extends JFrame {
         // show current dimensions in title
         int width = getWidth();
         int height = getHeight();
-        setTitle(width + "x" + height);
+        super.setTitle(width + "x" + height);
 
         // reset or start timer to restore original title after 1 second
         if (resizeTitleTimer != null) {
@@ -122,6 +122,18 @@ public abstract class BaseScreen extends JFrame {
             resizeTitleTimer.setRepeats(false);
             resizeTitleTimer.start();
         }
+    }
+
+    @Override
+    public void setTitle(String title) {
+        // while a resize is in flight we're showing "WxH" in the title bar; redirect external
+        // title updates to titleBackup so restoreTitle() picks up the latest value instead of
+        // restoring a stale one (e.g. headless logs window resolving its device asynchronously)
+        if (resizeTitleTimer != null && resizeTitleTimer.isRunning()) {
+            titleBackup = title;
+            return;
+        }
+        super.setTitle(title);
     }
 
     /**
@@ -182,13 +194,13 @@ public abstract class BaseScreen extends JFrame {
      * Restore original title after resize completes
      */
     private void restoreTitle() {
-        if (titleBackup != null) {
-            setTitle(titleBackup);
-            titleBackup = null;
-        }
         if (resizeTitleTimer != null) {
             resizeTitleTimer.stop();
             resizeTitleTimer = null;
+        }
+        if (titleBackup != null) {
+            super.setTitle(titleBackup);
+            titleBackup = null;
         }
     }
 
