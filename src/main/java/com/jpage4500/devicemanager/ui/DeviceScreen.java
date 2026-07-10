@@ -140,6 +140,11 @@ public class DeviceScreen extends BaseScreen {
         icon = UiUtils.getImageIcon(Icons.MEMORY, UiUtils.IMG_SIZE_SMALL);
         memoryLabel = new HoverLabel(icon);
         memoryLabel.setBorder(0, 0);
+        // give memory label a fixed size to prevent it from shifting the UI around as the value
+        // changes. FlowLayout (leftPanel's layout) sizes to preferred size and ignores minimum size,
+        // so set preferred size and left-align the content (JButton centers it by default).
+        memoryLabel.setPreferredSize(new Dimension(90, 20));
+        memoryLabel.setHorizontalAlignment(SwingConstants.LEFT);
         leftPanel.add(memoryLabel);
         UiUtils.addLeftClickListener(memoryLabel, this::showSystemEnvironmentDialog);
         statusBar.add(leftPanel, BorderLayout.WEST);
