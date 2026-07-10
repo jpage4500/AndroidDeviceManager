@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.Timer;
+import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
@@ -126,6 +128,28 @@ public class ConnectDialog extends JPanel {
         serverField = new HintTextField(DEFAULT_HOST, text -> updateConnectButton());
         serverField.setText(lastIp);
         serverField.setHorizontalAlignment(SwingConstants.LEFT);
+        // ENTER on the IP field connects (when enabled)
+        serverField.addActionListener(e -> handleEnterKey());
+        // when dialog is shown, focus the IP field and select the last octet (ie: the "109" in 192.168.0.109)
+        // so the user can quickly type just the last octet and connect
+        serverField.addAncestorListener(new AncestorListener() {
+            @Override
+            public void ancestorAdded(AncestorEvent event) {
+                serverField.removeAncestorListener(this);
+                SwingUtilities.invokeLater(() -> {
+                    serverField.requestFocusInWindow();
+                    selectIpLastOctet();
+                });
+            }
+
+            @Override
+            public void ancestorRemoved(AncestorEvent event) {
+            }
+
+            @Override
+            public void ancestorMoved(AncestorEvent event) {
+            }
+        });
         manualPanel.add(serverField, "growx");
 
         manualPanel.add(new JLabel("Port:"), "gapleft 10");
@@ -150,6 +174,8 @@ public class ConnectDialog extends JPanel {
                 updateConnectButton();
             }
         });
+        // ENTER on the Port field connects (when enabled)
+        portField.addActionListener(e -> handleEnterKey());
         manualPanel.add(portField, "growx");
 
         connectButton = new JButton("Connect");
@@ -158,12 +184,20 @@ public class ConnectDialog extends JPanel {
 
         add(manualPanel, "growx, wrap");
 
-        // Add QR Code button
+        // bottom button row: 'Connect Remote Server' (left) and 'Pair with QR Code' (right)
+        JPanel bottomPanel = new JPanel(new MigLayout("fillx, insets 0"));
+
+        JButton serverButton = new JButton("Connect Remote Server", UiUtils.getImageIcon(Icons.SERVER, UiUtils.IMG_SIZE_ICON));
+        serverButton.addActionListener(e -> RemoteServerDialog.showRemoteServerDialog(this));
+        bottomPanel.add(serverButton, "");
+
         JButton qrButton = new JButton("Pair with QR Code", UiUtils.getImageIcon(Icons.QR_CODE, UiUtils.IMG_SIZE_ICON));
         qrButton.addActionListener(e -> {
             QrCodeDialog.showQrCodeDialog(this, this::refreshTable);
         });
-        add(qrButton, "align right, gaptop 10");
+        bottomPanel.add(qrButton, "pushx, align right");
+
+        add(bottomPanel, "growx, gaptop 10");
 
         updateConnectButton();
 
@@ -183,6 +217,30 @@ public class ConnectDialog extends JPanel {
             }
         }
         connectButton.setEnabled(isEnabled);
+    }
+
+    /**
+     * ENTER pressed on the IP or Port field - connect if the connect button is enabled
+     */
+    private void handleEnterKey() {
+        if (connectButton != null && connectButton.isEnabled()) {
+            handleManualConnect();
+        }
+    }
+
+    /**
+     * select the last octet of the IP address (ie: the "109" in "192.168.0.109") so the
+     * user can quickly type just the last octet
+     */
+    private void selectIpLastOctet() {
+        String text = serverField.getText();
+        if (TextUtils.isEmpty(text)) return;
+        int lastDot = text.lastIndexOf('.');
+        if (lastDot >= 0 && lastDot + 1 < text.length()) {
+            serverField.select(lastDot + 1, text.length());
+        } else {
+            serverField.selectAll();
+        }
     }
 
     private void handleManualConnect() {
