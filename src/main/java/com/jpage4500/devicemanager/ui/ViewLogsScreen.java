@@ -65,6 +65,22 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     public JButton logButton;
     public boolean isLoggedPaused; // true when user clicks on 'stop logging'
 
+    // toolbar 'Hide'/'Show' columns button
+    private JButton hideButton;
+    private boolean isColumnsHidden;
+    // table resize mode in use before 'Hide' was clicked; restored when 'Show' is clicked
+    private int visibleResizeMode = JTable.AUTO_RESIZE_OFF;
+
+    // columns hidden by the 'Hide' button (NOTE: PID is displayed in the App column)
+    private static final List<String> HIDDEN_COLUMNS = List.of(
+            LogsTableModel.Columns.APP.name(),
+            LogsTableModel.Columns.TID.name()
+    );
+
+    // saved table layout used while columns are hidden; kept separate from the default
+    // layout so clicking 'Show' restores the column sizes/order from before 'Hide'
+    private static final String LAYOUT_HIDDEN = "hidden";
+
     // tracks the last applied filter expression so doFilter() can no-op when nothing
     // actually changed (e.g. focus-gained on the filter field swaps hint→"" and fires
     // a spurious DocumentListener event — without this we'd clear the user's selection)
@@ -481,8 +497,8 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         for (LogFilter filter : selectedList) selectedFilterList.add(filter.name);
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_SELECTED_FILTERS, GsonHelper.toJson(selectedFilterList));
 
-        // persist column widths/order
-        table.saveTable();
+        // persist column widths/order (for whichever hide/show layout is active)
+        table.saveTable(isColumnsHidden ? LAYOUT_HIDDEN : null);
 
         saveDividerLocations();
 
@@ -505,15 +521,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         applyRowHeight(cellRenderer.getFont());
 
         // restore user-defined column sizes
-        if (!table.restoreTable()) {
-            // use some default column sizes
-            table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
-            table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
-            table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
-            table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
-            table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
-            table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
-        }
+        if (!table.restoreTable()) applyDefaultColWidths();
 
         table.setMaxColWidth(LogsTableModel.Columns.LEVEL.toString(), 35);
         table.setMaxColWidth(LogsTableModel.Columns.TID.toString(), 100);
@@ -679,6 +687,19 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 }
             }
         });
+
+        // re-apply the last hide/show columns state
+        isColumnsHidden = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_HIDE_COLUMNS, false);
+        if (isColumnsHidden) applyColumnVisibility();
+    }
+
+    private void applyDefaultColWidths() {
+        table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
+        table.setPreferredColWidth(LogsTableModel.Columns.TID.toString(), 60);
+        table.setPreferredColWidth(LogsTableModel.Columns.DATE.toString(), 159);
+        table.setPreferredColWidth(LogsTableModel.Columns.APP.toString(), 150);
+        table.setPreferredColWidth(LogsTableModel.Columns.TAG.toString(), 200);
+        table.setPreferredColWidth(LogsTableModel.Columns.MSG.toString(), 700);
     }
 
     private void handleMouseMovedForTooltip(java.awt.event.MouseEvent e) {
@@ -871,6 +892,9 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         logButton = createSmallToolbarButton(toolbar, null, null, "Start Logging", actionEvent -> toggleLoggingButton());
         updateLoggingButton();
 
+        hideButton = createSmallToolbarButton(toolbar, null, null, null, actionEvent -> toggleHideColumns());
+        updateHideButton();
+
         toolbar.add(Box.createHorizontalGlue());
 
         // toolbar.addSeparator(new Dimension(10, 0));
@@ -905,6 +929,72 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         ImageIcon icon = UiUtils.getImageIcon(iconEnum, UiUtils.IMG_SIZE_ICON);
         logButton.setIcon(icon);
         logButton.setText(isLoggedPaused ? "Start" : "Stop");
+    }
+
+    private void toggleHideColumns() {
+        // remember the layout for the mode we're leaving so switching back restores it
+        table.saveTable(isColumnsHidden ? LAYOUT_HIDDEN : null);
+        if (!isColumnsHidden) visibleResizeMode = table.getAutoResizeMode();
+
+        isColumnsHidden = !isColumnsHidden;
+        PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_HIDE_COLUMNS, isColumnsHidden);
+        applyColumnVisibility();
+    }
+
+    /**
+     * apply the current hide/show columns state:
+     * - hidden: drop the App/TID columns, shrink Date/Tag and switch the table to fit mode
+     * (no horizontal scrolling) so Message takes up the remaining space
+     * - visible: restore all columns plus the sizes/order from before 'Hide' was clicked
+     */
+    private void applyColumnVisibility() {
+        String dateCol = LogsTableModel.Columns.DATE.toString();
+        String tagCol = LogsTableModel.Columns.TAG.toString();
+        String msgCol = LogsTableModel.Columns.MSG.toString();
+
+        if (isColumnsHidden) {
+            // in fit mode JTable hands out the extra width in proportion to each column's
+            // max-to-preferred headroom -- capping date/tag gives nearly all of it to Message
+            // (and the min widths keep them readable when the window is narrow)
+            table.setMinColWidth(dateCol, 70);
+            table.setMaxColWidth(dateCol, 90);
+            table.setMinColWidth(tagCol, 100);
+            table.setMaxColWidth(tagCol, 260);
+            table.setMinColWidth(msgCol, 100);
+
+            model.setHiddenColumns(HIDDEN_COLUMNS);
+            table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+
+            if (!table.restoreTable(LAYOUT_HIDDEN)) {
+                table.setPreferredColWidth(LogsTableModel.Columns.LEVEL.toString(), 28);
+                // ~50% of the normal date column: enough to show the time (the date column
+                // truncates from the left, so "05-13 15:20:12" -> "15:20:12")
+                table.setPreferredColWidth(dateCol, 80);
+                table.setPreferredColWidth(tagCol, 160);
+                table.setPreferredColWidth(msgCol, 300);
+            }
+        } else {
+            // drop the hidden-mode constraints before restoring the saved widths since
+            // setMinWidth/setMaxWidth would clamp them
+            table.clearColWidthConstraints(dateCol);
+            table.clearColWidthConstraints(tagCol);
+            table.clearColWidthConstraints(msgCol);
+
+            model.setHiddenColumns(null);
+            table.setAutoResizeMode(visibleResizeMode);
+
+            if (!table.restoreTable()) applyDefaultColWidths();
+        }
+        updateHideButton();
+    }
+
+    private void updateHideButton() {
+        Icons iconEnum = isColumnsHidden ? Icons.EYE_OPEN : Icons.EYE_CLOSED;
+        hideButton.setIcon(UiUtils.getImageIcon(iconEnum, UiUtils.IMG_SIZE_ICON));
+        hideButton.setText(isColumnsHidden ? "Show" : "Hide");
+        hideButton.setToolTipText(isColumnsHidden
+                ? "Show all columns"
+                : "Hide App/TID columns and fit the rest to the window");
     }
 
     private void doSearch(String text) {

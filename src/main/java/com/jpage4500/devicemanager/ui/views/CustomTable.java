@@ -29,6 +29,9 @@ public class CustomTable extends JTable {
 
     private static final int MIN_COLUMN_WIDTH = 10;
     private static final int MAX_COLUMN_WIDTH = 2000;
+    // TableColumn's own defaults; restored by clearColWidthConstraints()
+    private static final int UNSET_MIN_COLUMN_WIDTH = 15;
+    private static final int UNSET_MAX_COLUMN_WIDTH = Integer.MAX_VALUE;
 
     private String prefKey;
     private TooltipListener tooltipListener;
@@ -373,14 +376,29 @@ public class CustomTable extends JTable {
         transient TableColumn column;
     }
 
+    /**
+     * preference key holding the column order/widths for a given layout
+     */
+    private String getDetailsKey(String layout) {
+        if (layout == null) return prefKey + "-details";
+        return prefKey + "-" + layout + "-details";
+    }
+
     public boolean restoreTable() {
+        return restoreTable(null);
+    }
+
+    /**
+     * @param layout name of an alternate saved layout (null for the default one)
+     */
+    public boolean restoreTable(String layout) {
         if (prefKey == null) return false;
 
         try {
             Preferences prefs = Preferences.userRoot();
-            String detailsStr = prefs.get(prefKey + "-details", null);
+            String detailsStr = prefs.get(getDetailsKey(layout), null);
             if (detailsStr == null || detailsStr.isEmpty()) {
-                if (log.isTraceEnabled()) log.trace("restoreTable: no saved state for {}", prefKey);
+                if (log.isTraceEnabled()) log.trace("restoreTable: no saved state for {}", getDetailsKey(layout));
                 return false;
             }
 
@@ -519,6 +537,20 @@ public class CustomTable extends JTable {
     }
 
     /**
+     * drop any min/max width constraint set for a column, restoring the default range.
+     * NOTE: setMinWidth/setMaxWidth also clamp the current width, so call this before
+     * applying widths that fall outside of a previous constraint.
+     */
+    public void clearColWidthConstraints(String colName) {
+        minWidthByName.remove(colName);
+        maxWidthByName.remove(colName);
+        TableColumn column = getColumnByName(colName);
+        if (column == null) return;
+        column.setMinWidth(UNSET_MIN_COLUMN_WIDTH);
+        column.setMaxWidth(UNSET_MAX_COLUMN_WIDTH);
+    }
+
+    /**
      * Re-apply registered min/max width constraints. Called after restoreTable so constraints
      * survive structure changes that recreate TableColumn instances.
      */
@@ -534,6 +566,13 @@ public class CustomTable extends JTable {
     }
 
     public void saveTable() {
+        saveTable(null);
+    }
+
+    /**
+     * @param layout name of an alternate saved layout (null for the default one)
+     */
+    public void saveTable(String layout) {
         if (prefKey == null) return;
 
         try {
@@ -562,7 +601,7 @@ public class CustomTable extends JTable {
             }
 
             Preferences prefs = Preferences.userRoot();
-            prefs.put(prefKey + "-details", GsonHelper.toJson(detailList));
+            prefs.put(getDetailsKey(layout), GsonHelper.toJson(detailList));
             prefs.flush(); // Ensure written to disk
             //if (log.isTraceEnabled()) log.trace("saveTable: successfully saved {} columns for {}", detailList.size(), prefKey);
         } catch (Exception e) {
