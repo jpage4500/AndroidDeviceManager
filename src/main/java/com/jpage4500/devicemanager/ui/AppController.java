@@ -70,6 +70,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
     private SaveLogsScreen saveLogsScreen;
     private MessageViewScreen messageScreen;
+    private CommandScreen commandScreen;
 
     // system tray (dorkbox)
     private SystemTray systemTray;
@@ -270,6 +271,16 @@ public class AppController implements App, DeviceManager.DeviceListener {
     }
 
     @Override
+    public void showCommand(List<Device> devices) {
+        if (devices == null || devices.isEmpty()) return;
+        if (commandScreen == null) {
+            commandScreen = new CommandScreen(this);
+        }
+        commandScreen.setDeviceList(devices);
+        commandScreen.show();
+    }
+
+    @Override
     public void showMessage(String title, String text) {
         // NOTE: callers can be on a background thread (eg: adb command results)
         SwingUtilities.invokeLater(() -> {
@@ -310,6 +321,11 @@ public class AppController implements App, DeviceManager.DeviceListener {
     @Override
     public void onSaveLogsClosed() {
         saveLogsScreen = null;
+    }
+
+    @Override
+    public void onCommandClosed() {
+        commandScreen = null;
     }
 
     // ========================================================================
@@ -426,6 +442,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
             screen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
         }
         if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        if (commandScreen != null) commandScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
 
         DeviceManager.getInstance().handleExit();
 

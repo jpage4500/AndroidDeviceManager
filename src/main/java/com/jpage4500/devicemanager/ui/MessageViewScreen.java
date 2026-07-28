@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -63,7 +62,7 @@ public class MessageViewScreen extends BaseScreen {
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
         setupMenuBar();
-        setupKeyboardShortcuts();
+        setupEscapeToClose();
 
         setTitle("Message Viewer");
 
@@ -110,22 +109,6 @@ public class MessageViewScreen extends BaseScreen {
         menubar.add(windowMenu);
         menubar.add(messageMenu);
         setJMenuBar(menubar);
-    }
-
-    /**
-     * [ESC] = close window
-     * NOTE: uses WHEN_IN_FOCUSED_WINDOW so this fires even when textArea has focus
-     */
-    private void setupKeyboardShortcuts() {
-        JRootPane rootPane = getRootPane();
-        rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-            .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "closeWindow");
-        rootPane.getActionMap().put("closeWindow", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                closeWindow();
-            }
-        });
     }
 
     @Override

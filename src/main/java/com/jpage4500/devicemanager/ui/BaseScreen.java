@@ -148,6 +148,24 @@ public abstract class BaseScreen extends JFrame {
     }
 
     /**
+     * [ESC] = close window
+     * NOTE: uses WHEN_IN_FOCUSED_WINDOW so this fires no matter which child has focus.
+     * Components which consume ESC themselves (eg: HintTextField clears its text) block this,
+     * so those screens need to handle ESC on that component too
+     */
+    protected void setupEscapeToClose() {
+        JRootPane rootPane = getRootPane();
+        rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "closeWindow");
+        rootPane.getActionMap().put("closeWindow", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                closeWindow();
+            }
+        });
+    }
+
+    /**
      * Build the standard "Window" menu (Close, Show Devices/Logs/Browse, Settings, Hide Toolbar,
      * Always-on-top). Each screen calls this from its menu setup and adds its own screen-specific
      * menus alongside.
