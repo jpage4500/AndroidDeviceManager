@@ -6,15 +6,16 @@
 
     <groupId>com.jpage</groupId>
     <artifactId>AndroidDeviceManager</artifactId>
-    <version>${maven.build.timestamp}</version>
+    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <maven.compiler.release>17</maven.compiler.release>
-        <!-- example: 25.12.9-1711 ; NOTE: must not contain a leading 0 in any of the values (ie: don't use "H" since it's 0-23) -->
-        <maven.build.timestamp.format>yy.M.d-km</maven.build.timestamp.format>
+        <!-- version is "1.0.[git commit count]" (example: 1.0.508) and is set by the caller;
+             see scripts/build.sh. CI passes the release tag - see .github/workflows/jdeploy.yml -->
+        <revision>1.0.0</revision>
     </properties>
 
     <dependencies>

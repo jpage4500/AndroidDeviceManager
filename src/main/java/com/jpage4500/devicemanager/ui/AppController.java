@@ -730,13 +730,16 @@ public class AppController implements App, DeviceManager.DeviceListener {
         String desc = null;
         NetworkHelper.HttpResponse response = NetworkHelper.getRequest(UPDATE_SOURCE_GITHUB);
         List<GithubRelease> releases = GsonHelper.stringToList(response.body, GithubRelease.class);
-        if (!releases.isEmpty()) {
-            GithubRelease latestRelease = releases.get(0);
-            Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, latestRelease.tagName);
+        for (GithubRelease release : releases) {
+            // skip the "jdeploy" prerelease - it holds package-info.json for jdeploy's auto-updater
+            if (release.prerelease) continue;
+            Utils.CompareResult compareResult = Utils.compareVersion(MainApplication.version, release.tagName);
             if (compareResult == Utils.CompareResult.VERSION_NEWER) {
-                version = latestRelease.tagName;
-                desc = latestRelease.body;
+                version = release.tagName;
+                desc = release.body;
             }
+            // releases are returned newest first
+            break;
         }
 
         String finalVersion = version;

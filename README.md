@@ -140,10 +140,10 @@ I'm using jdeploy to package this as a native app for Mac/Windows/Linux. This al
 To install open a terminal and run this command:
 
 ```
-/bin/bash -c "$(curl -fsSL https://www.jdeploy.com/~android-device-manager/install.sh)"
+/bin/bash -c "$(curl -fsSL https://www.jdeploy.com/gh/jpage4500/AndroidDeviceManager/install.sh)"
 ```
 
-See [this page](https://www.jdeploy.com/~android-device-manager) to download the installer directly
+See [this page](https://www.jdeploy.com/gh/jpage4500/AndroidDeviceManager) to download the installer directly, or grab it from [Releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
 
 ## Build
 
@@ -168,6 +168,44 @@ See [this page](https://www.jdeploy.com/~android-device-manager) to download the
     - `mvn compile`
 - run:
     - `mvn exec:java`
+
+</details>
+
+## Releasing
+
+<details>
+  <summary>How releases work (and the token they need)</summary>
+
+Pushing to `develop` runs [`.github/workflows/jdeploy.yml`](.github/workflows/jdeploy.yml), which:
+
+1. tags the commit `1.0.<git commit count>`
+2. on that tag push, builds the jar and uses [jDeploy](https://www.jdeploy.com) to publish native
+   Mac/Windows/Linux installers to [Releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
+
+jDeploy also keeps a `package-info.json` file on a prerelease tagged `jdeploy` — that's the manifest
+installed copies of the app read to auto-update, so don't delete that release.
+
+### Creating the ADM_JDEPLOY_GITHUB_TOKEN secret
+
+Both jobs need a personal access token. The built-in `GITHUB_TOKEN` won't work: pushes made with it
+never trigger another workflow, so the tag pushed by job 1 wouldn't start job 2.
+
+**Fine-grained token** (recommended) — <https://github.com/settings/personal-access-tokens/new>
+
+- **Repository access** → *Only select repositories* → `jpage4500/AndroidDeviceManager`
+- **Permissions** → *Repository permissions* → **Contents: Read and write**
+  (this one permission covers both pushing the tag and creating/uploading releases)
+- **Expiration** — note the date. Releases silently stop when the token expires.
+
+**Classic token** — <https://github.com/settings/tokens/new>
+
+- Scope: **`public_repo`** (or `repo` if the repository is ever made private)
+
+Then add it to the repo: **Settings → Secrets and variables → Actions → New repository secret**,
+named exactly `ADM_JDEPLOY_GITHUB_TOKEN`.
+
+The repository must stay **public** — the jDeploy installer downloads updates from the release assets
+anonymously.
 
 </details>
 
