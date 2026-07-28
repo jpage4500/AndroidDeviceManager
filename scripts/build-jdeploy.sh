@@ -3,7 +3,7 @@
 cd ..
 
 echo "** mvn package **"
-mvn package # build the fat jar to target/
+mvn package -Drevision=1.0.$(git rev-list --count HEAD) # build the fat jar to target/
 
 echo "** npx jdeploy package **"
 npx jdeploy package

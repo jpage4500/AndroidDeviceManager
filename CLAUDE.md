@@ -17,7 +17,7 @@ Java 17+, Maven. Entry point: `com.jpage4500.devicemanager.MainApplication`.
 - `scripts/clear-preferences.sh` — wipes saved Java `Preferences`
 - No test suite is set up (`package.json`'s `test` script is a stub).
 
-CI: `.github/workflows/jdeploy.yml` runs on push to `develop` — builds, publishes via `jdeploy`, creates a GitHub release. Version is the Maven build timestamp (`yy.M.d-Hmm`) injected into `app.properties`.
+CI: `.github/workflows/jdeploy.yml`. Push to `develop` → job 1 tags `1.0.<git commit count>` → the tag push triggers job 2, which builds and publishes installers to GitHub Releases via the `shannah/jdeploy` action (`deploy_target: github`, no longer npm). The tag *is* the version: job 2 passes it as `-Drevision=`, which sets `${project.version}` and lands in `app.properties`. Local builds need the same flag (`scripts/build.sh` handles it); a bare `mvn package` falls back to `1.0.0`. Requires the `ADM_JDEPLOY_GITHUB_TOKEN` secret (a PAT with `contents: write` — the default `GITHUB_TOKEN` can't trigger the tag-push job); setup steps are in README.md under "Releasing".
 
 ## External tooling assumed on PATH
 

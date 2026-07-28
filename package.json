@@ -8,10 +8,17 @@
         "type": "git",
         "url": "git+https://github.com/jpage4500/AndroidDeviceManager.git"
     },
-    "version": "24.10.18-2046",
+    "version": "1.0.508",
     "jdeploy": {
         "jdk": false,
         "javaVersion": "17",
+        "publishTargets": [
+            {
+                "name": "github: github",
+                "type": "GITHUB",
+                "url": "https://github.com/jpage4500/AndroidDeviceManager"
+            }
+        ],
         "documentTypes": [
             {
                 "extension": "apk",

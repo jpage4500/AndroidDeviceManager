@@ -1,17 +1,18 @@
 #!/bin/bash
 
 APP=AndroidDeviceManager
-COMMITS=$(git rev-list HEAD --count)
 
 cd "$(dirname $0)"
 cd ..
+
+COMMITS=$(git rev-list HEAD --count)
 
 cd target
 rm -rf *.zip *.app *.jar
 cd ..
 
 # mvn clean
-mvn install
+mvn install -Drevision=1.0.$COMMITS
 
 if [ ! -d target/$APP.app ]; then
     echo "target/$APP.app not found!"
