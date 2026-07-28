@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -29,7 +30,8 @@ public class MessageViewScreen extends BaseScreen {
     public static final String TEXT_AUTO_FORMAT_OFF = "Auto Format OFF";
     public static final String TEXT_WRAP_OFF = "Wrap OFF";
 
-    private LogEntry[] logEntryArr;
+    // raw (unformatted) text currently being viewed
+    private String rawText = "";
 
     private JTextArea textArea;
     private JScrollPane scrollPane;
@@ -61,6 +63,7 @@ public class MessageViewScreen extends BaseScreen {
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
         setupMenuBar();
+        setupKeyboardShortcuts();
 
         setTitle("Message Viewer");
 
@@ -109,6 +112,22 @@ public class MessageViewScreen extends BaseScreen {
         setJMenuBar(menubar);
     }
 
+    /**
+     * [ESC] = close window
+     * NOTE: uses WHEN_IN_FOCUSED_WINDOW so this fires even when textArea has focus
+     */
+    private void setupKeyboardShortcuts() {
+        JRootPane rootPane = getRootPane();
+        rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "closeWindow");
+        rootPane.getActionMap().put("closeWindow", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                closeWindow();
+            }
+        });
+    }
+
     @Override
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
@@ -125,12 +144,27 @@ public class MessageViewScreen extends BaseScreen {
     }
 
     public void setLogEntry(LogEntry... logEntryArr) {
-        this.logEntryArr = logEntryArr;
+        StringBuilder msg = new StringBuilder();
+        for (LogEntry logEntry : logEntryArr) {
+            if (!msg.isEmpty()) msg.append("\n");
+            msg.append(logEntry.message);
+        }
+        setText(null, msg.toString());
+    }
+
+    /**
+     * display any text (eg: adb command results)
+     *
+     * @param title window title (null to leave title unchanged)
+     */
+    public void setText(String title, String text) {
+        this.rawText = text != null ? text : "";
+        if (TextUtils.notEmpty(title)) setTitle(title);
 
         refreshUi();
 
         boolean autoFormat = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_AUTO_FORMAT_MESSAGE, true);
-        if (autoFormat && TextUtils.containsJson(getLogText())) {
+        if (autoFormat && TextUtils.containsJson(rawText)) {
             formatJson();
         } else {
             restoreText();
@@ -141,15 +175,6 @@ public class MessageViewScreen extends BaseScreen {
             scrollPane.getVerticalScrollBar().setValue(0);
             scrollPane.getHorizontalScrollBar().setValue(0);
         });
-    }
-
-    private String getLogText() {
-        StringBuilder msg = new StringBuilder();
-        for (LogEntry logEntry : logEntryArr) {
-            if (!msg.isEmpty()) msg.append("\n");
-            msg.append(logEntry.message);
-        }
-        return msg.toString();
     }
 
     private void toggleAutoFormat() {
@@ -191,14 +216,14 @@ public class MessageViewScreen extends BaseScreen {
     }
 
     private void formatJson() {
-        String prettyText = TextUtils.formatJson(getLogText());
+        String prettyText = TextUtils.formatJson(rawText);
         textArea.setText(prettyText);
         jsonButton.setText(TEXT_RESTORE);
     }
 
     private void restoreText() {
         // restore original text
-        textArea.setText(getLogText());
+        textArea.setText(rawText);
         jsonButton.setText(TEXT_FORMAT_JSON);
     }
 

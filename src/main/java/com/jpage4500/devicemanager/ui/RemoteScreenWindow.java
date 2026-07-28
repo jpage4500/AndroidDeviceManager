@@ -914,7 +914,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 popup.addSeparator();
             }
 
-            CommandDialog.setupCommandPopupMenu(popup, device);
+            CommandDialog.setupCommandPopupMenu(popup, app, device);
 
             // TODO: uncomment later if useful
 //            // Page Up

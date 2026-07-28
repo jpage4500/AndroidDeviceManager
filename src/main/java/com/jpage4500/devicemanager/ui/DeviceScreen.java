@@ -390,7 +390,7 @@ public class DeviceScreen extends BaseScreen {
             popupMenu.addSeparator();
 
             // user-defined adb commands ("Predefined ADB Commands" right-click menu)
-            CommandDialog.setupCommandPopupMenu(popupMenu, device);
+            CommandDialog.setupCommandPopupMenu(popupMenu, app, device);
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
@@ -1193,7 +1193,7 @@ public class DeviceScreen extends BaseScreen {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
 
-        CommandDialog.showCommandDialog(this, selectedDeviceList);
+        CommandDialog.showCommandDialog(this, app, selectedDeviceList);
     }
 
     private void handleRestartCommand() {

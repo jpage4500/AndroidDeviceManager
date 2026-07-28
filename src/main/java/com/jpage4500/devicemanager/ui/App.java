@@ -23,6 +23,13 @@ public interface App {
 
     void showInput(Device device);
 
+    /**
+     * display text (eg: adb command results) in the message viewer
+     *
+     * @param title window title (null to leave title unchanged)
+     */
+    void showMessage(String title, String text);
+
     // ------------------------------------------------------------------
     // cleanup callbacks — fired by screens from their close handlers
     // ------------------------------------------------------------------

@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.AlternatingBackgroundColorRenderer;
+import com.jpage4500.devicemanager.ui.App;
 import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
@@ -34,13 +35,15 @@ public class CommandDialog extends JPanel {
     private JList<String> list;
     private DefaultListModel<String> listModel;
     private List<Device> selectedDeviceList;
+    private App app;
 
-    public static void showCommandDialog(Component frame, List<Device> selectedDeviceList) {
-        CommandDialog screen = new CommandDialog(selectedDeviceList);
+    public static void showCommandDialog(Component frame, App app, List<Device> selectedDeviceList) {
+        CommandDialog screen = new CommandDialog(app, selectedDeviceList);
         DialogHelper.showCustomDialog(frame, screen, "Send ADB Command", new String[0]);
     }
 
-    public CommandDialog(List<Device> selectedDeviceList) {
+    public CommandDialog(App app, List<Device> selectedDeviceList) {
+        this.app = app;
         this.selectedDeviceList = selectedDeviceList;
 
         setLayout(new MigLayout("fillx", "[][]"));
@@ -113,13 +116,17 @@ public class CommandDialog extends JPanel {
         populateRecent();
 
         log.debug("runCommand: {}, devices:{}", command, selectedDeviceList.size());
+        String finalCommand = command;
         DeviceManager.getInstance().runCustomCommand(selectedDeviceList, command, new DeviceManager.BatchCommandListener() {
             @Override
             public void onAllComplete(boolean allSucceeded, String joinedDetail) {
                 log.trace("runCommand: {}, detail:\n{}", allSucceeded, joinedDetail);
-                showCommandResults(CommandDialog.this, allSucceeded, joinedDetail);
+                showCommandResults(CommandDialog.this, app, finalCommand, allSucceeded, joinedDetail);
             }
         });
+
+        // close this (modal) dialog - otherwise it would block input to the results window
+        UiUtils.closeWindow(this);
     }
 
     private void populateRecent() {
@@ -201,13 +208,13 @@ public class CommandDialog extends JPanel {
         populateRecent();
     }
 
-    public static void setupCommandPopupMenu(JPopupMenu popup, Device device) {
+    public static void setupCommandPopupMenu(JPopupMenu popup, App app, Device device) {
         JMenu commandMenu = new JMenu("Send Command");
         Map<String, String> namedCommandMap = CommandDialog.getNamedCommands();
         namedCommandMap.forEach((name, command) -> {
             JMenuItem item = new JMenuItem(name);
             item.setToolTipText(command);
-            item.addActionListener(e -> runCustomCommand(popup, device, command));
+            item.addActionListener(e -> runCustomCommand(popup, app, device, command));
             commandMenu.add(item);
         });
         if (!namedCommandMap.isEmpty()) commandMenu.addSeparator();
@@ -223,42 +230,47 @@ public class CommandDialog extends JPanel {
             item.addActionListener(e -> {
                 // move to top of recent list
                 CommandDialog.addCustomCommand(command);
-                runCustomCommand(popup, device, command);
+                runCustomCommand(popup, app, device, command);
             });
             commandMenu.add(item);
         }
         if (!customCommandList.isEmpty()) commandMenu.addSeparator();
 
         JMenuItem item = new JMenuItem("Enter Command...", UiUtils.getImageIcon(Icons.FILE_ADB, UiUtils.IMG_SIZE_SMALL));
-        item.addActionListener(e -> handleSendCommand(popup, device));
+        item.addActionListener(e -> handleSendCommand(popup, app, device));
         commandMenu.add(item);
 
         popup.add(commandMenu);
         popup.addSeparator();
     }
 
-    private static void runCustomCommand(Component component, Device device, String command) {
+    private static void runCustomCommand(Component component, App app, Device device, String command) {
         DeviceManager.getInstance().runCustomCommand(device, command, result ->
-            showCommandResults(component, result.isSuccess, TextUtils.join(result.resultList, "\n")));
+            showCommandResults(component, app, command, result.isSuccess, TextUtils.join(result.resultList, "\n")));
     }
 
     /**
-     * display adb command results in a dialog
+     * display adb command results in the message viewer (more formatting options than a plain dialog)
      * NOTE: results arrive on a DeviceManager background thread
      */
-    private static void showCommandResults(Component component, boolean isSuccess, String text) {
-        String title = isSuccess ? "Success" : "Failed";
-        SwingUtilities.invokeLater(() -> DialogHelper.showTextDialog(component, title, text));
+    private static void showCommandResults(Component component, App app, String command, boolean isSuccess, String text) {
+        String title = (isSuccess ? "Success" : "Failed") + ": " + command;
+        if (app != null) {
+            app.showMessage(title, text);
+        } else {
+            // no App reference (eg: scrcpy mirror window) - fall back to a simple text dialog
+            SwingUtilities.invokeLater(() -> DialogHelper.showTextDialog(component, title, text));
+        }
     }
 
-    private static void handleSendCommand(Component component, Device device) {
+    private static void handleSendCommand(Component component, App app, Device device) {
         // prompt for adb command
         String command = DialogHelper.showInputDialog(component, "ADB Command", "Enter command to run", null);
         if (TextUtils.isEmpty(command)) return;
 
         command = CommandDialog.santizeCommand(command);
 
-        runCustomCommand(component, device, command);
+        runCustomCommand(component, app, device, command);
     }
 
 }

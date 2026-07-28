@@ -69,6 +69,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
     private final Map<String, ViewLogsScreen> logsViewMap = new HashMap<>();
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
     private SaveLogsScreen saveLogsScreen;
+    private MessageViewScreen messageScreen;
 
     // system tray (dorkbox)
     private SystemTray systemTray;
@@ -266,6 +267,16 @@ public class AppController implements App, DeviceManager.DeviceListener {
             inputViewMap.put(device.serial, inputScreen);
         }
         inputScreen.show();
+    }
+
+    @Override
+    public void showMessage(String title, String text) {
+        // NOTE: callers can be on a background thread (eg: adb command results)
+        SwingUtilities.invokeLater(() -> {
+            if (messageScreen == null) messageScreen = new MessageViewScreen(this);
+            messageScreen.setText(title, text);
+            messageScreen.show();
+        });
     }
 
     // ========================================================================
