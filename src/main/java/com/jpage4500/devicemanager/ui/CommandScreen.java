@@ -171,10 +171,9 @@ public class CommandScreen extends BaseScreen {
 
         addCustomCommand(command);
 
-        // update displayed list
+        // update displayed list (command just run is now last and selected)
         populateRecent();
-        // populateRecent() selects the first entry which overwrites the text field - put back the
-        // command that was just run so it can be edited/re-sent
+        // keep the command in the text field so it can be edited/re-sent
         textField.setText(command);
 
         log.debug("runCommand: {}, devices:{}", command, selectedDeviceList.size());
@@ -197,7 +196,13 @@ public class CommandScreen extends BaseScreen {
         List<String> customCommandList = getCustomCommands();
         listModel.addAll(customCommandList);
 
-        if (!listModel.isEmpty()) list.setSelectedIndex(0);
+        if (!listModel.isEmpty()) {
+            // most recently used command is last - select it and scroll down so it's visible
+            int lastIndex = listModel.size() - 1;
+            list.setSelectedIndex(lastIndex);
+            // NOTE: invokeLater so this also works before the window has been laid out
+            SwingUtilities.invokeLater(() -> list.ensureIndexIsVisible(lastIndex));
+        }
     }
 
     public static List<String> getCustomCommands() {
@@ -237,11 +242,11 @@ public class CommandScreen extends BaseScreen {
         // update recent list
         List<String> customCommands = getCustomCommands();
         customCommands.remove(command);
-        // add to top of list
-        customCommands.add(0, command);
-        // only save last 10 entries
+        // add to bottom of list (most recently used command is last)
+        customCommands.add(command);
+        // only keep the last 10 entries (drop the oldest)
         if (customCommands.size() > MAX_RECENT_COMMANDS) {
-            customCommands = customCommands.subList(0, MAX_RECENT_COMMANDS);
+            customCommands = customCommands.subList(customCommands.size() - MAX_RECENT_COMMANDS, customCommands.size());
         }
 
         PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
