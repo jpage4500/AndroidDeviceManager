@@ -14,7 +14,10 @@ name: build and deploy using jDeploy
 on:
   push:
     branches: ['develop']
-    tags: ['*']
+    # IMPORTANT: only version tags - must NOT match 'jdeploy'. jDeploy creates a tag by that name
+    # in this repo to hold package-info.json, and 'tags: [*]' would re-trigger this workflow on it,
+    # publishing a bogus release with version "jdeploy" and pointing dist-tags.latest at it.
+    tags: ['1.0.*']
     # NOTE: path filters are ignored for tag pushes, so this only skips job 1
     paths-ignore:
       - 'README.md'
@@ -64,10 +67,14 @@ jobs:
   # JOB 2: build and deploy (triggered by tag)
   # ==========================================
   build-and-deploy:
-    if: startsWith(github.ref, 'refs/tags/')
+    # second guard against publishing jDeploy's own metadata tag as if it were a release
+    if: ${{ github.ref_type == 'tag' && github.ref_name != 'jdeploy' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # full history so gen_release_notes.sh can log commits back to the previous tag
+          fetch-depth: 0
 
       - name: Set up JDK 22
         uses: actions/setup-java@v4
@@ -90,9 +97,58 @@ jobs:
           deploy_target: 'github'
 
       # also attach the fat jar - see SERVER.md for running ADM headless
+      # NOTE: uploaded with the CLI (not an action) so the release body jDeploy just wrote is left alone
       - name: Attach jar to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          token: ${{ secrets.ADM_JDEPLOY_GITHUB_TOKEN }}
-          files: target/AndroidDeviceManager.jar
+        env:
+          GH_TOKEN: ${{ secrets.ADM_JDEPLOY_GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" target/AndroidDeviceManager.jar \
+            --repo "${{ github.repository }}" --clobber
+
+      - name: Generate Release Notes
+        run: |
+          chmod +x scripts/gen_release_notes.sh
+
+          # everything since the previous tag; falls back to the last 5 commits on the first release
+          PREV_TAG=$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || echo "")
+          if [[ -n "$PREV_TAG" ]]; then
+            echo "generating notes since $PREV_TAG"
+            ./scripts/gen_release_notes.sh "tag" "brief" "$PREV_TAG" > notes.raw
+          else
+            echo "no previous tag found - using recent commits"
+            ./scripts/gen_release_notes.sh "commit" "brief" > notes.raw
+          fi
+
+          # drop blank lines and normalize every change to a "- " markdown bullet
+          grep -v '^[[:space:]]*$' notes.raw \
+            | sed -E 's/^[[:space:]]*-[[:space:]]*//; s/^/- /' > release-notes.txt
+
+          if [[ ! -s release-notes.txt ]]; then
+            echo "- no changes found since $PREV_TAG" > release-notes.txt
+          fi
+
+          echo "Generated Release Notes:"
+          cat release-notes.txt
+
+      # view releases here: https://github.com/jpage4500/AndroidDeviceManager/releases
+      # jDeploy already wrote the installer download links into the body - keep them and add
+      # the release notes above
+      - name: Update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.ADM_JDEPLOY_GITHUB_TOKEN }}
+        run: |
+          EXISTING=$(gh release view "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --json body -q '.body' || echo "")
+
+          # if the body couldn't be read, fall back to the installer links jdeploy generated
+          INSTALLER_LINKS=./jdeploy/github-release-files/jdeploy-release-notes.md
+          if [[ -z "$EXISTING" && -f "$INSTALLER_LINKS" ]]; then
+            EXISTING=$(cat "$INSTALLER_LINKS")
+          fi
+
+          { echo "## Release Notes"; echo ""; cat release-notes.txt; echo ""; echo "$EXISTING"; } > combined-notes.txt
+
+          gh release edit "${{ github.ref_name }}" \
+            --notes-file combined-notes.txt \
+            --repo "${{ github.repository }}"

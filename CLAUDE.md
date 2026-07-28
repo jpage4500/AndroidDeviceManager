@@ -15,9 +15,10 @@ Java 17+, Maven. Entry point: `com.jpage4500.devicemanager.MainApplication`.
 - `mvn install` — also bundles a native `.app` for macOS via `macosappbundler-maven-plugin`
 - `scripts/createMacApp.sh` — full Mac packaging + zip + copy to `/Applications`
 - `scripts/clear-preferences.sh` — wipes saved Java `Preferences`
+- `scripts/gen_release_notes.sh <type> <format> [tag]` — release notes from git log (falls back to PR titles for merge commits); CI calls `tag brief <prev-tag>`
 - No test suite is set up (`package.json`'s `test` script is a stub).
 
-CI: `.github/workflows/jdeploy.yml`. Push to `develop` → job 1 tags `1.0.<git commit count>` → the tag push triggers job 2, which builds and publishes installers to GitHub Releases via the `shannah/jdeploy` action (`deploy_target: github`, no longer npm). The tag *is* the version: job 2 passes it as `-Drevision=`, which sets `${project.version}` and lands in `app.properties`. Local builds need the same flag (`scripts/build.sh` handles it); a bare `mvn package` falls back to `1.0.0`. Requires the `ADM_JDEPLOY_GITHUB_TOKEN` secret (a PAT with `contents: write` — the default `GITHUB_TOKEN` can't trigger the tag-push job); setup steps are in README.md under "Releasing".
+CI: `.github/workflows/jdeploy.yml`. Push to `develop` → job 1 tags `1.0.<git commit count>` → the tag push triggers job 2, which builds and publishes installers to GitHub Releases via the `shannah/jdeploy` action (`deploy_target: github`, no longer npm). The tag *is* the version: job 2 passes it as `-Drevision=`, which sets `${project.version}` and lands in `app.properties`. Local builds need the same flag (`scripts/build.sh` handles it); a bare `mvn package` falls back to `1.0.0`. Job 2 then attaches the fat jar and rewrites the release body as generated notes + the installer download links jDeploy wrote (don't swap the `gh release upload` step back to `softprops/action-gh-release` — it blanks the body). Requires the `ADM_JDEPLOY_GITHUB_TOKEN` secret (a PAT with `contents: write` — the default `GITHUB_TOKEN` can't trigger the tag-push job); setup steps are in README.md under "Releasing".
 
 ## External tooling assumed on PATH
 

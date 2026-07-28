@@ -181,6 +181,14 @@ Pushing to `develop` runs [`.github/workflows/jdeploy.yml`](.github/workflows/jd
 1. tags the commit `1.0.<git commit count>`
 2. on that tag push, builds the jar and uses [jDeploy](https://www.jdeploy.com) to publish native
    Mac/Windows/Linux installers to [Releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
+3. writes the release body: changes since the previous tag (via `scripts/gen_release_notes.sh`)
+   followed by the installer download links
+
+To preview the notes for a release locally:
+
+```
+./scripts/gen_release_notes.sh tag brief 1.0.511
+```
 
 jDeploy also keeps a `package-info.json` file on a prerelease tagged `jdeploy` — that's the manifest
 installed copies of the app read to auto-update, so don't delete that release.
