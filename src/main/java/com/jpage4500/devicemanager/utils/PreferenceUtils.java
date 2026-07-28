@@ -48,6 +48,7 @@ public class PreferenceUtils {
         PREF_EXIT_TO_TRAY,
         PREF_DEVICE_AUTO_RESIZE,
         PREF_LOGS_AUTO_RESIZE,
+        PREF_LOGS_HIDE_COLUMNS,               // logs: true when App/TID columns are hidden
         PREF_SERVER_ENABLED,
         PREF_SCRCPY_DO_NOT_SHOW_AGAIN,        // true to prevent showing scrcpy dialog
     }

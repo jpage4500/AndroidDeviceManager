@@ -23,6 +23,18 @@ public interface App {
 
     void showInput(Device device);
 
+    /**
+     * send a custom adb command to the given device(s)
+     */
+    void showCommand(List<Device> devices);
+
+    /**
+     * display text (eg: adb command results) in the message viewer
+     *
+     * @param title window title (null to leave title unchanged)
+     */
+    void showMessage(String title, String text);
+
     // ------------------------------------------------------------------
     // cleanup callbacks — fired by screens from their close handlers
     // ------------------------------------------------------------------
@@ -33,6 +45,8 @@ public interface App {
     void onInputClosed(String serial);
 
     void onSaveLogsClosed();
+
+    void onCommandClosed();
 
     // ------------------------------------------------------------------
     // device state

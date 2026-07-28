@@ -4,7 +4,6 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
-import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
@@ -914,7 +913,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 popup.addSeparator();
             }
 
-            CommandDialog.setupCommandPopupMenu(popup, device);
+            CommandScreen.setupCommandPopupMenu(popup, app, device);
 
             // TODO: uncomment later if useful
 //            // Page Up

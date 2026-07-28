@@ -13,7 +13,6 @@ import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.utils.DeviceCellRenderer;
 import com.jpage4500.devicemanager.table.utils.DeviceRowSorter;
 import com.jpage4500.devicemanager.table.utils.TableColumnAdjuster;
-import com.jpage4500.devicemanager.ui.dialog.CommandDialog;
 import com.jpage4500.devicemanager.ui.dialog.ConnectDialog;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.dialog.ShareServerDialog;
@@ -390,7 +389,7 @@ public class DeviceScreen extends BaseScreen {
             popupMenu.addSeparator();
 
             // user-defined adb commands ("Predefined ADB Commands" right-click menu)
-            CommandDialog.setupCommandPopupMenu(popupMenu, device);
+            CommandScreen.setupCommandPopupMenu(popupMenu, app, device);
 
             if (device.isWireless()) {
                 popupMenu.addSeparator();
@@ -1193,7 +1192,7 @@ public class DeviceScreen extends BaseScreen {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
 
-        CommandDialog.showCommandDialog(this, selectedDeviceList);
+        app.showCommand(selectedDeviceList);
     }
 
     private void handleRestartCommand() {

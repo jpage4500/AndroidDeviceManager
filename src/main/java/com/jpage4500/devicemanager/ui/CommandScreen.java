@@ -1,4 +1,4 @@
-package com.jpage4500.devicemanager.ui.dialog;
+package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
@@ -23,9 +23,10 @@ import static com.jpage4500.devicemanager.utils.PreferenceUtils.Pref;
 
 /**
  * send custom ADB command
+ * NOTE: single window (not 1 per device) - target devices are set via setDeviceList()
  */
-public class CommandDialog extends JPanel {
-    private static final Logger log = LoggerFactory.getLogger(CommandDialog.class);
+public class CommandScreen extends BaseScreen {
+    private static final Logger log = LoggerFactory.getLogger(CommandScreen.class);
 
     public static final int MAX_RECENT_COMMANDS = 10;
     public static final String COMMANDS_TXT = "commands.txt";
@@ -35,17 +36,15 @@ public class CommandDialog extends JPanel {
     private DefaultListModel<String> listModel;
     private List<Device> selectedDeviceList;
 
-    public static void showCommandDialog(Component frame, List<Device> selectedDeviceList) {
-        CommandDialog screen = new CommandDialog(selectedDeviceList);
-        DialogHelper.showCustomDialog(frame, screen, "Send ADB Command", new String[0]);
+    public CommandScreen(App app) {
+        super(app, null, "command", 500, 350);
+        initalizeUi();
     }
 
-    public CommandDialog(List<Device> selectedDeviceList) {
-        this.selectedDeviceList = selectedDeviceList;
+    private void initalizeUi() {
+        JPanel panel = new JPanel(new MigLayout("fill", "[][]"));
 
-        setLayout(new MigLayout("fillx", "[][]"));
-
-        add(new JLabel("Recent Commands"), "growx, span 2, wrap");
+        panel.add(new JLabel("Recent Commands"), "growx, span 2, wrap");
 
         listModel = new DefaultListModel<>();
         list = new JList<>(listModel);
@@ -67,11 +66,21 @@ public class CommandDialog extends JPanel {
             }
         });
 
-        JScrollPane scroll = new JScrollPane(list);
-        //scroll.setMaximumSize(new Dimension(200, 200));
-        add(scroll, "growx, span 2, wrap");
+        // double-click a recent command to send it
+        UiUtils.addLeftClickListener(list, e -> {
+            if (e.getClickCount() != 2) return;
+            int row = list.locationToIndex(e.getPoint());
+            if (row < 0) return;
+            // locationToIndex() returns the closest row - make sure the click was actually on it
+            Rectangle bounds = list.getCellBounds(row, row);
+            if (bounds == null || !bounds.contains(e.getPoint())) return;
+            runCommand(listModel.get(row));
+        });
 
-        add(new JSeparator(), "growx, spanx, wrap");
+        JScrollPane scroll = new JScrollPane(list);
+        panel.add(scroll, "grow, push, span 2, wrap");
+
+        panel.add(new JSeparator(), "growx, spanx, wrap");
 
         textField = new HintTextField("ADB Command", null);
         textField.setHorizontalAlignment(SwingConstants.RIGHT);
@@ -82,6 +91,9 @@ public class CommandDialog extends JPanel {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
                     runCommand();
                     e.consume();
+                } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    // HintTextField consumes ESC to clear itself which blocks setupEscapeToClose()
+                    closeWindow();
                 }
             }
         });
@@ -94,29 +106,83 @@ public class CommandDialog extends JPanel {
         });
         populateRecent();
 
-        add(textField, "growx, span 2, wrap");
+        panel.add(textField, "growx, span 2, wrap");
 
         JButton sendButton = new JButton("Send Command");
         sendButton.addActionListener(e -> runCommand());
-        add(sendButton, "newline, al right, span 2, wrap");
+        panel.add(sendButton, "newline, al right, span 2, wrap");
+
+        setupMenuBar();
+        setupEscapeToClose();
+
+        setContentPane(panel);
+    }
+
+    /**
+     * set which device(s) the command will be sent to
+     * NOTE: this window is re-used so this is called each time it's shown
+     */
+    public void setDeviceList(List<Device> deviceList) {
+        this.selectedDeviceList = deviceList;
+        boolean isSingleDevice = deviceList.size() == 1;
+        // NOTE: buildWindowMenu()'s "Show File Browser"/"Show Device Logs" items read this field
+        // when clicked (not when built) so updating it here re-targets them
+        this.device = isSingleDevice ? deviceList.get(0) : null;
+
+        String target = isSingleDevice ? deviceList.get(0).getDisplayName() : deviceList.size() + " devices";
+        setTitle("Send ADB Command [" + target + "]");
+
+        // start focus on the command field
+        SwingUtilities.invokeLater(() -> textField.requestFocusInWindow());
+    }
+
+    private void setupMenuBar() {
+        JMenu windowMenu = buildWindowMenu();
+
+        JMenuBar menubar = new JMenuBar();
+        menubar.add(windowMenu);
+        setJMenuBar(menubar);
+    }
+
+    @Override
+    protected void onWindowStateChanged(WindowState state) {
+        super.onWindowStateChanged(state);
+        if (state == WindowState.CLOSING) {
+            closeWindow();
+        }
+    }
+
+    @Override
+    public void closeWindow() {
+        log.trace("closeWindow");
+        saveFrameSize();
+        app.onCommandClosed();
+        dispose();
     }
 
     private void runCommand() {
-        String command = textField.getCleanText();
+        runCommand(textField.getCleanText());
+    }
+
+    private void runCommand(String command) {
         if (TextUtils.isEmpty(command)) return;
 
         command = santizeCommand(command);
 
         addCustomCommand(command);
 
-        // update displayed list
+        // update displayed list (command just run is now last and selected)
         populateRecent();
+        // keep the command in the text field so it can be edited/re-sent
+        textField.setText(command);
 
         log.debug("runCommand: {}, devices:{}", command, selectedDeviceList.size());
+        String finalCommand = command;
         DeviceManager.getInstance().runCustomCommand(selectedDeviceList, command, new DeviceManager.BatchCommandListener() {
             @Override
             public void onAllComplete(boolean allSucceeded, String joinedDetail) {
                 log.trace("runCommand: {}, detail:\n{}", allSucceeded, joinedDetail);
+                showCommandResults(CommandScreen.this, app, finalCommand, allSucceeded, joinedDetail);
             }
         });
     }
@@ -130,7 +196,13 @@ public class CommandDialog extends JPanel {
         List<String> customCommandList = getCustomCommands();
         listModel.addAll(customCommandList);
 
-        if (!listModel.isEmpty()) list.setSelectedIndex(0);
+        if (!listModel.isEmpty()) {
+            // most recently used command is last - select it and scroll down so it's visible
+            int lastIndex = listModel.size() - 1;
+            list.setSelectedIndex(lastIndex);
+            // NOTE: invokeLater so this also works before the window has been laid out
+            SwingUtilities.invokeLater(() -> list.ensureIndexIsVisible(lastIndex));
+        }
     }
 
     public static List<String> getCustomCommands() {
@@ -170,11 +242,11 @@ public class CommandDialog extends JPanel {
         // update recent list
         List<String> customCommands = getCustomCommands();
         customCommands.remove(command);
-        // add to top of list
-        customCommands.add(0, command);
-        // only save last 10 entries
+        // add to bottom of list (most recently used command is last)
+        customCommands.add(command);
+        // only keep the last 10 entries (drop the oldest)
         if (customCommands.size() > MAX_RECENT_COMMANDS) {
-            customCommands = customCommands.subList(0, MAX_RECENT_COMMANDS);
+            customCommands = customCommands.subList(customCommands.size() - MAX_RECENT_COMMANDS, customCommands.size());
         }
 
         PreferenceUtils.setPreference(Pref.PREF_CUSTOM_COMMAND_LIST, GsonHelper.toJson(customCommands));
@@ -200,19 +272,19 @@ public class CommandDialog extends JPanel {
         populateRecent();
     }
 
-    public static void setupCommandPopupMenu(JPopupMenu popup, Device device) {
+    public static void setupCommandPopupMenu(JPopupMenu popup, App app, Device device) {
         JMenu commandMenu = new JMenu("Send Command");
-        Map<String, String> namedCommandMap = CommandDialog.getNamedCommands();
+        Map<String, String> namedCommandMap = CommandScreen.getNamedCommands();
         namedCommandMap.forEach((name, command) -> {
             JMenuItem item = new JMenuItem(name);
             item.setToolTipText(command);
-            item.addActionListener(e -> runCustomCommand(popup, device, command));
+            item.addActionListener(e -> runCustomCommand(popup, app, device, command));
             commandMenu.add(item);
         });
         if (!namedCommandMap.isEmpty()) commandMenu.addSeparator();
 
         // add previously used commands (last 10)
-        List<String> customCommandList = CommandDialog.getCustomCommands();
+        List<String> customCommandList = CommandScreen.getCustomCommands();
         for (String command : customCommandList) {
             String truncatedCommand = TextUtils.truncate(command, 30);
             JMenuItem item = new JMenuItem(truncatedCommand);
@@ -221,38 +293,48 @@ public class CommandDialog extends JPanel {
             }
             item.addActionListener(e -> {
                 // move to top of recent list
-                CommandDialog.addCustomCommand(command);
-                runCustomCommand(popup, device, command);
+                CommandScreen.addCustomCommand(command);
+                runCustomCommand(popup, app, device, command);
             });
             commandMenu.add(item);
         }
         if (!customCommandList.isEmpty()) commandMenu.addSeparator();
 
         JMenuItem item = new JMenuItem("Enter Command...", UiUtils.getImageIcon(Icons.FILE_ADB, UiUtils.IMG_SIZE_SMALL));
-        item.addActionListener(e -> handleSendCommand(popup, device));
+        item.addActionListener(e -> handleSendCommand(popup, app, device));
         commandMenu.add(item);
 
         popup.add(commandMenu);
         popup.addSeparator();
     }
 
-    private static void runCustomCommand(Component component, Device device, String command) {
-        DeviceManager.getInstance().runCustomCommand(device, command, result -> {
-            String title = result.isSuccess ? "Success" : "Failed";
-            String text = TextUtils.join(result.resultList, "\n");
-            DialogHelper.showTextDialog(component, title, text);
-        });
+    private static void runCustomCommand(Component component, App app, Device device, String command) {
+        DeviceManager.getInstance().runCustomCommand(device, command, result ->
+            showCommandResults(component, app, command, result.isSuccess, TextUtils.join(result.resultList, "\n")));
     }
 
-    private static void handleSendCommand(Component component, Device device) {
+    /**
+     * display adb command results in the message viewer (more formatting options than a plain dialog)
+     * NOTE: results arrive on a DeviceManager background thread
+     */
+    private static void showCommandResults(Component component, App app, String command, boolean isSuccess, String text) {
+        String title = (isSuccess ? "Success" : "Failed") + ": " + command;
+        if (app != null) {
+            app.showMessage(title, text);
+        } else {
+            // no App reference (eg: scrcpy mirror window) - fall back to a simple text dialog
+            SwingUtilities.invokeLater(() -> DialogHelper.showTextDialog(component, title, text));
+        }
+    }
+
+    private static void handleSendCommand(Component component, App app, Device device) {
         // prompt for adb command
         String command = DialogHelper.showInputDialog(component, "ADB Command", "Enter command to run", null);
         if (TextUtils.isEmpty(command)) return;
 
-        command = CommandDialog.santizeCommand(command);
+        command = CommandScreen.santizeCommand(command);
 
-        runCustomCommand(component, device, command);
+        runCustomCommand(component, app, device, command);
     }
 
 }
-
