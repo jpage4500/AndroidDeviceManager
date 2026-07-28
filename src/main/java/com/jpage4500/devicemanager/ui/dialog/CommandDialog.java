@@ -117,6 +117,7 @@ public class CommandDialog extends JPanel {
             @Override
             public void onAllComplete(boolean allSucceeded, String joinedDetail) {
                 log.trace("runCommand: {}, detail:\n{}", allSucceeded, joinedDetail);
+                showCommandResults(CommandDialog.this, allSucceeded, joinedDetail);
             }
         });
     }
@@ -237,11 +238,17 @@ public class CommandDialog extends JPanel {
     }
 
     private static void runCustomCommand(Component component, Device device, String command) {
-        DeviceManager.getInstance().runCustomCommand(device, command, result -> {
-            String title = result.isSuccess ? "Success" : "Failed";
-            String text = TextUtils.join(result.resultList, "\n");
-            DialogHelper.showTextDialog(component, title, text);
-        });
+        DeviceManager.getInstance().runCustomCommand(device, command, result ->
+            showCommandResults(component, result.isSuccess, TextUtils.join(result.resultList, "\n")));
+    }
+
+    /**
+     * display adb command results in a dialog
+     * NOTE: results arrive on a DeviceManager background thread
+     */
+    private static void showCommandResults(Component component, boolean isSuccess, String text) {
+        String title = isSuccess ? "Success" : "Failed";
+        SwingUtilities.invokeLater(() -> DialogHelper.showTextDialog(component, title, text));
     }
 
     private static void handleSendCommand(Component component, Device device) {
