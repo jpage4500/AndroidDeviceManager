@@ -22,7 +22,9 @@ function logTagsSince() {
     RANGE="$FROM_TAG.."
     # NOTE: to stderr so it doesn't end up in the release notes
     echo >&2 "All changes from $FROM_TAG to NOW; $RANGE"
-    COMMIT_LIST=$(git log --first-parent --max-count=100 --pretty="%h %cd %s" --date=format:'%Y-%m-%d %I:%M %p' ${RANGE})
+    # NOTE: --no-merges (not --first-parent) so the commits inside a merged PR are listed. ADM work
+    # lands via PR, so --first-parent would only ever show one "Merge pull request #N" line.
+    COMMIT_LIST=$(git log --no-merges --max-count=100 --pretty="%h %cd %s" --date=format:'%Y-%m-%d %I:%M %p' ${RANGE})
 
     printList "${COMMIT_LIST}"
 }

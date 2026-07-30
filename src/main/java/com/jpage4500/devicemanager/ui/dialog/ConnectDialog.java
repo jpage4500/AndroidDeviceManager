@@ -128,6 +128,8 @@ public class ConnectDialog extends JPanel {
         serverField = new HintTextField(DEFAULT_HOST, text -> updateConnectButton());
         serverField.setText(lastIp);
         serverField.setHorizontalAlignment(SwingConstants.LEFT);
+        // ESC should close the dialog instead of clearing the field
+        serverField.setClearOnEscape(false);
         // ENTER on the IP field connects (when enabled)
         serverField.addActionListener(e -> handleEnterKey());
         // when dialog is shown, focus the IP field and select the last octet (ie: the "109" in 192.168.0.109)
@@ -157,6 +159,8 @@ public class ConnectDialog extends JPanel {
         portField = new HintTextField(String.valueOf(DEFAULT_PORT), null);
         portField.setText(String.valueOf(lastPort));
         portField.setHorizontalAlignment(SwingConstants.LEFT);
+        // ESC should close the dialog instead of clearing the field
+        portField.setClearOnEscape(false);
         portField.addKeyListener(new KeyAdapter() {
             public void keyTyped(KeyEvent e) {
                 char c = e.getKeyChar();

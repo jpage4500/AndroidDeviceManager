@@ -18,6 +18,7 @@ public class HintTextField extends JTextField implements KeyListener {
     private final Font origFont;
     private final Font hintFont;
     private final String hintText;
+    private boolean clearOnEscape = true;
 
     public interface TextListener {
         void textChanged(String text);
@@ -63,8 +64,11 @@ public class HintTextField extends JTextField implements KeyListener {
                 super.keyPressed(e);
                 switch (e.getExtendedKeyCode()) {
                     case KeyEvent.VK_ESCAPE -> {
-                        setText(null);
-                        e.consume();
+                        // NOTE: consuming ESCAPE stops it from reaching any window level binding (ie: close dialog)
+                        if (clearOnEscape) {
+                            setText(null);
+                            e.consume();
+                        }
                     }
                 }
             }
@@ -74,6 +78,14 @@ public class HintTextField extends JTextField implements KeyListener {
                 super.keyReleased(e);
             }
         });
+    }
+
+    /**
+     * by default, ESCAPE clears this field (useful for a search/filter field). set to false when the field is in a
+     * dialog and ESCAPE should close the dialog instead
+     */
+    public void setClearOnEscape(boolean clearOnEscape) {
+        this.clearOnEscape = clearOnEscape;
     }
 
     public void addTextListener(TextListener listener) {

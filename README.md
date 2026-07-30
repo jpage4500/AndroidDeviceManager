@@ -137,13 +137,7 @@ brew install scrcpy
 
 I'm using jdeploy to package this as a native app for Mac/Windows/Linux. This also allows for automatic updates
 
-To install open a terminal and run this command:
-
-```
-/bin/bash -c "$(curl -fsSL https://www.jdeploy.com/gh/jpage4500/AndroidDeviceManager/install.sh)"
-```
-
-See [this page](https://www.jdeploy.com/gh/jpage4500/AndroidDeviceManager) to download the installer directly, or grab it from [Releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
+To install, grab the latest version from [Releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
 
 ## Build
 

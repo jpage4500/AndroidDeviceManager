@@ -106,6 +106,9 @@ jobs:
             --repo "${{ github.repository }}" --clobber
 
       - name: Generate Release Notes
+        env:
+          # only used to look up PR titles for merge commits; read-only access is enough
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           chmod +x scripts/gen_release_notes.sh
 
@@ -119,8 +122,9 @@ jobs:
             ./scripts/gen_release_notes.sh "commit" "brief" > notes.raw
           fi
 
-          # drop blank lines and normalize every change to a "- " markdown bullet
+          # drop blank lines and empty-subject commits, then normalize to "- " markdown bullets
           grep -v '^[[:space:]]*$' notes.raw \
+            | grep -viE '^[[:space:]]*-?[[:space:]]*no message[[:space:]]*$' \
             | sed -E 's/^[[:space:]]*-[[:space:]]*//; s/^/- /' > release-notes.txt
 
           if [[ ! -s release-notes.txt ]]; then
@@ -133,7 +137,11 @@ jobs:
       # view releases here: https://github.com/jpage4500/AndroidDeviceManager/releases
       # jDeploy already wrote the installer download links into the body - keep them and add
       # the release notes above
-      - name: Update GitHub Release
+      #
+      # IMPORTANT: --draft=false is required. jDeploy uploads tag releases via
+      # xresloader/upload-to-github-release, which defaults draft=true and jDeploy never overrides
+      # it - so the release is created hidden and its assets 404 for the launcher.
+      - name: Publish GitHub Release with notes
         env:
           GH_TOKEN: ${{ secrets.ADM_JDEPLOY_GITHUB_TOKEN }}
         run: |
@@ -151,4 +159,6 @@ jobs:
 
           gh release edit "${{ github.ref_name }}" \
             --notes-file combined-notes.txt \
+            --draft=false \
+            --latest \
             --repo "${{ github.repository }}"
