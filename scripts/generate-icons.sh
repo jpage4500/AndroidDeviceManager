@@ -34,10 +34,11 @@
 # TWO IMAGEMAGICK TRAPS, both of which silently break the output:
 #   - 16-bit-per-channel PNG gets PLATED even with perfect geometry. IM's Q16 build
 #     emits 16-bit after any composite, so every step forces -depth 8.
-#   - a white/transparent tile is achromatic, so ImageMagick writes it as a GRAYSCALE
-#     PNG, and compositing the artwork onto it then desaturates the artwork (the green
-#     robot comes out grey). '-type TrueColorAlpha' does NOT prevent this. Only the
-#     PNG32: output prefix does, so every write below uses it.
+#   - if the tile colour is achromatic (white, black, any grey) ImageMagick writes the
+#     tile as a GRAYSCALE PNG, and compositing the artwork onto it then desaturates the
+#     artwork (the green robot comes out grey). '-type TrueColorAlpha' does NOT prevent
+#     this. Only the PNG32: output prefix does, so every write below uses it —
+#     unconditionally, since the 1024 canvas is transparent and TILE_COLOR is a knob.
 
 set -euo pipefail
 
@@ -52,7 +53,7 @@ CANVAS=1024                       # jDeploy fills the 1024 'ic10' slot
 BODY=824                          # Apple icon grid: 824 of 1024
 RADIUS=$(( BODY * 2237 / 10000 )) # Apple corner radius: 22.37% of the body
 ART=$(( BODY * 88 / 100 ))        # artwork inset inside the tile — tune this knob
-TILE_COLOR=white
+TILE_COLOR='#d3dda2'              # quote it: an unquoted # starts a bash comment
 
 [[ -f "$SRC" ]] || { echo "ERROR: source artwork not found: $SRC" >&2; exit 1; }
 
