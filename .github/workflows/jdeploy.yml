@@ -111,16 +111,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           chmod +x scripts/gen_release_notes.sh
-
-          # everything since the previous tag; falls back to the last 5 commits on the first release
-          PREV_TAG=$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || echo "")
-          if [[ -n "$PREV_TAG" ]]; then
-            echo "generating notes since $PREV_TAG"
-            ./scripts/gen_release_notes.sh "tag" "brief" "$PREV_TAG" > notes.raw
-          else
-            echo "no previous tag found - using recent commits"
-            ./scripts/gen_release_notes.sh "commit" "brief" > notes.raw
-          fi
+          ./scripts/gen_release_notes.sh "pr" "brief" > notes.raw
 
           # drop blank lines and empty-subject commits, then normalize to "- " markdown bullets
           grep -v '^[[:space:]]*$' notes.raw \
@@ -128,7 +119,7 @@ jobs:
             | sed -E 's/^[[:space:]]*-[[:space:]]*//; s/^/- /' > release-notes.txt
 
           if [[ ! -s release-notes.txt ]]; then
-            echo "- no changes found since $PREV_TAG" > release-notes.txt
+            echo "- no changes" > release-notes.txt
           fi
 
           echo "Generated Release Notes:"
