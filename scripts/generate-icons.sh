@@ -53,7 +53,7 @@ CANVAS=1024                       # jDeploy fills the 1024 'ic10' slot
 BODY=824                          # Apple icon grid: 824 of 1024
 RADIUS=$(( BODY * 2237 / 10000 )) # Apple corner radius: 22.37% of the body
 ART=$(( BODY * 88 / 100 ))        # artwork inset inside the tile — tune this knob
-TILE_COLOR='#d3dda2'              # quote it: an unquoted # starts a bash comment
+TILE_COLOR='#ffffff'              # quote it: an unquoted # starts a bash comment
 
 [[ -f "$SRC" ]] || { echo "ERROR: source artwork not found: $SRC" >&2; exit 1; }
 
