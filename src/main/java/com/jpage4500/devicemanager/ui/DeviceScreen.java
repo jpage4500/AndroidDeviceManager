@@ -1,6 +1,7 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.MainApplication;
+import com.jpage4500.devicemanager.data.BatteryInfo;
 import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
@@ -266,6 +267,8 @@ public class DeviceScreen extends BaseScreen {
                     String tooltip = device.batteryLevel + "%";
                     if (device.powerStatus != Device.PowerStatus.POWER_NONE)
                         tooltip += " (" + device.powerStatus + ")";
+                    String temp = device.batteryInfo != null ? device.batteryInfo.getTempDisplay() : null;
+                    if (temp != null) tooltip += " - " + temp;
                     return tooltip;
                 }
             }
@@ -779,6 +782,19 @@ public class DeviceScreen extends BaseScreen {
         addDeviceDetail(panel, "Custom1", device.getCustomProperty(Device.CUST_PROP_1));
         addDeviceDetail(panel, "Custom2", device.getCustomProperty(Device.CUST_PROP_2));
 
+        // battery
+        BatteryInfo batteryInfo = device.batteryInfo;
+        if (device.batteryLevel != null) addDeviceDetail(panel, "Battery", device.batteryLevel + "%");
+        if (device.powerStatus != Device.PowerStatus.POWER_NONE) {
+            // POWER_USB -> USB
+            addDeviceDetail(panel, "Charging", TextUtils.split(device.powerStatus.name(), "_", 1));
+        }
+        if (batteryInfo != null) {
+            addDeviceDetail(panel, "Temperature", batteryInfo.getTempDisplay());
+            addDeviceDetail(panel, "Voltage", batteryInfo.getVoltageDisplay());
+            addDeviceDetail(panel, "Current", batteryInfo.getCurrentDisplay());
+        }
+
         // device properties
         ImageIcon icon = UiUtils.getImageIcon(Icons.ARROW_RIGHT, UiUtils.IMG_SIZE_SMALL);
         HoverLabel devicePropLabel = new HoverLabel("Device Properties", icon);
@@ -789,7 +805,38 @@ public class DeviceScreen extends BaseScreen {
         UiUtils.addLeftClickListener(appsLabel, mouseEvent -> showInstalledApps(device));
         panel.add(appsLabel, "wrap");
 
+        if (batteryInfo != null && !(batteryInfo.sampleList.isEmpty() && batteryInfo.eventList.isEmpty())) {
+            HoverLabel batteryLabel = new HoverLabel("Battery History", icon);
+            UiUtils.addLeftClickListener(batteryLabel, mouseEvent -> showBatteryHistory(device));
+            panel.add(batteryLabel, "wrap");
+        }
+
         DialogHelper.showCustomDialog(this, panel, "Device Info", null);
+    }
+
+    /**
+     * show battery level/temp samples and charging events on a single timeline (newest first)
+     */
+    private void showBatteryHistory(Device device) {
+        BatteryInfo batteryInfo = device.batteryInfo;
+        if (batteryInfo == null) return;
+
+        // multiple entries can share the same timestamp; combine them onto 1 line
+        Map<Long, String> timeMap = new TreeMap<>(Comparator.reverseOrder());
+        for (BatteryInfo.Sample sample : batteryInfo.sampleList) {
+            timeMap.merge(sample.timeMs, sample.getDisplay(), (v1, v2) -> v1 + ", " + v2);
+        }
+        for (BatteryInfo.ChargeEvent event : batteryInfo.eventList) {
+            timeMap.merge(event.timeMs, event.getDisplay(), (v1, v2) -> v1 + ", " + v2);
+        }
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("MM-dd HH:mm:ss");
+        Map<String, String> displayMap = new LinkedHashMap<>();
+        for (Map.Entry<Long, String> entry : timeMap.entrySet()) {
+            String date = dateFormat.format(new Date(entry.getKey()));
+            displayMap.merge(date, entry.getValue(), (v1, v2) -> v1 + ", " + v2);
+        }
+        DialogHelper.showListDialog(this, "Battery History", displayMap, null);
     }
 
     private void showInstalledApps(Device device) {

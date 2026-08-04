@@ -507,42 +507,14 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         device.isBooted = (result.isSuccess && TextUtils.equals(result.getResult(0), "1"));
     }
 
+    /**
+     * battery level, power status, temperature and level/charging history
+     */
     private void fetchBatteryInfo(Device device) {
         ShellResult result = runShell(device, COMMAND_DUMPSYS_BATTERY);
-        for (String batteryLine : result.resultList) {
-            String[] batteryArr = batteryLine.split(": ", 2);
-            if (batteryArr.length < 2) continue;
-            String name = batteryArr[0].trim();
-            String value = batteryArr[1].trim();
-            switch (name) {
-                case "level":
-                    //  level: 100
-                    try {
-                        int level = Integer.parseInt(value);
-                        // some Android TV devices list battery level as 0
-                        if (level > 0 && level <= LOG_INTERVAL_MS) {
-                            device.batteryLevel = level;
-                        }
-                    } catch (NumberFormatException e) {
-                        log.debug("fetchDeviceDetails: BAD_INT: {}, {}", value, e.getMessage());
-                    }
-                case "AC powered":
-                    //  AC powered: true
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_AC;
-                    break;
-                case "USB powered":
-                    //  USB powered: false
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_USB;
-                    break;
-                case "Wireless powered":
-                    //  wireless powered: false
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_WIRELESS;
-                    break;
-                case "Dock powered":
-                    //  dock powered: false
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_DOCK;
-                    break;
-            }
+        if (result.isSuccess) {
+            device.parseBatteryInfo(result.resultList);
+            log.trace("fetchBatteryInfo: {}: {}", device.getDisplayName(), device.batteryInfo);
         }
         notifyDeviceUpdated(device);
     }
