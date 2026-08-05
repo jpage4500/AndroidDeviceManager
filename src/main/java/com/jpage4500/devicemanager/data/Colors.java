@@ -27,4 +27,19 @@ public class Colors {
     // log recording state
     public static final Color COLOR_START_RECORDING = COLOR_ONLINE;
     public static final Color COLOR_STOP_RECORDING = COLOR_BUSY;
+
+    // -- battery history chart --
+    // level and temperature are plotted on separate stacked charts (never a shared y-axis) so
+    // these 2 only ever need to be told apart from each other, not from a wider series palette
+    public static final Color COLOR_CHART_LEVEL = new Color(42, 120, 214);
+    // same hue as the line at ~10% alpha; a wash under the level line, never a solid block
+    public static final Color COLOR_CHART_LEVEL_FILL = new Color(42, 120, 214, 26);
+    public static final Color COLOR_CHART_TEMP = new Color(235, 104, 52);
+    // "charging" bands are drawn behind the data as background context, so they stay neutral -
+    // a colored band here would read as a third data series
+    public static final Color COLOR_CHART_CHARGING = new Color(225, 224, 217, 140);
+    public static final Color COLOR_CHART_GRID = new Color(225, 224, 217);
+    public static final Color COLOR_CHART_AXIS = new Color(195, 194, 183);
+    public static final Color COLOR_CHART_LABEL = new Color(137, 135, 129);
+    public static final Color COLOR_CHART_THRESHOLD = new Color(208, 59, 59);
 }

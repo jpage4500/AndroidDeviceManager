@@ -24,6 +24,16 @@ public interface App {
     void showInput(Device device);
 
     /**
+     * details for one device; 1 window per device so several can be compared side by side
+     */
+    void showDeviceInfo(Device device);
+
+    /**
+     * battery level/temperature history for one device; 1 window per device
+     */
+    void showBattery(Device device);
+
+    /**
      * send a custom adb command to the given device(s)
      */
     void showCommand(List<Device> devices);
@@ -43,6 +53,10 @@ public interface App {
     void onBrowseClosed(String serial);
 
     void onInputClosed(String serial);
+
+    void onDeviceInfoClosed(String serial);
+
+    void onBatteryClosed(String serial);
 
     void onSaveLogsClosed();
 

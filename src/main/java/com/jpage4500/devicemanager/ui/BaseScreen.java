@@ -175,6 +175,24 @@ public abstract class BaseScreen extends JFrame {
      * without a single device context (DeviceScreen, SaveLogsScreen) the lookup yields null and
      * the App impl falls back to "first selected device" or no-op.
      */
+    /**
+     * also close this window on ESC
+     * <p>
+     * opt-in rather than automatic: it suits a detail window that gets popped open and dismissed, but
+     * would be wrong on a main window like the device list. CMD+W works either way.
+     */
+    protected void bindEscapeToClose() {
+        String actionKey = "closeWindowOnEscape";
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), actionKey);
+        getRootPane().getActionMap().put(actionKey, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                closeWindow();
+            }
+        });
+    }
+
     protected JMenu buildWindowMenu() {
         JMenu menu = new JMenu("Window");
 

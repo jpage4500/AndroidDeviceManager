@@ -151,7 +151,7 @@ public class Device {
      */
     public void parseBatteryInfo(List<String> lineList) {
         if (batteryInfo == null) batteryInfo = new BatteryInfo();
-        batteryInfo.update(lineList, timezone);
+        batteryInfo.update(lineList);
         // keep the values used by the device table in sync
         if (batteryInfo.level != null) batteryLevel = batteryInfo.level;
         powerStatus = batteryInfo.powerStatus;

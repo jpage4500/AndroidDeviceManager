@@ -1,10 +1,8 @@
 package com.jpage4500.devicemanager.ui;
 
 import com.jpage4500.devicemanager.MainApplication;
-import com.jpage4500.devicemanager.data.BatteryInfo;
 import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.Device;
-import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.data.StatusEvent;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
@@ -48,7 +46,6 @@ public class DeviceScreen extends BaseScreen {
 
     private static final String HINT_FILTER_DEVICES = "Search";
     public static final String PREF_KEY_DEVICES = "devices";
-    public static final String PACKAGE_PREFIX = "package:";
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -180,6 +177,12 @@ public class DeviceScreen extends BaseScreen {
 
         // [CMD + N] = connect device
         createCmdMenuItem(deviceMenu, "Connect Device", KeyEvent.VK_N, e -> handleConnectDevice());
+
+        // [CMD + I] = details for the selected device
+        createCmdMenuItem(deviceMenu, "Device Details", KeyEvent.VK_I, e -> {
+            List<Device> selectedDeviceList = getSelectedDevices(true);
+            if (!selectedDeviceList.isEmpty()) app.showDeviceInfo(selectedDeviceList.get(0));
+        });
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -354,7 +357,7 @@ public class DeviceScreen extends BaseScreen {
             UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", actionEvent -> handleCopyClipboardFieldCommand());
             UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
-            UiUtils.addPopupMenuItem(popupMenu, "Device Details", actionEvent -> handleDeviceDetails(device));
+            UiUtils.addPopupMenuItem(popupMenu, "Device Details", actionEvent -> app.showDeviceInfo(device));
 
             // primary options
             UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.BROWSE.label, actionEvent -> app.showFileBrowser(device));
@@ -764,155 +767,6 @@ public class DeviceScreen extends BaseScreen {
                 DialogHelper.showDialog(this, null, "Unable to connect!");
             }
         });
-    }
-
-    private void handleDeviceDetails(Device device) {
-        if (device == null) return;
-
-        JPanel panel = new JPanel(new MigLayout());
-        addDeviceDetail(panel, "Serial", device.serial);
-        addDeviceDetail(panel, "Nickname", device.nickname);
-        addDeviceDetail(panel, "Model", device.model);
-        addDeviceDetail(panel, "Phone", device.phone);
-        addDeviceDetail(panel, "IMEI", device.imei);
-        addDeviceDetail(panel, "Carrier", device.carrier);
-        addDeviceDetail(panel, "OS", device.os);
-        addDeviceDetail(panel, "SDK", device.sdk);
-        addDeviceDetail(panel, "Free Space", FileUtils.bytesToDisplayString(device.freeSpace));
-        addDeviceDetail(panel, "Custom1", device.getCustomProperty(Device.CUST_PROP_1));
-        addDeviceDetail(panel, "Custom2", device.getCustomProperty(Device.CUST_PROP_2));
-
-        // battery
-        BatteryInfo batteryInfo = device.batteryInfo;
-        if (device.batteryLevel != null) addDeviceDetail(panel, "Battery", device.batteryLevel + "%");
-        if (device.powerStatus != Device.PowerStatus.POWER_NONE) {
-            // POWER_USB -> USB
-            addDeviceDetail(panel, "Charging", TextUtils.split(device.powerStatus.name(), "_", 1));
-        }
-        if (batteryInfo != null) {
-            addDeviceDetail(panel, "Temperature", batteryInfo.getTempDisplay());
-            addDeviceDetail(panel, "Voltage", batteryInfo.getVoltageDisplay());
-            addDeviceDetail(panel, "Current", batteryInfo.getCurrentDisplay());
-        }
-
-        // device properties
-        ImageIcon icon = UiUtils.getImageIcon(Icons.ARROW_RIGHT, UiUtils.IMG_SIZE_SMALL);
-        HoverLabel devicePropLabel = new HoverLabel("Device Properties", icon);
-        UiUtils.addLeftClickListener(devicePropLabel, mouseEvent -> showDeviceProperties(device));
-        panel.add(devicePropLabel, "wrap");
-
-        HoverLabel appsLabel = new HoverLabel("Installed Apps / Versions", icon);
-        UiUtils.addLeftClickListener(appsLabel, mouseEvent -> showInstalledApps(device));
-        panel.add(appsLabel, "wrap");
-
-        if (batteryInfo != null && !(batteryInfo.sampleList.isEmpty() && batteryInfo.eventList.isEmpty())) {
-            HoverLabel batteryLabel = new HoverLabel("Battery History", icon);
-            UiUtils.addLeftClickListener(batteryLabel, mouseEvent -> showBatteryHistory(device));
-            panel.add(batteryLabel, "wrap");
-        }
-
-        DialogHelper.showCustomDialog(this, panel, "Device Info", null);
-    }
-
-    /**
-     * show battery level/temp samples and charging events on a single timeline (newest first)
-     */
-    private void showBatteryHistory(Device device) {
-        BatteryInfo batteryInfo = device.batteryInfo;
-        if (batteryInfo == null) return;
-
-        // multiple entries can share the same timestamp; combine them onto 1 line
-        Map<Long, String> timeMap = new TreeMap<>(Comparator.reverseOrder());
-        for (BatteryInfo.Sample sample : batteryInfo.sampleList) {
-            timeMap.merge(sample.timeMs, sample.getDisplay(), (v1, v2) -> v1 + ", " + v2);
-        }
-        for (BatteryInfo.ChargeEvent event : batteryInfo.eventList) {
-            timeMap.merge(event.timeMs, event.getDisplay(), (v1, v2) -> v1 + ", " + v2);
-        }
-
-        SimpleDateFormat dateFormat = new SimpleDateFormat("MM-dd HH:mm:ss");
-        Map<String, String> displayMap = new LinkedHashMap<>();
-        for (Map.Entry<Long, String> entry : timeMap.entrySet()) {
-            String date = dateFormat.format(new Date(entry.getKey()));
-            displayMap.merge(date, entry.getValue(), (v1, v2) -> v1 + ", " + v2);
-        }
-        DialogHelper.showListDialog(this, "Battery History", displayMap, null);
-    }
-
-    private void showInstalledApps(Device device) {
-        if (device == null) return;
-        DeviceManager.getInstance().getInstalledApps(device, appSet -> {
-            final Map<String, String> appMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            // convert set to map
-            for (String app : appSet) appMap.put(app, null);
-            DialogHelper.showListDialog(this, "Installed Apps", appMap, new DialogHelper.ListListener() {
-                @Override
-                public void handleDoubleClick(String key, String value) {
-                    log.trace("showInstalledApps: click: {}", key);
-                    DeviceManager.getInstance().fetchAppVersion(device, key, version -> {
-                        String text = String.format("%s = %s", key, version);
-                        DialogHelper.showTextDialog(DeviceScreen.this, key, text);
-                    });
-                }
-
-                @Override
-                public void handleRightClick(String key, String value, JPopupMenu popupMenu) {
-                    UiUtils.addPopupMenuItem(popupMenu, "Download App", actionEvent -> {
-                        extractApk(device, key);
-                    });
-                }
-            });
-        });
-    }
-
-    private void extractApk(Device device, String key) {
-        String command = "pm path " + key;
-        DeviceManager deviceManager = DeviceManager.getInstance();
-        deviceManager.runCustomCommand(device, command, (result) -> {
-            if (!result.isSuccess) {
-                String msg = "Unable to download " + key + "\n\n" + result;
-                DialogHelper.showDialog(this, "Error", msg);
-                return;
-            }
-            // download to new folder
-            String downloadFolder = Utils.getDownloadFolder();
-            File appFolder = new File(downloadFolder, key);
-            appFolder.mkdirs();
-
-            for (String path : result.resultList) {
-                if (!TextUtils.startsWith(path, PACKAGE_PREFIX)) {
-                    log.trace("extractApk: BAD LINE: {}", path);
-                    continue;
-                }
-                path = path.substring(PACKAGE_PREFIX.length());
-                int pos = path.lastIndexOf('/');
-                if (pos < 1) continue;
-                DeviceFile file = new DeviceFile();
-                file.name = path.substring(pos + 1);
-                path = path.substring(0, pos);
-
-                File saveFile = new File(appFolder, file.name);
-                deviceManager.downloadFile(device, path, file, saveFile, false, (isSuccess, error) -> {
-                    log.trace("extractApk: {}: {}", isSuccess, error);
-                });
-            }
-        });
-    }
-
-    private void showDeviceProperties(Device device) {
-        if (device == null || !device.isOnline) return;
-        // fetch all device properties & display
-        DeviceManager.getInstance().fetchDeviceProperties(device, (isSuccess, propMap) -> {
-            TreeMap<String, String> sortedPropMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            sortedPropMap.putAll(propMap);
-            DialogHelper.showListDialog(this, "Device Properties", sortedPropMap, null);
-        });
-    }
-
-    private void addDeviceDetail(JPanel panel, String label, String value) {
-        if (!TextUtils.isEmpty(value)) {
-            panel.add(new JLabel(label + ": " + value), "wrap");
-        }
     }
 
     private void handleMirrorCommand() {

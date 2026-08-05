@@ -68,6 +68,8 @@ public class AppController implements App, DeviceManager.DeviceListener {
     private final Map<String, ExploreScreen> exploreViewMap = new HashMap<>();
     private final Map<String, ViewLogsScreen> logsViewMap = new HashMap<>();
     private final Map<String, InputScreen> inputViewMap = new HashMap<>();
+    private final Map<String, DeviceInfoScreen> deviceInfoViewMap = new HashMap<>();
+    private final Map<String, BatteryScreen> batteryViewMap = new HashMap<>();
     private SaveLogsScreen saveLogsScreen;
     private MessageViewScreen messageScreen;
     private CommandScreen commandScreen;
@@ -271,6 +273,33 @@ public class AppController implements App, DeviceManager.DeviceListener {
     }
 
     @Override
+    public void showDeviceInfo(Device device) {
+        if (device == null) return;
+
+        DeviceInfoScreen infoScreen = deviceInfoViewMap.get(device.serial);
+        if (infoScreen == null) {
+            infoScreen = new DeviceInfoScreen(this, device);
+            deviceInfoViewMap.put(device.serial, infoScreen);
+        } else {
+            infoScreen.updateDevice(device);
+        }
+        infoScreen.show();
+    }
+
+    @Override
+    public void showBattery(Device device) {
+        if (device == null) return;
+
+        BatteryScreen batteryScreen = batteryViewMap.get(device.serial);
+        if (batteryScreen == null) {
+            if (!device.isOnline) return;
+            batteryScreen = new BatteryScreen(this, device);
+            batteryViewMap.put(device.serial, batteryScreen);
+        }
+        batteryScreen.show();
+    }
+
+    @Override
     public void showCommand(List<Device> devices) {
         if (devices == null || devices.isEmpty()) return;
         if (commandScreen == null) {
@@ -316,6 +345,16 @@ public class AppController implements App, DeviceManager.DeviceListener {
     @Override
     public void onInputClosed(String serial) {
         inputViewMap.remove(serial);
+    }
+
+    @Override
+    public void onDeviceInfoClosed(String serial) {
+        deviceInfoViewMap.remove(serial);
+    }
+
+    @Override
+    public void onBatteryClosed(String serial) {
+        batteryViewMap.remove(serial);
     }
 
     @Override
@@ -441,6 +480,12 @@ public class AppController implements App, DeviceManager.DeviceListener {
         for (InputScreen screen : new ArrayList<>(inputViewMap.values())) {
             screen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
         }
+        for (DeviceInfoScreen screen : new ArrayList<>(deviceInfoViewMap.values())) {
+            screen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        }
+        for (BatteryScreen screen : new ArrayList<>(batteryViewMap.values())) {
+            screen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        }
         if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
         if (commandScreen != null) commandScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
 
@@ -541,6 +586,12 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
         InputScreen inputScreen = inputViewMap.get(device.serial);
         if (inputScreen != null) inputScreen.updateDevice(device);
+
+        DeviceInfoScreen infoScreen = deviceInfoViewMap.get(device.serial);
+        if (infoScreen != null) infoScreen.updateDevice(device);
+
+        BatteryScreen batteryScreen = batteryViewMap.get(device.serial);
+        if (batteryScreen != null) batteryScreen.updateDevice(device);
 
         if (headlessLogsScreen != null && headlessLogsScreen.isShowingDevice(device)) {
             headlessLogsScreen.updateDevice(device);
