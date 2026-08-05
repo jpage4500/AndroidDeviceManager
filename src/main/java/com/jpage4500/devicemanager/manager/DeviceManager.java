@@ -626,23 +626,33 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     private void fetchFreeDiskSpace(Device device) {
         ShellResult result = runShell(device, COMMAND_DISK_SIZE);
-        if (result.isSuccess && !result.resultList.isEmpty()) {
-            // get last line
-            String line = result.resultList.get(result.resultList.size() - 1);
-            // Filesystem            1K-blocks    Used Available Use% Mounted on
-            // /dev/block/mmcblk0p15  27545632 4090224  23455408  15% /data
-            String size = TextUtils.split(line, 3);
-            try {
-                // size is in 1k blocks
-                device.freeSpace = Long.parseLong(size) * 1000L;
-                notifyDeviceUpdated(device);
-                return;
-            } catch (Exception e) {
-                log.trace("fetchDeviceDetails: FREE_SPACE Exception:{}", e.getMessage());
-            }
-            if (device.freeSpace == null || device.freeSpace == 0) {
-                log.trace("fetchFreeDiskSpace: NOT_FOUND: {}", GsonHelper.toJson(result.resultList));
-            }
+        if (!result.isSuccess || result.resultList.isEmpty()) return;
+        // get last line
+        String line = result.resultList.get(result.resultList.size() - 1);
+        // Filesystem            1K-blocks    Used Available Use% Mounted on
+        // /dev/block/mmcblk0p15  27545632 4090224  23455408  15% /data
+        Long freeSpace = blocksToBytes(TextUtils.split(line, 3));
+        if (freeSpace == null) {
+            log.trace("fetchFreeDiskSpace: NOT_FOUND: {}", GsonHelper.toJson(result.resultList));
+            return;
+        }
+        device.freeSpace = freeSpace;
+        // total is only used to show free space as a fraction of it, so it's fine for it to stay null
+        // on a device whose df prints something we can't parse
+        device.totalSpace = blocksToBytes(TextUtils.split(line, 1));
+        notifyDeviceUpdated(device);
+    }
+
+    /**
+     * @param blocks column from "df", in 1k blocks
+     * @return size in bytes, or null if it isn't a number
+     */
+    private Long blocksToBytes(String blocks) {
+        try {
+            return Long.parseLong(blocks) * 1024L;
+        } catch (Exception e) {
+            log.trace("blocksToBytes: bad value:{}", blocks);
+            return null;
         }
     }
 

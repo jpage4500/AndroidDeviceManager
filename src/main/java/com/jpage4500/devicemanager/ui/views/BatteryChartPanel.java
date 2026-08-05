@@ -14,14 +14,11 @@ import org.jfree.chart.labels.StandardXYToolTipGenerator;
 import org.jfree.chart.plot.CombinedDomainXYPlot;
 import org.jfree.chart.plot.DatasetRenderingOrder;
 import org.jfree.chart.plot.IntervalMarker;
-import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.XYAreaRenderer;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.chart.ui.Layer;
-import org.jfree.chart.ui.RectangleAnchor;
 import org.jfree.chart.ui.RectangleInsets;
-import org.jfree.chart.ui.TextAnchor;
 import org.jfree.data.Range;
 import org.jfree.data.time.FixedMillisecond;
 import org.jfree.data.time.TimeSeries;
@@ -65,10 +62,6 @@ public class BatteryChartPanel extends JPanel {
     // history entries are written when something changes, not on a timer, so an idle device can leave
     // hours between samples; split the line there instead of drawing a straight edge across the gap
     private static final long MAX_GAP_MS = 15 * 60 * 1000L;
-    // batteries shouldn't get this hot (40C); drawn as a labeled reference line on the temp chart
-    private static final double TEMP_WARN_F = 104d;
-    // ..but only once readings come within this much of it, so it isn't drawn on a cool device
-    private static final double TEMP_WARN_MARGIN_F = 9d;
 
     private static final Font FONT_LABEL = new Font(Font.SANS_SERIF, Font.PLAIN, 11);
     private static final Font FONT_TITLE = new Font(Font.SANS_SERIF, Font.BOLD, 12);
@@ -261,6 +254,9 @@ public class BatteryChartPanel extends JPanel {
     private XYPlot createTempPlot(List<BatteryInfo.Sample> sampleList) {
         TimeSeriesCollection dataset = buildSegments(sampleList, sample -> BatteryInfo.toFahrenheit(sample.tempC));
 
+        // NOTE: the axis is left on auto range, deliberately. a fixed range here (eg. to make room for a
+        // reference line above the data) is silently discarded by ChartPanel.restoreAutoBounds() on
+        // zoom-out, so the chart would draw differently before and after the first zoom
         NumberAxis tempAxis = new NumberAxis("Temp °F");
         tempAxis.setAutoRangeIncludesZero(false);
         styleAxis(tempAxis);
@@ -271,27 +267,6 @@ public class BatteryChartPanel extends JPanel {
 
         XYPlot plot = new XYPlot(dataset, null, tempAxis, renderer);
         stylePlot(plot);
-
-        // only draw the reference line when readings actually approach it - on a device sitting at 25C
-        // it would either sit off the top of an auto-ranged axis (invisible) or flatten the data to fit
-        float maxTempF = -Float.MAX_VALUE;
-        float minTempF = Float.MAX_VALUE;
-        for (BatteryInfo.Sample sample : sampleList) {
-            Float tempF = BatteryInfo.toFahrenheit(sample.tempC);
-            if (tempF == null) continue;
-            maxTempF = Math.max(maxTempF, tempF);
-            minTempF = Math.min(minTempF, tempF);
-        }
-        if (maxTempF >= TEMP_WARN_F - TEMP_WARN_MARGIN_F) {
-            tempAxis.setRange(minTempF - 2d, Math.max(maxTempF, TEMP_WARN_F) + 2d);
-            ValueMarker warnMarker = new ValueMarker(TEMP_WARN_F, Colors.COLOR_CHART_THRESHOLD, STROKE_HAIRLINE);
-            warnMarker.setLabel(" " + (int) TEMP_WARN_F + "°F");
-            warnMarker.setLabelFont(FONT_LABEL);
-            warnMarker.setLabelPaint(Colors.COLOR_CHART_THRESHOLD);
-            warnMarker.setLabelAnchor(RectangleAnchor.TOP_LEFT);
-            warnMarker.setLabelTextAnchor(TextAnchor.BOTTOM_LEFT);
-            plot.addRangeMarker(warnMarker);
-        }
         return plot;
     }
 

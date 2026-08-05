@@ -4,15 +4,17 @@
 
 ## Description ##
 
-Android Device Manager is a desktop app which can manage one or more Android devices
+Android Device Manager is a desktop (mac/windows/linux) app which can manage one or more Android devices
 
+---
 ## Features ##
 
-- View all connected (and wireless) devices
-- View devices connected to another computer (see [SERVER.md](SERVER.md))
-- Populates device **phone number, free space, IMEI, carrier** (if available)
-- **Remote control** selected devices (requires [scrcpy](https://github.com/Genymobile/scrcpy))
+- View all connected (**usb** and **wireless**) devices
+- View devices connected to **another computer** running this app (see [SERVER.md](SERVER.md))
+- Populates device **phone number, free space, IMEI, carrier**
+- **Remote control** devices ([scrcpy](https://github.com/Genymobile/scrcpy))
 - Capture **screenshots** of selected devices
+- Record **video** of selected devices
 - **Drag and drop an apk** to **install** on selected devices
 - **Drag and drop a file** to **copy** to selected devices
 - **File Explorer** / Browse filesystem of device
@@ -30,10 +32,12 @@ Android Device Manager is a desktop app which can manage one or more Android dev
 - **View version** of user-defined list of apps
 - Connect to devices wirelessly via **QR code**
 
+---
 ## Manage devices connected to other computers ##
 
 see [SERVER.md](SERVER.md)
 
+---
 ## Screenshots ##
 
 ### Devices Screen
@@ -42,13 +46,16 @@ see [SERVER.md](SERVER.md)
 ### Log Viewer
 <img src="resources/screenshot-logs.jpg" width="600" alt="logs">
 
+### File Browser
+<img src="resources/screenshot-browse.jpg" width="300" alt="file explorer">
+
 <details>
   <summary>More Screenshots</summary>
 <b>Mirror Device (scrcpy)</b></br>
 <img src="resources/screenshot-mirror.jpg" width="600" alt="devices">
 <br>
-<b>File Browser</b></br>
-<img src="resources/screenshot-browse.jpg" width="300" alt="file explorer">
+<b>Device Info</b></br>
+<img src="resources/device-info.png" width="300" alt="logs">
 <br>
 <b>Battery Details</b></br>
 <img src="resources/battery-stats.png" width="600" alt="logs">
@@ -61,6 +68,15 @@ see [SERVER.md](SERVER.md)
 <br>
 </details>
 
+---
+
+## Install Android Device Manager
+
+I'm using jdeploy to package this as a native app for Mac/Windows/Linux. This also allows for automatic updates
+
+To install, grab the latest version from [Releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
+
+---
 ## Prerequisites
 
 - **adb** - android debugging tools
@@ -146,94 +162,12 @@ brew install scrcpy
 
 </details>
 
-## Install Android Device Manager
-
-I'm using jdeploy to package this as a native app for Mac/Windows/Linux. This also allows for automatic updates
-
-To install, grab the latest version from [Releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
-
-## Build
-
-<details>
-  <summary>Build Android Device Manager</summary>
-
-## Prerequisites
-
-- Java SDK
-    - min version 17; I'm using openjdk 22.0.1 2024-04-16
-    - MacOSX -> Homebrew -> `brew install openjdk`
-    - Linux - [link](https://www.digitalocean.com/community/tutorials/how-to-install-java-with-apt-on-ubuntu-22-04)
-- Maven
-    - MacOSX -> Homebrew -> `brew install maven`
-    - Linux - [link](https://www.digitalocean.com/community/tutorials/install-maven-linux-ubuntu)
-
-## Build
-
-- sync this repo
-    - `git clone https://github.com/jpage4500/AndroidDeviceManager.git`
-- build
-    - `mvn compile`
-- run:
-    - `mvn exec:java`
-
-</details>
-
-## Releasing
-
-<details>
-  <summary>How releases work (and the token they need)</summary>
-
-Pushing to `develop` runs [`.github/workflows/jdeploy.yml`](.github/workflows/jdeploy.yml), which:
-
-1. tags the commit `1.0.<git commit count>`
-2. on that tag push, builds the jar and uses [jDeploy](https://www.jdeploy.com) to publish native
-   Mac/Windows/Linux installers to [Releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
-3. writes the release body: changes since the previous tag (via `scripts/gen_release_notes.sh`)
-   followed by the installer download links
-
-To preview the notes for a release locally:
-
-```
-./scripts/gen_release_notes.sh tag brief 1.0.511
-```
-
-jDeploy also keeps a `package-info.json` file on a prerelease tagged `jdeploy` — that's the manifest
-installed copies of the app read to auto-update, so don't delete that release.
-
-### Creating the ADM_JDEPLOY_GITHUB_TOKEN secret
-
-Both jobs need a personal access token. The built-in `GITHUB_TOKEN` won't work: pushes made with it
-never trigger another workflow, so the tag pushed by job 1 wouldn't start job 2.
-
-**Fine-grained token** (recommended) — <https://github.com/settings/personal-access-tokens/new>
-
-- **Repository access** → *Only select repositories* → `jpage4500/AndroidDeviceManager`
-- **Permissions** → *Repository permissions* → **Contents: Read and write**
-  (this one permission covers both pushing the tag and creating/uploading releases)
-- **Expiration** — note the date. Releases silently stop when the token expires.
-
-**Classic token** — <https://github.com/settings/tokens/new>
-
-- Scope: **`public_repo`** (or `repo` if the repository is ever made private)
-
-Then add it to the repo: **Settings → Secrets and variables → Actions → New repository secret**,
-named exactly `ADM_JDEPLOY_GITHUB_TOKEN`.
-
-The repository must stay **public** — the jDeploy installer downloads updates from the release assets
-anonymously.
-
-</details>
-
+---
 ## Use Cases ##
 
-We want to manage a lot of Android devices and had previously used MDM (mobile device management) software such as *
-*AirDroid** and **ScaleFusion**. These tools aren't free ($$) but more importantly trying to remote control/view an
-Android device was often a very slow and choppy experience.
+We want to manage a lot of Android devices and had previously used MDM (mobile device management) software such as **AirDroid** and **ScaleFusion**. These tools aren't free ($$) but more importantly trying to remote control/view an Android device was often a very slow and choppy experience.
 
-So, instead we took a different approach. Instead of running MDM software on every individual Android device, we
-connected all of the devices to a single macbook laptop using multiple 16-port USB hubs. The Macbook is
-running [Splashtop](https://www.splashtop.com/) remote control software. I can now remote login and using Android Device
-Manager control all of the devices with very little to no lag.
+So, instead we took a different approach. Instead of running MDM software on every individual Android device, we connected all of the devices to a single macbook laptop using multiple 16-port USB hubs. The Macbook is running [Splashtop](https://www.splashtop.com/) remote control software. I can now remote login and using Android Device Manager control all of the devices with very little to no lag.
 
 ---
 

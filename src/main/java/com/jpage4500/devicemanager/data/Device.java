@@ -40,6 +40,8 @@ public class Device {
     public String phone;
     public String imei;
     public Long freeSpace;
+    // total size of the same partition freeSpace is measured on; null if the device didn't report it
+    public Long totalSpace;
     public Integer batteryLevel;
     public PowerStatus powerStatus = PowerStatus.POWER_NONE;
     // extended battery details: temperature, level history, charging events
@@ -202,6 +204,30 @@ public class Device {
             busyCounter.set(0);
         }
         return newValue > 0;
+    }
+
+    /**
+     * @return percent of internal storage in use (0-100), or null if the device didn't report a total
+     */
+    public Integer getStorageUsedPercent() {
+        if (freeSpace == null || totalSpace == null || totalSpace <= 0) return null;
+        long usedSpace = totalSpace - freeSpace;
+        // free > total means we mis-parsed one of them; better to show no bar than a wrong one
+        if (usedSpace < 0) return null;
+        return (int) Math.round(usedSpace * 100d / totalSpace);
+    }
+
+    /**
+     * @return battery icon for the given level (green when full through red when nearly empty), or
+     * null if the level is unknown
+     */
+    public static Icons getBatteryIcon(Integer level) {
+        if (level == null) return null;
+        else if (level > 95) return Icons.BATTERY_LEVEL4;
+        else if (level > 50) return Icons.BATTERY_LEVEL3;
+        else if (level > 25) return Icons.BATTERY_LEVEL2;
+        else if (level > 5) return Icons.BATTERY_LEVEL1;
+        else return Icons.BATTERY_LEVEL0;
     }
 
     /**

@@ -145,7 +145,7 @@ public class BatteryInfo {
     static String formatTemp(Float tempC) {
         Float tempF = toFahrenheit(tempC);
         if (tempF == null) return null;
-        return String.format(Locale.US, "%.1f°F", tempF);
+        return String.format(Locale.US, "%.1f°", tempF);
     }
 
     static boolean isValidLevel(Integer level) {

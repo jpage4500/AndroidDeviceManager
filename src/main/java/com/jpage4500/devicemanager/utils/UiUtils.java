@@ -11,6 +11,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.ActionListener;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.net.URL;
 
@@ -84,6 +85,34 @@ public class UiUtils {
         g.fillRect(0, 0, w, h);
         g.dispose();
         return dyed;
+    }
+
+    // how much of the app's background image shows through: enough to see it, not enough to fight
+    // with the content drawn on top of it
+    private static final float BACKGROUND_ALPHA = 0.15f;
+
+    /**
+     * tile the app's background image, faded, over the given area
+     * <p>
+     * tiled at its own size rather than stretched to fit: the image is a repeating pattern, and
+     * scaling it to the window would make it a different size in every window. does nothing if image
+     * is null, so callers can pass a missing/disabled background straight through
+     *
+     * @param y top of the area to fill (eg: below a table header)
+     */
+    public static void drawBackgroundImage(Graphics graphics, BufferedImage image, int y, int width, int height) {
+        if (image == null || width <= 0 || height <= 0) return;
+
+        Graphics2D g2d = (Graphics2D) graphics.create();
+        try {
+            g2d.setComposite(AlphaComposite.SrcOver.derive(BACKGROUND_ALPHA));
+            // anchored at the top of the area, so the first tile starts there instead of wherever the
+            // window's own origin happens to fall
+            g2d.setPaint(new TexturePaint(image, new Rectangle2D.Float(0, y, image.getWidth(), image.getHeight())));
+            g2d.fillRect(0, y, width, height);
+        } finally {
+            g2d.dispose();
+        }
     }
 
     public static void setEmptyBorder(JComponent component) {
