@@ -111,29 +111,23 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         updateDevice(device);
     }
 
+    @Override
     public void updateDevice(Device device) {
-        this.device = device;
-        if (device == null) {
-            setTitle("No Device");
-            return;
-        }
+        super.updateDevice(device);
+        if (device == null) return;
         if (device.isOnline) {
-            setTitle(device.getDisplayName());
-            startLogging();
+            // NOTE: don't restart logging the user explicitly stopped (same rule as ACTIVATED)
+            if (!isLoggedPaused) startLogging();
         } else {
-            setTitle("[OFFLINE] " + device.getDisplayName());
             stopLogging();
             model.setProcessMap(null);
         }
     }
 
-    public boolean isShowingDevice(Device device) {
-        return device != null && this.device != null
-                && TextUtils.equals(device.serial, this.device.serial);
-    }
-
-    public String getCurrentSerial() {
-        return device != null ? device.serial : null;
+    @Override
+    protected String buildTitle() {
+        // headless mode opens with no device until one is discovered
+        return device == null ? "No Device" : deviceTitle(null);
     }
 
     /**
@@ -262,9 +256,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     protected void onWindowStateChanged(WindowState state) {
         super.onWindowStateChanged(state);
         switch (state) {
-            case CLOSING -> {
-                closeWindow();
-            }
             case ACTIVATED -> {
                 // start logging if user didn't stop
                 if (!isLoggedPaused && device != null) {
@@ -484,9 +475,7 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     }
 
     @Override
-    public void closeWindow() {
-        String name = device != null ? device.getDisplayName() : "no device";
-        log.trace("closeWindow: {}", name);
+    protected void onClosing() {
         // save last filter
         String filterText = filterField.getCleanText();
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LOGS_CUSTOM_FILTER, filterText.trim());
@@ -503,8 +492,6 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
         saveDividerLocations();
 
         stopLogging();
-        app.onLogsClosed(device != null ? device.serial : null);
-        dispose();
     }
 
     @Override

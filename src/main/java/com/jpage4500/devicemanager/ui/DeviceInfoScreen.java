@@ -50,14 +50,15 @@ public class DeviceInfoScreen extends BaseScreen {
         updateDevice(device);
     }
 
+    @Override
     public void updateDevice(Device device) {
-        this.device = device;
-        if (device.isOnline) {
-            setTitle("Device: " + device.getDisplayName());
-        } else {
-            setTitle("OFFLINE [" + device.getDisplayName() + "]");
-        }
+        super.updateDevice(device);
         refreshDetails();
+    }
+
+    @Override
+    protected String buildTitle() {
+        return deviceTitle("Device");
     }
 
     private void setupMenuBar() {
@@ -192,19 +193,4 @@ public class DeviceInfoScreen extends BaseScreen {
         });
     }
 
-    @Override
-    protected void onWindowStateChanged(WindowState state) {
-        super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSING) {
-            closeWindow();
-        }
-    }
-
-    @Override
-    public void closeWindow() {
-        log.trace("closeWindow: {}", device.getDisplayName());
-        saveFrameSize();
-        app.onDeviceInfoClosed(device.serial);
-        dispose();
-    }
 }

@@ -8,6 +8,7 @@ import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.utils.ClickListener;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
+import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,6 +99,45 @@ public abstract class BaseScreen extends JFrame {
 
     protected void onWindowStateChanged(WindowState state) {
         //log.trace("onWindowStateChanged: {}: {}", prefKey, state);
+        if (state == WindowState.CLOSING) closeWindow();
+    }
+
+    /**
+     * point this screen at the (refreshed) device it's bound to - called by {@link AppController}
+     * whenever the device changes, so an open window never shows stale state
+     * <p>
+     * override to react to the new state (eg: start/stop logging) and call super first
+     */
+    public void updateDevice(Device device) {
+        this.device = device;
+        setTitle(buildTitle());
+    }
+
+    /**
+     * title for this window; re-read on every {@link #updateDevice}
+     */
+    protected String buildTitle() {
+        return deviceTitle(null);
+    }
+
+    /**
+     * standard device-window title: "<prefix>: <name>", with an offline device shown as
+     * "OFFLINE [<name>]" so a window left open on an unplugged device reads as such at a glance
+     *
+     * @param prefix window type (eg: "Battery"), or null for the device name alone
+     */
+    protected String deviceTitle(String prefix) {
+        if (device == null) return prefix != null ? prefix : "";
+        String name = device.getDisplayName();
+        if (!device.isOnline) name = "OFFLINE [" + name + "]";
+        return prefix != null ? prefix + ": " + name : name;
+    }
+
+    /**
+     * true if this screen is bound to the given device
+     */
+    public boolean isShowingDevice(Device other) {
+        return other != null && device != null && TextUtils.equals(other.serial, device.serial);
     }
 
     /**
@@ -137,9 +177,26 @@ public abstract class BaseScreen extends JFrame {
     }
 
     /**
-     * close this window (each screen handles save/cleanup before disposing)
+     * close this window: screen cleanup, persist size/position, drop out of the App's open-window
+     * list, dispose.
+     * <p>
+     * override {@link #onClosing()} for per-screen cleanup rather than this method. DeviceScreen is
+     * the one screen that replaces it outright - closing the main window routes through App.exit
+     * instead, which decides between exit-to-tray and a real quit.
      */
-    public abstract void closeWindow();
+    public void closeWindow() {
+        onClosing();
+        saveFrameSize();
+        // app is null for windows created outside AppController (eg: RemoteScreenWindow)
+        if (app != null) app.onWindowClosed(this);
+        dispose();
+    }
+
+    /**
+     * screen-specific cleanup, run before the window is saved and disposed
+     */
+    protected void onClosing() {
+    }
 
     /**
      * show/hide this screen's main toolbar — default no-op for screens without one

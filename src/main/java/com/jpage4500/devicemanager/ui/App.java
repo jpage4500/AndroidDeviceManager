@@ -46,21 +46,13 @@ public interface App {
     void showMessage(String title, String text);
 
     // ------------------------------------------------------------------
-    // cleanup callbacks — fired by screens from their close handlers
+    // cleanup callback — fired by BaseScreen.closeWindow()
     // ------------------------------------------------------------------
-    void onLogsClosed(String serial);
 
-    void onBrowseClosed(String serial);
-
-    void onInputClosed(String serial);
-
-    void onDeviceInfoClosed(String serial);
-
-    void onBatteryClosed(String serial);
-
-    void onSaveLogsClosed();
-
-    void onCommandClosed();
+    /**
+     * a window closed: drop it from the open-window list so the next show() creates a fresh one
+     */
+    void onWindowClosed(BaseScreen screen);
 
     // ------------------------------------------------------------------
     // device state

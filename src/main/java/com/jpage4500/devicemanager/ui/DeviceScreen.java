@@ -94,17 +94,10 @@ public class DeviceScreen extends BaseScreen {
         table.requestFocus();
     }
 
-    @Override
-    protected void onWindowStateChanged(WindowState state) {
-        super.onWindowStateChanged(state);
-        switch (state) {
-            case CLOSING -> closeWindow();
-            case DEACTIVATED -> {
-                if (app instanceof AppController controller) controller.hideTrayPopup();
-            }
-        }
-    }
-
+    /**
+     * closing the main window isn't necessarily a quit - App.exit decides between exit-to-tray and
+     * really shutting down (and saves this window's size/position either way)
+     */
     @Override
     public void closeWindow() {
         app.exit(false);

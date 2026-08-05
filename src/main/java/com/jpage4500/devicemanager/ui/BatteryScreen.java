@@ -47,21 +47,17 @@ public class BatteryScreen extends BaseScreen {
         refresh();
     }
 
-    public void updateDevice(Device device) {
-        this.device = device;
-        setTitle(buildTitle());
-    }
-
     /**
      * title carries the time span once it's known - the history's extent is the first thing you want to
      * know about a chart like this
      */
-    private String buildTitle() {
-        String name = device.isOnline ? device.getDisplayName() : "OFFLINE [" + device.getDisplayName() + "]";
-        if (history == null || history.isEmpty()) return "Battery: " + name;
+    @Override
+    protected String buildTitle() {
+        String title = deviceTitle("Battery");
+        if (history == null || history.isEmpty()) return title;
         SimpleDateFormat dateFormat = new SimpleDateFormat("MM-dd HH:mm");
         long[] timeRange = history.getTimeRange();
-        return "Battery: " + name + "  (" + dateFormat.format(new Date(timeRange[0]))
+        return title + "  (" + dateFormat.format(new Date(timeRange[0]))
             + " - " + dateFormat.format(new Date(timeRange[1])) + ")";
     }
 
@@ -150,21 +146,5 @@ public class BatteryScreen extends BaseScreen {
             prevValue = value;
         }
         DialogHelper.showListDialog(this, buildTitle(), displayMap, null);
-    }
-
-    @Override
-    protected void onWindowStateChanged(WindowState state) {
-        super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSING) {
-            closeWindow();
-        }
-    }
-
-    @Override
-    public void closeWindow() {
-        log.trace("closeWindow: {}", device.getDisplayName());
-        saveFrameSize();
-        app.onBatteryClosed(device.serial);
-        dispose();
     }
 }

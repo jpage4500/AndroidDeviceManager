@@ -373,25 +373,18 @@ public class SaveLogsScreen extends BaseScreen {
     }
 
     @Override
-    protected void onWindowStateChanged(WindowState state) {
-        super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSING) {
-            closeWindow();
-        }
-    }
-
-    @Override
-    public void closeWindow() {
-        log.trace("closeWindow");
+    protected void onClosing() {
         stopLogging();
-        saveFrameSize();
         // persist column widths/order
         table.saveTable();
-        app.onSaveLogsClosed();
-        dispose();
     }
 
-    public void updateDevice() {
+    /**
+     * device state changed - the rows show live status for each device being recorded
+     * <p>
+     * NOTE: not updateDevice(Device) - this screen tracks a list, so it redraws all rows at once
+     */
+    public void refreshDeviceRows() {
         model.fireTableDataChanged();
     }
 }

@@ -33,6 +33,20 @@ public class Utils {
         new Thread(runnable).start();
     }
 
+    /**
+     * run on the Swing thread - immediately if we're already on it
+     * <p>
+     * NOTE: prefer this over a bare invokeLater when the caller might already be on the EDT and the
+     * work needs to land before it returns (eg: updating a table model the caller then reads)
+     */
+    public static void runOnUi(Runnable runnable) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            runnable.run();
+        } else {
+            SwingUtilities.invokeLater(runnable);
+        }
+    }
+
     public static void runDelayed(int delayMs, boolean isUiThread, Runnable runnable) {
         javax.swing.Timer timer = new Timer(delayMs, e -> {
             if (isUiThread) {

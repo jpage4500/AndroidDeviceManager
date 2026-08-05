@@ -166,24 +166,13 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     }
 
     @Override
-    protected void onWindowStateChanged(WindowState state) {
-        super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSING) {
-            closeWindow();
-        }
-    }
-
-    @Override
-    public void closeWindow() {
+    protected void onClosing() {
         closing = true;
         if (reconnectTimer != null) {
             reconnectTimer.stop();
             reconnectTimer = null;
         }
         cleanup();
-        saveFrameSize();
-        dispose();
-
         if (listener != null) listener.onTaskComplete(true, null);
     }
 

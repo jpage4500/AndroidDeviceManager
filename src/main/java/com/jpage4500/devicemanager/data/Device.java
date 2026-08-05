@@ -98,8 +98,8 @@ public class Device {
         if (phone != null) {
             if (!sb.isEmpty()) sb.append(" - ");
             sb.append(phone);
-        } else if (serial != null) {
-            if (!sb.isEmpty()) sb.append(" - ");
+        } else if (serial != null && sb.isEmpty()) {
+            // only show serial if nothing else is available
             sb.append(serial);
         }
         return sb.toString();

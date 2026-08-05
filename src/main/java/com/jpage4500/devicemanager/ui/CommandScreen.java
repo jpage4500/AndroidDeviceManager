@@ -124,16 +124,26 @@ public class CommandScreen extends BaseScreen {
      */
     public void setDeviceList(List<Device> deviceList) {
         this.selectedDeviceList = deviceList;
-        boolean isSingleDevice = deviceList.size() == 1;
         // NOTE: buildWindowMenu()'s "Show File Browser"/"Show Device Logs" items read this field
         // when clicked (not when built) so updating it here re-targets them
-        this.device = isSingleDevice ? deviceList.get(0) : null;
-
-        String target = isSingleDevice ? deviceList.get(0).getDisplayName() : deviceList.size() + " devices";
-        setTitle("Send ADB Command [" + target + "]");
+        this.device = deviceList.size() == 1 ? deviceList.get(0) : null;
+        setTitle(buildTitle());
 
         // start focus on the command field
         SwingUtilities.invokeLater(() -> textField.requestFocusInWindow());
+    }
+
+    /**
+     * this screen targets a list, not the single `device` field - so build the title from that list
+     * (otherwise a device refresh would retitle the window with just the device name)
+     */
+    @Override
+    protected String buildTitle() {
+        if (selectedDeviceList == null || selectedDeviceList.isEmpty()) return "Send ADB Command";
+        String target = selectedDeviceList.size() == 1
+            ? selectedDeviceList.get(0).getDisplayName()
+            : selectedDeviceList.size() + " devices";
+        return "Send ADB Command [" + target + "]";
     }
 
     private void setupMenuBar() {
@@ -142,22 +152,6 @@ public class CommandScreen extends BaseScreen {
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
         setJMenuBar(menubar);
-    }
-
-    @Override
-    protected void onWindowStateChanged(WindowState state) {
-        super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSING) {
-            closeWindow();
-        }
-    }
-
-    @Override
-    public void closeWindow() {
-        log.trace("closeWindow");
-        saveFrameSize();
-        app.onCommandClosed();
-        dispose();
     }
 
     private void runCommand() {
