@@ -50,7 +50,6 @@ public enum Icons {
     FOLDER_UP("folder_up.png"),
     HOME("home.png"),
     KEYBOARD("keyboard.png"),
-    LOGO("logo.png"),
     LOGS("logs.png"),
     MENU("menu.png"),
     MEMORY("memory.png"),
