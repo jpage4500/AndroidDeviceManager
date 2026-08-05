@@ -7,6 +7,7 @@ import se.vidstige.jadb.JadbDevice;
 
 import java.awt.*;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -19,6 +20,7 @@ public class Device {
     private final static String PROP_CARRIER_2 = "gsm.operator.alpha";
     private final static String PROP_BRAND = "ro.product.brand";
     private final static String PROP_NAME = "ro.product.name";
+    private final static String PROP_TIMEZONE = "persist.sys.timezone";
 
     public final static String CUSTOM_PROP_X = "custom";
     public final static String CUST_PROP_1 = "custom1";
@@ -40,10 +42,14 @@ public class Device {
     public Long freeSpace;
     public Integer batteryLevel;
     public PowerStatus powerStatus = PowerStatus.POWER_NONE;
+    // extended battery details: temperature, level history, charging events
+    public BatteryInfo batteryInfo;
     public String model;
     public String os;
     public String sdk;
     public String carrier;
+    // device timezone (America/Chicago); used to parse device-local timestamps
+    public String timezone;
 
     // optional status description (error message, etc)
     public String status;
@@ -92,8 +98,8 @@ public class Device {
         if (phone != null) {
             if (!sb.isEmpty()) sb.append(" - ");
             sb.append(phone);
-        } else if (serial != null) {
-            if (!sb.isEmpty()) sb.append(" - ");
+        } else if (serial != null && sb.isEmpty()) {
+            // only show serial if nothing else is available
             sb.append(serial);
         }
         return sb.toString();
@@ -127,6 +133,8 @@ public class Device {
         sdk = propMap.get(PROP_SDK);
         // os (14)
         os = propMap.get(PROP_OS);
+        // timezone (America/Chicago)
+        timezone = propMap.get(PROP_TIMEZONE);
 
         // carrier
         carrier = propMap.get(Device.PROP_CARRIER);
@@ -136,6 +144,17 @@ public class Device {
             carrier = propMap.get(Device.PROP_CARRIER_2);
             carrier = cleanCarrierString(carrier);
         }
+    }
+
+    /**
+     * parse "dumpsys battery" output (level, power status, temperature and history)
+     */
+    public void parseBatteryInfo(List<String> lineList) {
+        if (batteryInfo == null) batteryInfo = new BatteryInfo();
+        batteryInfo.update(lineList);
+        // keep the values used by the device table in sync
+        if (batteryInfo.level != null) batteryLevel = batteryInfo.level;
+        powerStatus = batteryInfo.powerStatus;
     }
 
     /**

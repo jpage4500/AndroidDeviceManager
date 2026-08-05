@@ -36,12 +36,13 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 /**
  * App-lifecycle owner. Implements {@link App} for the screens to depend on, and
@@ -51,7 +52,7 @@ import java.util.concurrent.TimeUnit;
  *  - ADB server connect / retry, remote-server / remote-connection lifecycle
  *  - Update checking against GitHub releases
  *  - System tray icon
- *  - Open child-window cache for logs / explore / input / save-logs
+ *  - Open child-window registry (one window per screen type per device)
  *  - Exit-to-tray handling and process exit
  */
 public class AppController implements App, DeviceManager.DeviceListener {
@@ -64,13 +65,9 @@ public class AppController implements App, DeviceManager.DeviceListener {
     private DeviceScreen deviceScreen;
     private boolean headlessMode;
 
-    // open windows (per device)
-    private final Map<String, ExploreScreen> exploreViewMap = new HashMap<>();
-    private final Map<String, ViewLogsScreen> logsViewMap = new HashMap<>();
-    private final Map<String, InputScreen> inputViewMap = new HashMap<>();
-    private SaveLogsScreen saveLogsScreen;
-    private MessageViewScreen messageScreen;
-    private CommandScreen commandScreen;
+    // every open child window, keyed by windowKey() - one entry per (screen type, device).
+    // LinkedHashMap so exit() saves them in the order they were opened.
+    private final Map<String, BaseScreen> windowMap = new LinkedHashMap<>();
 
     // system tray (dorkbox)
     private SystemTray systemTray;
@@ -196,7 +193,57 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
     // ========================================================================
     // App: navigation
+    //
+    // every child window lives in windowMap, so one instance per (screen type, device) is reused
+    // and updateChildWindows()/exit() can treat them all the same.
     // ========================================================================
+
+    /**
+     * registry key: one window per screen type per device (blank serial for the app-wide screens
+     * that aren't bound to a single device)
+     */
+    private static String windowKey(Class<? extends BaseScreen> type, Device device) {
+        return type.getSimpleName() + ":" + (device != null ? device.serial : "");
+    }
+
+    /**
+     * the open window of the given type for this device, creating it on first use
+     *
+     * @param onlineOnly the window can't be created for an offline device (it needs to talk to it).
+     *                   NOTE: an already-open window is still returned - it shows the OFFLINE state
+     *                   rather than vanishing when the device goes away
+     * @return null only when the window doesn't exist and can't be created
+     */
+    private <T extends BaseScreen> T openWindow(Class<T> type, Device device, boolean onlineOnly, Function<Device, T> factory) {
+        String key = windowKey(type, device);
+        T screen = type.cast(windowMap.get(key));
+        if (screen == null) {
+            if (onlineOnly && device != null && !device.isOnline) return null;
+            screen = factory.apply(device);
+            windowMap.put(key, screen);
+        } else if (device != null) {
+            // re-showing an existing window: pick up whatever changed since it was last displayed
+            screen.updateDevice(device);
+        }
+        return screen;
+    }
+
+    /**
+     * show the per-device window of the given type
+     * <p>
+     * NOTE: a null device means "whatever is selected in the device list" - toolbar buttons and the
+     * Window menu items in every screen pass null
+     */
+    private <T extends BaseScreen> void showDeviceWindow(Class<T> type, Device device, boolean onlineOnly, Function<Device, T> factory) {
+        if (device == null && deviceScreen != null) device = deviceScreen.getFirstSelectedDevice();
+        if (device == null) return;
+        T screen = openWindow(type, device, onlineOnly, factory);
+        if (screen == null) {
+            log.debug("showDeviceWindow: {} is offline, not opening {}", device.getDisplayName(), type.getSimpleName());
+            return;
+        }
+        screen.show();
+    }
 
     @Override
     public void showDeviceList() {
@@ -209,123 +256,94 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
     @Override
     public void showLogs(Device device) {
-        if (device == null && deviceScreen != null) device = deviceScreen.getFirstSelectedDevice();
-        if (device == null) return;
-
         // headless/logs-only mode uses a single ViewLogsScreen with an embedded device picker;
         // route to it instead of creating a per-serial instance
         if (headlessLogsScreen != null) {
-            if (!device.isOnline) return;
+            if (device == null || !device.isOnline) return;
             headlessLogsScreen.selectDevice(device);
             headlessLogsScreen.show();
             return;
         }
-
-        ViewLogsScreen logsScreen = logsViewMap.get(device.serial);
-        if (logsScreen == null) {
-            if (!device.isOnline) return;
-            logsScreen = new ViewLogsScreen(this, device);
-            logsViewMap.put(device.serial, logsScreen);
-        }
-        logsScreen.show();
+        showDeviceWindow(ViewLogsScreen.class, device, true, d -> new ViewLogsScreen(this, d));
     }
 
     @Override
     public void showFileBrowser(Device device) {
-        log.trace("showFileBrowser: BEFORE: device {}", device);
-        if (device == null && deviceScreen != null) device = deviceScreen.getFirstSelectedDevice();
-        if (device == null) return;
+        showDeviceWindow(ExploreScreen.class, device, true, d -> new ExploreScreen(this, d));
+    }
 
-        log.trace("showFileBrowser: device {}, isOnline:{}", device.getDisplayName(), device.isOnline);
-        ExploreScreen exploreScreen = exploreViewMap.get(device.serial);
-        if (exploreScreen == null) {
-            if (!device.isOnline) return;
-            exploreScreen = new ExploreScreen(this, device);
-            exploreViewMap.put(device.serial, exploreScreen);
-        }
-        log.trace("showFileBrowser: show..");
-        exploreScreen.show();
+    @Override
+    public void showInput(Device device) {
+        showDeviceWindow(InputScreen.class, device, true, d -> new InputScreen(this, d));
+    }
+
+    @Override
+    public void showDeviceInfo(Device device) {
+        // NOTE: no online check - the last known details are still worth reading for a device that
+        // just went away (and it's how you find out which device that was)
+        showDeviceWindow(DeviceInfoScreen.class, device, false, d -> new DeviceInfoScreen(this, d));
+    }
+
+    @Override
+    public void showBattery(Device device) {
+        showDeviceWindow(BatteryScreen.class, device, true, d -> new BatteryScreen(this, d));
     }
 
     @Override
     public void showSaveLogs(List<Device> devices) {
         if (devices == null || devices.isEmpty()) return;
-        if (saveLogsScreen == null) {
-            saveLogsScreen = new SaveLogsScreen(this);
-        }
-        saveLogsScreen.setDeviceList(devices);
-        saveLogsScreen.show();
-    }
-
-    @Override
-    public void showInput(Device device) {
-        if (device == null) return;
-
-        InputScreen inputScreen = inputViewMap.get(device.serial);
-        if (inputScreen == null) {
-            if (!device.isOnline) return;
-            inputScreen = new InputScreen(this, device);
-            inputViewMap.put(device.serial, inputScreen);
-        }
-        inputScreen.show();
+        SaveLogsScreen screen = openWindow(SaveLogsScreen.class, null, false, d -> new SaveLogsScreen(this));
+        screen.setDeviceList(devices);
+        screen.show();
     }
 
     @Override
     public void showCommand(List<Device> devices) {
         if (devices == null || devices.isEmpty()) return;
-        if (commandScreen == null) {
-            commandScreen = new CommandScreen(this);
-        }
-        commandScreen.setDeviceList(devices);
-        commandScreen.show();
+        CommandScreen screen = openWindow(CommandScreen.class, null, false, d -> new CommandScreen(this));
+        screen.setDeviceList(devices);
+        screen.show();
     }
 
     @Override
     public void showMessage(String title, String text) {
         // NOTE: callers can be on a background thread (eg: adb command results)
         SwingUtilities.invokeLater(() -> {
-            if (messageScreen == null) messageScreen = new MessageViewScreen(this);
-            messageScreen.setText(title, text);
-            messageScreen.show();
+            MessageViewScreen screen = openWindow(MessageViewScreen.class, null, false, d -> new MessageViewScreen(this));
+            screen.setText(title, text);
+            screen.show();
         });
     }
 
     // ========================================================================
-    // App: cleanup callbacks
+    // App: cleanup callback
     // ========================================================================
 
     @Override
-    public void onLogsClosed(String serial) {
-        if (headlessLogsScreen != null
-                && (serial == null || serial.equals(headlessLogsScreen.getCurrentSerial()))) {
-            headlessLogsScreen = null;
-        } else {
-            logsViewMap.remove(serial);
-        }
-        if (headlessMode && headlessLogsScreen == null && logsViewMap.isEmpty()) {
+    public void onWindowClosed(BaseScreen screen) {
+        windowMap.values().remove(screen);
+        if (screen == headlessLogsScreen) headlessLogsScreen = null;
+        if (headlessMode && screen instanceof ViewLogsScreen
+                && headlessLogsScreen == null && !hasWindowOfType(ViewLogsScreen.class)) {
             // logs-only mode: closing the last logs window exits the app
             exit(true);
         }
     }
 
-    @Override
-    public void onBrowseClosed(String serial) {
-        exploreViewMap.remove(serial);
+    private boolean hasWindowOfType(Class<? extends BaseScreen> type) {
+        for (BaseScreen screen : windowMap.values()) {
+            if (type.isInstance(screen)) return true;
+        }
+        return false;
     }
 
-    @Override
-    public void onInputClosed(String serial) {
-        inputViewMap.remove(serial);
-    }
-
-    @Override
-    public void onSaveLogsClosed() {
-        saveLogsScreen = null;
-    }
-
-    @Override
-    public void onCommandClosed() {
-        commandScreen = null;
+    /**
+     * the open app-wide window of the given type, or null if it isn't open
+     * <p>
+     * NOTE: only for the screens that aren't bound to a single device (save-logs, command, message)
+     */
+    private <T extends BaseScreen> T findWindow(Class<T> type) {
+        return type.cast(windowMap.get(windowKey(type, null)));
     }
 
     // ========================================================================
@@ -336,11 +354,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
     public void setDeviceBusy(Device device, boolean isBusy) {
         device.setBusy(isBusy);
         if (deviceScreen == null) return;
-        if (SwingUtilities.isEventDispatchThread()) {
-            deviceScreen.model.updateDevice(device);
-        } else {
-            SwingUtilities.invokeLater(() -> deviceScreen.model.updateDevice(device));
-        }
+        Utils.runOnUi(() -> deviceScreen.model.updateDevice(device));
     }
 
     // ========================================================================
@@ -429,20 +443,11 @@ public class AppController implements App, DeviceManager.DeviceListener {
         }
 
         // save positions/sizes of any other open windows
-        // (snapshot values first - closeWindow callbacks mutate the maps)
-        for (ExploreScreen screen : new ArrayList<>(exploreViewMap.values())) {
-            screen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        // (snapshot values first - closeWindow removes itself from windowMap)
+        for (BaseScreen screen : new ArrayList<>(windowMap.values())) {
+            screen.closeWindow();
         }
-        for (ViewLogsScreen screen : new ArrayList<>(logsViewMap.values())) {
-            screen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
-        }
-        if (headlessLogsScreen != null)
-            headlessLogsScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
-        for (InputScreen screen : new ArrayList<>(inputViewMap.values())) {
-            screen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
-        }
-        if (saveLogsScreen != null) saveLogsScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
-        if (commandScreen != null) commandScreen.onWindowStateChanged(BaseScreen.WindowState.CLOSING);
+        if (headlessLogsScreen != null) headlessLogsScreen.closeWindow();
 
         DeviceManager.getInstance().handleExit();
 
@@ -477,14 +482,11 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
     @Override
     public void handleDevicesUpdated(List<Device> deviceList) {
+        if (deviceList == null) return;
         SwingUtilities.invokeLater(() -> {
-            if (deviceList == null) return;
             if (deviceScreen != null) deviceScreen.handleDevicesUpdated(deviceList);
             for (Device device : deviceList) updateChildWindows(device);
-            setupSystemTray();
-            updateTaskbarBadge();
-            if (headlessLogsScreen != null) headlessLogsScreen.setConnectedDevices(deviceList);
-            drainPendingLogsRequest();
+            handleDeviceListChanged();
         });
     }
 
@@ -493,10 +495,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
         SwingUtilities.invokeLater(() -> {
             if (deviceScreen != null) deviceScreen.handleDeviceUpdated(device);
             updateChildWindows(device);
-            if (headlessLogsScreen != null) {
-                headlessLogsScreen.setConnectedDevices(DeviceManager.getInstance().getDevices());
-            }
-            drainPendingLogsRequest();
+            handleDeviceListChanged();
         });
     }
 
@@ -505,10 +504,28 @@ public class AppController implements App, DeviceManager.DeviceListener {
         SwingUtilities.invokeLater(() -> {
             if (deviceScreen != null) deviceScreen.handleDeviceRemoved(device);
             updateChildWindows(device);
-            if (headlessLogsScreen != null) {
-                headlessLogsScreen.setConnectedDevices(DeviceManager.getInstance().getDevices());
-            }
+            handleDeviceListChanged();
         });
+    }
+
+    /**
+     * shared tail of all 3 device-listener callbacks: everything here reflects the device list as a
+     * whole rather than one device
+     * <p>
+     * NOTE: this has to run for single-device updates and removals too, not just a full list change.
+     * DeviceManager only fires handleDevicesUpdated when a device is *added*, so unplugging one used
+     * to leave a stale count in the tray icon/menu and the taskbar badge.
+     */
+    private void handleDeviceListChanged() {
+        setupSystemTray();
+        updateTaskbarBadge();
+        // rows show live per-device status while recording
+        SaveLogsScreen saveLogsScreen = findWindow(SaveLogsScreen.class);
+        if (saveLogsScreen != null) saveLogsScreen.refreshDeviceRows();
+        if (headlessLogsScreen != null) {
+            headlessLogsScreen.setConnectedDevices(DeviceManager.getInstance().getDevices());
+        }
+        drainPendingLogsRequest();
     }
 
     @Override
@@ -532,21 +549,20 @@ public class AppController implements App, DeviceManager.DeviceListener {
         });
     }
 
+    /**
+     * push the refreshed device into every window bound to it, so an open window never shows state
+     * from the last refresh
+     * <p>
+     * NOTE: snapshot the values - updateDevice can start/stop logging, which can end up closing a
+     * window and mutating windowMap
+     */
     private void updateChildWindows(Device device) {
-        ExploreScreen exploreScreen = exploreViewMap.get(device.serial);
-        if (exploreScreen != null) exploreScreen.updateDevice(device);
-
-        ViewLogsScreen logsScreen = logsViewMap.get(device.serial);
-        if (logsScreen != null) logsScreen.updateDevice(device);
-
-        InputScreen inputScreen = inputViewMap.get(device.serial);
-        if (inputScreen != null) inputScreen.updateDevice(device);
-
+        for (BaseScreen screen : new ArrayList<>(windowMap.values())) {
+            if (screen.isShowingDevice(device)) screen.updateDevice(device);
+        }
         if (headlessLogsScreen != null && headlessLogsScreen.isShowingDevice(device)) {
             headlessLogsScreen.updateDevice(device);
         }
-
-        if (saveLogsScreen != null) saveLogsScreen.updateDevice();
     }
 
     private void updateTaskbarBadge() {
@@ -688,10 +704,6 @@ public class AppController implements App, DeviceManager.DeviceListener {
     private void mirrorDeviceFromTray(Device device) {
         setDeviceBusy(device, true);
         DeviceManager.getInstance().mirrorDevice(device, false, (isSuccess, error) -> setDeviceBusy(device, false));
-    }
-
-    public void hideTrayPopup() {
-        // dorkbox SystemTray manages its own menu visibility — no-op kept for caller compat
     }
 
     private void bringMainWindowToFront() {

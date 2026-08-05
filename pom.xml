@@ -92,6 +92,12 @@
             <artifactId>jmdns</artifactId>
             <version>3.5.9</version>
         </dependency>
+        <!-- battery history charts (LGPL 2.1 - see NOTICE) -->
+        <dependency>
+            <groupId>org.jfree</groupId>
+            <artifactId>jfreechart</artifactId>
+            <version>1.5.6</version>
+        </dependency>
     </dependencies>
 
     <build>

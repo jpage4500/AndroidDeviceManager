@@ -1,0 +1,29 @@
+AndroidDeviceManager
+Copyright (c) Joe Page
+
+This product bundles the following third-party components. Each is distributed
+under its own license, reproduced or linked below.
+
+--------------------------------------------------------------------------------
+JFreeChart 1.5.6
+  https://github.com/jfree/jfreechart
+  GNU Lesser General Public License, version 2.1 (LGPL-2.1-or-later)
+  https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+
+  JFreeChart is bundled unmodified inside AndroidDeviceManager.jar. In accordance
+  with the LGPL, the complete corresponding source for this version is available
+  from https://github.com/jfree/jfreechart/releases/tag/v1.5.6 and may be
+  replaced with a modified version of the library.
+--------------------------------------------------------------------------------
+FlatLaf                     Apache License 2.0
+SLF4J                       MIT License
+Gson                        Apache License 2.0
+Thumbnailator               MIT License
+MigLayout                   BSD License
+JAI ImageIO Core            BSD 3-Clause License
+NanoHTTPD                   BSD 3-Clause License
+dorkbox SystemTray          Apache License 2.0
+ZXing                       Apache License 2.0
+JmDNS                       Apache License 2.0
+jadb (vendored)             Apache License 2.0
+--------------------------------------------------------------------------------

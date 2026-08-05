@@ -1,5 +1,7 @@
 # Android Device Manager
 
+<img src="installsplash.png" height="300" alt="title">
+
 ## Description ##
 
 Android Device Manager is a desktop app which can manage one or more Android devices
@@ -34,17 +36,28 @@ see [SERVER.md](SERVER.md)
 
 ## Screenshots ##
 
+### Devices Screen
 <img src="resources/screenshot-main.jpg" width="600" alt="devices">
+
+### Log Viewer
+<img src="resources/screenshot-logs.jpg" width="600" alt="logs">
 
 <details>
   <summary>More Screenshots</summary>
+<b>Mirror Device (scrcpy)</b></br>
 <img src="resources/screenshot-mirror.jpg" width="600" alt="devices">
 <br>
+<b>File Browser</b></br>
 <img src="resources/screenshot-browse.jpg" width="300" alt="file explorer">
 <br>
-<img src="resources/screenshot-logs.jpg" width="600" alt="logs">
+<b>Battery Details</b></br>
+<img src="resources/battery-stats.png" width="600" alt="logs">
 <br>
-<img src="resources/screenshot-savelogs.jpg" width="600" alt="logs">
+<b>Connect Device via QR code</b></br>
+<img src="resources/connect-qr.png" width="300" alt="logs">
+<br>
+<b>Save Logs from multiple devices to file(s)</b></br>
+<img src="resources/screenshot-savelogs.jpg" width="300" alt="logs">
 <br>
 </details>
 

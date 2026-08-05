@@ -70,16 +70,16 @@ public class ExploreScreen extends BaseScreen {
         updateDevice(device);
     }
 
+    @Override
     public void updateDevice(Device device) {
-        this.device = device;
+        super.updateDevice(device);
         if (device.isOnline) {
-            setTitle(device.getDisplayName());
+            // device came back - the file list we're showing is from before it went away
             if (wasOffline) {
                 refreshFiles();
                 wasOffline = false;
             }
         } else {
-            setTitle("OFFLINE [" + device.getDisplayName() + "]");
             wasOffline = true;
         }
     }
@@ -199,14 +199,6 @@ public class ExploreScreen extends BaseScreen {
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_GO_TO_FOLDER_LIST, GsonHelper.toJson(pathList));
     }
 
-    @Override
-    protected void onWindowStateChanged(WindowState state) {
-        super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSING) {
-            closeWindow();
-        }
-    }
-
     private void setupMenuBar() {
         JMenu windowMenu = buildWindowMenu();
 
@@ -225,12 +217,9 @@ public class ExploreScreen extends BaseScreen {
     }
 
     @Override
-    public void closeWindow() {
-        log.trace("closeWindow: {}", device.getDisplayName());
-        saveFrameSize();
+    protected void onClosing() {
+        // persist column widths/order
         table.saveTable();
-        app.onBrowseClosed(device.serial);
-        dispose();
     }
 
     @Override

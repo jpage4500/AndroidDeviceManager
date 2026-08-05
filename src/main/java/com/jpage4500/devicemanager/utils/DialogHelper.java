@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,8 @@ import java.util.Map;
 public class DialogHelper {
     private static final Logger log = LoggerFactory.getLogger(DialogHelper.class);
     public static final String KEY_VALUE_DELIM = " : ";
+    // input/action map key for the ESC binding on resizable dialogs
+    private static final String ACTION_CLOSE = "closeDialog";
 
     /**
      * show an INFO dialog
@@ -150,6 +154,65 @@ public class DialogHelper {
     public static int showCustomDialog(Component frame, Component component, String title, Object[] buttonArr) {
         return JOptionPane.showOptionDialog(frame, component, title, JOptionPane.DEFAULT_OPTION,
             JOptionPane.PLAIN_MESSAGE, null, buttonArr, null);
+    }
+
+    /**
+     * show a resizable modal dialog whose content grows with the window
+     * <p>
+     * NOTE: this doesn't use JOptionPane like the dialogs above. JOptionPane lays its message component
+     * out at that component's preferred size, so making its window resizable just adds empty margin
+     * around fixed size content - no good for something like a chart the user wants bigger.
+     *
+     * @param size initial size, or null to size to the content
+     * @return index of the button clicked, or {@link JOptionPane#CLOSED_OPTION}
+     */
+    public static int showResizableDialog(Component parent, Component component, String title,
+                                          Dimension size, String[] buttonArr) {
+        Window owner = parent instanceof Window window ? window : SwingUtilities.getWindowAncestor(parent);
+        JDialog dialog = new JDialog(owner, title, Dialog.ModalityType.APPLICATION_MODAL);
+        // holds the clicked index so the button listeners can report back out of the modal block
+        int[] result = {JOptionPane.CLOSED_OPTION};
+
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.add(component, BorderLayout.CENTER);
+
+        if (buttonArr != null && buttonArr.length > 0) {
+            // NOTE: FlowLayout.RIGHT still lays buttons out left to right within the right aligned
+            // block, so the LAST entry in buttonArr is the one that ends up nearest the corner
+            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+            buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 12, 12, 16));
+            for (int i = 0; i < buttonArr.length; i++) {
+                int index = i;
+                JButton button = new JButton(buttonArr[i]);
+                button.addActionListener(actionEvent -> {
+                    result[0] = index;
+                    dialog.dispose();
+                });
+                buttonPanel.add(button);
+            }
+            contentPanel.add(buttonPanel, BorderLayout.SOUTH);
+        }
+
+        dialog.setContentPane(contentPanel);
+        dialog.setResizable(true);
+        // closing via the title bar has to dispose too, or the window is only hidden and leaks
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        // JOptionPane wires ESC up for free; a plain JDialog doesn't, so bind it here. WHEN_IN_FOCUSED_
+        // WINDOW means it works wherever focus sits inside the dialog, not just on the buttons
+        dialog.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), ACTION_CLOSE);
+        dialog.getRootPane().getActionMap().put(ACTION_CLOSE, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                dialog.dispose();
+            }
+        });
+        if (size != null) dialog.setSize(size);
+        else dialog.pack();
+        dialog.setLocationRelativeTo(parent);
+        // modal: blocks here until a button disposes the dialog or the user closes the window
+        dialog.setVisible(true);
+        return result[0];
     }
 
     public interface ListListener {

@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.manager;
 
+import com.jpage4500.devicemanager.data.BatteryHistory;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
@@ -47,6 +48,13 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     public static final String COMMAND_DISK_SIZE = "df /data";
     public static final String COMMAND_LIST_PROCESSES = "ps -A -o PID,ARGS"; // | grep u0_
     public static final String COMMAND_DUMPSYS_BATTERY = "dumpsys battery";
+    // "dumpsys batterystats --history" is enormous (40MB+ / 300k lines on a busy device) but only a
+    // small fraction of those lines carry battery data - grep on the device so we don't transfer and
+    // parse the rest. NOTE: unlike "dumpsys battery" every device keeps this history buffer
+    // NOTE: "TIME:" has to stay in the filter - on older devices those markers carry the only wall
+    // clock in the d®ump and every other entry is an offset relative to them
+    public static final String COMMAND_BATTERY_HISTORY = "dumpsys batterystats --history"
+        + " | grep -E \"Battery History|TIME:|temp=|status=|plug=|[+-]charging|[+-]plugged\"";
     public static final String COMMAND_LIST_PACKAGES = "pm list packages";
 
     public static final String APP_SCRCPY = "scrcpy";
@@ -507,42 +515,14 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         device.isBooted = (result.isSuccess && TextUtils.equals(result.getResult(0), "1"));
     }
 
+    /**
+     * battery level, power status, temperature and level/charging history
+     */
     private void fetchBatteryInfo(Device device) {
         ShellResult result = runShell(device, COMMAND_DUMPSYS_BATTERY);
-        for (String batteryLine : result.resultList) {
-            String[] batteryArr = batteryLine.split(": ", 2);
-            if (batteryArr.length < 2) continue;
-            String name = batteryArr[0].trim();
-            String value = batteryArr[1].trim();
-            switch (name) {
-                case "level":
-                    //  level: 100
-                    try {
-                        int level = Integer.parseInt(value);
-                        // some Android TV devices list battery level as 0
-                        if (level > 0 && level <= LOG_INTERVAL_MS) {
-                            device.batteryLevel = level;
-                        }
-                    } catch (NumberFormatException e) {
-                        log.debug("fetchDeviceDetails: BAD_INT: {}, {}", value, e.getMessage());
-                    }
-                case "AC powered":
-                    //  AC powered: true
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_AC;
-                    break;
-                case "USB powered":
-                    //  USB powered: false
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_USB;
-                    break;
-                case "Wireless powered":
-                    //  wireless powered: false
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_WIRELESS;
-                    break;
-                case "Dock powered":
-                    //  dock powered: false
-                    if (Boolean.parseBoolean(value)) device.powerStatus = Device.PowerStatus.POWER_DOCK;
-                    break;
-            }
+        if (result.isSuccess) {
+            device.parseBatteryInfo(result.resultList);
+            log.trace("fetchBatteryInfo: {}: {}", device.getDisplayName(), device.batteryInfo);
         }
         notifyDeviceUpdated(device);
     }
@@ -836,6 +816,72 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             }
         }
         return result;
+    }
+
+    /**
+     * run a shell pipeline (pipes, redirects) and return multi-line output
+     * <p>
+     * {@link #runShell} splits its command into argv and shell-quotes each arg, which would turn a
+     * "|" into a literal argument - so anything with a pipe has to reach the device as a single
+     * string for its shell to interpret
+     */
+    public ShellResult runShellPipeline(Device device, String pipeline) {
+        if (device.remoteConnection != null) {
+            // remote device
+            return device.remoteConnection.executeCommand(device.serial, pipeline);
+        }
+
+        ShellResult result = new ShellResult();
+        result.resultList = new ArrayList<>();
+        InputStream inputStream = null;
+        try {
+            inputStream = device.jadbDevice.executeShell("sh", "-c", pipeline);
+            BufferedReader input = new BufferedReader(new InputStreamReader(inputStream));
+            String line;
+            while ((line = input.readLine()) != null) {
+                result.resultList.add(line);
+            }
+            result.isSuccess = true;
+        } catch (Exception e) {
+            log.error("runShellPipeline: cmd:{}, Exception: {}", pipeline, e.getMessage());
+            result.isSuccess = false;
+        } finally {
+            if (inputStream != null) {
+                try {
+                    inputStream.close();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+        return result;
+    }
+
+    public interface BatteryHistoryListener {
+        void onComplete(BatteryHistory batteryHistory);
+    }
+
+    /**
+     * fetch historical battery level/temperature on demand
+     * <p>
+     * this costs several seconds per device (the device builds the entire history dump internally
+     * before our grep sees it) so it's deliberately NOT part of the periodic refresh
+     */
+    public void fetchBatteryHistory(Device device, BatteryHistoryListener listener) {
+        commandExecutorService.submit(() -> {
+            Timer timer = new Timer();
+            // this regularly takes 10+ seconds, so say what's happening rather than looking hung
+            notifyStatusEvent("Reading battery history: " + device.getDisplayName());
+            ShellResult result = runShellPipeline(device, COMMAND_BATTERY_HISTORY);
+            if (!result.isSuccess) {
+                notifyStatusEvent("Battery history failed: " + device.getDisplayName(), -1, true, null);
+                listener.onComplete(null);
+                return;
+            }
+            BatteryHistory history = BatteryHistory.parse(result.resultList, device.timezone);
+            log.debug("fetchBatteryHistory: {}: {}: {}", device.getDisplayName(), timer, history);
+            notifyStatusEvent("Battery history: " + history.getSampleList().size() + " samples", 100);
+            listener.onComplete(history);
+        });
     }
 
     public Device getDevice(String serial) {

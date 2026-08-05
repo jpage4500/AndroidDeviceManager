@@ -37,13 +37,9 @@ public class InputScreen extends BaseScreen {
         updateDevice(device);
     }
 
-    public void updateDevice(Device device) {
-        this.device = device;
-        if (device.isOnline) {
-            setTitle("Input [" + device.getDisplayName() + "]");
-        } else {
-            setTitle("OFFLINE [" + device.getDisplayName() + "]");
-        }
+    @Override
+    protected String buildTitle() {
+        return deviceTitle("Input");
     }
 
     private void initalizeUi() {
@@ -113,22 +109,6 @@ public class InputScreen extends BaseScreen {
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
         setJMenuBar(menubar);
-    }
-
-    @Override
-    protected void onWindowStateChanged(WindowState state) {
-        super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSING) {
-            closeWindow();
-        }
-    }
-
-    @Override
-    public void closeWindow() {
-        log.trace("closeWindow: {}", device.getDisplayName());
-        saveFrameSize();
-        app.onInputClosed(device.serial);
-        dispose();
     }
 
     private void handleEnterPressed() {

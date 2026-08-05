@@ -1,5 +1,7 @@
 package com.jpage4500.devicemanager.data;
 
+import com.jpage4500.devicemanager.utils.TextUtils;
+
 public class StatusEvent {
     public final String label;
     public final long timestampMs;
@@ -26,7 +28,7 @@ public class StatusEvent {
         this.label = label;
         this.progress = progress;
         this.isError = isError;
-        this.detail = detail;
+        this.detail = TextUtils.truncate(detail, 10000);
         this.timestampMs = System.currentTimeMillis();
     }
 }

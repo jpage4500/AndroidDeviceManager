@@ -111,21 +111,6 @@ public class MessageViewScreen extends BaseScreen {
         setJMenuBar(menubar);
     }
 
-    @Override
-    protected void onWindowStateChanged(WindowState state) {
-        super.onWindowStateChanged(state);
-        if (state == WindowState.CLOSING) {
-            closeWindow();
-        }
-    }
-
-    @Override
-    public void closeWindow() {
-        log.trace("closeWindow");
-        saveFrameSize();
-        dispose();
-    }
-
     public void setLogEntry(LogEntry... logEntryArr) {
         StringBuilder msg = new StringBuilder();
         for (LogEntry logEntry : logEntryArr) {
