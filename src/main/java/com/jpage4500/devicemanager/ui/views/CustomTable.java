@@ -13,6 +13,7 @@ import java.awt.dnd.DropTarget;
 import java.awt.dnd.DropTargetDragEvent;
 import java.awt.dnd.DropTargetEvent;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -48,7 +49,7 @@ public class CustomTable extends JTable {
 
     private boolean showBackground;
     private String emptyText;
-    private Image emptyImage;
+    private BufferedImage backgroundImage;
     private Font emptyTextFont;
 
     public interface DoubleClickListener {
@@ -168,7 +169,7 @@ public class CustomTable extends JTable {
 
     public void setEmptyText(String emptyText) {
         this.emptyText = emptyText;
-        emptyImage = UiUtils.getImage(Icons.EMPTY_IMAGE, 0);
+        backgroundImage = UiUtils.getImage(Icons.BACKGROUND, 0);
     }
 
     @Override
@@ -182,20 +183,10 @@ public class CustomTable extends JTable {
             @Override
             public void paint(Graphics graphics) {
                 super.paint(graphics);
-                if (emptyImage != null && showBackground) {
+                if (showBackground) {
+                    // start below the header, which shouldn't be tinted along with the rows
                     int headerH = getTableHeader().getHeight();
-                    int width = getWidth();
-                    int imgW = emptyImage.getWidth(null);
-                    int imgH = emptyImage.getHeight(null);
-                    double aspectRatio = width / (double) imgW;
-                    double drawImageH = imgH * aspectRatio;
-                    int height = getHeight() - headerH;
-                    if (drawImageH < height) drawImageH = height;
-                    // make image semi-transparent
-                    Graphics2D g2d = (Graphics2D) graphics.create();
-                    g2d.setComposite(AlphaComposite.SrcOver.derive(0.2f));
-                    g2d.drawImage(emptyImage, 0, headerH, width, (int) drawImageH, null);
-                    g2d.dispose();
+                    UiUtils.drawBackgroundImage(graphics, backgroundImage, headerH, getWidth(), getHeight() - headerH);
                 }
                 if (getRowCount() == 0 && emptyText != null) {
                     // draw empty text in center

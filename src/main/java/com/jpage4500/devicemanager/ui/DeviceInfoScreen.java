@@ -11,6 +11,7 @@ import com.jpage4500.devicemanager.ui.views.HoverLabel;
 import com.jpage4500.devicemanager.ui.views.PropertyListPanel;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.FileUtils;
+import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
 import com.jpage4500.devicemanager.utils.Utils;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,8 +46,11 @@ public class DeviceInfoScreen extends BaseScreen {
     // loaded once: the rows are rebuilt on every device refresh, and re-scaling the png each time
     // would be wasted work
     private static final ImageIcon LINK_ICON = UiUtils.getImageIcon(Icons.ARROW_RIGHT, UiUtils.IMG_SIZE_SMALL, UiUtils.IMG_SIZE_SMALL, Colors.COLOR_CARD_ACCENT);
+    private static final BufferedImage BACKGROUND_IMAGE = UiUtils.getImage(Icons.BACKGROUND, 0);
 
     private final JPanel detailPanel;
+
+    private boolean showBackground;
 
     public DeviceInfoScreen(App app, Device device) {
         super(app, device, "device-info-" + device.serial, 420, 640);
@@ -54,7 +59,25 @@ public class DeviceInfoScreen extends BaseScreen {
         detailPanel.setBackground(Colors.COLOR_CARD_PAGE);
 
         setupMenuBar();
-        JScrollPane scrollPane = new JScrollPane(detailPanel);
+        JScrollPane scrollPane = new JScrollPane(detailPanel) {
+            /**
+             * the background is drawn on top of the cards, so painting has to start here for it to be
+             * included: a card or link repainting itself on hover would otherwise start painting at
+             * itself and punch a hole in the background that the exit repaint wouldn't fill back in
+             */
+            @Override
+            protected boolean isPaintingOrigin() {
+                return showBackground;
+            }
+
+            @Override
+            public void paint(Graphics graphics) {
+                super.paint(graphics);
+                // over the cards, not behind them: the cards are filled, so a background underneath
+                // would only show in the gaps between them. same as the device list (see CustomTable)
+                if (showBackground) UiUtils.drawBackgroundImage(graphics, BACKGROUND_IMAGE, 0, getWidth(), getHeight());
+            }
+        };
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         // detailPanel is only as tall as its rows, so the space below it is the viewport's to paint
         scrollPane.getViewport().setBackground(Colors.COLOR_CARD_PAGE);
@@ -89,6 +112,9 @@ public class DeviceInfoScreen extends BaseScreen {
      * every refresh so battery level, temperature and free space don't go stale on screen
      */
     private void refreshDetails() {
+        // re-read here (like CustomTable does on a data change) so toggling it in Settings takes
+        // effect on the next device refresh without this screen needing a preference listener
+        showBackground = PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true);
         detailPanel.removeAll();
 
         addProperties();
