@@ -41,7 +41,6 @@ public class Colors {
     public static final Color COLOR_CHART_GRID = new Color(225, 224, 217);
     public static final Color COLOR_CHART_AXIS = new Color(195, 194, 183);
     public static final Color COLOR_CHART_LABEL = new Color(137, 135, 129);
-    public static final Color COLOR_CHART_THRESHOLD = new Color(208, 59, 59);
 
     // -- device info cards --
     // NOTE: the app runs FlatLightLaf, so these are fixed light-theme colors. the card background is

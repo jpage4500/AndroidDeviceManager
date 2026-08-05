@@ -14,6 +14,7 @@ import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -101,12 +102,31 @@ public class GaugePanel extends CardPanel {
     private static class GaugeBar extends JComponent {
         // between the end of the track and the dot after it
         private static final int GAP = 2;
+        // narrow enough to never be what stops the card from shrinking, wide enough that a fill is
+        // still visible at low percentages
+        private static final int MIN_WIDTH = 40;
 
         private final int percent;
 
         GaugeBar(int percent) {
             // a bad reading shouldn't be able to draw outside the component
             this.percent = Math.max(0, Math.min(100, percent));
+        }
+
+        /**
+         * a JComponent with no UI and no layout manager reports its *current* size as its minimum, which
+         * would ratchet: once the bar had been laid out in a wide window, that width became a floor the
+         * card could never shrink back below, and the window would clip instead of reflow. the bar is a
+         * length that fills whatever it's given, so it has no natural width of its own
+         */
+        @Override
+        public Dimension getMinimumSize() {
+            return isMinimumSizeSet() ? super.getMinimumSize() : new Dimension(MIN_WIDTH, BAR_HEIGHT);
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            return isPreferredSizeSet() ? super.getPreferredSize() : getMinimumSize();
         }
 
         @Override
