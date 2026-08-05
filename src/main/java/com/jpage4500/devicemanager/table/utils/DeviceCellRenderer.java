@@ -57,14 +57,7 @@ public class DeviceCellRenderer extends IconTextField implements TableCellRender
         if (columnType != null) {
             switch (columnType) {
                 case BATTERY:
-                    Icons icn = null;
-                    if (device.batteryLevel != null) {
-                        if (device.batteryLevel > 95) icn = Icons.BATTERY_LEVEL4;
-                        else if (device.batteryLevel > 50) icn = Icons.BATTERY_LEVEL3;
-                        else if (device.batteryLevel > 25) icn = Icons.BATTERY_LEVEL2;
-                        else if (device.batteryLevel > 5) icn = Icons.BATTERY_LEVEL1;
-                        else icn = Icons.BATTERY_LEVEL0;
-                    }
+                    Icons icn = Device.getBatteryIcon(device.batteryLevel);
                     boolean isCharging = (device.powerStatus != Device.PowerStatus.POWER_NONE);
                     icon = getChargingIcon(icn, isCharging);
                     text = ""; // no text just icon

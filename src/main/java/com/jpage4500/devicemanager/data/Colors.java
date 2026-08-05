@@ -42,4 +42,25 @@ public class Colors {
     public static final Color COLOR_CHART_AXIS = new Color(195, 194, 183);
     public static final Color COLOR_CHART_LABEL = new Color(137, 135, 129);
     public static final Color COLOR_CHART_THRESHOLD = new Color(208, 59, 59);
+
+    // -- device info cards --
+    // NOTE: the app runs FlatLightLaf, so these are fixed light-theme colors. the card background is
+    // hardcoded, so the text on it has to be too - a LAF-supplied foreground would go white on white
+    // if a dark theme is ever added
+    // cards sit on a slightly darker page so their rounded edges read without a heavy border
+    public static final Color COLOR_CARD_PAGE = new Color(233, 236, 241);
+    public static final Color COLOR_CARD_BACKGROUND = new Color(241, 244, 249);
+    public static final Color COLOR_CARD_BORDER = new Color(225, 230, 237);
+    // a clickable card under the mouse
+    public static final Color COLOR_CARD_HOVER = new Color(227, 233, 243);
+    // hairline between rows of the same card; lighter than the border around it
+    public static final Color COLOR_CARD_SEPARATOR = new Color(228, 232, 238);
+    // property name, and any other primary text on a card
+    public static final Color COLOR_CARD_LABEL = new Color(58, 63, 70);
+    // property values, gauge bars and card icons all share one accent so the screen reads as a set
+    public static final Color COLOR_CARD_ACCENT = new Color(50, 102, 128);
+    // supporting values under a gauge ("Free: 108.0 GB, Total: 221.8 GB")
+    public static final Color COLOR_CARD_DETAIL = new Color(90, 100, 112);
+    // unfilled part of a gauge bar
+    public static final Color COLOR_GAUGE_TRACK = new Color(214, 229, 242);
 }
