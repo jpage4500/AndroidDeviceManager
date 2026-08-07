@@ -99,25 +99,11 @@ root CA — so its HTTPS calls fail with a PKIX error. macOS itself trusts the r
 On macOS, this one command downloads the latest release, installs it, and fixes the certificates:
 
 ```
-curl -fsSLO https://raw.githubusercontent.com/jpage4500/AndroidDeviceManager/develop/scripts/install-corporate.sh
-bash install-corporate.sh
+curl -fsSL https://raw.githubusercontent.com/jpage4500/AndroidDeviceManager/develop/scripts/install-corporate.sh | bash
 ```
 
 It only imports a root CA that macOS already trusts, and does nothing at all if it can't detect any
 interception. Once installed, jdeploy auto-updates the app on launch as usual.
-
-If a later update pulls down a newer JRE, that JRE starts untrusted again and the app's in-app
-update check may warn. Re-run:
-
-```
-bash install-corporate.sh --fix-only
-```
-
-Add `--dry-run` to see what it would do without installing anything.
-
-Prefer to skip the installer? Every release also attaches `AndroidDeviceManager.jar`, which runs
-directly with `java -jar AndroidDeviceManager.jar` (needs Java 17+) and downloads nothing.
-
 </details>
 
 ---

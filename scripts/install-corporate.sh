@@ -15,6 +15,7 @@
 set -euo pipefail
 
 REPO="jpage4500/AndroidDeviceManager"
+RAW_URL="https://raw.githubusercontent.com/$REPO/develop/scripts/install-corporate.sh"
 ALIAS="corp-proxy-root"
 STOREPASS="changeit"
 CORP_STORE="$HOME/.jdeploy/corp-cacerts"
@@ -227,7 +228,7 @@ if is_installed; then
   echo "jdeploy will auto-update it on launch from now on."
   echo
   echo "If a future update pulls a newer JRE, in-app update checks may warn again -- rerun:"
-  echo "  $0 --fix-only"
+  echo "  curl -fsSL $RAW_URL | bash -s -- --fix-only"
 else
   echo "The installer did not finish. Rerun this script; the certificate fix is already in place."
 fi
