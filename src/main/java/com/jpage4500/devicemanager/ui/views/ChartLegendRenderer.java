@@ -30,6 +30,9 @@ public class ChartLegendRenderer implements ListCellRenderer<Object> {
     // row index -> swatch; owned by the caller so it can rebuild the list without a new renderer
     private final List<Icon> iconList;
 
+    // the swatch only means something while each row IS a line on the chart
+    private boolean showSwatch = true;
+
     public ChartLegendRenderer(List<Icon> iconList) {
         this.iconList = iconList;
         checkBox.setOpaque(false);
@@ -40,13 +43,21 @@ public class ChartLegendRenderer implements ListCellRenderer<Object> {
         panel.add(nameLabel, "growx");
     }
 
+    /**
+     * hide the color swatches when the chart isn't drawing 1 line per row (eg. a pie, where the colors
+     * key to values rather than to devices)
+     */
+    public void setShowSwatch(boolean showSwatch) {
+        this.showSwatch = showSwatch;
+    }
+
     @Override
     public Component getListCellRendererComponent(JList<?> list, Object value, int index,
                                                   boolean isSelected, boolean cellHasFocus) {
         JCheckBox item = (JCheckBox) value;
         checkBox.setSelected(item.isSelected());
         checkBox.setEnabled(list.isEnabled());
-        swatchLabel.setIcon(index >= 0 && index < iconList.size() ? iconList.get(index) : null);
+        swatchLabel.setIcon(showSwatch && index >= 0 && index < iconList.size() ? iconList.get(index) : null);
         nameLabel.setText(item.getText());
         nameLabel.setFont(list.getFont());
         // NOTE: required. MigLayout caches the preferred size on this reused panel, so without it every

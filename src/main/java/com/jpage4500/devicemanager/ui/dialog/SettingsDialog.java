@@ -369,6 +369,20 @@ public class SettingsDialog extends JPanel {
         return GsonHelper.stringToList(appPrefs, String.class);
     }
 
+    /**
+     * the column names out of {@link #getCustomColumns} entries ("PM:VER:com.test.pm" -> "PM"),
+     * skipping blanks and commented-out lines
+     */
+    public static List<String> getCustomColumnLabels() {
+        List<String> labelList = new ArrayList<>();
+        for (String entry : getCustomColumns()) {
+            if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
+            String[] entryArr = entry.split(":");
+            labelList.add(entryArr.length >= 1 ? entryArr[0].trim() : entry);
+        }
+        return labelList;
+    }
+
     private List<String> showMultilineEditDialog(String title, String message, List<String> stringList) {
         StringBuilder sb = new StringBuilder();
         for (String app : stringList) {

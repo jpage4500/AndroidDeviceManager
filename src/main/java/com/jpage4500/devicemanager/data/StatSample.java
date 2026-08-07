@@ -20,7 +20,7 @@ public class StatSample {
     /**
      * a value that can be graphed over time
      */
-    public enum StatType {
+    public enum StatType implements ChartStat {
         BATTERY_LEVEL("Battery Level", "Level %", "0'%'", true),
         BATTERY_TEMP("Battery Temp", "Temp °F", "0.0'°F'", false),
         FREE_SPACE("Free Space", "Free GB", "0.0' GB'", false),
@@ -52,6 +52,16 @@ public class StatSample {
                 case FREE_SPACE -> sample.freeSpace == null ? null : sample.freeSpace / BYTES_PER_GB;
                 case STORAGE_USED -> Device.getStorageUsedPercent(sample.freeSpace, sample.totalSpace);
             };
+        }
+
+        @Override
+        public String getLabel() {
+            return label;
+        }
+
+        @Override
+        public String getPrefKey() {
+            return name();
         }
 
         /**

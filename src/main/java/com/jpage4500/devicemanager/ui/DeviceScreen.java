@@ -283,16 +283,7 @@ public class DeviceScreen extends BaseScreen {
     }
 
     public void setCustomColumns() {
-        List<String> entryList = SettingsDialog.getCustomColumns();
-        List<String> nameList = new ArrayList<>();
-        for (String entry : entryList) {
-            if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//"))
-                continue;
-            String[] entryArr = entry.split(":");
-            String label = entryArr.length >= 1 ? entryArr[0].trim() : entry;
-            nameList.add(label);
-        }
-        model.setCustomColumnList(nameList);
+        model.setCustomColumnList(SettingsDialog.getCustomColumnLabels());
     }
 
     /**

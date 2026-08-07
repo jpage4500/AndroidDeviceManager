@@ -1,14 +1,18 @@
 package com.jpage4500.devicemanager.ui;
 
+import com.jpage4500.devicemanager.data.ChartStat;
 import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.Device;
+import com.jpage4500.devicemanager.data.DeviceStat;
 import com.jpage4500.devicemanager.data.StatSample;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.DeviceStatsManager;
+import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
 import com.jpage4500.devicemanager.ui.views.ChartLegendRenderer;
 import com.jpage4500.devicemanager.ui.views.ChartUtils;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
 import com.jpage4500.devicemanager.ui.views.StatsChartPanel;
+import com.jpage4500.devicemanager.ui.views.StatsPieChartPanel;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
@@ -65,7 +69,8 @@ public class StatsScreen extends BaseScreen {
     private static final int SWATCH_WIDTH = 22;
     private static final int SWATCH_HEIGHT = 10;
 
-    private final JComboBox<StatSample.StatType> statComboBox;
+    private final JComboBox<ChartStat> statComboBox;
+    private final ChartLegendRenderer legendRenderer;
     private final CheckBoxList deviceCheckBoxList;
     private final JPanel chartHolder;
     private final JLabel summaryLabel;
@@ -81,15 +86,16 @@ public class StatsScreen extends BaseScreen {
     public StatsScreen(App app) {
         super(app, null, "stats", 1100, 700);
 
-        statComboBox = new JComboBox<>(StatSample.StatType.values());
-        statComboBox.setSelectedItem(restoreSelectedStat());
+        statComboBox = new JComboBox<>(buildStatList().toArray(new ChartStat[0]));
+        statComboBox.setSelectedItem(restoreSelectedStat(statComboBox));
         statComboBox.addActionListener(actionEvent -> {
-            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_STATS_SELECTED_STAT, getSelectedStat().name());
+            PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_STATS_SELECTED_STAT, getSelectedStat().getPrefKey());
             updateChart();
         });
 
+        legendRenderer = new ChartLegendRenderer(seriesIconList);
         deviceCheckBoxList = new CheckBoxList();
-        deviceCheckBoxList.setCellRenderer(new ChartLegendRenderer(seriesIconList));
+        deviceCheckBoxList.setCellRenderer(legendRenderer);
         deviceCheckBoxList.setChangeListener(() -> {
             saveHiddenDevices();
             updateChart();
@@ -227,8 +233,26 @@ public class StatsScreen extends BaseScreen {
         chartHolder.removeAll();
 
         List<String> checkedSerialList = getCheckedSerials();
-        StatSample.StatType statType = getSelectedStat();
+        ChartStat chartStat = getSelectedStat();
+        // a pie's colors key to the VALUES, not to devices, so the device swatches would be telling a
+        // lie about what the colors mean
+        legendRenderer.setShowSwatch(chartStat instanceof StatSample.StatType);
+        deviceCheckBoxList.repaint();
 
+        if (chartStat instanceof DeviceStat deviceStat) {
+            showDeviceStat(deviceStat, checkedSerialList);
+        } else if (chartStat instanceof StatSample.StatType statType) {
+            showHistoryStat(statType, checkedSerialList);
+        }
+
+        chartHolder.revalidate();
+        chartHolder.repaint();
+    }
+
+    /**
+     * recorded history for the checked devices, over time
+     */
+    private void showHistoryStat(StatSample.StatType statType, List<String> checkedSerialList) {
         if (sampleMap.isEmpty()) {
             chartHolder.add(centeredLabel("No stats recorded yet - a sample is taken each time devices are refreshed"),
                 BorderLayout.CENTER);
@@ -246,13 +270,44 @@ public class StatsScreen extends BaseScreen {
                 chartHolder.add(chartPanel, BorderLayout.CENTER);
             }
         }
-
-        updateSummary(checkedSerialList);
-        chartHolder.revalidate();
-        chartHolder.repaint();
+        updateHistorySummary(checkedSerialList);
     }
 
-    private void updateSummary(List<String> checkedSerialList) {
+    /**
+     * how the connected devices split across one of their properties, right now
+     * <p>
+     * offline devices are left out even when they're checked - they're in the list for their history,
+     * and their last known OS/model isn't part of "what's connected"
+     */
+    private void showDeviceStat(DeviceStat deviceStat, List<String> checkedSerialList) {
+        Set<String> checkedSet = new HashSet<>(checkedSerialList);
+        List<Device> deviceList = new ArrayList<>();
+        for (Device device : DeviceManager.getInstance().getDevices()) {
+            if (device.isOnline && checkedSet.contains(device.serial)) deviceList.add(device);
+        }
+
+        if (deviceList.isEmpty()) {
+            chartHolder.add(centeredLabel("No connected devices selected"), BorderLayout.CENTER);
+            summaryLabel.setText("");
+            return;
+        }
+
+        StatsPieChartPanel piePanel = new StatsPieChartPanel(deviceList, deviceStat);
+        chartHolder.add(piePanel, BorderLayout.CENTER);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(deviceList.size()).append(" devices, ");
+        // NOTE: the label is used as-is - lower-casing turns a custom column like "PM" into "pm"
+        sb.append(piePanel.getCategoryCount()).append(' ').append(deviceStat.getLabel());
+        sb.append(piePanel.getCategoryCount() == 1 ? " value" : " values");
+        // the pie only has 8 colors, so say when the tail was rolled up rather than quietly dropping it
+        if (piePanel.getFoldedCount() > 0) {
+            sb.append(" (smallest ").append(piePanel.getFoldedCount()).append(" grouped as Other)");
+        }
+        summaryLabel.setText(sb.toString());
+    }
+
+    private void updateHistorySummary(List<String> checkedSerialList) {
         int numSamples = 0;
         long oldestMs = Long.MAX_VALUE;
         for (String serial : checkedSerialList) {
@@ -309,15 +364,31 @@ public class StatsScreen extends BaseScreen {
         refresh();
     }
 
-    private StatSample.StatType getSelectedStat() {
-        Object selected = statComboBox.getSelectedItem();
-        return selected instanceof StatSample.StatType statType ? statType : StatSample.StatType.BATTERY_LEVEL;
+    /**
+     * the recorded-over-time stats first, then the properties of whatever is connected right now
+     * <p>
+     * the custom columns are whatever the user configured, so this list isn't fixed
+     */
+    private static List<ChartStat> buildStatList() {
+        List<ChartStat> statList = new ArrayList<>(List.of(StatSample.StatType.values()));
+        statList.addAll(DeviceStat.getList(SettingsDialog.getCustomColumnLabels()));
+        return statList;
     }
 
-    private static StatSample.StatType restoreSelectedStat() {
-        String name = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_STATS_SELECTED_STAT);
-        for (StatSample.StatType statType : StatSample.StatType.values()) {
-            if (TextUtils.equals(statType.name(), name)) return statType;
+    private ChartStat getSelectedStat() {
+        Object selected = statComboBox.getSelectedItem();
+        return selected instanceof ChartStat chartStat ? chartStat : StatSample.StatType.BATTERY_LEVEL;
+    }
+
+    /**
+     * NOTE: matched against what's actually in the box - a custom column that has since been removed
+     * falls back to the first stat rather than selecting nothing
+     */
+    private static ChartStat restoreSelectedStat(JComboBox<ChartStat> comboBox) {
+        String prefKey = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_STATS_SELECTED_STAT);
+        for (int i = 0; i < comboBox.getItemCount(); i++) {
+            ChartStat chartStat = comboBox.getItemAt(i);
+            if (TextUtils.equals(chartStat.getPrefKey(), prefKey)) return chartStat;
         }
         return StatSample.StatType.BATTERY_LEVEL;
     }
