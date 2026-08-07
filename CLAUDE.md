@@ -12,8 +12,6 @@ Java 17+, Maven. Entry point: `com.jpage4500.devicemanager.MainApplication`.
 
 - `mvn compile exec:java` — run from source (or `scripts/run.sh`)
 - `mvn -B package` — build fat jar to `target/AndroidDeviceManager.jar` (or `scripts/build.sh`)
-- `mvn install` — also bundles a native `.app` for macOS via `macosappbundler-maven-plugin`
-- `scripts/createMacApp.sh` — full Mac packaging + zip + copy to `/Applications`
 - `scripts/clear-preferences.sh` — wipes saved Java `Preferences`
 - `scripts/gen_release_notes.sh <type> <format> [tag]` — release notes from git log (falls back to PR titles for merge commits); CI calls `tag brief <prev-tag>`
 - No test suite is set up (`package.json`'s `test` script is a stub).
