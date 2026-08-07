@@ -82,6 +82,30 @@ I'm using jdeploy to package this as a native app for Mac/Windows/Linux. This al
 
 To install, grab the latest version from [Releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
 
+<details>
+  <summary>Installing on a corporate network (TLS inspection / "app.xml could not be found")</summary>
+
+On networks that run TLS inspection (Netskope, Zscaler, Palo Alto, etc) the installer fails with:
+
+```
+Cannot load app info because the app.xml file could not be found
+```
+
+The real cause is certificates, not a missing file. jdeploy runs the installer on a private JRE it
+downloads to `~/.jdeploy`, and that JRE has its own truststore which doesn't include your company's
+root CA — so its HTTPS calls fail with a PKIX error. macOS itself trusts the root, which is why
+`curl` and your browser work fine.
+
+On macOS, this one command downloads the latest release, installs it, and fixes the certificates:
+
+```
+curl -fsSL https://raw.githubusercontent.com/jpage4500/AndroidDeviceManager/develop/scripts/install-corporate.sh | bash
+```
+
+It only imports a root CA that macOS already trusts, and does nothing at all if it can't detect any
+interception. Once installed, jdeploy auto-updates the app on launch as usual.
+</details>
+
 ---
 ## Prerequisites
 
