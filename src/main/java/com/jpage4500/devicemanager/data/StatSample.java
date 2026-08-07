@@ -21,10 +21,10 @@ public class StatSample {
      * a value that can be graphed over time
      */
     public enum StatType implements ChartStat {
-        BATTERY_LEVEL("Battery Level", "Level %", "0'%'", true),
-        BATTERY_TEMP("Battery Temp", "Temp °F", "0.0'°F'", false),
-        FREE_SPACE("Free Space", "Free GB", "0.0' GB'", false),
-        STORAGE_USED("Storage Used", "Used %", "0'%'", true),
+        BATTERY_LEVEL("Battery Level", "Level %", "0'%'", true, Icons.BATTERY),
+        BATTERY_TEMP("Battery Temp", "Temp °F", "0.0'°F'", false, Icons.TEMP),
+        FREE_SPACE("Free Space", "Free GB", "0.0' GB'", false, Icons.MEMORY),
+        STORAGE_USED("Storage Used", "Used %", "0'%'", true, Icons.MEMORY),
         ;
 
         public final String label;
@@ -33,12 +33,14 @@ public class StatSample {
         public final String valueFormat;
         // true when the value is a 0-100 percent, which gets a fixed axis instead of an auto range
         public final boolean isPercent;
+        public final Icons icon;
 
-        StatType(String label, String axisLabel, String valueFormat, boolean isPercent) {
+        StatType(String label, String axisLabel, String valueFormat, boolean isPercent, Icons icon) {
             this.label = label;
             this.axisLabel = axisLabel;
             this.valueFormat = valueFormat;
             this.isPercent = isPercent;
+            this.icon = icon;
         }
 
         /**
@@ -62,6 +64,11 @@ public class StatSample {
         @Override
         public String getPrefKey() {
             return name();
+        }
+
+        @Override
+        public Icons getIcon() {
+            return icon;
         }
 
         /**

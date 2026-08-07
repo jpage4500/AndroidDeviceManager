@@ -61,6 +61,11 @@ public class DeviceStat implements ChartStat {
         return PREF_PREFIX + label;
     }
 
+    @Override
+    public Icons getIcon() {
+        return Icons.CHART_PIE;
+    }
+
     /**
      * shown in the stat drop-down
      */

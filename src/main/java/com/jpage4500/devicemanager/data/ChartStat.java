@@ -15,4 +15,9 @@ public interface ChartStat {
      * @return key this stat is saved under; stable across releases and unique across both kinds
      */
     String getPrefKey();
+
+    /**
+     * @return icon shown beside this stat in the list; currently says which shape of chart it draws
+     */
+    Icons getIcon();
 }

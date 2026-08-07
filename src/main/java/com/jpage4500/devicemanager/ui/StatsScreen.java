@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.ChartStat;
 import com.jpage4500.devicemanager.data.Colors;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.DeviceStat;
+import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.data.StatSample;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.DeviceStatsManager;
@@ -17,6 +18,7 @@ import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.UiUtils;
 
 import net.miginfocom.swing.MigLayout;
 
@@ -25,7 +27,9 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.text.SimpleDateFormat;
@@ -40,10 +44,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.swing.BorderFactory;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.Icon;
 import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JPanel;
@@ -51,8 +57,10 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JViewport;
 import javax.swing.ListModel;
+import javax.swing.ListSelectionModel;
 import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
+import javax.swing.border.Border;
 
 /**
  * one stat for every device, graphed over the last few days
@@ -69,7 +77,7 @@ public class StatsScreen extends BaseScreen {
     private static final int SWATCH_WIDTH = 22;
     private static final int SWATCH_HEIGHT = 10;
 
-    private final JComboBox<ChartStat> statComboBox;
+    private final JList<ChartStat> statList;
     private final ChartLegendRenderer legendRenderer;
     private final CheckBoxList deviceCheckBoxList;
     private final JPanel chartHolder;
@@ -86,9 +94,12 @@ public class StatsScreen extends BaseScreen {
     public StatsScreen(App app) {
         super(app, null, "stats", 1100, 700);
 
-        statComboBox = new JComboBox<>(buildStatList().toArray(new ChartStat[0]));
-        statComboBox.setSelectedItem(restoreSelectedStat(statComboBox));
-        statComboBox.addActionListener(actionEvent -> {
+        statList = new JList<>(buildStatList().toArray(new ChartStat[0]));
+        statList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        statList.setCellRenderer(new StatListRenderer());
+        statList.setSelectedValue(restoreSelectedStat(statList), true);
+        statList.addListSelectionListener(listSelectionEvent -> {
+            if (listSelectionEvent.getValueIsAdjusting()) return;
             PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_STATS_SELECTED_STAT, getSelectedStat().getPrefKey());
             updateChart();
         });
@@ -105,21 +116,40 @@ public class StatsScreen extends BaseScreen {
         summaryLabel = new JLabel();
         summaryLabel.setForeground(Colors.COLOR_CHART_LABEL);
 
-        JPanel topPanel = new JPanel(new MigLayout("fillx, insets 4 8 4 8", "[][]push[]"));
-        topPanel.add(new JLabel("Stat:"));
-        topPanel.add(statComboBox, "width 160!");
-        topPanel.add(summaryLabel);
+        // the stat's name is in the window title instead; the leading push keeps the summary against
+        // the right edge now that nothing sits to its left
+        JPanel statusPanel = new JPanel(new MigLayout("fillx, insets 4 8 4 8", "push[]"));
+        statusPanel.add(summaryLabel);
 
-        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-            new JScrollPane(new BottomAlignedPanel(deviceCheckBoxList)), chartHolder);
+        // stats pinned to the top of the left panel, devices to the bottom
+        JLabel deviceHeader = sectionHeader("Devices");
+        deviceHeader.setToolTipText("Select all / none");
+        deviceHeader.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        UiUtils.addLeftClickListener(deviceHeader, clickEvent -> setAllChecked(!isAllChecked()));
+
+        JPanel devicePanel = new JPanel(new BorderLayout());
+        // the 2 lists are far apart with empty space between them; the rule is what says the devices
+        // below it are a separate section rather than more stats
+        devicePanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Colors.COLOR_DIVIDER));
+        devicePanel.add(deviceHeader, BorderLayout.NORTH);
+        devicePanel.add(deviceCheckBoxList, BorderLayout.CENTER);
+
+        JPanel statPanel = new JPanel(new BorderLayout());
+        statPanel.add(sectionHeader("Stats"), BorderLayout.NORTH);
+        statPanel.add(statList, BorderLayout.CENTER);
+
+        JPanel leftPanel = new BottomAlignedPanel(devicePanel);
+        leftPanel.add(statPanel, BorderLayout.NORTH);
+
+        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(leftPanel), chartHolder);
         // a wider window grows the chart, not the device list
         splitPane.setResizeWeight(0d);
         splitPane.setDividerLocation(PreferenceUtils.getPreference(
             PreferenceUtils.PrefInt.PREF_STATS_DEVICE_WIDTH, DEFAULT_DEVICE_WIDTH));
 
         JPanel contentPanel = new JPanel(new BorderLayout());
-        contentPanel.add(topPanel, BorderLayout.NORTH);
         contentPanel.add(splitPane, BorderLayout.CENTER);
+        contentPanel.add(statusPanel, BorderLayout.SOUTH);
 
         setupMenuBar();
         setContentPane(contentPanel);
@@ -128,9 +158,15 @@ public class StatsScreen extends BaseScreen {
         refresh();
     }
 
+    /**
+     * NOTE: null-safe on statList - BaseScreen only calls this from updateDevice(), which a device-less
+     * screen never gets, but it's called from this constructor too
+     */
     @Override
     protected String buildTitle() {
-        return "Device Stats";
+        String title = "Device Stats";
+        ChartStat chartStat = statList != null ? statList.getSelectedValue() : null;
+        return chartStat != null ? title + " - " + chartStat.getLabel() : title;
     }
 
     private void setupMenuBar() {
@@ -234,6 +270,7 @@ public class StatsScreen extends BaseScreen {
 
         List<String> checkedSerialList = getCheckedSerials();
         ChartStat chartStat = getSelectedStat();
+        setTitle(buildTitle());
         // a pie's colors key to the VALUES, not to devices, so the device swatches would be telling a
         // lie about what the colors mean
         legendRenderer.setShowSwatch(chartStat instanceof StatSample.StatType);
@@ -338,6 +375,19 @@ public class StatsScreen extends BaseScreen {
         return checkedList;
     }
 
+    /**
+     * @return true when every device is checked; false for an empty list, so the first click on the
+     * header checks rather than doing nothing
+     */
+    private boolean isAllChecked() {
+        ListModel<?> model = deviceCheckBoxList.getModel();
+        if (model.getSize() == 0) return false;
+        for (int i = 0; i < model.getSize(); i++) {
+            if (!((JCheckBox) model.getElementAt(i)).isSelected()) return false;
+        }
+        return true;
+    }
+
     private void setAllChecked(boolean isChecked) {
         ListModel<?> model = deviceCheckBoxList.getModel();
         for (int i = 0; i < model.getSize(); i++) {
@@ -376,21 +426,67 @@ public class StatsScreen extends BaseScreen {
     }
 
     private ChartStat getSelectedStat() {
-        Object selected = statComboBox.getSelectedItem();
-        return selected instanceof ChartStat chartStat ? chartStat : StatSample.StatType.BATTERY_LEVEL;
+        ChartStat selected = statList.getSelectedValue();
+        return selected != null ? selected : StatSample.StatType.BATTERY_LEVEL;
     }
 
     /**
-     * NOTE: matched against what's actually in the box - a custom column that has since been removed
+     * NOTE: matched against what's actually in the list - a custom column that has since been removed
      * falls back to the first stat rather than selecting nothing
      */
-    private static ChartStat restoreSelectedStat(JComboBox<ChartStat> comboBox) {
+    private static ChartStat restoreSelectedStat(JList<ChartStat> list) {
         String prefKey = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_STATS_SELECTED_STAT);
-        for (int i = 0; i < comboBox.getItemCount(); i++) {
-            ChartStat chartStat = comboBox.getItemAt(i);
+        ListModel<ChartStat> model = list.getModel();
+        for (int i = 0; i < model.getSize(); i++) {
+            ChartStat chartStat = model.getElementAt(i);
             if (TextUtils.equals(chartStat.getPrefKey(), prefKey)) return chartStat;
         }
         return StatSample.StatType.BATTERY_LEVEL;
+    }
+
+    /**
+     * a section title above one of the left-hand lists
+     */
+    private static JLabel sectionHeader(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(label.getFont().deriveFont(Font.BOLD));
+        label.setForeground(Colors.COLOR_CARD_LABEL);
+        label.setBorder(BorderFactory.createEmptyBorder(6, 6, 3, 6));
+        return label;
+    }
+
+    /**
+     * a stat row: [icon] [name]
+     * <p>
+     * the icon comes from the stat itself, so it says which shape of chart the row draws
+     */
+    private static class StatListRenderer extends DefaultListCellRenderer {
+        // built once - a renderer runs on every repaint of every row
+        private static final Border BORDER_ROW = BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, Colors.COLOR_DIVIDER),
+            BorderFactory.createEmptyBorder(3, 6, 3, 6));
+        // the last row has the empty space below it as its separator already
+        private static final Border BORDER_LAST_ROW = BorderFactory.createEmptyBorder(3, 6, 4, 6);
+
+        // icons are loaded and scaled per call otherwise
+        private final Map<Icons, Icon> iconCache = new HashMap<>();
+
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                                                      boolean isSelected, boolean cellHasFocus) {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            if (value instanceof ChartStat chartStat) {
+                setIcon(iconCache.computeIfAbsent(chartStat.getIcon(),
+                    icons -> UiUtils.getImageIcon(icons, UiUtils.IMG_SIZE_ICON)));
+                setText(chartStat.getLabel());
+            } else {
+                setIcon(null);
+                setText(String.valueOf(value));
+            }
+            setIconTextGap(6);
+            setBorder(index < list.getModel().getSize() - 1 ? BORDER_ROW : BORDER_LAST_ROW);
+            return this;
+        }
     }
 
     private static JLabel centeredLabel(String message) {

@@ -15,6 +15,8 @@ public class Colors {
     public static final Color COLOR_TABLE_HEADER = new Color(197, 197, 197);
 
     public static final Color COLOR_LIGHT_GRAY = new Color(232, 232, 232);
+    // hairline between sections of a panel, or between rows of a list
+    public static final Color COLOR_DIVIDER = new Color(222, 226, 232);
     public static final Color COLOR_LIST_SELECTED_NO_FOCUS = new Color(0, 81, 255, 108);
 
     public static final Color COLOR_SUCCESS = new Color(24, 134, 0);
