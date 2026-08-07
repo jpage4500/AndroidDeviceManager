@@ -83,27 +83,40 @@ I'm using jdeploy to package this as a native app for Mac/Windows/Linux. This al
 To install, grab the latest version from [Releases](https://github.com/jpage4500/AndroidDeviceManager/releases)
 
 <details>
-  <summary>Installer fails with "Cannot load app info because the app.xml file could not be found"</summary>
+  <summary>Installing on a corporate network (TLS inspection / "app.xml could not be found")</summary>
 
-This shows up on corporate networks that run TLS inspection (Netskope, Zscaler, Palo Alto, etc).
-
-The installer downloads its app info over HTTPS using a private JRE that jdeploy puts in
-`~/.jdeploy`. That JRE has its own certificate truststore, and it doesn't include your company's
-root CA — so the download fails with a PKIX error and the installer reports the misleading
-message above. macOS itself trusts the root, which is why `curl` and your browser work fine.
-
-On macOS, run the installer once (it will fail, but it creates `~/.jdeploy`), then:
+On networks that run TLS inspection (Netskope, Zscaler, Palo Alto, etc) the installer fails with:
 
 ```
-./scripts/fix-corporate-tls.sh
+Cannot load app info because the app.xml file could not be found
 ```
 
-That imports your proxy's root CA — only if macOS already trusts it — into the jdeploy JRE, and
-is safe to re-run. Then run the installer again. If jdeploy later downloads a newer JRE, the new
-one starts untrusted and the script needs re-running.
+The real cause is certificates, not a missing file. jdeploy runs the installer on a private JRE it
+downloads to `~/.jdeploy`, and that JRE has its own truststore which doesn't include your company's
+root CA — so its HTTPS calls fail with a PKIX error. macOS itself trusts the root, which is why
+`curl` and your browser work fine.
 
-Alternatively, skip the installer entirely: every release also has `AndroidDeviceManager.jar`
-attached, which runs directly with `java -jar AndroidDeviceManager.jar` and needs no download.
+On macOS, this one command downloads the latest release, installs it, and fixes the certificates:
+
+```
+curl -fsSLO https://raw.githubusercontent.com/jpage4500/AndroidDeviceManager/develop/scripts/install-corporate.sh
+bash install-corporate.sh
+```
+
+It only imports a root CA that macOS already trusts, and does nothing at all if it can't detect any
+interception. Once installed, jdeploy auto-updates the app on launch as usual.
+
+If a later update pulls down a newer JRE, that JRE starts untrusted again and the app's in-app
+update check may warn. Re-run:
+
+```
+bash install-corporate.sh --fix-only
+```
+
+Add `--dry-run` to see what it would do without installing anything.
+
+Prefer to skip the installer? Every release also attaches `AndroidDeviceManager.jar`, which runs
+directly with `java -jar AndroidDeviceManager.jar` (needs Java 17+) and downloads nothing.
 
 </details>
 
