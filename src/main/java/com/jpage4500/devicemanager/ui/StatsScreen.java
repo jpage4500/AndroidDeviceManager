@@ -9,6 +9,7 @@ import com.jpage4500.devicemanager.data.StatSample;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.DeviceStatsManager;
 import com.jpage4500.devicemanager.ui.dialog.SettingsDialog;
+import com.jpage4500.devicemanager.ui.views.BackgroundPanel;
 import com.jpage4500.devicemanager.ui.views.ChartLegendRenderer;
 import com.jpage4500.devicemanager.ui.views.ChartUtils;
 import com.jpage4500.devicemanager.ui.views.CheckBoxList;
@@ -80,7 +81,7 @@ public class StatsScreen extends BaseScreen {
     private final JList<ChartStat> statList;
     private final ChartLegendRenderer legendRenderer;
     private final CheckBoxList deviceCheckBoxList;
-    private final JPanel chartHolder;
+    private final BackgroundPanel chartHolder;
     private final JLabel summaryLabel;
     private final JSplitPane splitPane;
 
@@ -112,7 +113,7 @@ public class StatsScreen extends BaseScreen {
             updateChart();
         });
 
-        chartHolder = new JPanel(new BorderLayout());
+        chartHolder = new BackgroundPanel(new BorderLayout());
         summaryLabel = new JLabel();
         summaryLabel.setForeground(Colors.COLOR_CHART_LABEL);
 
@@ -203,6 +204,8 @@ public class StatsScreen extends BaseScreen {
      * re-read the recorded history and rebuild both the device list and the chart
      */
     private void refresh() {
+        // re-read here so toggling it in Settings takes effect the next time this window is activated
+        chartHolder.refreshShowBackground();
         sampleMap = DeviceStatsManager.getInstance().loadSamples();
         buildDeviceList();
         updateChart();
