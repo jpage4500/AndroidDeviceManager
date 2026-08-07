@@ -21,6 +21,7 @@ public enum Icons {
     BOOKMARK("bookmark.png"),
     BROWSE("browse.png"),
     CHARGING("charging.png"),
+    CHART("chart.png"),
     CLEAR_FILTER("clear_filter.png"),
     CLOSE("close.png"),
     COPY("copy.png"),

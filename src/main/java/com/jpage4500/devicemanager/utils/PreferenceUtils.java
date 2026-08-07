@@ -33,6 +33,8 @@ public class PreferenceUtils {
         PREF_SCRCPY_PATH,                     // path to scrcpy
         PREF_SCRCPY_ARGS,                     // List<String> of scrcpy arguments
         PREF_ADB_PATH,                        // path to adb (used to start server when not running)
+        PREF_STATS_HIDDEN_DEVICES,            // stats: List<String> of serials unchecked in the graph
+        PREF_STATS_SELECTED_STAT,             // stats: last graphed StatSample.StatType
     }
 
     /**
@@ -67,6 +69,8 @@ public class PreferenceUtils {
         PREF_SERVER_PORT,                      // remote server: port
         PREF_LOGS_DIVIDER_MAIN,                // logs: filters | table divider position (px)
         PREF_LOGS_DIVIDER_LEFT,                // logs: filters / devices divider position (px, headless mode)
+        PREF_STATS_RETENTION_DAYS,             // stats: days of device history to keep
+        PREF_STATS_DEVICE_WIDTH,               // stats: width of the device list beside the chart (px)
     }
 
     public static String getPreference(Pref pref) {

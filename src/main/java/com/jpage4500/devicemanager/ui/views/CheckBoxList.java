@@ -12,19 +12,31 @@ import java.util.ArrayList;
 public class CheckBoxList extends JList {
     private static final Logger log = LoggerFactory.getLogger(CheckBoxList.class);
 
+    // optional: notified after an item is checked/unchecked
+    private Runnable changeListener;
+
     public CheckBoxList() {
         setCellRenderer(new CellRenderer());
         UiUtils.addLeftClickListener(this, e -> {
             int index = locationToIndex(e.getPoint());
-
-            if (index != -1) {
+            // NOTE: locationToIndex returns the CLOSEST item, so empty space past the last one (or
+            // beside it, once the list wraps into columns) has to be rejected on the cell bounds
+            if (index != -1 && getCellBounds(index, index).contains(e.getPoint())) {
                 JCheckBox checkbox = (JCheckBox) getModel().getElementAt(index);
                 checkbox.setSelected(!checkbox.isSelected());
                 repaint();
+                if (changeListener != null) changeListener.run();
             }
         });
 
         setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+    }
+
+    /**
+     * called after an item is checked/unchecked (for lists that update something live)
+     */
+    public void setChangeListener(Runnable changeListener) {
+        this.changeListener = changeListener;
     }
 
     public void addItem(String item) {

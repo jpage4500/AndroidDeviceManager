@@ -210,6 +210,13 @@ public class Device {
      * @return percent of internal storage in use (0-100), or null if the device didn't report a total
      */
     public Integer getStorageUsedPercent() {
+        return getStorageUsedPercent(freeSpace, totalSpace);
+    }
+
+    /**
+     * @return percent of storage in use (0-100), or null if either value is missing or nonsensical
+     */
+    public static Integer getStorageUsedPercent(Long freeSpace, Long totalSpace) {
         if (freeSpace == null || totalSpace == null || totalSpace <= 0) return null;
         long usedSpace = totalSpace - freeSpace;
         // free > total means we mis-parsed one of them; better to show no bar than a wrong one

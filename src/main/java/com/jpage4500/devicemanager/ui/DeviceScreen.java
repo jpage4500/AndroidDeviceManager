@@ -177,6 +177,9 @@ public class DeviceScreen extends BaseScreen {
             if (!selectedDeviceList.isEmpty()) app.showDeviceInfo(selectedDeviceList.get(0));
         });
 
+        // [CMD + G] = battery/storage history for every device
+        createCmdMenuItem(deviceMenu, "Device Stats", KeyEvent.VK_G, e -> app.showStats());
+
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
         menubar.add(deviceMenu);
@@ -391,7 +394,6 @@ public class DeviceScreen extends BaseScreen {
             CommandScreen.setupCommandPopupMenu(popupMenu, app, device);
 
             if (device.isWireless()) {
-                popupMenu.addSeparator();
                 UiUtils.addPopupMenuItem(popupMenu, "Disconnect " + device.getDisplayName(), actionEvent -> handleDisconnect(device));
             }
         } else {
@@ -856,6 +858,7 @@ public class DeviceScreen extends BaseScreen {
         TERMINAL(Icons.TERMINAL, "Terminal", "Open Terminal"),
         ADB(Icons.ADB, "ADB", "Run custom adb command"),
         SCRIPTS(Icons.SCRIPT, "Scripts", "Run custom scripts"),
+        STATS(Icons.CHART, "Stats", "Battery/storage history for all devices"),
         FILTER(null, "Filter", "Filter devices..."),
         REFRESH(Icons.REFRESH, "Refresh", "Refresh Devices"),
         SHARE_SERVER(Icons.SHARE_OFF, "Share", "Share Devices"),
@@ -922,6 +925,10 @@ public class DeviceScreen extends BaseScreen {
 
         if (mirrorBtn != null || recordBtn != null || screenBtn != null || installBtn != null || termBtn != null)
             toolbar.addSeparator();
+
+        // NOTE: not device-specific - the stats window graphs every device at once
+        JButton statsBtn = createToolbarButton(toolbar, ToolbarButton.STATS, actionEvent -> app.showStats());
+        if (statsBtn != null) toolbar.addSeparator();
 
         // create custom action buttons
         createToolbarButton(toolbar, ToolbarButton.ADB, actionEvent -> handleRunCustomCommand());
