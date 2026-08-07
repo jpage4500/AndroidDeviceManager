@@ -235,8 +235,10 @@ public class StatsScreen extends BaseScreen {
         } else if (checkedSerialList.isEmpty()) {
             chartHolder.add(centeredLabel("Select a device to graph"), BorderLayout.CENTER);
         } else {
-            // NOTE: every device is passed in so each one's color/pattern stays put
-            StatsChartPanel chartPanel = new StatsChartPanel(sampleMap, statType, serialList, displayNameMap);
+            // NOTE: the full device list goes in alongside the checked ones so each device keeps the
+            // color it had; the chart draws only what's checked
+            StatsChartPanel chartPanel = new StatsChartPanel(sampleMap, statType, serialList,
+                new HashSet<>(checkedSerialList), displayNameMap);
             if (chartPanel.isEmpty()) {
                 chartHolder.add(centeredLabel("No " + statType.label.toLowerCase() + " readings for the selected devices"),
                     BorderLayout.CENTER);

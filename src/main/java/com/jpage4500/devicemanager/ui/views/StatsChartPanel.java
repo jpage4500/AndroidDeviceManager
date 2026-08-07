@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import javax.swing.JPanel;
@@ -42,13 +43,16 @@ public class StatsChartPanel extends JPanel {
     private final JFreeChart chart;
 
     /**
-     * @param sampleMap      serial -> that device's samples, oldest first
-     * @param statType       which value to plot
-     * @param serialList     devices to draw; the index picks the line's color/pattern so it must be stable
-     * @param displayNameMap serial -> name to show in tooltips
+     * @param sampleMap        serial -> that device's samples, oldest first
+     * @param statType         which value to plot
+     * @param serialList       EVERY known device, not just the drawn ones - a line's color/pattern comes
+     *                         from its index here, so hiding a device mustn't recolor the rest
+     * @param visibleSerialSet the devices to actually draw
+     * @param displayNameMap   serial -> name to show in tooltips
      */
     public StatsChartPanel(Map<String, List<StatSample>> sampleMap, StatSample.StatType statType,
-                           List<String> serialList, Map<String, String> displayNameMap) {
+                           List<String> serialList, Set<String> visibleSerialSet,
+                           Map<String, String> displayNameMap) {
         super(new BorderLayout());
 
         long maxGapMs = Math.max(MIN_GAP_MS, (long) (DeviceStatsManager.getSampleIntervalMs() * GAP_INTERVALS));
@@ -61,6 +65,8 @@ public class StatsChartPanel extends JPanel {
 
         for (int i = 0; i < serialList.size(); i++) {
             String serial = serialList.get(i);
+            // NOTE: skipped AFTER i is read, so the devices still drawn keep the color they had
+            if (!visibleSerialSet.contains(serial)) continue;
             List<StatSample> sampleList = sampleMap.get(serial);
             if (sampleList == null || sampleList.isEmpty()) continue;
 
