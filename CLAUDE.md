@@ -54,6 +54,12 @@ ADM can act as both client and server. `RemoteServerManager` runs `RemoteHttpSer
 
 ## Conventions
 
+- **Keep comments very concise — one line.** Say what it is, not the reasoning behind it. Drop the follow-up `NOTE:`/rationale lines; if a comment needs a paragraph, the code needs the work instead. Example — keep only the first line of:
+  ```java
+  // -- keep a few days of battery/disk values so they can be graphed over time --
+  // NOTE: this rides along on the refresh that just ran rather than asking the device for
+  // anything; the not-booted path above returns before either fetch, so it can't record blanks
+  ```
 - Use SLF4J: `private static final Logger log = LoggerFactory.getLogger(Foo.class);` — call `log.debug/info/warn/error` with `{}` placeholders.
 - Layouts use MigLayout (`net.miginfocom.swing.MigLayout`).
 - `TextUtils` mirrors Android's helper (use `isEmpty`, `equalsIgnoreCase`, etc. instead of rolling your own).

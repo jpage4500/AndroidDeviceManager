@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.BatteryHistory;
 import com.jpage4500.devicemanager.data.BatteryInfo;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.ui.views.BackgroundPanel;
 import com.jpage4500.devicemanager.ui.views.BatteryChartPanel;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 
@@ -32,13 +33,13 @@ import java.util.Map;
 public class BatteryScreen extends BaseScreen {
     private static final Logger log = LoggerFactory.getLogger(BatteryScreen.class);
 
-    private final JPanel contentPanel;
+    private final BackgroundPanel contentPanel;
     private JMenuItem listMenuItem;
     private BatteryHistory history;
 
     public BatteryScreen(App app, Device device) {
         super(app, device, "battery-" + device.serial, 1000, 600);
-        contentPanel = new JPanel(new BorderLayout());
+        contentPanel = new BackgroundPanel(new BorderLayout());
 
         setupMenuBar();
         setContentPane(contentPanel);
@@ -79,6 +80,8 @@ public class BatteryScreen extends BaseScreen {
      * (re)read the history off the device and rebuild the chart
      */
     private void refresh() {
+        // re-read here so toggling it in Settings takes effect on the next refresh
+        contentPanel.refreshShowBackground();
         showProgress("Reading battery history from " + device.getDisplayName());
         app.setDeviceBusy(device, true);
         DeviceManager.getInstance().fetchBatteryHistory(device, result -> SwingUtilities.invokeLater(() -> {

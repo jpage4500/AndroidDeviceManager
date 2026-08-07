@@ -15,6 +15,8 @@ public class Colors {
     public static final Color COLOR_TABLE_HEADER = new Color(197, 197, 197);
 
     public static final Color COLOR_LIGHT_GRAY = new Color(232, 232, 232);
+    // hairline between sections of a panel, or between rows of a list
+    public static final Color COLOR_DIVIDER = new Color(222, 226, 232);
     public static final Color COLOR_LIST_SELECTED_NO_FOCUS = new Color(0, 81, 255, 108);
 
     public static final Color COLOR_SUCCESS = new Color(24, 134, 0);
@@ -41,6 +43,20 @@ public class Colors {
     public static final Color COLOR_CHART_GRID = new Color(225, 224, 217);
     public static final Color COLOR_CHART_AXIS = new Color(195, 194, 183);
     public static final Color COLOR_CHART_LABEL = new Color(137, 135, 129);
+
+    // -- device stats chart (1 line per device) --
+    // 8 hues validated as a set against a white plot background (colorblind-safe in any adjacent pair)
+    // NOTE: a fixed order, not a wheel - past 8 the LINE PATTERN changes (ChartUtils.getSeriesStroke)
+    public static final Color[] COLOR_CHART_SERIES = {
+        new Color(0x2a78d6),    // blue
+        new Color(0xeb6834),    // orange
+        new Color(0x1baf7a),    // aqua
+        new Color(0xeda100),    // yellow
+        new Color(0xe87ba4),    // magenta
+        new Color(0x008300),    // green
+        new Color(0x4a3aa7),    // violet
+        new Color(0xe34948),    // red
+    };
 
     // -- device info cards --
     // NOTE: the app runs FlatLightLaf, so these are fixed light-theme colors. the card background is

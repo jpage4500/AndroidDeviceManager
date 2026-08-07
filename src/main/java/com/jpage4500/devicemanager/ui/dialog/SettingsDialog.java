@@ -4,6 +4,7 @@ import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
 import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.manager.DeviceStatsManager;
 import com.jpage4500.devicemanager.table.DeviceTableModel;
 import com.jpage4500.devicemanager.table.LogsTableModel;
 import com.jpage4500.devicemanager.ui.App;
@@ -43,6 +44,7 @@ public class SettingsDialog extends JPanel {
     private void initalizeUi() {
         JPanel devicePanel = UiUtils.createPanel("Device Settings");
         UiUtils.addSettingButton(devicePanel, "Refresh Time", "EDIT", () -> showRefreshTime());
+        UiUtils.addSettingButton(devicePanel, "Stats History (days)", "EDIT", () -> showStatsRetention());
         UiUtils.addSettingButton(devicePanel, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(app, this));
         UiUtils.addSettingButton(devicePanel, "Custom Columns", "EDIT", this::showAppsSettings);
         UiUtils.addSettingButton(devicePanel, "Customize Toolbar", "EDIT", () -> showManageToolbar(app, this));
@@ -170,6 +172,25 @@ public class SettingsDialog extends JPanel {
         else if (newValue < 5) newValue = 5;
         PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_REFRESH_TIME_MINS, newValue);
         DeviceManager.getInstance().updateRefreshTime();
+    }
+
+    /**
+     * how many days of device stats are kept for the stats chart
+     * <p>
+     * NOTE: this is also the sample rate's only real knob - stats are recorded on the device refresh
+     * above, so a longer refresh time means fewer points across the same number of days
+     */
+    public void showStatsRetention() {
+        int retentionDays = DeviceStatsManager.getRetentionDays();
+        String result = DialogHelper.showInputDialog(this, "Stats History",
+            "Number of days of device stats to keep (between " + DeviceStatsManager.MIN_RETENTION_DAYS
+                + " and " + DeviceStatsManager.MAX_RETENTION_DAYS + ")", String.valueOf(retentionDays));
+        if (TextUtils.isEmpty(result)) return;
+
+        int newValue = TextUtils.getNumber(result, DeviceStatsManager.DEFAULT_RETENTION_DAYS);
+        if (newValue > DeviceStatsManager.MAX_RETENTION_DAYS) newValue = DeviceStatsManager.MAX_RETENTION_DAYS;
+        else if (newValue < DeviceStatsManager.MIN_RETENTION_DAYS) newValue = DeviceStatsManager.MIN_RETENTION_DAYS;
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_STATS_RETENTION_DAYS, newValue);
     }
 
     public static void showManageDeviceColumnsDialog(App app, Component component) {
@@ -346,6 +367,20 @@ public class SettingsDialog extends JPanel {
     public static List<String> getCustomColumns() {
         String appPrefs = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_CUSTOM_APPS);
         return GsonHelper.stringToList(appPrefs, String.class);
+    }
+
+    /**
+     * the column names out of {@link #getCustomColumns} entries ("PM:VER:com.test.pm" -> "PM"),
+     * skipping blanks and commented-out lines
+     */
+    public static List<String> getCustomColumnLabels() {
+        List<String> labelList = new ArrayList<>();
+        for (String entry : getCustomColumns()) {
+            if (TextUtils.isEmpty(entry) || TextUtils.startsWithAny(entry, false, "#", "//")) continue;
+            String[] entryArr = entry.split(":");
+            labelList.add(entryArr.length >= 1 ? entryArr[0].trim() : entry);
+        }
+        return labelList;
     }
 
     private List<String> showMultilineEditDialog(String title, String message, List<String> stringList) {

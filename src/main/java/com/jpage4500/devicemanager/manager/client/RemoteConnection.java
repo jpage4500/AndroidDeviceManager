@@ -5,6 +5,7 @@ import com.jpage4500.devicemanager.data.DeviceFile;
 import com.jpage4500.devicemanager.data.LogEntry;
 import com.jpage4500.devicemanager.data.RemoteServerConfig;
 import com.jpage4500.devicemanager.manager.DeviceManager;
+import com.jpage4500.devicemanager.manager.DeviceStatsManager;
 import com.jpage4500.devicemanager.manager.server.LogStreamWebSocket;
 import com.jpage4500.devicemanager.manager.server.RemoteHttpServer;
 import com.jpage4500.devicemanager.manager.server.ScreenStreamWebSocket;
@@ -158,6 +159,8 @@ public class RemoteConnection {
             for (Device device : deviceList) {
                 // mark as remote
                 device.remoteConnection = this;
+                // remote devices don't run through DeviceManager.fetchDeviceDetails
+                DeviceStatsManager.getInstance().recordSample(device);
             }
             this.deviceList.clear();
             this.deviceList.addAll(deviceList);

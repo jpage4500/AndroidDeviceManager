@@ -63,6 +63,12 @@ see [SERVER.md](SERVER.md)
 <b>Connect Device via QR code</b></br>
 <img src="resources/connect-qr.png" width="300" alt="logs">
 <br>
+<b>Device Stats - Battery Temp</b></br>
+<img src="resources/screenshot-stats-temp.png" width="600" alt="temp stats">
+<br>
+<b>Device Stats - OS</b></br>
+<img src="resources/screenshot-stats-os.png" width="600" alt="os stats">
+<br>
 <b>Save Logs from multiple devices to file(s)</b></br>
 <img src="resources/screenshot-savelogs.jpg" width="300" alt="logs">
 <br>

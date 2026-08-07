@@ -34,6 +34,11 @@ public interface App {
     void showBattery(Device device);
 
     /**
+     * recorded battery/storage history for every device on 1 chart; app-wide, so 1 window
+     */
+    void showStats();
+
+    /**
      * send a custom adb command to the given device(s)
      */
     void showCommand(List<Device> devices);

@@ -465,6 +465,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
             device.lastUpdateMs = System.currentTimeMillis();
 
+            // -- keep a few days of battery/disk values so they can be graphed over time --
+            DeviceStatsManager.getInstance().recordSample(device);
+
             if (fullRefresh) {
                 if (log.isTraceEnabled()) log.trace("fetchDeviceDetails: FULL_REFRESH:{}: {}", timer, GsonHelper.toJson(device));
                 // keep track of wireless devices

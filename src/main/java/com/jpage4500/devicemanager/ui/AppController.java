@@ -290,6 +290,14 @@ public class AppController implements App, DeviceManager.DeviceListener {
     }
 
     @Override
+    public void showStats() {
+        // NOTE: not showDeviceWindow - this one isn't bound to a device and has to open with nothing
+        // selected in the device list
+        StatsScreen screen = openWindow(StatsScreen.class, null, false, d -> new StatsScreen(this));
+        screen.show();
+    }
+
+    @Override
     public void showSaveLogs(List<Device> devices) {
         if (devices == null || devices.isEmpty()) return;
         SaveLogsScreen screen = openWindow(SaveLogsScreen.class, null, false, d -> new SaveLogsScreen(this));

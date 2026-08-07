@@ -89,7 +89,7 @@ public class UiUtils {
 
     // how much of the app's background image shows through: enough to see it, not enough to fight
     // with the content drawn on top of it
-    private static final float BACKGROUND_ALPHA = 0.15f;
+    private static final float BACKGROUND_ALPHA = 0.10f;
 
     /**
      * tile the app's background image, faded, over the given area
