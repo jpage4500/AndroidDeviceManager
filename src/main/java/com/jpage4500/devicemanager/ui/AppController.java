@@ -53,6 +53,7 @@ import java.util.function.Function;
  *  - Update checking against GitHub releases
  *  - System tray icon
  *  - Open child-window registry (one window per screen type per device)
+ *  - Switching between logs-only mode and normal mode
  *  - Exit-to-tray handling and process exit
  */
 public class AppController implements App, DeviceManager.DeviceListener {
@@ -142,6 +143,63 @@ public class AppController implements App, DeviceManager.DeviceListener {
      */
     public void startLogsOnly() {
         headlessMode = true;
+        openLogsModeWindow();
+    }
+
+    /**
+     * switch between logs-only mode and normal mode - toolbar buttons in both screens toggle it
+     * <p>
+     * the device list is hidden and re-shown; the logs window is recreated (its layout differs by mode)
+     */
+    @Override
+    public void setLogsMode(boolean logsMode) {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> setLogsMode(logsMode));
+            return;
+        }
+        if (logsMode == headlessMode) return;
+        log.debug("setLogsMode: {}", logsMode);
+        PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_MODE, logsMode);
+
+        if (logsMode) enterLogsMode();
+        else exitLogsMode();
+
+        // tray menu differs between modes (no Mirror in logs mode)
+        systemTrayHashCode = null;
+        setupSystemTray();
+    }
+
+    private void enterLogsMode() {
+        if (deviceScreen != null) deviceScreen.setVisible(false);
+        // a per-device logs window would block the logs-mode window's close-to-exit check
+        for (BaseScreen screen : new ArrayList<>(windowMap.values())) {
+            if (screen instanceof ViewLogsScreen) screen.closeWindow();
+        }
+        // NOTE: set before creating the window - ViewLogsScreen reads it to build its layout
+        headlessMode = true;
+        openLogsModeWindow();
+    }
+
+    private void exitLogsMode() {
+        // NOTE: clear before closing the window - onWindowClosed exits the app in logs mode
+        headlessMode = false;
+        ViewLogsScreen logsScreen = headlessLogsScreen;
+        headlessLogsScreen = null;
+        // closeWindow saves filters/divider/size and stops logging
+        if (logsScreen != null) logsScreen.closeWindow();
+
+        if (deviceScreen == null) {
+            // NOTE: setDeviceScreen also installs any apk drops that arrived while in logs mode
+            setDeviceScreen(new DeviceScreen(this));
+            scheduleUpdateChecks();
+        }
+        // no device event may fire for minutes; populate from the list we already have
+        deviceScreen.handleDevicesUpdated(DeviceManager.getInstance().getDevices());
+        showDeviceList();
+    }
+
+    /** create the single logs-mode window; {@link #headlessMode} must already be set */
+    private void openLogsModeWindow() {
         headlessLogsScreen = new ViewLogsScreen(this, null);
         headlessLogsScreen.setConnectedDevices(DeviceManager.getInstance().getDevices());
     }
@@ -247,6 +305,11 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
     @Override
     public void showDeviceList() {
+        // the device list doesn't exist in logs mode; switching modes creates it
+        if (headlessMode) {
+            setLogsMode(false);
+            return;
+        }
         if (deviceScreen == null) return;
         SwingUtilities.invokeLater(() -> {
             deviceScreen.setVisible(true);

@@ -51,6 +51,7 @@ public class PreferenceUtils {
         PREF_DEVICE_AUTO_RESIZE,
         PREF_LOGS_AUTO_RESIZE,
         PREF_LOGS_HIDE_COLUMNS,               // logs: true when App/TID columns are hidden
+        PREF_LOGS_MODE,                       // true when logs-only mode was selected from the toolbar
         PREF_SERVER_ENABLED,
         PREF_SCRCPY_DO_NOT_SHOW_AGAIN,        // true to prevent showing scrcpy dialog
     }

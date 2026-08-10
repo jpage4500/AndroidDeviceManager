@@ -255,10 +255,8 @@ public abstract class BaseScreen extends JFrame {
 
         createCmdMenuItem(menu, "Close Window", KeyEvent.VK_W, e -> closeWindow());
 
-        if (!app.isHeadlessMode()) {
-            // not available in headless mode
-            createCmdMenuItem(menu, "Show Device List", KeyEvent.VK_1, e -> app.showDeviceList());
-        }
+        // in logs mode this switches back to normal mode
+        createCmdMenuItem(menu, "Show Device List", KeyEvent.VK_1, e -> app.showDeviceList());
 
         createCmdMenuItem(menu, "Show File Browser", KeyEvent.VK_2, e -> app.showFileBrowser(device));
         createCmdMenuItem(menu, "Show Device Logs", KeyEvent.VK_3, e -> app.showLogs(device));

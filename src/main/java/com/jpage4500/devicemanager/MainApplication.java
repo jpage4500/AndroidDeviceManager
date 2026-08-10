@@ -39,6 +39,12 @@ public class MainApplication {
         setupLogging();
         log.info("APP START: {}, args:{}, java:{}, os:{}", version, GsonHelper.toJson(args), Runtime.version(), System.getProperty("os.name"));
 
+        // logs mode selected from the toolbar; sticks until it's toggled back off
+        if (PreferenceUtils.getPreference(PreferenceUtils.PrefBoolean.PREF_LOGS_MODE)) {
+            log.debug("- logs mode (preference)");
+            launchMode = LaunchMode.LOGS_ONLY;
+        }
+
         // handle command-line args
         boolean serverMode = false;
         for (String arg : args) {
