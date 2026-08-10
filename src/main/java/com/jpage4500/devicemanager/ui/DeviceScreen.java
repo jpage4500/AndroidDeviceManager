@@ -163,6 +163,9 @@ public class DeviceScreen extends BaseScreen {
     private void setupMenuBar() {
         JMenu windowMenu = buildWindowMenu();
 
+        // logs-only mode; the logs window switches back with "Show Device List"
+        createMenuItem(windowMenu, "Logs Mode", null, e -> app.setLogsMode(true));
+
         JMenu deviceMenu = new JMenu("Devices");
 
         // [CMD + F] = focus search box
@@ -853,6 +856,7 @@ public class DeviceScreen extends BaseScreen {
         FILTER(null, "Filter", "Filter devices..."),
         REFRESH(Icons.REFRESH, "Refresh", "Refresh Devices"),
         SHARE_SERVER(Icons.SHARE_OFF, "Share", "Share Devices"),
+        LOGS_MODE(Icons.FILE_LOGS, "Logs Mode", "Switch to logs-only mode"),
         SETTINGS(Icons.SETTINGS, "Settings", "Settings"),
         ;
 
@@ -958,6 +962,8 @@ public class DeviceScreen extends BaseScreen {
             updateServerButton();
         });
         updateServerButton();
+
+        createToolbarButton(toolbar, ToolbarButton.LOGS_MODE, actionEvent -> app.setLogsMode(true));
 
         createToolbarButton(toolbar, ToolbarButton.SETTINGS, actionEvent -> SettingsDialog.showSettings(app, this));
     }

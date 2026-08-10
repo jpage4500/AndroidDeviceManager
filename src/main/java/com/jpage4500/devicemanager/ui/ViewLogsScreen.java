@@ -876,6 +876,12 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
     private void setupToolbar() {
         toolbar.setRollover(true);
 
+        if (app.isHeadlessMode()) {
+            // logs mode: switch back to the device list
+            createSmallToolbarButton(toolbar, Icons.DEVICE_LOCAL, "Devices", "Switch to normal mode", actionEvent -> app.setLogsMode(false));
+            toolbar.addSeparator(new Dimension(10, 0));
+        }
+
         logButton = createSmallToolbarButton(toolbar, null, null, "Start Logging", actionEvent -> toggleLoggingButton());
         updateLoggingButton();
 

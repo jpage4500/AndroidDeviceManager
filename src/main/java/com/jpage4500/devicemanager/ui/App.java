@@ -108,4 +108,11 @@ public interface App {
      * true when no DeviceScreen is shown (e.g., logs-only launch mode)
      */
     boolean isHeadlessMode();
+
+    /**
+     * switch between logs-only mode (a single logs window) and normal mode (the device list)
+     * <p>
+     * the choice is saved, so the next launch starts in the same mode
+     */
+    void setLogsMode(boolean logsMode);
 }
