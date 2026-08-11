@@ -65,6 +65,9 @@ public class Device {
     // last time device was seen (online or offline)
     public Long lastUpdateMs;
 
+    // host clock time the device booted; uptime is derived from this so it stays accurate between refreshes
+    public Long bootTimeMs;
+
     // custom properties (saved on a file on device)
     public Map<String, String> customPropertyMap;
 
@@ -204,6 +207,16 @@ public class Device {
             busyCounter.set(0);
         }
         return newValue > 0;
+    }
+
+    /**
+     * @return ms since the device last booted, or null if unknown
+     */
+    public Long getUptimeMs() {
+        if (bootTimeMs == null) return null;
+        long uptimeMs = System.currentTimeMillis() - bootTimeMs;
+        // negative means a remote server's clock is skewed against ours
+        return uptimeMs >= 0 ? uptimeMs : null;
     }
 
     /**

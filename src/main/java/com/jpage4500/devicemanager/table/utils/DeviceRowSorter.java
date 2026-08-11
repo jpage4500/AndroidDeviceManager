@@ -57,6 +57,12 @@ public class DeviceRowSorter extends TableRowSorter<TableModel> {
             DeviceTableModel.Columns columnType = model.getColumnType(c);
             if (columnType == DeviceTableModel.Columns.BATTERY) {
                 return Integer.compare(d1.batteryLevel, d2.batteryLevel);
+            } else if (columnType == DeviceTableModel.Columns.BOOTED) {
+                // compare the stored time, never a live clock read; 2 reads in 1 comparison can
+                // differ and an inconsistent comparator makes TimSort throw
+                long boot1 = d1.bootTimeMs != null ? d1.bootTimeMs : Long.MAX_VALUE;
+                long boot2 = d2.bootTimeMs != null ? d2.bootTimeMs : Long.MAX_VALUE;
+                return Long.compare(boot1, boot2);
             }
 
             String value1 = model.deviceValue(d1, c);

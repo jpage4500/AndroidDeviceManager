@@ -56,6 +56,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     public static final String COMMAND_BATTERY_HISTORY = "dumpsys batterystats --history"
         + " | grep -E \"Battery History|TIME:|temp=|status=|plug=|[+-]charging|[+-]plugged\"";
     public static final String COMMAND_LIST_PACKAGES = "pm list packages";
+    public static final String COMMAND_UPTIME = "cat /proc/uptime";
 
     public static final String APP_SCRCPY = "scrcpy";
     public static final String APP_ADB = "adb";
@@ -416,6 +417,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
             // NOTE: if device just restarted, the initial fullRefresh will fail so try again next time
             if (fullRefresh || device.nickname == null) {
+                // -- time since last reboot --
+                fetchUptime(device);
+
                 // -- device properties (model, OS) --
                 try {
                     Map<String, String> propMap = new PropertyManager(device.jadbDevice).getprop();
@@ -678,6 +682,23 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         } catch (Exception e) {
             // NOTE: this is normal as file won't exist unless set
             //log.trace("fetchDeviceDetails: PULL Exception:{}", e.getMessage());
+        }
+    }
+
+    /**
+     * seconds since boot, stored as the host clock time the device booted
+     * NOTE: /proc/uptime counts deep sleep, so this is time since reboot and not time awake
+     */
+    private void fetchUptime(Device device) {
+        ShellResult result = runShell(device, COMMAND_UPTIME);
+        if (!result.isSuccess) return;
+        // "350735.47 234388.90" - seconds since boot, then idle seconds
+        String line = TextUtils.notNull(result.getResult(0)).trim();
+        try {
+            long uptimeMs = (long) (Double.parseDouble(TextUtils.split(line, 0)) * 1000d);
+            device.bootTimeMs = System.currentTimeMillis() - uptimeMs;
+        } catch (Exception e) {
+            log.trace("fetchUptime: bad value:{}", line);
         }
     }
 

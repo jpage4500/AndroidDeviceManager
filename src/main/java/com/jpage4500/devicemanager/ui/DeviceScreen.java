@@ -221,10 +221,12 @@ public class DeviceScreen extends BaseScreen {
             table.setPreferredColWidth(DeviceTableModel.Columns.OS.name(), 31);
             table.setPreferredColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
             table.setPreferredColWidth(DeviceTableModel.Columns.FREE.name(), 66);
+            table.setPreferredColWidth(DeviceTableModel.Columns.BOOTED.name(), 110);
             // set max sizes
             table.setMaxColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
             table.setMaxColWidth(DeviceTableModel.Columns.OS.name(), 31);
             table.setMaxColWidth(DeviceTableModel.Columns.FREE.name(), 80);
+            table.setMaxColWidth(DeviceTableModel.Columns.BOOTED.name(), 130);
         }
 
         sorter = new DeviceRowSorter(model);
@@ -272,6 +274,10 @@ public class DeviceScreen extends BaseScreen {
                     String temp = device.batteryInfo != null ? device.batteryInfo.getTempDisplay() : null;
                     if (temp != null) tooltip += " - " + temp;
                     return tooltip;
+                } else if (columnType == DeviceTableModel.Columns.BOOTED) {
+                    // the cell shows when it booted; show how long ago that was
+                    Long uptimeMs = device.getUptimeMs();
+                    if (uptimeMs != null) return "Up " + Utils.formatTime(uptimeMs);
                 }
             }
             return table.getTextIfTruncated(row, col);
@@ -487,7 +493,8 @@ public class DeviceScreen extends BaseScreen {
         DeviceTableModel.Columns columnType = model.getColumnType(column);
         if (columnType == null) return;
         List<String> hiddenColList = SettingsDialog.getHiddenColumnList();
-        hiddenColList.add(columnType.name());
+        // a duplicate would make setHiddenColumns size its array too small
+        if (!hiddenColList.contains(columnType.name())) hiddenColList.add(columnType.name());
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS, GsonHelper.toJson(hiddenColList));
         restoreTable();
     }
@@ -500,6 +507,7 @@ public class DeviceScreen extends BaseScreen {
         // set max sizes
         table.setMaxColWidth(DeviceTableModel.Columns.BATTERY.name(), 31);
         table.setMaxColWidth(DeviceTableModel.Columns.FREE.name(), 80);
+        table.setMaxColWidth(DeviceTableModel.Columns.BOOTED.name(), 130);
     }
 
     private void handleCopyClipboardFieldCommand() {
