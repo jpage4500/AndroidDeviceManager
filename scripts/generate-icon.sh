@@ -4,9 +4,10 @@
 #
 #   in:  resources/icon-source.png  — the exported artwork (tile shape, transparent outside)
 #   out: icon.png                   — 1024x1024, centred squircle, 8-bit sRGB
+#        icon.icns                  — the same artwork as a 10-size icns (see 3)
 #
 # jDeploy embeds icon.png verbatim as the single 'ic10' slice of icon.icns, so this one file has
-# to be right. Two separate things are handled here.
+# to be right. Three separate things are handled here.
 #
 # 1. macOS 26 (Tahoe) checks the icon's opaque region against its standard tile and, when it
 #    doesn't conform, draws the artwork shrunk onto a grey fallback plate — the icon then looks
@@ -27,6 +28,22 @@
 #    black line, then 4-5px of salmon, all fully opaque. It hid while the icon was being plated
 #    (drawn small) and is obvious once the icon renders full size, so SHAVE trims it off. Measured
 #    contamination on the silhouette ring: 39% at the source edge, 13% at 2px in, 0% from 5px in.
+#
+# 3. Correct geometry is necessary but NOT sufficient. jDeploy writes icon.icns with a single
+#    'ic10' (1024px) slice, and the Dock and Cmd-Tab switcher still plate a one-slice icns even
+#    when the geometry conforms. Apps that render full size ship a size family — IntelliJ IDEA has
+#    11 slices and no modern asset at all, which rules out Tahoe requiring an Icon Composer
+#    '.icon'/Assets.car. Replacing the installed bundle's icon.icns with the 10-size file this
+#    script builds fixed it. NOTE: NSWorkspace.icon(forFile:) reports a one-slice icns as correct
+#    at every size, so it cannot detect this — only the Dock shows it, and only after
+#    scripts/reset-icon.sh, since macOS re-caches the plated composite immediately.
+#
+#    icon.icns below does NOT reach a build: 'npx jdeploy package' copies only icon.png (and the
+#    splashes) into jdeploy-bundle/, and the installer regenerates the icns from icon.png on the
+#    user's machine. Verified 2026-08-10 — a root icon.icns and icon-<size>.png files are both
+#    ignored by the packager. So it is only good for patching an already-installed bundle:
+#      cp icon.icns "$HOME/Applications/Android Device Manager.app/Contents/Resources/icon.icns"
+#    Fresh installs still get the one-slice icns until jDeploy itself is fixed.
 #
 # Two ImageMagick traps, both silent: any composite on a Q16 build emits 16-bit PNG, and an
 # achromatic tile colour makes it write greyscale (which desaturates the artwork). Every step below
@@ -113,4 +130,27 @@ PY
 fi
 
 echo "wrote $OUT ($(magick identify -format '%wx%h' "$OUT"), ${depth}-bit, color_type=$ctype, opaque=$opaque)"
+
+# a one-slice icns gets plated no matter how good the geometry is, so build the full size family
+if command -v iconutil >/dev/null; then
+  SET="$TMP/icon.iconset"; mkdir -p "$SET"
+  for spec in "16 icon_16x16" "32 icon_16x16@2x" "32 icon_32x32" "64 icon_32x32@2x" \
+              "128 icon_128x128" "256 icon_128x128@2x" "256 icon_256x256" "512 icon_256x256@2x" \
+              "512 icon_512x512" "1024 icon_512x512@2x"; do
+    set -- $spec
+    magick "$OUT" -resize "$1x$1" -strip -depth 8 "PNG32:$SET/$2.png"
+  done
+  cp "$SET/icon_512x512@2x.png" src/main/resources/images/app_icon.png
+  echo "wrote src/main/resources/images/app_icon.png (dock icon set at runtime by AppController)"
+  iconutil -c icns "$SET" -o icon.icns
+  echo "wrote icon.icns ($(python3 -c "
+import struct
+d=open('icon.icns','rb').read(); off=8; n=0
+while off+8<=len(d):
+    ln=struct.unpack('>I',d[off+4:off+8])[0]
+    if ln<8: break
+    n+=1; off+=ln
+print(n)") slices)"
+fi
+
 echo "run scripts/reset-icon.sh to clear the macOS icon cache before checking the result"

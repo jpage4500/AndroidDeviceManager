@@ -200,6 +200,7 @@ public class MainApplication {
         }
 
         appController.installLifecycleHooks();
+        appController.setupTaskbarIcon();
 
         if (launchMode == LaunchMode.LOGS_ONLY) {
             appController.startLogsOnly();

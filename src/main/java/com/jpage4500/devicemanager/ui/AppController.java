@@ -636,6 +636,20 @@ public class AppController implements App, DeviceManager.DeviceListener {
         }
     }
 
+    /** macOS 26 plates the 1-slice icon.icns jDeploy writes, so set the dock icon from the bundled image */
+    public void setupTaskbarIcon() {
+        if (!Taskbar.isTaskbarSupported()) return;
+        try {
+            Taskbar taskbar = Taskbar.getTaskbar();
+            if (!taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) return;
+            BufferedImage image = UiUtils.getImage(Icons.APP_ICON, 0, 0);
+            if (image == null) return;
+            taskbar.setIconImage(image);
+        } catch (Exception e) {
+            log.error("setupTaskbarIcon: Exception: {}", e.getMessage());
+        }
+    }
+
     private void updateTaskbarBadge() {
         if (!Taskbar.isTaskbarSupported()) return;
         try {
