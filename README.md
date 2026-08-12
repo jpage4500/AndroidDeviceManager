@@ -60,6 +60,9 @@ see [SERVER.md](SERVER.md)
 <b>Battery Details</b></br>
 <img src="resources/battery-stats.png" width="600" alt="logs">
 <br>
+<b>Device Temp</b></br>
+<img src="resources/temp.png" width="600" alt="logs">
+<br>
 <b>Connect Device via QR code</b></br>
 <img src="resources/connect-qr.png" width="300" alt="logs">
 <br>
