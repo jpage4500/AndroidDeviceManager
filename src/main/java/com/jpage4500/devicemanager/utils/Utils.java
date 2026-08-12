@@ -13,6 +13,8 @@ import java.awt.datatransfer.StringSelection;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 public class Utils {
     private static final Logger log = LoggerFactory.getLogger(Utils.class);
@@ -182,6 +184,14 @@ public class Utils {
         }
 
         return seconds + "s";
+    }
+
+    /**
+     * format an absolute time
+     * example: "Aug 8, 9:02 AM"
+     */
+    public static String formatDateTime(long ms) {
+        return new SimpleDateFormat("MMM d, h:mm aa").format(new Date(ms));
     }
 
     public static String getClipboardText() {

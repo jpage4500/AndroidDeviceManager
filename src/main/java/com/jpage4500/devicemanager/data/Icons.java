@@ -8,6 +8,7 @@ public enum Icons {
     ADB("adb.png"),
     ADD("add.png"),
     ANDROID("android.png"),
+    APP_ICON("app_icon.png"),
     ARROW_DOWN("arrow_down.png"),
     ARROW_RIGHT("arrow_right.png"),
     ARROW_UP("arrow_up.png"),

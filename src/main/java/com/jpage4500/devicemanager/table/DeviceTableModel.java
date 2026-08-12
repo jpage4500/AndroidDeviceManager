@@ -3,6 +3,7 @@ package com.jpage4500.devicemanager.table;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.utils.FileUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
+import com.jpage4500.devicemanager.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +31,8 @@ public class DeviceTableModel extends AbstractTableModel {
         FREE("Free"),
         CUSTOM1("Custom 1"),
         CUSTOM2("Custom 2"),
+        // NOTE: keep BOOTED last - DeviceScreen's double-click handler compares model indexes to ordinals
+        BOOTED("Booted"),
         ;
         String desc;
 
@@ -40,6 +43,14 @@ public class DeviceTableModel extends AbstractTableModel {
         @Override
         public String toString() {
             return desc;
+        }
+
+        /** HIDE these columns by default (until user customizes columns) */
+        public boolean hideByDefault() {
+            return switch (this) {
+                case BOOTED -> true;
+                default -> false;
+            };
         }
     }
 
@@ -191,6 +202,7 @@ public class DeviceTableModel extends AbstractTableModel {
                 }
                 case CUSTOM1 -> device.getCustomProperty(Device.CUST_PROP_1);
                 case CUSTOM2 -> device.getCustomProperty(Device.CUST_PROP_2);
+                case BOOTED -> device.bootTimeMs != null ? Utils.formatDateTime(device.bootTimeMs) : null;
             };
         } else {
             // custom columns

@@ -157,8 +157,20 @@ public class SettingsDialog extends JPanel {
         }
     }
 
+    /**
+     * @return enum names of columns that should be hidden. When the user has never customized
+     * columns (pref is null/empty), falls back to {@link DeviceTableModel.Columns#hideByDefault()}.
+     */
     public static List<String> getHiddenColumnList() {
         String hiddenColsStr = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_HIDDEN_COLUMNS);
+        if (TextUtils.isEmpty(hiddenColsStr)) {
+            // never customized — apply defaults
+            List<String> defaults = new ArrayList<>();
+            for (DeviceTableModel.Columns column : DeviceTableModel.Columns.values()) {
+                if (column.hideByDefault()) defaults.add(column.name());
+            }
+            return defaults;
+        }
         return GsonHelper.stringToList(hiddenColsStr, String.class);
     }
 

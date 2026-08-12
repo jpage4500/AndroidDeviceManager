@@ -138,6 +138,10 @@ public class DeviceInfoScreen extends BaseScreen {
         properties.addProperty("Carrier", device.carrier);
         properties.addProperty("OS", device.os + " (SDK " + device.sdk + ")");
         //properties.addProperty("SDK", device.sdk);
+        Long uptimeMs = device.getUptimeMs();
+        if (uptimeMs != null) {
+            properties.addProperty("Booted", Utils.formatDateTime(device.bootTimeMs) + " (up " + Utils.formatTime(uptimeMs) + ")");
+        }
         properties.addProperty("Custom1", device.getCustomProperty(Device.CUST_PROP_1));
         properties.addProperty("Custom2", device.getCustomProperty(Device.CUST_PROP_2));
         // an offline device may not have reported anything yet
