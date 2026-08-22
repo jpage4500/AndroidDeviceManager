@@ -3,7 +3,7 @@
 # Generates the app icon that jDeploy ships on every platform.
 #
 #   in:  resources/icon-source.png  — the exported artwork (tile shape, transparent outside)
-#   out: icon.png                   — 1024x1024, centred squircle, 8-bit sRGB
+#   out: icon.png                   — 1024x1024, full-bleed squircle, 8-bit sRGB
 #        icon.icns                  — the same artwork as a 10-size icns (see 3)
 #
 # jDeploy embeds icon.png verbatim as the single 'ic10' slice of icon.icns, so this one file has
@@ -23,6 +23,11 @@
 #    The gate is a CENTRED SQUARE opaque region; macOS scales any conforming inset up to fill the
 #    tile. Non-square is what breaks it — a faint-alpha halo around the artwork is enough to do it.
 #    A stray halo alone does not plate it, and neither does 16-bit depth.
+#
+#    Because macOS scales a conforming inset up anyway, the inset buys nothing in the Dock — and it
+#    costs everywhere else this file is used full-frame (the README, a file manager drawing the
+#    project folder's icon.png on its row), where the margin just renders the artwork small. So the
+#    tile is drawn FULL BLEED: opaque region 1024x1024+0+0, which is the last row of the table.
 #
 # 2. The source artwork was cut out of a background imperfectly and carries a dirty rim: a 1px
 #    black line, then 4-5px of salmon, all fully opaque. It hid while the icon was being plated
@@ -71,33 +76,31 @@ trap 'rm -rf "$TMP"' EXIT
 # the real artwork is the fully-opaque region; anything fainter is halo left by the exporter
 read -r AW AH AX AY <<< "$(magick "$SRC" -alpha extract -threshold 98% -format '%@' info: | sed 's/[x+]/ /g')"
 
-# largest centred square that clears the dirty rim, kept even so it centres exactly on the canvas
-BODY=$(( (AW < AH ? AW : AH) - 2 * SHAVE ))
-BODY=$(( BODY - BODY % 2 ))
-RADIUS=$(( BODY * 2237 / 10000 ))   # Apple corner radius: 22.37% of the body
-OFFSET=$(( (CANVAS - BODY) / 2 ))
+# largest square of the source that clears the dirty rim, kept even so the crop stays centred
+CROP=$(( (AW < AH ? AW : AH) - 2 * SHAVE ))
+CROP=$(( CROP - CROP % 2 ))
+RADIUS=$(( CANVAS * 2237 / 10000 ))   # Apple corner radius: 22.37% of the finished tile
 
-magick "$SRC" -crop "${BODY}x${BODY}+$(( AX + (AW - BODY) / 2 ))+$(( AY + (AH - BODY) / 2 ))" \
-  +repage -depth 8 "PNG32:$TMP/art.png"
+# the shaved body is smaller than the canvas, so it is scaled up to fill it. That is not a loss:
+# macOS was already scaling the inset up to tile size at render time, and doing it here with
+# Lanczos rather than at draw time is the same picture or better.
+magick "$SRC" -crop "${CROP}x${CROP}+$(( AX + (AW - CROP) / 2 ))+$(( AY + (AH - CROP) / 2 ))" \
+  +repage -filter Lanczos -resize "${CANVAS}x${CANVAS}!" -depth 8 "PNG32:$TMP/art.png"
 
-# squircle mask at the exact body size — this is what macOS checks
-magick -size "$(( BODY * SUPER ))x$(( BODY * SUPER ))" xc:black -fill white \
-  -draw "roundrectangle 0,0,$(( BODY * SUPER - 1 )),$(( BODY * SUPER - 1 )),$(( RADIUS * SUPER )),$(( RADIUS * SUPER ))" \
-  -resize "${BODY}x${BODY}" -depth 8 "PNG:$TMP/mask.png"
+# squircle mask at the full canvas — the artwork's own corners land on it, since the source tile
+# already uses the same 22.37% radius
+magick -size "$(( CANVAS * SUPER ))x$(( CANVAS * SUPER ))" xc:black -fill white \
+  -draw "roundrectangle 0,0,$(( CANVAS * SUPER - 1 )),$(( CANVAS * SUPER - 1 )),$(( RADIUS * SUPER )),$(( RADIUS * SUPER ))" \
+  -resize "${CANVAS}x${CANVAS}" -depth 8 "PNG:$TMP/mask.png"
 
 magick "PNG32:$TMP/art.png" "PNG:$TMP/mask.png" -alpha off -compose copyopacity -composite \
-  -depth 8 "PNG32:$TMP/body.png"
-
-# centred on the transparent canvas
-magick -size "${CANVAS}x${CANVAS}" xc:none \
-  "PNG32:$TMP/body.png" -gravity center -composite \
   -strip -depth 8 "PNG32:$OUT"
 
 # verify the things that silently break macOS
 depth=$(magick identify -format '%[depth]' "$OUT")
 ctype=$(magick identify -verbose "$OUT" | sed -n 's/.*png:IHDR.color_type: *//p' | head -1)
 opaque=$(magick "$OUT" -alpha extract -threshold 25% -format '%@' info:)
-want="${BODY}x${BODY}+${OFFSET}+${OFFSET}"
+want="${CANVAS}x${CANVAS}+0+0"
 [[ "$depth" == 8 ]] || { echo "ERROR: $OUT is ${depth}-bit" >&2; exit 1; }
 [[ "$ctype" == 6* ]] || { echo "ERROR: $OUT is not RGBA (color_type=$ctype); artwork will be desaturated" >&2; exit 1; }
 [[ "$opaque" == "$want" ]] || { echo "ERROR: opaque region is $opaque, need $want or macOS will plate it" >&2; exit 1; }
