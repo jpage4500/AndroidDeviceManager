@@ -4,7 +4,6 @@ import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.table.utils.CheckboxCellRenderer;
-import com.jpage4500.devicemanager.ui.views.HintTextField;
 import com.jpage4500.devicemanager.utils.*;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -14,6 +13,8 @@ import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
@@ -49,8 +50,8 @@ public class ConnectDialog extends JPanel {
 
     public static final String DEFAULT_HOST = "192.168.0.100";
 
-    private HintTextField serverField;
-    private HintTextField portField;
+    private JTextField serverField;
+    private JTextField portField;
     private JButton connectButton;
     private JTable deviceTable;
     private DeviceTableModel tableModel;
@@ -119,19 +120,16 @@ public class ConnectDialog extends JPanel {
 
         // manual connect section
         String lastIp = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LAST_DEVICE_IP, DEFAULT_HOST);
-        int lastPort = PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LAST_DEVICE_PORT, DEFAULT_PORT);
 
         JPanel manualPanel = new JPanel(new MigLayout("fillx, insets 0", "[][grow][][grow][]"));
 
         manualPanel.add(new JLabel("IP:"), "");
 
-        serverField = new HintTextField(DEFAULT_HOST, text -> updateConnectButton());
-        serverField.setText(lastIp);
+        serverField = new JTextField(lastIp);
         serverField.setHorizontalAlignment(SwingConstants.LEFT);
-        // ESC should close the dialog instead of clearing the field
-        serverField.setClearOnEscape(false);
         // ENTER on the IP field connects (when enabled)
         serverField.addActionListener(e -> handleEnterKey());
+        addTextListener(serverField);
         // when dialog is shown, focus the IP field and select the last octet (ie: the "109" in 192.168.0.109)
         // so the user can quickly type just the last octet and connect
         serverField.addAncestorListener(new AncestorListener() {
@@ -156,30 +154,21 @@ public class ConnectDialog extends JPanel {
 
         manualPanel.add(new JLabel("Port:"), "gapleft 10");
 
-        portField = new HintTextField(String.valueOf(DEFAULT_PORT), null);
-        portField.setText(String.valueOf(lastPort));
+        portField = new JTextField(String.valueOf(DEFAULT_PORT));
         portField.setHorizontalAlignment(SwingConstants.LEFT);
-        // ESC should close the dialog instead of clearing the field
-        portField.setClearOnEscape(false);
+        // only allow up to 5 digits
         portField.addKeyListener(new KeyAdapter() {
             public void keyTyped(KeyEvent e) {
                 char c = e.getKeyChar();
-                if (c == KeyEvent.VK_BACK_SPACE || c == KeyEvent.VK_DELETE) {
-                    updateConnectButton();
-                    return;
-                }
+                if (c == KeyEvent.VK_BACK_SPACE || c == KeyEvent.VK_DELETE) return;
                 int length = portField.getText().length();
                 int selectedLen = TextUtils.length(portField.getSelectedText());
-                if (length - selectedLen >= 5) {
-                    e.consume();
-                } else if (!(c >= '0' && c <= '9')) {
-                    e.consume();
-                }
-                updateConnectButton();
+                if (length - selectedLen >= 5 || !(c >= '0' && c <= '9')) e.consume();
             }
         });
         // ENTER on the Port field connects (when enabled)
         portField.addActionListener(e -> handleEnterKey());
+        addTextListener(portField);
         manualPanel.add(portField, "growx");
 
         connectButton = new JButton("Connect");
@@ -208,10 +197,29 @@ public class ConnectDialog extends JPanel {
         refreshTable();
     }
 
+    // enable/disable the Connect button as the IP or Port text changes
+    private void addTextListener(JTextField field) {
+        field.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                updateConnectButton();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                updateConnectButton();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+            }
+        });
+    }
+
     private void updateConnectButton() {
         if (connectButton == null || serverField == null || portField == null) return;
-        String ip = serverField.getCleanText();
-        String port = portField.getCleanText();
+        String ip = serverField.getText().trim();
+        String port = portField.getText().trim();
         boolean isEnabled = (!TextUtils.isEmptyAny(ip, port));
         if (isEnabled) {
             try {
@@ -248,8 +256,8 @@ public class ConnectDialog extends JPanel {
     }
 
     private void handleManualConnect() {
-        String ip = serverField.getCleanText();
-        String portStr = portField.getCleanText();
+        String ip = serverField.getText().trim();
+        String portStr = portField.getText().trim();
         int port;
         try {
             port = Integer.parseInt(portStr);
@@ -268,30 +276,35 @@ public class ConnectDialog extends JPanel {
         }
 
         PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LAST_DEVICE_IP, ip);
-        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LAST_DEVICE_PORT, port);
 
         connectButton.setEnabled(false);
         log.trace("handleManualConnect: connecting to: {}, {}", ip, port);
         DeviceManager deviceManager = DeviceManager.getInstance();
         deviceManager.connectDevice(ip, port, (success, result) -> {
-            updateConnectButton();
+            SwingUtilities.invokeLater(this::updateConnectButton);
             if (success) {
                 log.debug("handleManualConnect: Connected to {}:{}", ip, port);
-                // clear fields and refresh table
                 SwingUtilities.invokeLater(() -> {
-                    serverField.setText("");
-                    portField.setText(String.valueOf(DEFAULT_PORT));
                     refreshTable();
-
                     startDeviceNamePolling();
                 });
             } else {
-                log.error("handleManualConnect: Failed to connect to {}:{}", ip, port);
-                String msg = "Failed to connect to device.";
-                if (TextUtils.notEmpty(result)) msg += " " + result;
-                DialogHelper.showDialog(this, "Connect Device", msg, true);
+                log.error("handleManualConnect: Failed to connect to {}:{}, {}", ip, port, result);
+                SwingUtilities.invokeLater(() -> DialogHelper.showDialog(this, "Connect Device", getConnectError(ip + ":" + port, result), true));
             }
         });
+    }
+
+    /**
+     * build error message for a failed connect
+     */
+    private String getConnectError(String serial, String result) {
+        if (result != null && result.contains("failed to resolve host")) {
+            return "Device not found on network: " + serial + "\nMake sure \"Wireless debugging\" is still enabled on the device.";
+        }
+        String msg = "Failed to connect to device.";
+        if (TextUtils.notEmpty(result)) msg += " " + result;
+        return msg;
     }
 
     private void refreshTable() {
@@ -445,18 +458,6 @@ public class ConnectDialog extends JPanel {
         return pos > 0 ? serial.substring(pos + 1) : "";
     }
 
-    /**
-     * Extract port as integer from serial
-     */
-    private static int getPortIntFromSerial(String serial) {
-        String portStr = getPortFromSerial(serial);
-        try {
-            return Integer.parseInt(portStr);
-        } catch (NumberFormatException e) {
-            return DEFAULT_PORT;
-        }
-    }
-
     enum DeviceColumn {
         CONNECTED("✓"),
         NAME("Name"),
@@ -554,15 +555,12 @@ public class ConnectDialog extends JPanel {
          * handle connecting to a device
          */
         private void handleConnect(WirelessDevice device, int rowIndex) {
-            String ip = getIpFromSerial(device.serial);
-            int port = getPortIntFromSerial(device.serial);
-
             // set status to "Connecting..."
             device.connectionStatus = STATUS_CONNECTING;
             fireTableRowsUpdated(rowIndex, rowIndex);
             log.trace("handleConnect: connecting to: {}", device);
 
-            DeviceManager.getInstance().connectDevice(ip, port, (success, result) -> {
+            DeviceManager.getInstance().connectDevice(device.serial, (success, result) -> {
                 if (success) {
                     device.isConnected = true;
                     device.connectionStatus = STATUS_CONNECTED;
@@ -575,13 +573,11 @@ public class ConnectDialog extends JPanel {
                     });
                 } else {
                     device.connectionStatus = STATUS_DISCONNECTED;
-                    log.error("handleConnect: Failed to connect to {}", device);
+                    log.error("handleConnect: Failed to connect to {}, {}", device, result);
                     SwingUtilities.invokeLater(() -> {
                         fireTableRowsUpdated(rowIndex, rowIndex);
+                        DialogHelper.showDialog(ConnectDialog.this, "Connect Device", getConnectError(device.serial, result));
                     });
-                    String msg = "Failed to connect to device.";
-                    if (TextUtils.notEmpty(result)) msg += " " + result;
-                    DialogHelper.showDialog(ConnectDialog.this, "Connect Device", msg);
                 }
             });
         }

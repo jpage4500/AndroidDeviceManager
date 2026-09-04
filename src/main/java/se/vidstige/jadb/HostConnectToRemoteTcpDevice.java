@@ -18,6 +18,11 @@ class HostConnectToRemoteTcpDevice extends HostConnectionCommand {
         return executeHostCommand("connect", inetSocketAddress);
     }
 
+    void connect(String serial)
+            throws IOException, JadbException, ConnectionToRemoteDeviceException {
+        executeHostCommand("connect", serial);
+    }
+
     static final class ResponseValidatorImp extends ResponseValidatorBase {
         private static final String SUCCESSFULLY_CONNECTED = "connected to";
         private static final String ALREADY_CONNECTED = "already connected to";

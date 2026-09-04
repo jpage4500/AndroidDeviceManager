@@ -1849,6 +1849,33 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         });
     }
 
+    /**
+     * connect to a wireless device by serial - either "ip:port" or an mDNS name
+     * (ie: "adb-XXXX._adb-tls-connect._tcp") which adb resolves to the current address itself
+     */
+    public void connectDevice(String serial, TaskListener listener) {
+        String[] arr = TextUtils.split(serial, ":");
+        if (arr.length >= 2) {
+            try {
+                connectDevice(arr[0], Integer.parseInt(arr[1]), listener);
+            } catch (NumberFormatException e) {
+                log.error("connectDevice: bad device format:{}", serial);
+                listener.onTaskComplete(false, "Invalid device format");
+            }
+            return;
+        }
+        commandExecutorService.submit(() -> {
+            try {
+                log.debug("connectDevice: {}", serial);
+                connection.connectToMdnsDevice(serial);
+                listener.onTaskComplete(true, null);
+            } catch (Exception e) {
+                log.error("connectDevice: {}, Exception:{}", serial, e.getMessage());
+                listener.onTaskComplete(false, e.getMessage());
+            }
+        });
+    }
+
     public void disconnectDevice(String serial, TaskListener listener) {
         commandExecutorService.submit(() -> {
             try {
@@ -1871,12 +1898,36 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     connection.disconnectFromTcpDevice(new InetSocketAddress(ip, port));
                 }
 
+                removeDevice(serial);
                 listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("disconnectDevice: {}, Exception:{}", serial, e.getMessage());
                 listener.onTaskComplete(false, e.getMessage());
             }
         });
+    }
+
+    /**
+     * remove device from list and notify listener it's gone
+     */
+    private void removeDevice(String serial) {
+        Device removedDevice = null;
+        synchronized (deviceList) {
+            for (Iterator<Device> iterator = deviceList.iterator(); iterator.hasNext(); ) {
+                Device device = iterator.next();
+                if (TextUtils.equals(device.serial, serial)) {
+                    iterator.remove();
+                    removedDevice = device;
+                    break;
+                }
+            }
+        }
+        if (removedDevice == null) return;
+        log.trace("removeDevice: {}", removedDevice.getDisplayName());
+        removedDevice.isOnline = false;
+        removedDevice.lastUpdateMs = System.currentTimeMillis();
+        notifyStatusEvent(removedDevice.getDisplayName() + " disconnected");
+        if (deviceListener != null) deviceListener.handleDeviceRemoved(removedDevice);
     }
 
     /**

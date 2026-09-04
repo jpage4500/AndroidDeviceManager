@@ -21,6 +21,14 @@ public class HostConnectionCommand {
         return inetSocketAddress;
     }
 
+    // adb resolves mDNS names itself - no port is sent
+    void executeHostCommand(String command, String target)
+            throws IOException, JadbException, ConnectionToRemoteDeviceException {
+        transport.send(String.format("host:%s:%s", command, target));
+        verifyTransportLevel();
+        verifyProtocolLevel();
+    }
+
     private void verifyTransportLevel() throws IOException, JadbException {
         transport.verifyResponse();
     }
@@ -61,7 +69,7 @@ public class HostConnectionCommand {
 
         public void validate(String response) throws ConnectionToRemoteDeviceException {
             if (!checkIfConnectedSuccessfully(response) && !checkIfAlreadyConnected(response)) {
-                throw new ConnectionToRemoteDeviceException(extractError(response));
+                throw new ConnectionToRemoteDeviceException(response);
             }
         }
 
@@ -71,15 +79,6 @@ public class HostConnectionCommand {
 
         private boolean checkIfAlreadyConnected(String response) {
             return response.startsWith(errorMessage);
-        }
-
-        private String extractError(String response) {
-            int lastColon = response.lastIndexOf(':');
-            if (lastColon != -1) {
-                return response.substring(lastColon);
-            } else {
-                return response;
-            }
         }
     }
 }

@@ -46,6 +46,8 @@ public class DeviceScreen extends BaseScreen {
 
     private static final String HINT_FILTER_DEVICES = "Search";
     public static final String PREF_KEY_DEVICES = "devices";
+    // [CMD/CTRL + S] = screenshot
+    private static final KeyStroke SCREENSHOT_KEY = KeyStroke.getKeyStroke(KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -182,6 +184,9 @@ public class DeviceScreen extends BaseScreen {
 
         // [CMD + G] = battery/storage history for every device
         createCmdMenuItem(deviceMenu, "Device Stats", KeyEvent.VK_G, e -> app.showStats());
+
+        // [CMD + S] = screenshot selected devices
+        createMenuItem(deviceMenu, ToolbarButton.SCREENSHOT.label, SCREENSHOT_KEY, e -> handleScreenshotCommand());
 
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
@@ -368,6 +373,7 @@ public class DeviceScreen extends BaseScreen {
 
             JMenuItem screenshotItem = new JMenuItem(ToolbarButton.SCREENSHOT.label, UiUtils.getImageIcon(ToolbarButton.SCREENSHOT.image, UiUtils.IMG_SIZE_SMALL));
             screenshotItem.addActionListener(e -> handleScreenshotCommand());
+            screenshotItem.setAccelerator(SCREENSHOT_KEY);
             moreMenu.add(screenshotItem);
 
             JMenuItem inputItem = new JMenuItem(ToolbarButton.INPUT.label, UiUtils.getImageIcon(ToolbarButton.INPUT.image, UiUtils.IMG_SIZE_SMALL));
@@ -922,6 +928,7 @@ public class DeviceScreen extends BaseScreen {
         JButton recordBtn = createToolbarButton(toolbar, ToolbarButton.RECORD, actionEvent -> handleRecordCommand());
 
         JButton screenBtn = createToolbarButton(toolbar, ToolbarButton.SCREENSHOT, actionEvent -> handleScreenshotCommand());
+        if (screenBtn != null) screenBtn.setToolTipText(ToolbarButton.SCREENSHOT.tooltip + (Utils.isMac() ? " (\u2318S)" : " (Ctrl+S)"));
 
         JButton installBtn = createToolbarButton(toolbar, ToolbarButton.INSTALL, actionEvent -> handleInstallCommand());
         JButton termBtn = createToolbarButton(toolbar, ToolbarButton.TERMINAL, actionEvent -> handleTermCommand());
