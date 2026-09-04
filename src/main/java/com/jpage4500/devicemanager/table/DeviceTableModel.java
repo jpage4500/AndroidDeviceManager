@@ -31,7 +31,6 @@ public class DeviceTableModel extends AbstractTableModel {
         FREE("Free"),
         CUSTOM1("Custom 1"),
         CUSTOM2("Custom 2"),
-        // NOTE: keep BOOTED last - DeviceScreen's double-click handler compares model indexes to ordinals
         BOOTED("Booted"),
         ;
         String desc;
