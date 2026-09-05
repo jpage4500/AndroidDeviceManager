@@ -20,14 +20,17 @@
 #      824x824 squircle, centred              accepted, 206x206
 #      1024x1024 full-bleed, sharp corners    accepted, 206x206
 #
-#    The gate is a CENTRED SQUARE opaque region; macOS scales any conforming inset up to fill the
-#    tile. Non-square is what breaks it — a faint-alpha halo around the artwork is enough to do it.
-#    A stray halo alone does not plate it, and neither does 16-bit depth.
+#    The gate is a CENTRED SQUARE opaque region — non-square is what breaks it, and a faint-alpha
+#    halo around the artwork is enough. A stray halo alone does not plate it, nor does 16-bit depth.
 #
-#    Because macOS scales a conforming inset up anyway, the inset buys nothing in the Dock — and it
-#    costs everywhere else this file is used full-frame (the README, a file manager drawing the
-#    project folder's icon.png on its row), where the margin just renders the artwork small. So the
-#    tile is drawn FULL BLEED: opaque region 1024x1024+0+0, which is the last row of the table.
+#    The harness normalises every accepted row to 206, so it says nothing about the size the Dock
+#    draws. The Dock does not scale an inset up: it draws the image 1:1 into the tile, and the
+#    ~100px margin conforming apps bake in is what lines them up (Firefox ships 824x830+100+100,
+#    Docker 206x208+25+25). Full-bleed measured 121px in the Dock beside IntelliJ's 99px.
+#
+#    So icon.png stays FULL BLEED — it is also the repo's own artwork (the README, a file manager
+#    drawing the project folder's icon.png on its row), where a margin just renders it small. The
+#    Mac-facing outputs (app_icon.png, icon.icns) are inset to Apple's MAC_BODY/1024 grid instead.
 #
 # 2. The source artwork was cut out of a background imperfectly and carries a dirty rim: a 1px
 #    black line, then 4-5px of salmon, all fully opaque. It hid while the icon was being plated
@@ -67,6 +70,7 @@ OUT=icon.png
 CANVAS=1024   # jDeploy fills the 1024 'ic10' slot
 SHAVE=6       # px trimmed off each side to clear the source's dirty rim
 SUPER=4       # mask supersampling factor
+MAC_BODY=824  # Apple's macOS icon grid: artwork inset to 824 inside the 1024 tile
 
 [[ -f "$SRC" ]] || { echo "ERROR: source artwork not found: $SRC" >&2; exit 1; }
 
@@ -137,14 +141,19 @@ echo "wrote $OUT ($(magick identify -format '%wx%h' "$OUT"), ${depth}-bit, color
 # a one-slice icns gets plated no matter how good the geometry is, so build the full size family
 if command -v iconutil >/dev/null; then
   SET="$TMP/icon.iconset"; mkdir -p "$SET"
+
+  # the Dock draws the tile 1:1, so the Mac assets take Apple's inset - icon.png stays full bleed
+  magick "$OUT" -filter Lanczos -resize "${MAC_BODY}x${MAC_BODY}" -background none -gravity center \
+    -extent "${CANVAS}x${CANVAS}" -strip -depth 8 "PNG32:$TMP/mac.png"
+
   for spec in "16 icon_16x16" "32 icon_16x16@2x" "32 icon_32x32" "64 icon_32x32@2x" \
               "128 icon_128x128" "256 icon_128x128@2x" "256 icon_256x256" "512 icon_256x256@2x" \
               "512 icon_512x512" "1024 icon_512x512@2x"; do
     set -- $spec
-    magick "$OUT" -resize "$1x$1" -strip -depth 8 "PNG32:$SET/$2.png"
+    magick "PNG32:$TMP/mac.png" -resize "$1x$1" -strip -depth 8 "PNG32:$SET/$2.png"
   done
   cp "$SET/icon_512x512@2x.png" src/main/resources/images/app_icon.png
-  echo "wrote src/main/resources/images/app_icon.png (dock icon set at runtime by AppController)"
+  echo "wrote src/main/resources/images/app_icon.png (dock icon set at runtime by AppController, inset ${MAC_BODY}/${CANVAS})"
   iconutil -c icns "$SET" -o icon.icns
   echo "wrote icon.icns ($(python3 -c "
 import struct
