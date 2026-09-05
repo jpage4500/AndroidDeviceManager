@@ -61,7 +61,6 @@ public class PreferenceUtils {
      */
     public enum PrefInt {
         PREF_LOG_LEVEL,
-        PREF_LAST_DEVICE_PORT,
         PREF_FONT_SIZE_OFFSET,
         PREF_LOGS_FONT_SIZE,
         PREF_LOGS_FONT_STYLE,

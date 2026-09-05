@@ -46,6 +46,8 @@ public class DeviceScreen extends BaseScreen {
 
     private static final String HINT_FILTER_DEVICES = "Search";
     public static final String PREF_KEY_DEVICES = "devices";
+    // [CMD/CTRL + S] = screenshot
+    private static final KeyStroke SCREENSHOT_KEY = KeyStroke.getKeyStroke(KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -183,6 +185,9 @@ public class DeviceScreen extends BaseScreen {
         // [CMD + G] = battery/storage history for every device
         createCmdMenuItem(deviceMenu, "Device Stats", KeyEvent.VK_G, e -> app.showStats());
 
+        // [CMD + S] = screenshot selected devices
+        createMenuItem(deviceMenu, ToolbarButton.SCREENSHOT.label, SCREENSHOT_KEY, e -> handleScreenshotCommand());
+
         JMenuBar menubar = new JMenuBar();
         menubar.add(windowMenu);
         menubar.add(deviceMenu);
@@ -234,15 +239,16 @@ public class DeviceScreen extends BaseScreen {
 
         table.setDoubleClickListener((row, column, e) -> {
             log.trace("table.setDoubleClickListener: row: {}, column: {}", row, column);
-            if (column == DeviceTableModel.Columns.CUSTOM1.ordinal()) {
+            DeviceTableModel.Columns columnType = model.getColumnType(column);
+            if (columnType == DeviceTableModel.Columns.CUSTOM1) {
                 // edit custom 1 field
                 handleSetProperty(Device.CUSTOM_PROP_X + 1, DeviceTableModel.Columns.CUSTOM1.toString());
                 return;
-            } else if (column == DeviceTableModel.Columns.CUSTOM2.ordinal()) {
-                // edit custom 1 field
+            } else if (columnType == DeviceTableModel.Columns.CUSTOM2) {
+                // edit custom 2 field
                 handleSetProperty(Device.CUSTOM_PROP_X + 2, DeviceTableModel.Columns.CUSTOM2.toString());
                 return;
-            } else if (column == DeviceTableModel.Columns.PHONE.ordinal()) {
+            } else if (columnType == DeviceTableModel.Columns.PHONE) {
                 Device device = getFirstSelectedDevice();
                 if (device != null && TextUtils.isEmpty(device.phone)) {
                     // edit phone number field
@@ -368,6 +374,7 @@ public class DeviceScreen extends BaseScreen {
 
             JMenuItem screenshotItem = new JMenuItem(ToolbarButton.SCREENSHOT.label, UiUtils.getImageIcon(ToolbarButton.SCREENSHOT.image, UiUtils.IMG_SIZE_SMALL));
             screenshotItem.addActionListener(e -> handleScreenshotCommand());
+            screenshotItem.setAccelerator(SCREENSHOT_KEY);
             moreMenu.add(screenshotItem);
 
             JMenuItem inputItem = new JMenuItem(ToolbarButton.INPUT.label, UiUtils.getImageIcon(ToolbarButton.INPUT.image, UiUtils.IMG_SIZE_SMALL));
@@ -922,6 +929,7 @@ public class DeviceScreen extends BaseScreen {
         JButton recordBtn = createToolbarButton(toolbar, ToolbarButton.RECORD, actionEvent -> handleRecordCommand());
 
         JButton screenBtn = createToolbarButton(toolbar, ToolbarButton.SCREENSHOT, actionEvent -> handleScreenshotCommand());
+        if (screenBtn != null) screenBtn.setToolTipText(ToolbarButton.SCREENSHOT.tooltip + (Utils.isMac() ? " (\u2318S)" : " (Ctrl+S)"));
 
         JButton installBtn = createToolbarButton(toolbar, ToolbarButton.INSTALL, actionEvent -> handleInstallCommand());
         JButton termBtn = createToolbarButton(toolbar, ToolbarButton.TERMINAL, actionEvent -> handleTermCommand());

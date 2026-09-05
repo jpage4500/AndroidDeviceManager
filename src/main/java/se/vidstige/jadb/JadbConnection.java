@@ -42,6 +42,17 @@ public class JadbConnection implements ITransportFactory {
         }
     }
 
+    /**
+     * connect to a device by mDNS service name (ie: "adb-XXXX._adb-tls-connect._tcp") - adb looks up
+     * the current address itself
+     */
+    public void connectToMdnsDevice(String serial)
+            throws IOException, JadbException, ConnectionToRemoteDeviceException {
+        try (Transport transport = createTransport()) {
+            new HostConnectToRemoteTcpDevice(transport).connect(serial);
+        }
+    }
+
     public InetSocketAddress disconnectFromTcpDevice(InetSocketAddress tcpAddressEntity)
             throws IOException, JadbException, ConnectionToRemoteDeviceException {
         try (Transport transport = createTransport()) {

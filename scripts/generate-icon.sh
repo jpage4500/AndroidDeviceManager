@@ -3,7 +3,7 @@
 # Generates the app icon that jDeploy ships on every platform.
 #
 #   in:  resources/icon-source.png  — the exported artwork (tile shape, transparent outside)
-#   out: icon.png                   — 1024x1024, centred squircle, 8-bit sRGB
+#   out: icon.png                   — 1024x1024, full-bleed squircle, 8-bit sRGB
 #        icon.icns                  — the same artwork as a 10-size icns (see 3)
 #
 # jDeploy embeds icon.png verbatim as the single 'ic10' slice of icon.icns, so this one file has
@@ -20,9 +20,17 @@
 #      824x824 squircle, centred              accepted, 206x206
 #      1024x1024 full-bleed, sharp corners    accepted, 206x206
 #
-#    The gate is a CENTRED SQUARE opaque region; macOS scales any conforming inset up to fill the
-#    tile. Non-square is what breaks it — a faint-alpha halo around the artwork is enough to do it.
-#    A stray halo alone does not plate it, and neither does 16-bit depth.
+#    The gate is a CENTRED SQUARE opaque region — non-square is what breaks it, and a faint-alpha
+#    halo around the artwork is enough. A stray halo alone does not plate it, nor does 16-bit depth.
+#
+#    The harness normalises every accepted row to 206, so it says nothing about the size the Dock
+#    draws. The Dock does not scale an inset up: it draws the image 1:1 into the tile, and the
+#    ~100px margin conforming apps bake in is what lines them up (Firefox ships 824x830+100+100,
+#    Docker 206x208+25+25). Full-bleed measured 121px in the Dock beside IntelliJ's 99px.
+#
+#    So icon.png stays FULL BLEED — it is also the repo's own artwork (the README, a file manager
+#    drawing the project folder's icon.png on its row), where a margin just renders it small. The
+#    Mac-facing outputs (app_icon.png, icon.icns) are inset to Apple's MAC_BODY/1024 grid instead.
 #
 # 2. The source artwork was cut out of a background imperfectly and carries a dirty rim: a 1px
 #    black line, then 4-5px of salmon, all fully opaque. It hid while the icon was being plated
@@ -62,6 +70,7 @@ OUT=icon.png
 CANVAS=1024   # jDeploy fills the 1024 'ic10' slot
 SHAVE=6       # px trimmed off each side to clear the source's dirty rim
 SUPER=4       # mask supersampling factor
+MAC_BODY=824  # Apple's macOS icon grid: artwork inset to 824 inside the 1024 tile
 
 [[ -f "$SRC" ]] || { echo "ERROR: source artwork not found: $SRC" >&2; exit 1; }
 
@@ -71,33 +80,31 @@ trap 'rm -rf "$TMP"' EXIT
 # the real artwork is the fully-opaque region; anything fainter is halo left by the exporter
 read -r AW AH AX AY <<< "$(magick "$SRC" -alpha extract -threshold 98% -format '%@' info: | sed 's/[x+]/ /g')"
 
-# largest centred square that clears the dirty rim, kept even so it centres exactly on the canvas
-BODY=$(( (AW < AH ? AW : AH) - 2 * SHAVE ))
-BODY=$(( BODY - BODY % 2 ))
-RADIUS=$(( BODY * 2237 / 10000 ))   # Apple corner radius: 22.37% of the body
-OFFSET=$(( (CANVAS - BODY) / 2 ))
+# largest square of the source that clears the dirty rim, kept even so the crop stays centred
+CROP=$(( (AW < AH ? AW : AH) - 2 * SHAVE ))
+CROP=$(( CROP - CROP % 2 ))
+RADIUS=$(( CANVAS * 2237 / 10000 ))   # Apple corner radius: 22.37% of the finished tile
 
-magick "$SRC" -crop "${BODY}x${BODY}+$(( AX + (AW - BODY) / 2 ))+$(( AY + (AH - BODY) / 2 ))" \
-  +repage -depth 8 "PNG32:$TMP/art.png"
+# the shaved body is smaller than the canvas, so it is scaled up to fill it. That is not a loss:
+# macOS was already scaling the inset up to tile size at render time, and doing it here with
+# Lanczos rather than at draw time is the same picture or better.
+magick "$SRC" -crop "${CROP}x${CROP}+$(( AX + (AW - CROP) / 2 ))+$(( AY + (AH - CROP) / 2 ))" \
+  +repage -filter Lanczos -resize "${CANVAS}x${CANVAS}!" -depth 8 "PNG32:$TMP/art.png"
 
-# squircle mask at the exact body size — this is what macOS checks
-magick -size "$(( BODY * SUPER ))x$(( BODY * SUPER ))" xc:black -fill white \
-  -draw "roundrectangle 0,0,$(( BODY * SUPER - 1 )),$(( BODY * SUPER - 1 )),$(( RADIUS * SUPER )),$(( RADIUS * SUPER ))" \
-  -resize "${BODY}x${BODY}" -depth 8 "PNG:$TMP/mask.png"
+# squircle mask at the full canvas — the artwork's own corners land on it, since the source tile
+# already uses the same 22.37% radius
+magick -size "$(( CANVAS * SUPER ))x$(( CANVAS * SUPER ))" xc:black -fill white \
+  -draw "roundrectangle 0,0,$(( CANVAS * SUPER - 1 )),$(( CANVAS * SUPER - 1 )),$(( RADIUS * SUPER )),$(( RADIUS * SUPER ))" \
+  -resize "${CANVAS}x${CANVAS}" -depth 8 "PNG:$TMP/mask.png"
 
 magick "PNG32:$TMP/art.png" "PNG:$TMP/mask.png" -alpha off -compose copyopacity -composite \
-  -depth 8 "PNG32:$TMP/body.png"
-
-# centred on the transparent canvas
-magick -size "${CANVAS}x${CANVAS}" xc:none \
-  "PNG32:$TMP/body.png" -gravity center -composite \
   -strip -depth 8 "PNG32:$OUT"
 
 # verify the things that silently break macOS
 depth=$(magick identify -format '%[depth]' "$OUT")
 ctype=$(magick identify -verbose "$OUT" | sed -n 's/.*png:IHDR.color_type: *//p' | head -1)
 opaque=$(magick "$OUT" -alpha extract -threshold 25% -format '%@' info:)
-want="${BODY}x${BODY}+${OFFSET}+${OFFSET}"
+want="${CANVAS}x${CANVAS}+0+0"
 [[ "$depth" == 8 ]] || { echo "ERROR: $OUT is ${depth}-bit" >&2; exit 1; }
 [[ "$ctype" == 6* ]] || { echo "ERROR: $OUT is not RGBA (color_type=$ctype); artwork will be desaturated" >&2; exit 1; }
 [[ "$opaque" == "$want" ]] || { echo "ERROR: opaque region is $opaque, need $want or macOS will plate it" >&2; exit 1; }
@@ -134,14 +141,19 @@ echo "wrote $OUT ($(magick identify -format '%wx%h' "$OUT"), ${depth}-bit, color
 # a one-slice icns gets plated no matter how good the geometry is, so build the full size family
 if command -v iconutil >/dev/null; then
   SET="$TMP/icon.iconset"; mkdir -p "$SET"
+
+  # the Dock draws the tile 1:1, so the Mac assets take Apple's inset - icon.png stays full bleed
+  magick "$OUT" -filter Lanczos -resize "${MAC_BODY}x${MAC_BODY}" -background none -gravity center \
+    -extent "${CANVAS}x${CANVAS}" -strip -depth 8 "PNG32:$TMP/mac.png"
+
   for spec in "16 icon_16x16" "32 icon_16x16@2x" "32 icon_32x32" "64 icon_32x32@2x" \
               "128 icon_128x128" "256 icon_128x128@2x" "256 icon_256x256" "512 icon_256x256@2x" \
               "512 icon_512x512" "1024 icon_512x512@2x"; do
     set -- $spec
-    magick "$OUT" -resize "$1x$1" -strip -depth 8 "PNG32:$SET/$2.png"
+    magick "PNG32:$TMP/mac.png" -resize "$1x$1" -strip -depth 8 "PNG32:$SET/$2.png"
   done
   cp "$SET/icon_512x512@2x.png" src/main/resources/images/app_icon.png
-  echo "wrote src/main/resources/images/app_icon.png (dock icon set at runtime by AppController)"
+  echo "wrote src/main/resources/images/app_icon.png (dock icon set at runtime by AppController, inset ${MAC_BODY}/${CANVAS})"
   iconutil -c icns "$SET" -o icon.icns
   echo "wrote icon.icns ($(python3 -c "
 import struct
