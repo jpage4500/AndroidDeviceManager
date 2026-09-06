@@ -10,3 +10,5 @@
 - Settings split into tabs, each one scrollable
 - choose where screenshots and screen recordings are saved
 - fix: screenshotting several devices at once overwrote all but one file
+- take a screenshot of any device from the menubar
+- menubar shows each device on one row with buttons for its actions

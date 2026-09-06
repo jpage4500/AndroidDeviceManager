@@ -713,17 +713,7 @@ public class DeviceScreen extends BaseScreen {
             @Override
             public void onScreenshot(Device device, java.awt.image.BufferedImage image) {
                 app.setDeviceBusy(device, false);
-                if (image == null) return;
-                try {
-                    String prefix = device.getDisplayName().replaceAll("[^a-zA-Z0-9.-]", "_")
-                        + "-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(new java.util.Date());
-                    File outFile = FileUtils.findAvailableFile(Utils.getScreenshotFolder(), prefix, ".png");
-                    if (outFile == null) return;
-                    javax.imageio.ImageIO.write(image, "png", outFile);
-                    Utils.openFile(outFile);
-                } catch (Exception e) {
-                    log.error("handleScreenshotCommand: {}", e.getMessage());
-                }
+                Utils.saveScreenshot(device.getDisplayName(), image);
             }
 
             @Override

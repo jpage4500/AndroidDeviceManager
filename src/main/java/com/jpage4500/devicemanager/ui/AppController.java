@@ -8,6 +8,7 @@ import com.jpage4500.devicemanager.data.StatusEvent;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.manager.DeviceManager;
 import com.jpage4500.devicemanager.manager.client.RemoteConnection;
+import com.jpage4500.devicemanager.ui.views.TrayUiFactory;
 import com.jpage4500.devicemanager.utils.DialogHelper;
 import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.NetworkHelper;
@@ -73,6 +74,8 @@ public class AppController implements App, DeviceManager.DeviceListener {
     // system tray (dorkbox)
     private SystemTray systemTray;
     private String systemTrayHashCode;
+    // draws each device as a single tray row with action buttons; null where the tray menu is native
+    private TrayUiFactory trayUiFactory;
 
     // update checking
     private ScheduledExecutorService updateExecutorService;
@@ -696,6 +699,10 @@ public class AppController implements App, DeviceManager.DeviceListener {
                     // Osx works the best but doesn't show icons; Swing shows icons but isn't native
                     SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.Swing;
                 }
+                if (useDeviceRows()) {
+                    trayUiFactory = new TrayUiFactory(device -> bringMainWindowToFront());
+                    SystemTray.SWING_UI = trayUiFactory;
+                }
                 systemTray = SystemTray.get();
                 if (systemTray == null) {
                     log.warn("setupSystemTray: SystemTray not supported on this platform");
@@ -722,6 +729,8 @@ public class AppController implements App, DeviceManager.DeviceListener {
             return;
         }
         if (menu == null) return;
+
+        if (trayUiFactory != null) trayUiFactory.setActions(buildDeviceActions());
 
         // clear menu
         for (Entry entry : menu.getEntries()) menu.remove(entry);
@@ -757,12 +766,39 @@ public class AppController implements App, DeviceManager.DeviceListener {
         menu.add(quitItem);
     }
 
+    /**
+     * device rows only work where the tray menu is drawn by Swing; GTK/AppIndicator menus use submenus
+     */
+    private boolean useDeviceRows() {
+        return Utils.isMac() || Utils.isWindows();
+    }
+
+    private List<TrayUiFactory.TrayAction> buildDeviceActions() {
+        List<TrayUiFactory.TrayAction> actions = new ArrayList<>();
+        if (!headlessMode) {
+            actions.add(new TrayUiFactory.TrayAction("Mirror", Icons.MIRROR, this::mirrorDeviceFromTray));
+        }
+        actions.add(new TrayUiFactory.TrayAction("Browse", Icons.BROWSE, this::showFileBrowser));
+        actions.add(new TrayUiFactory.TrayAction("Logs", Icons.LOGS, this::showLogs));
+        actions.add(new TrayUiFactory.TrayAction("Screenshot", Icons.SCREENSHOT, this::screenshotDeviceFromTray));
+        return actions;
+    }
+
     private void addSystemTrayDevices(Menu menu, List<Device> deviceList) {
         for (Device device : deviceList) {
             Icons icn = device.getDeviceIcon();
             Color color = device.getDeviceColor();
             Image imageIcon = UiUtils.getImage(icn, 16, 16, color);
             String displayName = device.getDisplayName();
+
+            if (trayUiFactory != null) {
+                MenuItem deviceItem = new MenuItem(TextUtils.truncate(displayName, 30), imageIcon);
+                deviceItem.setEnabled(device.isOnline);
+                trayUiFactory.setDevice(deviceItem, device);
+                menu.add(deviceItem);
+                continue;
+            }
+
             Menu submenu = new Menu(TextUtils.truncate(displayName, 30), imageIcon);
             submenu.setEnabled(device.isOnline);
 
@@ -780,6 +816,10 @@ public class AppController implements App, DeviceManager.DeviceListener {
                 MenuItem logsItem = new MenuItem("Logs", UiUtils.getImage(Icons.LOGS, 16, 16, Color.BLACK));
                 logsItem.setCallback(e2 -> showLogs(device));
                 submenu.add(logsItem);
+
+                MenuItem screenshotItem = new MenuItem("Screenshot", UiUtils.getImage(Icons.SCREENSHOT, 16, 16, Color.BLACK));
+                screenshotItem.setCallback(e2 -> screenshotDeviceFromTray(device));
+                submenu.add(screenshotItem);
             }
 
             menu.add(submenu);
@@ -789,6 +829,14 @@ public class AppController implements App, DeviceManager.DeviceListener {
     private void mirrorDeviceFromTray(Device device) {
         setDeviceBusy(device, true);
         DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> setDeviceBusy(device, false));
+    }
+
+    private void screenshotDeviceFromTray(Device device) {
+        setDeviceBusy(device, true);
+        DeviceManager.getInstance().captureScreenshot(device, image -> {
+            setDeviceBusy(device, false);
+            Utils.saveScreenshot(device.getDisplayName(), image);
+        });
     }
 
     private void bringMainWindowToFront() {
