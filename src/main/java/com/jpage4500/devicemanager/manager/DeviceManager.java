@@ -929,7 +929,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         return null;
     }
 
-    public void mirrorDevice(List<Device> deviceList, BatchTaskListener listener) {
+    public void mirrorDevice(List<Device> deviceList, boolean useScrcpy, BatchTaskListener listener) {
         if (deviceList == null || deviceList.isEmpty()) return;
         int total = deviceList.size();
         String label = "Mirroring " + total + " device(s)";
@@ -942,7 +942,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
         for (Device device : deviceList) {
             if (listener != null) listener.onDeviceStarted(device);
-            mirrorDevice(device, false, (isSuccess, error) ->
+            mirrorDevice(device, useScrcpy, false, (isSuccess, error) ->
                 tracker.recordCompletion(device, isSuccess, error));
         }
     }
@@ -966,17 +966,26 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     /**
-     * run scrcpy app to mirror device
+     * mirror device in the built-in mirror window
      */
-    public void mirrorDevice(Device device, boolean skipDialogCheck, TaskListener listener) {
+    public void mirrorDevice(Device device, TaskListener listener) {
+        mirrorDevice(device, false, false, listener);
+    }
+
+    /**
+     * mirror device - either in the built-in mirror window or with scrcpy
+     * NOTE: scrcpy isn't an option for remote devices; they always use the built-in window
+     */
+    public void mirrorDevice(Device device, boolean useScrcpy, boolean skipDialogCheck, TaskListener listener) {
         notifyStatusEvent("Mirroring " + device.getDisplayName());
-        commandExecutorService.submit(() -> {
-            // handle remote devices differently
-            if (device.remoteConnection != null) {
+        if (!useScrcpy || device.remoteConnection != null) {
+            SwingUtilities.invokeLater(() -> {
                 RemoteScreenWindow window = new RemoteScreenWindow(device, listener);
                 window.setVisible(true);
-                return;
-            }
+            });
+            return;
+        }
+        commandExecutorService.submit(() -> {
             // check if scrcpy dialog needs to be displayed
             String scrcpy = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SCRCPY_PATH);
             if (TextUtils.isEmpty(scrcpy) || !new File(scrcpy).exists() || (!skipDialogCheck && !ScrcpyOptionsDialog.isDoNotShowAgain())) {
@@ -984,7 +993,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     boolean isOk = ScrcpyOptionsDialog.showRemoteServerDialog(null);
                     if (isOk) {
                         // try again - skip dialog check
-                        mirrorDevice(device, true, listener);
+                        mirrorDevice(device, true, true, listener);
                     } else {
                         listener.onTaskComplete(false, "cancelled by user");
                     }
@@ -1026,9 +1035,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
         notifyStatusEvent("Recording " + device.getDisplayName());
         commandExecutorService.submit(() -> {
-            String downloadFolder = Utils.getDownloadFolder();
+            String screenshotFolder = Utils.getScreenshotFolder();
             String prefix = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
-            File file = FileUtils.findAvailableFile(downloadFolder, prefix, ".mp4");
+            File file = FileUtils.findAvailableFile(screenshotFolder, prefix, ".mp4");
             if (file == null) return;
             log.debug("recordScreen: {}, file:{}", device.getDisplayName(), file.getAbsolutePath());
             AppResult appResult = null;

@@ -788,7 +788,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
 
     private void mirrorDeviceFromTray(Device device) {
         setDeviceBusy(device, true);
-        DeviceManager.getInstance().mirrorDevice(device, false, (isSuccess, error) -> setDeviceBusy(device, false));
+        DeviceManager.getInstance().mirrorDevice(device, (isSuccess, error) -> setDeviceBusy(device, false));
     }
 
     private void bringMainWindowToFront() {

@@ -16,6 +16,7 @@ public class PreferenceUtils {
         PREF_CUSTOM_APPS,
         PREF_HIDDEN_COLUMNS,
         PREF_DOWNLOAD_FOLDER,
+        PREF_SCREENSHOT_FOLDER,               // where screenshots and screen recordings are saved
         PREF_GO_TO_FOLDER_LIST,
         PREF_RECENT_WIRELESS_DEVICES,
         PREF_LAST_DEVICE_IP,

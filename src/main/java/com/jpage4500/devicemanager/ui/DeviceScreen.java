@@ -257,7 +257,7 @@ public class DeviceScreen extends BaseScreen {
                 }
             }
             // default double-click action
-            handleMirrorCommand();
+            handleMirrorCommand(false);
         });
 
         // support drag and drop of files IN TO deviceView
@@ -364,10 +364,14 @@ public class DeviceScreen extends BaseScreen {
             // primary options
             UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.BROWSE.label, actionEvent -> app.showFileBrowser(device));
             UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.LOGS.label, actionEvent -> app.showLogs(device));
-            UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.MIRROR.label, actionEvent -> handleMirrorCommand());
+            UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.MIRROR.label, actionEvent -> handleMirrorCommand(false));
 
             // secondary options under "More"
             JMenu moreMenu = new JMenu("More");
+            JMenuItem scrcpyItem = new JMenuItem(ToolbarButton.SCRCPY.label, UiUtils.getImageIcon(ToolbarButton.SCRCPY.image, UiUtils.IMG_SIZE_SMALL));
+            scrcpyItem.addActionListener(e -> handleMirrorCommand(true));
+            moreMenu.add(scrcpyItem);
+
             JMenuItem recordItem = new JMenuItem(ToolbarButton.RECORD.label, UiUtils.getImageIcon(ToolbarButton.RECORD.image, UiUtils.IMG_SIZE_SMALL));
             recordItem.addActionListener(e -> handleRecordCommand());
             moreMenu.add(recordItem);
@@ -711,8 +715,10 @@ public class DeviceScreen extends BaseScreen {
                 app.setDeviceBusy(device, false);
                 if (image == null) return;
                 try {
-                    String name = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(new java.util.Date()) + ".png";
-                    File outFile = new File(Utils.getDownloadFolder(), name);
+                    String prefix = device.getDisplayName().replaceAll("[^a-zA-Z0-9.-]", "_")
+                        + "-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(new java.util.Date());
+                    File outFile = FileUtils.findAvailableFile(Utils.getScreenshotFolder(), prefix, ".png");
+                    if (outFile == null) return;
                     javax.imageio.ImageIO.write(image, "png", outFile);
                     Utils.openFile(outFile);
                 } catch (Exception e) {
@@ -773,7 +779,7 @@ public class DeviceScreen extends BaseScreen {
         });
     }
 
-    private void handleMirrorCommand() {
+    private void handleMirrorCommand(boolean useScrcpy) {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;
         if (selectedDeviceList.size() > 1) {
@@ -781,7 +787,7 @@ public class DeviceScreen extends BaseScreen {
             if (!DialogHelper.showConfirmDialog(this, "Mirror Device", "Mirror " + selectedDeviceList.size() + " devices?"))
                 return;
         }
-        DeviceManager.getInstance().mirrorDevice(selectedDeviceList, new DeviceManager.BatchTaskListener() {
+        DeviceManager.getInstance().mirrorDevice(selectedDeviceList, useScrcpy, new DeviceManager.BatchTaskListener() {
             @Override
             public void onDeviceStarted(Device device) {
                 app.setDeviceBusy(device, true);
@@ -860,7 +866,8 @@ public class DeviceScreen extends BaseScreen {
         LOGS(Icons.LOGS, "View Logs", "Log Viewer"),
         SAVE_LOGS(Icons.SAVE, "Save Logs", "Save Logs to Disk"),
         INPUT(Icons.KEYBOARD, "Input", "Enter text"),
-        MIRROR(Icons.SCRCPY, "Mirror", "Mirror Device (scrcpy)"),
+        MIRROR(Icons.MIRROR, "Mirror", "Mirror Device"),
+        SCRCPY(Icons.SCRCPY, "scrcpy", "Mirror Device (scrcpy)"),
         RECORD(Icons.SCREEN_RECORD, "Record", "Record Device (scrcpy)"),
         SCREENSHOT(Icons.SCREENSHOT, "Screenshot", "Screenshot"),
         INSTALL(Icons.DOWNLOAD, "Install", "Install / Copy file"),
@@ -895,7 +902,7 @@ public class DeviceScreen extends BaseScreen {
         /** HIDE these icons by default (until user customizes the toolbar) */
         public boolean hideByDefault() {
             return switch (this) {
-                case SAVE_LOGS, INPUT, RECORD, TERMINAL, ADB -> true;
+                case SAVE_LOGS, INPUT, SCRCPY, RECORD, TERMINAL, ADB -> true;
                 default -> false;
             };
         }
@@ -924,7 +931,9 @@ public class DeviceScreen extends BaseScreen {
         if (browseBtn != null || viewLogsBtn != null || inputBtn != null || saveLogsBtn != null)
             toolbar.addSeparator();
 
-        JButton mirrorBtn = createToolbarButton(toolbar, ToolbarButton.MIRROR, actionEvent -> handleMirrorCommand());
+        JButton mirrorBtn = createToolbarButton(toolbar, ToolbarButton.MIRROR, actionEvent -> handleMirrorCommand(false));
+
+        JButton scrcpyBtn = createToolbarButton(toolbar, ToolbarButton.SCRCPY, actionEvent -> handleMirrorCommand(true));
 
         JButton recordBtn = createToolbarButton(toolbar, ToolbarButton.RECORD, actionEvent -> handleRecordCommand());
 
@@ -934,7 +943,7 @@ public class DeviceScreen extends BaseScreen {
         JButton installBtn = createToolbarButton(toolbar, ToolbarButton.INSTALL, actionEvent -> handleInstallCommand());
         JButton termBtn = createToolbarButton(toolbar, ToolbarButton.TERMINAL, actionEvent -> handleTermCommand());
 
-        if (mirrorBtn != null || recordBtn != null || screenBtn != null || installBtn != null || termBtn != null)
+        if (mirrorBtn != null || scrcpyBtn != null || recordBtn != null || screenBtn != null || installBtn != null || termBtn != null)
             toolbar.addSeparator();
 
         // NOTE: not device-specific - the stats window graphs every device at once

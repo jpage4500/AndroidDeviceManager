@@ -138,6 +138,14 @@ public class Utils {
         return downloadFolder;
     }
 
+    /**
+     * where screenshots and screen recordings are saved; defaults to the download folder
+     */
+    public static String getScreenshotFolder() {
+        String folder = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SCREENSHOT_FOLDER);
+        return TextUtils.isEmpty(folder) ? getDownloadFolder() : folder;
+    }
+
     public static void sleep(int ms) {
         try {
             Thread.sleep(ms);

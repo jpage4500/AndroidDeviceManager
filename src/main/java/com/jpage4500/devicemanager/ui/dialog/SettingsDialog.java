@@ -1,5 +1,6 @@
 package com.jpage4500.devicemanager.ui.dialog;
 
+import com.jpage4500.devicemanager.MainApplication;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.logging.AppLoggerFactory;
 import com.jpage4500.devicemanager.logging.Log;
@@ -18,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.io.File;
 import java.util.ArrayList;
@@ -29,56 +31,116 @@ public class SettingsDialog extends JPanel {
 
     private final App app;
 
+    private JTabbedPane tabbedPane;
+    private ScrcpyOptionsDialog scrcpyPanel;
+    private JButton refreshTimeButton;
+    private JButton statsRetentionButton;
+    private JButton logBufferButton;
+
     public static void showSettings(App app, Component parent) {
         SettingsDialog settingsScreen = new SettingsDialog(app);
-        DialogHelper.showCustomDialog(parent, settingsScreen, "Settings", new String[]{});
+        DialogHelper.showResizableDialog(parent, settingsScreen, "Settings", new Dimension(540, 480), new String[]{"Close"});
+        // no OK button on the scrcpy tab - save what it holds when the dialog goes away
+        settingsScreen.scrcpyPanel.savePreferences();
     }
 
     private SettingsDialog(App app) {
         this.app = app;
 
-        setLayout(new MigLayout("", "[][]"));
+        setLayout(new BorderLayout());
         initalizeUi();
     }
 
     private void initalizeUi() {
-        JPanel devicePanel = UiUtils.createPanel("Device Settings");
-        UiUtils.addSettingButton(devicePanel, "Refresh Time", "EDIT", () -> showRefreshTime());
-        UiUtils.addSettingButton(devicePanel, "Stats History (days)", "EDIT", () -> showStatsRetention());
-        UiUtils.addSettingButton(devicePanel, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(app, this));
-        UiUtils.addSettingButton(devicePanel, "Custom Columns", "EDIT", this::showAppsSettings);
-        UiUtils.addSettingButton(devicePanel, "Customize Toolbar", "EDIT", () -> showManageToolbar(app, this));
-        UiUtils.addSettingButton(devicePanel, "scrcpy Settings", "SHOW", this::showScrcpyOptionsDialog);
-        add(devicePanel, "growx, wrap");
+        tabbedPane = new JTabbedPane();
+        addTab("General", Icons.SETTINGS, createGeneralTab());
+        addTab("Files", Icons.FOLDER, createFilesTab());
+        scrcpyPanel = new ScrcpyOptionsDialog();
+        addTab("scrcpy", Icons.SCRCPY, scrcpyPanel);
+        addTab("Remote", Icons.SERVER, createRemoteTab());
+        addTab("About", Icons.ABOUT, createAboutTab());
+        add(tabbedPane, BorderLayout.CENTER);
+    }
 
-        JPanel remotePanel = UiUtils.createPanel("Remote Servers");
-        UiUtils.addSettingButton(remotePanel, "Connect to Remote Servers", "MANAGE", () -> RemoteServerDialog.showRemoteServerDialog(this));
-        UiUtils.addSettingButton(remotePanel, "Share My Devices", "SHARE", () -> ShareServerDialog.showShareServerDialog(this));
-        add(remotePanel, "growx, wrap");
+    private void addTab(String label, Icons icon, JPanel panel) {
+        tabbedPane.addTab(label, UiUtils.getImageIcon(icon, UiUtils.IMG_SIZE_ICON), createScrollPane(panel));
+    }
 
-        JPanel logPanel = UiUtils.createPanel("Log Settings");
-        UiUtils.addSettingButton(logPanel, "Buffer (lines)", "EDIT", () -> showLogBuffer());
-        add(logPanel, "growx, wrap");
+    /**
+     * settings panel: label on the left, control on the right
+     */
+    private static JPanel createTabPanel() {
+        return new JPanel(new MigLayout("fillx, wrap 2, gapy 6", "[grow][]"));
+    }
 
-        JPanel explorePanel = UiUtils.createPanel("File Explorer Settings");
-        UiUtils.addSettingButton(explorePanel, "Download Location", "EDIT", this::showDownloadLocation);
-        add(explorePanel, "growx, wrap");
+    /**
+     * vertical-only scrolling so tabs stay usable as settings are added
+     */
+    private static JScrollPane createScrollPane(JComponent panel) {
+        JScrollPane scrollPane = new JScrollPane(panel,
+            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollPane.setBorder(new EmptyBorder(8, 12, 8, 12));
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        return scrollPane;
+    }
 
-        JPanel generalPanel = UiUtils.createPanel("General Settings");
-        UiUtils.addSettingCheckbox(generalPanel, "Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
-        UiUtils.addSettingCheckbox(generalPanel, "Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> app.scheduleUpdateChecks());
-        UiUtils.addSettingCheckbox(generalPanel, "Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> app.refreshDeviceListView());
+    private JPanel createGeneralTab() {
+        JPanel panel = createTabPanel();
 
-        JButton logButton = UiUtils.addSettingButton(generalPanel, "Log Level", "EDIT", null);
+        refreshTimeButton = UiUtils.addSettingButton(panel, "Refresh Time", refreshTimeLabel(), this::showRefreshTime);
+        statsRetentionButton = UiUtils.addSettingButton(panel, "Stats History", statsRetentionLabel(), this::showStatsRetention);
+
+        UiUtils.addSettingHeader(panel, "DEVICE LIST");
+        UiUtils.addSettingButton(panel, "Manage Columns", "EDIT", () -> showManageDeviceColumnsDialog(app, this));
+        UiUtils.addSettingButton(panel, "Custom Columns", "EDIT", this::showAppsSettings);
+        UiUtils.addSettingButton(panel, "Customize Toolbar", "EDIT", () -> showManageToolbar(app, this));
+
+        UiUtils.addSettingHeader(panel, "APP");
+        UiUtils.addSettingCheckbox(panel, "Minimize to System Tray", PreferenceUtils.PrefBoolean.PREF_EXIT_TO_TRAY, false, null);
+        UiUtils.addSettingCheckbox(panel, "Check for updates", PreferenceUtils.PrefBoolean.PREF_CHECK_UPDATES, true, isChecked -> app.scheduleUpdateChecks());
+        UiUtils.addSettingCheckbox(panel, "Show background image", PreferenceUtils.PrefBoolean.PREF_SHOW_BACKGROUND, true, isChecked -> app.refreshDeviceListView());
+        logBufferButton = UiUtils.addSettingButton(panel, "Log Buffer (lines)", logBufferLabel(), this::showLogBuffer);
+        UiUtils.addSettingButton(panel, "Reset Preferences", "RESET", this::resetPreferences);
+        return panel;
+    }
+
+    private JPanel createFilesTab() {
+        JPanel panel = createTabPanel();
+        UiUtils.addSettingFolder(panel, "Download Folder", PreferenceUtils.Pref.PREF_DOWNLOAD_FOLDER, Utils.getDownloadFolder());
+        UiUtils.addSettingFolder(panel, "Screenshot Folder", PreferenceUtils.Pref.PREF_SCREENSHOT_FOLDER, Utils.getDownloadFolder());
+        return panel;
+    }
+
+    private JPanel createRemoteTab() {
+        JPanel panel = createTabPanel();
+        UiUtils.addSettingButton(panel, "Connect to Remote Servers", "MANAGE", () -> RemoteServerDialog.showRemoteServerDialog(this));
+        UiUtils.addSettingButton(panel, "Share My Devices", "SHARE", () -> ShareServerDialog.showShareServerDialog(this));
+        return panel;
+    }
+
+    private JPanel createAboutTab() {
+        JPanel panel = createTabPanel();
+        panel.add(new JLabel("Version"), "growx");
+        panel.add(new JLabel(TextUtils.isEmpty(MainApplication.version) ? "-" : MainApplication.version), "align right, wrap");
+
+        UiUtils.addSettingHeader(panel, "DEBUGGING");
+        JButton logButton = UiUtils.addSettingButton(panel, "Log Level", null, null);
         UiUtils.addLeftClickListener(logButton, e -> toggleLogLevels(logButton));
         updateLogLevel(logButton);
+        UiUtils.addSettingButton(panel, "View Logs", "VIEW", this::viewLogs);
+        return panel;
+    }
 
-        UiUtils.addSettingButton(generalPanel, "View Logs", "VIEW", this::viewLogs);
-        UiUtils.addSettingButton(generalPanel, "Reset Preferences", "RESET", this::resetPreferences);
-        add(generalPanel, "growx, wrap");
+    private String refreshTimeLabel() {
+        return PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_REFRESH_TIME_MINS, DeviceManager.DEVICE_REFRESH_MINS) + " min";
+    }
 
-        doLayout();
-        invalidate();
+    private String statsRetentionLabel() {
+        return DeviceStatsManager.getRetentionDays() + " days";
+    }
+
+    private String logBufferLabel() {
+        return String.valueOf(PreferenceUtils.getPreference(PreferenceUtils.PrefInt.PREF_LOGS_MAX_LINES, LogsTableModel.DEFAULT_BUFFER));
     }
 
     private void showLogBuffer() {
@@ -91,6 +153,7 @@ public class SettingsDialog extends JPanel {
         if (newValue > LogsTableModel.MAX_BUFFER) newValue = LogsTableModel.MAX_BUFFER;
         else if (newValue < LogsTableModel.MIN_BUFFER) newValue = LogsTableModel.MIN_BUFFER;
         PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOGS_MAX_LINES, newValue);
+        logBufferButton.setText(logBufferLabel());
     }
 
     private void updateLogLevel(JButton logButton) {
@@ -139,9 +202,13 @@ public class SettingsDialog extends JPanel {
         log.debug("resetPreferences: ");
         PreferenceUtils.resetAll();
 
+        int selectedTab = tabbedPane.getSelectedIndex();
         removeAll();
         // update UI to show updated states
         initalizeUi();
+        tabbedPane.setSelectedIndex(selectedTab);
+        revalidate();
+        repaint();
         // force table to be re-created and show columns in order
         app.rebuildDeviceTable();
     }
@@ -184,6 +251,7 @@ public class SettingsDialog extends JPanel {
         else if (newValue < 5) newValue = 5;
         PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_REFRESH_TIME_MINS, newValue);
         DeviceManager.getInstance().updateRefreshTime();
+        refreshTimeButton.setText(refreshTimeLabel());
     }
 
     /**
@@ -203,6 +271,7 @@ public class SettingsDialog extends JPanel {
         if (newValue > DeviceStatsManager.MAX_RETENTION_DAYS) newValue = DeviceStatsManager.MAX_RETENTION_DAYS;
         else if (newValue < DeviceStatsManager.MIN_RETENTION_DAYS) newValue = DeviceStatsManager.MIN_RETENTION_DAYS;
         PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_STATS_RETENTION_DAYS, newValue);
+        statsRetentionButton.setText(statsRetentionLabel());
     }
 
     public static void showManageDeviceColumnsDialog(App app, Component component) {
@@ -337,10 +406,6 @@ public class SettingsDialog extends JPanel {
         DialogHelper.showCustomDialog(component, panel, "Toolbar Buttons", new String[]{});
     }
 
-    private void showScrcpyOptionsDialog() {
-        ScrcpyOptionsDialog.showRemoteServerDialog(this);
-    }
-
     private void showAppsSettings() {
         String msg = """
             <html>
@@ -422,47 +487,4 @@ public class SettingsDialog extends JPanel {
         }
         return resultList;
     }
-
-    private String showSingleLineEditDialog(String title, String message, String value) {
-        JPanel panel = new JPanel(new MigLayout());
-        panel.add(new JLabel(message), "span");
-
-        JTextArea inputField = new JTextArea(5, 0);
-        inputField.setText(value);
-        JScrollPane scroll = new JScrollPane(inputField);
-        panel.add(scroll, "grow, span, wrap");
-
-        int rc = JOptionPane.showOptionDialog(this, panel, title, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, null, null);
-        if (rc != JOptionPane.YES_OPTION) return null;
-
-        String results = inputField.getText().trim();
-        log.debug("showEditField: results: {}", results);
-        return results;
-    }
-
-    private void showDownloadLocation() {
-        String downloadFolder = Utils.getDownloadFolder();
-
-        JFileChooser chooser = new JFileChooser();
-        chooser.setCurrentDirectory(new File(downloadFolder));
-        chooser.setDialogTitle("Select Folder");
-        chooser.setMultiSelectionEnabled(false);
-        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-        chooser.setApproveButtonText("OK");
-        chooser.setAcceptAllFileFilterUsed(false);
-
-        int rc = chooser.showOpenDialog(this);
-        if (rc == JFileChooser.APPROVE_OPTION) {
-            File selectedFile = chooser.getSelectedFile();
-            if (selectedFile != null && selectedFile.exists() && selectedFile.isDirectory()) {
-                PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_DOWNLOAD_FOLDER, selectedFile.getAbsolutePath());
-            }
-        }
-
-//        String result = showSingleLineEditDialog("Download Folder", "Enter Download Folder", downloadFolder);
-//        if (result != null) {
-//            preferences.put(ExploreView.PREF_DOWNLOAD_FOLDER, result);
-//        }
-    }
-
 }

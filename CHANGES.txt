@@ -1,0 +1,12 @@
+08/12
+- script to install the Mac app by hand when the jDeploy installer won't run
+09/04
+- Connect enables as soon as a valid IP and port are typed
+- fix: double-clicking a Custom 1/2 column edited the wrong field once columns were reordered
+- larger, sharper app icon
+09/06
+- mirror any device in the built-in mirror window
+- mirror window opens sized to the device screen
+- Settings split into tabs, each one scrollable
+- choose where screenshots and screen recordings are saved
+- fix: screenshotting several devices at once overwrote all but one file
