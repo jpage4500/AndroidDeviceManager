@@ -36,6 +36,7 @@ public class ShareServerDialog extends JPanel {
     private JTable clientTable;
     private JButton toggleButton;
     private JButton copyButton;
+    private JButton qrButton;
     private List<RemoteConnectionUtils.Network> networkList;
 
     public static void showShareServerDialog(Component parent) {
@@ -69,6 +70,8 @@ public class ShareServerDialog extends JPanel {
         authTokenField = new JTextField();
         copyButton = new JButton("Copy Connection String");
         copyButton.addActionListener(e -> copyConnectionString());
+        qrButton = new JButton("QR Code");
+        qrButton.addActionListener(e -> showConnectionQrCode());
 
         // client table
         clientTableModel = new ClientTableModel();
@@ -155,9 +158,11 @@ public class ShareServerDialog extends JPanel {
         authTokenField.setBackground(isRunning ? Color.LIGHT_GRAY : Color.WHITE);
         mainPanel.add(authTokenField, "wrap");
 
-        // copy button
-        copyButton.setEnabled(isRunning);
-        mainPanel.add(copyButton, "skip 1, wrap");
+        // connection string buttons - each takes half of the row
+        JPanel connectionPanel = new JPanel(new MigLayout("insets 0, fillx", "[grow,fill]rel[grow,fill]"));
+        connectionPanel.add(qrButton, "sg button");
+        connectionPanel.add(copyButton, "sg button");
+        mainPanel.add(connectionPanel, "skip 1, growx, wrap");
 
         // connected Clients label
         mainPanel.add(new JLabel("Connected Clients:"), "wrap");
@@ -166,8 +171,9 @@ public class ShareServerDialog extends JPanel {
         scrollPane.setPreferredSize(new Dimension(500, 150));
         mainPanel.add(scrollPane, "span, grow, wrap 10px");
 
-        // enable/disable copy button based on server status
+        // enable/disable connection string buttons based on server status
         copyButton.setEnabled(isRunning);
+        qrButton.setEnabled(isRunning);
 
         mainPanel.validate();
         validate();
@@ -231,31 +237,54 @@ public class ShareServerDialog extends JPanel {
         }
     }
 
-    private void copyConnectionString() {
-        if (!serverManager.isRunning()) return;
+    /**
+     * build the connection string for this server; prompts for a hostname/IP if there's more than one
+     *
+     * @return connection string or null if server isn't running or user cancelled
+     */
+    private String getConnectionString() {
+        if (!serverManager.isRunning() || networkList == null) return null;
 
         String hostname = null;
         // if multiple networks listed, prompt which one to use
         if (networkList.size() > 1) {
             List<String> choices = new ArrayList<>();
+            List<String> hostnames = new ArrayList<>();
+            // default to the LAN address - the only one other devices on this network can reach
+            int defaultIndex = 0;
             for (RemoteConnectionUtils.Network network : networkList) {
-                choices.add(network.ip);
+                if (defaultIndex == 0 && network.isLocalNetwork()) defaultIndex = choices.size();
+                choices.add(network.ip + " - " + network.getTypeDesc());
+                hostnames.add(network.ip);
                 // if host is different than ip, add it as an option
                 if (TextUtils.notEmpty(network.host) && !TextUtils.equals(network.host, network.ip)) {
-                    choices.add(network.host);
+                    choices.add(network.host + " - " + network.getTypeDesc());
+                    hostnames.add(network.host);
                 }
             }
-            int rc = DialogHelper.showOptionDialog(this, "Select hostname/IP", "Which hostname/IP address do you want to use?", choices);
-            if (rc < 0) return;
-            hostname = choices.get(rc);
+            int rc = DialogHelper.showOptionDialog(this, "Select hostname/IP", "Which hostname/IP address do you want to use?", choices, defaultIndex);
+            if (rc < 0) return null;
+            hostname = hostnames.get(rc);
         } else if (networkList.size() == 1) {
             hostname = networkList.get(0).host;
         }
 
-        String connectionStr = RemoteConnectionUtils.generateConnectionString(hostname, serverManager.getPort(), serverManager.getAuthToken(), deviceNameField.getText());
+        return RemoteConnectionUtils.generateConnectionString(hostname, serverManager.getPort(), serverManager.getAuthToken(), deviceNameField.getText());
+    }
+
+    private void copyConnectionString() {
+        String connectionStr = getConnectionString();
+        if (connectionStr == null) return;
 
         Utils.setClipboardText(connectionStr);
         DialogHelper.showDialog(this, "Copied", "Connection string copied to clipboard");
+    }
+
+    private void showConnectionQrCode() {
+        String connectionStr = getConnectionString();
+        if (connectionStr == null) return;
+
+        ConnectionQrCodeDialog.showConnectionQrCodeDialog(this, connectionStr);
     }
 
     private void refreshClientList() {

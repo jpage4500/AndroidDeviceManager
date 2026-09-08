@@ -41,6 +41,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     // adb commands
     public static final String COMMAND_DEVICE_NICKNAME = "settings get global device_name";
+    public static final String COMMAND_SET_DEVICE_NICKNAME = "settings put global device_name";
     public static final String COMMAND_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 com.android.shell";
     public static final String COMMAND_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
     public static final String COMMAND_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
@@ -1185,6 +1186,28 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         commandExecutorService.submit(() -> {
             boolean isOk = setPropertyInternal(device, key, value);
             listener.onTaskComplete(isOk, null);
+        });
+    }
+
+    /**
+     * set the device name (shown in the NAME column) on the device itself
+     */
+    public void setDeviceName(Device device, String name, TaskListener listener) {
+        notifyStatusEvent("Setting name on " + device.getDisplayName());
+        commandExecutorService.submit(() -> {
+            // quote the name so it's passed as a single argument
+            String value = TextUtils.notNull(name).replace("\"", "");
+            ShellResult result = runShell(device, COMMAND_SET_DEVICE_NICKNAME + " \"" + value + "\"");
+            // a successful "settings put" prints nothing
+            String error = result.isSuccess ? TextUtils.join(result.resultList, ",") : "command failed";
+            boolean isOk = TextUtils.isEmpty(error);
+            if (isOk) {
+                device.nickname = value;
+                notifyDeviceUpdated(device);
+            } else {
+                log.error("setDeviceName: {}, name:{}, error:{}", device.serial, value, error);
+            }
+            if (listener != null) listener.onTaskComplete(isOk, error);
         });
     }
 

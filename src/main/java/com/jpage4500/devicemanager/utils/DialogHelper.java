@@ -65,15 +65,24 @@ public class DialogHelper {
     }
 
     public static int showOptionDialog(Component component, String title, String text, List<String> choiceList) {
-        return showOptionDialog(component, title, text, choiceList.toArray(new String[0]));
+        return showOptionDialog(component, title, text, choiceList.toArray(new String[0]), 0);
+    }
+
+    public static int showOptionDialog(Component component, String title, String text, List<String> choiceList, int selectedIndex) {
+        return showOptionDialog(component, title, text, choiceList.toArray(new String[0]), selectedIndex);
+    }
+
+    public static int showOptionDialog(Component component, String title, String text, String[] choiceArr) {
+        return showOptionDialog(component, title, text, choiceArr, 0);
     }
 
     /**
      * show a prompt dialog with radio buttons for choices
      *
+     * @param selectedIndex choice to select by default
      * @return index of selected button or -1 if cancelled
      */
-    public static int showOptionDialog(Component component, String title, String text, String[] choiceArr) {
+    public static int showOptionDialog(Component component, String title, String text, String[] choiceArr, int selectedIndex) {
         JPanel panel = new JPanel(new MigLayout("", "[grow]", "[]10[]"));
 
         // add text label if provided
@@ -92,9 +101,9 @@ public class DialogHelper {
             panel.add(radioButtons[i], "wrap");
         }
 
-        // select first option by default
+        // select the default choice (first one if out of range)
         if (radioButtons.length > 0) {
-            radioButtons[0].setSelected(true);
+            radioButtons[selectedIndex >= 0 && selectedIndex < radioButtons.length ? selectedIndex : 0].setSelected(true);
         }
 
         // show dialog with OK/Cancel buttons

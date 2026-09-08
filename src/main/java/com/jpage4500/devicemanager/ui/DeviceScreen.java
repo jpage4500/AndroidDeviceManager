@@ -240,7 +240,11 @@ public class DeviceScreen extends BaseScreen {
         table.setDoubleClickListener((row, column, e) -> {
             log.trace("table.setDoubleClickListener: row: {}, column: {}", row, column);
             DeviceTableModel.Columns columnType = model.getColumnType(column);
-            if (columnType == DeviceTableModel.Columns.CUSTOM1) {
+            if (columnType == DeviceTableModel.Columns.NAME) {
+                // edit device name
+                handleSetDeviceName();
+                return;
+            } else if (columnType == DeviceTableModel.Columns.CUSTOM1) {
                 // edit custom 1 field
                 handleSetProperty(Device.CUSTOM_PROP_X + 1, DeviceTableModel.Columns.CUSTOM1.toString());
                 return;
@@ -345,7 +349,10 @@ public class DeviceScreen extends BaseScreen {
 
         if (device.isOnline) {
             DeviceTableModel.Columns columnType = model.getColumnType(column);
-            if (columnType == DeviceTableModel.Columns.CUSTOM1) {
+            if (columnType == DeviceTableModel.Columns.NAME) {
+                UiUtils.addPopupMenuItem(popupMenu, "Edit Device Name...", actionEvent -> handleSetDeviceName());
+                popupMenu.addSeparator();
+            } else if (columnType == DeviceTableModel.Columns.CUSTOM1) {
                 UiUtils.addPopupMenuItem(popupMenu, "Edit Custom Field 1...", actionEvent -> handleSetProperty(Device.CUSTOM_PROP_X + 1, DeviceTableModel.Columns.CUSTOM1.toString()));
                 popupMenu.addSeparator();
             } else if (columnType == DeviceTableModel.Columns.CUSTOM2) {
@@ -666,6 +673,33 @@ public class DeviceScreen extends BaseScreen {
      * set device property
      * uses "persist.dm.custom[number]" for key and prompts user for value
      */
+    /**
+     * set device name on selected device(s)
+     */
+    private void handleSetDeviceName() {
+        List<Device> selectedDeviceList = getSelectedDevices(true);
+        if (selectedDeviceList.isEmpty()) return;
+        String name = "";
+        String message;
+        if (selectedDeviceList.size() == 1) {
+            name = selectedDeviceList.get(0).nickname;
+            message = "Enter Device Name";
+        } else {
+            message = "Enter Device Name for " + selectedDeviceList.size() + " devices";
+        }
+
+        String result = DialogHelper.showInputDialog(this, "Device Name", message, name);
+        if (TextUtils.isEmpty(result)) return;
+
+        for (Device device : selectedDeviceList) {
+            DeviceManager.getInstance().setDeviceName(device, result, (isSuccess, error) -> {
+                if (isSuccess) return;
+                SwingUtilities.invokeLater(() -> DialogHelper.showDialog(this, "Device Name",
+                    "Unable to set name on " + device.getDisplayName() + "\n" + error, true));
+            });
+        }
+    }
+
     private void handleSetProperty(String property, String description) {
         List<Device> selectedDeviceList = getSelectedDevices(true);
         if (selectedDeviceList.isEmpty()) return;

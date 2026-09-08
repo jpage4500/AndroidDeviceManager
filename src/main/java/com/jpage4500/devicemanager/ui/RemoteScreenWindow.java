@@ -692,8 +692,8 @@ public class RemoteScreenWindow extends BaseScreen implements ScreenMirrorSource
                 return;
             }
 
-            // calculate swipe direction based on accumulated rotation
-            int direction = swipeAccumulatedRotation < 0 ? -1 : 1;
+            // invert rotation so a top->down trackpad swipe scrolls the device screen up
+            int direction = swipeAccumulatedRotation < 0 ? 1 : -1;
             int deltaX = swipeIsHorizontal ? direction * FIXED_SWIPE_DISTANCE : 0;
             int deltaY = swipeIsHorizontal ? 0 : direction * FIXED_SWIPE_DISTANCE;
 
