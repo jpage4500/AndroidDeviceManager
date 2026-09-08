@@ -41,6 +41,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     // adb commands
     public static final String COMMAND_DEVICE_NICKNAME = "settings get global device_name";
+    public static final String COMMAND_SET_DEVICE_NICKNAME = "settings put global device_name";
     public static final String COMMAND_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 com.android.shell";
     public static final String COMMAND_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
     public static final String COMMAND_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
@@ -929,7 +930,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         return null;
     }
 
-    public void mirrorDevice(List<Device> deviceList, BatchTaskListener listener) {
+    public void mirrorDevice(List<Device> deviceList, boolean useScrcpy, BatchTaskListener listener) {
         if (deviceList == null || deviceList.isEmpty()) return;
         int total = deviceList.size();
         String label = "Mirroring " + total + " device(s)";
@@ -942,7 +943,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
         for (Device device : deviceList) {
             if (listener != null) listener.onDeviceStarted(device);
-            mirrorDevice(device, false, (isSuccess, error) ->
+            mirrorDevice(device, useScrcpy, false, (isSuccess, error) ->
                 tracker.recordCompletion(device, isSuccess, error));
         }
     }
@@ -966,17 +967,26 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     /**
-     * run scrcpy app to mirror device
+     * mirror device in the built-in mirror window
      */
-    public void mirrorDevice(Device device, boolean skipDialogCheck, TaskListener listener) {
+    public void mirrorDevice(Device device, TaskListener listener) {
+        mirrorDevice(device, false, false, listener);
+    }
+
+    /**
+     * mirror device - either in the built-in mirror window or with scrcpy
+     * NOTE: scrcpy isn't an option for remote devices; they always use the built-in window
+     */
+    public void mirrorDevice(Device device, boolean useScrcpy, boolean skipDialogCheck, TaskListener listener) {
         notifyStatusEvent("Mirroring " + device.getDisplayName());
-        commandExecutorService.submit(() -> {
-            // handle remote devices differently
-            if (device.remoteConnection != null) {
+        if (!useScrcpy || device.remoteConnection != null) {
+            SwingUtilities.invokeLater(() -> {
                 RemoteScreenWindow window = new RemoteScreenWindow(device, listener);
                 window.setVisible(true);
-                return;
-            }
+            });
+            return;
+        }
+        commandExecutorService.submit(() -> {
             // check if scrcpy dialog needs to be displayed
             String scrcpy = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SCRCPY_PATH);
             if (TextUtils.isEmpty(scrcpy) || !new File(scrcpy).exists() || (!skipDialogCheck && !ScrcpyOptionsDialog.isDoNotShowAgain())) {
@@ -984,7 +994,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     boolean isOk = ScrcpyOptionsDialog.showRemoteServerDialog(null);
                     if (isOk) {
                         // try again - skip dialog check
-                        mirrorDevice(device, true, listener);
+                        mirrorDevice(device, true, true, listener);
                     } else {
                         listener.onTaskComplete(false, "cancelled by user");
                     }
@@ -1026,9 +1036,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
         notifyStatusEvent("Recording " + device.getDisplayName());
         commandExecutorService.submit(() -> {
-            String downloadFolder = Utils.getDownloadFolder();
+            String screenshotFolder = Utils.getScreenshotFolder();
             String prefix = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
-            File file = FileUtils.findAvailableFile(downloadFolder, prefix, ".mp4");
+            File file = FileUtils.findAvailableFile(screenshotFolder, prefix, ".mp4");
             if (file == null) return;
             log.debug("recordScreen: {}, file:{}", device.getDisplayName(), file.getAbsolutePath());
             AppResult appResult = null;
@@ -1176,6 +1186,28 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         commandExecutorService.submit(() -> {
             boolean isOk = setPropertyInternal(device, key, value);
             listener.onTaskComplete(isOk, null);
+        });
+    }
+
+    /**
+     * set the device name (shown in the NAME column) on the device itself
+     */
+    public void setDeviceName(Device device, String name, TaskListener listener) {
+        notifyStatusEvent("Setting name on " + device.getDisplayName());
+        commandExecutorService.submit(() -> {
+            // quote the name so it's passed as a single argument
+            String value = TextUtils.notNull(name).replace("\"", "");
+            ShellResult result = runShell(device, COMMAND_SET_DEVICE_NICKNAME + " \"" + value + "\"");
+            // a successful "settings put" prints nothing
+            String error = result.isSuccess ? TextUtils.join(result.resultList, ",") : "command failed";
+            boolean isOk = TextUtils.isEmpty(error);
+            if (isOk) {
+                device.nickname = value;
+                notifyDeviceUpdated(device);
+            } else {
+                log.error("setDeviceName: {}, name:{}, error:{}", device.serial, value, error);
+            }
+            if (listener != null) listener.onTaskComplete(isOk, error);
         });
     }
 

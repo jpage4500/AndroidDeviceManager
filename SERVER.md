@@ -27,7 +27,7 @@ copy the IP/port/auth token to the clipboard.
 The server can also be run in headless mode from the command line.
 
 ```
-java -jar AndroidDeviceManager.jar --server --port 5555 --auth-token "HELLO WORLD"
+java -jar AndroidDeviceManager.jar --server --port 5555 --token "HELLO WORLD"
 ```
 
 port and auth token are optional. If not passed, the previously saved values will be used.
@@ -39,13 +39,18 @@ ADM=$(find "$HOME/.jdeploy" -type f -name "AndroidDeviceManager.jar" -printf "%T
     | head -n 1 \
     | awk '{print $2}')
 
-java -jar $ADM --server --port 5555 --auth-token "HELLO WORLD"
+java -jar $ADM --server --port 5555 --token "HELLO WORLD"
 ```
 ----
 
 ## Connecting to the Server
 
 See the [this page](CLIENT_SERVER.md) for more details on running a server and connecting to it from a client.
+
+## API Reference
+
+To build your own client, see the [Server API reference](docs/SERVER_API.md) - every HTTP and
+WebSocket endpoint the server exposes.
 
 ## Viewing Remote Devices
 

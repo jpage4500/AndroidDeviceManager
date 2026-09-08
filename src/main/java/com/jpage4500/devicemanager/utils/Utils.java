@@ -4,12 +4,14 @@ import com.jpage4500.devicemanager.data.Icons;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.Timer;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -136,6 +138,31 @@ public class Utils {
             downloadFolder = getUserHomeFolder() + "/Downloads";
         }
         return downloadFolder;
+    }
+
+    /**
+     * where screenshots and screen recordings are saved; defaults to the download folder
+     */
+    public static String getScreenshotFolder() {
+        String folder = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SCREENSHOT_FOLDER);
+        return TextUtils.isEmpty(folder) ? getDownloadFolder() : folder;
+    }
+
+    /**
+     * save a screenshot to the screenshot folder and open it
+     */
+    public static void saveScreenshot(String deviceName, BufferedImage image) {
+        if (image == null) return;
+        try {
+            String prefix = deviceName.replaceAll("[^a-zA-Z0-9.-]", "_")
+                + "-" + new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date());
+            File outFile = FileUtils.findAvailableFile(getScreenshotFolder(), prefix, ".png");
+            if (outFile == null) return;
+            ImageIO.write(image, "png", outFile);
+            openFile(outFile);
+        } catch (Exception e) {
+            log.error("saveScreenshot: {}", e.getMessage());
+        }
     }
 
     public static void sleep(int ms) {

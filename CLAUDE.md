@@ -52,6 +52,33 @@ ADM can act as both client and server. `RemoteServerManager` runs `RemoteHttpSer
 
 ## Conventions
 
+- **`CHANGES.txt`** — every feature or change gets a line **appended to the end** of the file, under a `MM/dd` date header:
+
+  ```
+  08/12
+  - script to install the Mac app by hand when the jDeploy installer won't run
+  09/04
+  - Connect enables as soon as a valid IP and port are typed
+  ```
+
+  Add the date line only when today's isn't already the last one; otherwise just add the `- ` line beneath it. One short, high-level phrase per change — what someone using the app would notice, not which files moved, and no detail about how it was done. Written as part of making the change rather than swept up afterwards. These become commit descriptions and release notes (CI builds notes from commit/PR titles), so write them for whoever reads the release.
+
+  **Keep it to one phrase — the headline, and nothing after it.** Aim for under ~80 characters. The failure mode is a good first clause followed by a colon or a comma and then everything the feature can do; the fix is to delete from the colon onward, not to shorten the whole sentence evenly. The detail belongs in the code, in the docs, or in the *what to test* list — not here.
+
+  ```
+  too long:  - track battery, temperature and free space over time and graph them in a new Stats
+               screen, with filters by OS, model and carrier
+  instead:   - track device stats over time and graph them in a new Stats screen
+
+  too long:  - connect to a device over wifi from the Connect dialog: type an IP and port, or pick
+               one of the devices found on the network
+  instead:   - connect to a device over wifi from the Connect dialog
+  ```
+
+  Two changes worth mentioning separately get two lines; don't join them with a semicolon or an em dash to keep the count down.
+
+  **A line earns its place by being something new, not by explaining something already listed.** A consequence of a feature, a limit it has, or a rule it follows is not its own entry — the reader finds those out by using it. Nothing that starts with "also", "and now", or restates a feature with a caveat attached.
+
 - **Keep comments very concise — one line.** Say what it is, not the reasoning behind it. Drop the follow-up `NOTE:`/rationale lines; if a comment needs a paragraph, the code needs the work instead. Example — keep only the first line of:
   ```java
   // -- keep a few days of battery/disk values so they can be graphed over time --

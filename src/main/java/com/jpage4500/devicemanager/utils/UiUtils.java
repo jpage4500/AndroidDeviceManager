@@ -13,6 +13,7 @@ import java.awt.*;
 import java.awt.event.ActionListener;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.net.URL;
 
 public class UiUtils {
@@ -264,6 +265,66 @@ public class UiUtils {
         }
         panel.add(button, "align right, wrap");
         return button;
+    }
+
+    /**
+     * section divider inside a settings panel
+     */
+    public static void addSettingHeader(Container panel, String label) {
+        JLabel textLabel = new JLabel(label);
+        textLabel.setFont(textLabel.getFont().deriveFont(Font.BOLD, 11f));
+        textLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+        panel.add(textLabel, "span 2, gaptop 10, wrap");
+        panel.add(new JSeparator(), "span 2, growx, gapbottom 4, wrap");
+    }
+
+    /**
+     * folder picker row: label + browse button with the current folder shown underneath
+     *
+     * @param defaultFolder shown when nothing has been saved yet
+     */
+    public static void addSettingFolder(Container panel, String label, PreferenceUtils.Pref pref, String defaultFolder) {
+        panel.add(new JLabel(label), "growx");
+
+        JButton button = new JButton(getImageIcon(Icons.OPEN_FOLDER, IMG_SIZE_ICON));
+        button.setToolTipText("Browse");
+        panel.add(button, "align right, wrap");
+
+        JLabel pathLabel = new JLabel();
+        pathLabel.setFont(pathLabel.getFont().deriveFont(Font.PLAIN, 11f));
+        pathLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+        panel.add(pathLabel, "span 2, gapleft 4, gapbottom 4, wrap");
+
+        Runnable refresh = () -> {
+            String folder = PreferenceUtils.getPreference(pref);
+            pathLabel.setText(TextUtils.isEmpty(folder) ? defaultFolder : folder);
+        };
+        refresh.run();
+
+        button.addActionListener(e -> {
+            String folder = chooseFolder(panel, pathLabel.getText(), label);
+            if (folder == null) return;
+            PreferenceUtils.setPreference(pref, folder);
+            refresh.run();
+        });
+    }
+
+    /**
+     * @return selected folder, or null if cancelled
+     */
+    private static String chooseFolder(Component parent, String currentFolder, String title) {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setCurrentDirectory(new File(currentFolder));
+        chooser.setDialogTitle(title);
+        chooser.setMultiSelectionEnabled(false);
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        chooser.setApproveButtonText("OK");
+        chooser.setAcceptAllFileFilterUsed(false);
+
+        if (chooser.showOpenDialog(parent) != JFileChooser.APPROVE_OPTION) return null;
+        File selectedFile = chooser.getSelectedFile();
+        if (selectedFile == null || !selectedFile.isDirectory()) return null;
+        return selectedFile.getAbsolutePath();
     }
 
     public interface CheckBoxListener {

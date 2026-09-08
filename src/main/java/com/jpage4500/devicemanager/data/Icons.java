@@ -5,6 +5,7 @@ package com.jpage4500.devicemanager.data;
  * NOTE: all icons are in png format
  */
 public enum Icons {
+    ABOUT("about.png"),
     ADB("adb.png"),
     ADD("add.png"),
     ANDROID("android.png"),

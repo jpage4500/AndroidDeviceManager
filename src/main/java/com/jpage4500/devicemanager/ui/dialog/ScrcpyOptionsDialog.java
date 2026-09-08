@@ -62,11 +62,17 @@ public class ScrcpyOptionsDialog extends JPanel {
         ScrcpyOptionsDialog dialog = new ScrcpyOptionsDialog();
         int rc = DialogHelper.showCustomDialog(parent, dialog, "scrcpy settings", new String[]{"Ok", "Cancel"});
         if (rc != JOptionPane.OK_OPTION) return false;
-        // save settings
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SCRCPY_PATH, dialog.getScrcpyPath());
-        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SCRCPY_ARGS, GsonHelper.toJson(dialog.getArgs()));
-        PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_SCRCPY_DO_NOT_SHOW_AGAIN, dialog.doNotShowAgainCheckBox.isSelected());
+        dialog.savePreferences();
         return true;
+    }
+
+    /**
+     * write the current selections back to preferences
+     */
+    public void savePreferences() {
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SCRCPY_PATH, getScrcpyPath());
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_SCRCPY_ARGS, GsonHelper.toJson(getArgs()));
+        PreferenceUtils.setPreference(PreferenceUtils.PrefBoolean.PREF_SCRCPY_DO_NOT_SHOW_AGAIN, doNotShowAgainCheckBox.isSelected());
     }
 
     public ScrcpyOptionsDialog() {
@@ -125,7 +131,7 @@ public class ScrcpyOptionsDialog extends JPanel {
         add(customFlagsField, "growx,span 1,wrap");
 
         add(Box.createVerticalStrut(10), "span 2");
-        doNotShowAgainCheckBox = new JCheckBox("Do not show again");
+        doNotShowAgainCheckBox = new JCheckBox("Don't ask before mirroring");
         add(doNotShowAgainCheckBox, "span 2,wrap");
 
         // set initial values

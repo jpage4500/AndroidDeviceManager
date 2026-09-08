@@ -1,0 +1,20 @@
+08/12
+- script to install the Mac app by hand when the jDeploy installer won't run
+09/04
+- Connect enables as soon as a valid IP and port are typed
+- fix: double-clicking a Custom 1/2 column edited the wrong field once columns were reordered
+- larger, sharper app icon
+09/06
+- mirror any device in the built-in mirror window
+- mirror window opens sized to the device screen
+- Settings split into tabs, each one scrollable
+- choose where screenshots and screen recordings are saved
+- fix: screenshotting several devices at once overwrote all but one file
+- take a screenshot of any device from the menubar
+- menubar shows each device on one row with buttons for its actions
+- fix: trackpad swipe scrolled the mirrored screen the wrong way
+- rename a device from the Name column
+09/08
+- show the server connection string as a QR code from the Share Devices dialog
+- show which network each IP belongs to (Wi-Fi, VPN) in the Share Devices dialog
+- document the server API for anyone building their own client

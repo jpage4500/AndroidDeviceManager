@@ -3,7 +3,9 @@ package com.jpage4500.devicemanager.ui;
 import com.jpage4500.devicemanager.data.Device;
 import com.jpage4500.devicemanager.data.Icons;
 import com.jpage4500.devicemanager.manager.DeviceManager;
-import com.jpage4500.devicemanager.manager.client.RemoteConnection;
+import com.jpage4500.devicemanager.manager.LocalScreenSource;
+import com.jpage4500.devicemanager.manager.ScreenMirrorSource;
+import com.jpage4500.devicemanager.manager.client.RemoteScreenSource;
 import com.jpage4500.devicemanager.ui.views.StatusBar;
 import com.jpage4500.devicemanager.utils.*;
 import org.slf4j.Logger;
@@ -26,12 +28,12 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
- * Window that displays a remote device screen stream with interactive input
+ * Window that displays a device screen stream with interactive input
  */
-public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.ScreenStreamListener {
+public class RemoteScreenWindow extends BaseScreen implements ScreenMirrorSource.Listener {
     private static final Logger log = LoggerFactory.getLogger(RemoteScreenWindow.class);
 
-    private final RemoteConnection remoteConnection;
+    private final ScreenMirrorSource screenSource;
     private DeviceManager.TaskListener listener;
     // Connection state + reconnect
     private boolean connected = false;     // true after first frame arrives
@@ -46,6 +48,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     private BufferedImage currentImage;
     private int deviceWidth;
     private int deviceHeight;
+    private double fittedRatio;
     private long lastFrameTime;
     private int frameCount;
     private double currentFps;
@@ -100,7 +103,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         super(null, device, "RemoteScreenWindow", 600, 900);
 
         this.listener = listener;
-        this.remoteConnection = device.remoteConnection;
+        this.screenSource = device.remoteConnection != null ? new RemoteScreenSource(device) : new LocalScreenSource(device);
 
         setTitle("Mirror: " + device.getDisplayName());
 
@@ -145,17 +148,71 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
     }
 
     private void startScreenStream(RefreshSpeed speed) {
-        log.debug("startScreenStream: speed={}, compress=true", speed);
-        remoteConnection.startScreenStream(device.serial, speed.intervalMs, true, this);
+        log.debug("startScreenStream: speed={}", speed);
+        screenSource.start(speed.intervalMs, this);
     }
 
     private void handleQualityChange() {
         Quality quality = (Quality) qualityComboBox.getSelectedItem();
         if (quality != null) {
             log.debug("handleQualityChange: {}", quality);
-            remoteConnection.setScreenStreamQuality(device.serial, quality.value);
+            screenSource.setQuality(quality.value);
             statusBar.setCenterLabel("Quality: " + quality.label);
         }
+    }
+
+    /**
+     * resize the window so the screen area matches the device's aspect ratio
+     * NOTE: only runs when the ratio changes (first frame, rotation) so manual resizes are left alone
+     */
+    private void fitWindowToDevice() {
+        if (deviceWidth <= 0 || deviceHeight <= 0) return;
+        double ratio = (double) deviceWidth / deviceHeight;
+        if (Math.abs(ratio - fittedRatio) < 0.01) return;
+
+        int panelW = screenPanel.getWidth();
+        int panelH = screenPanel.getHeight();
+        // window not laid out yet - try again on the next frame
+        if (panelW <= 0 || panelH <= 0) return;
+
+        // keep roughly the same window size; only the shape changes
+        double area = (double) panelW * panelH;
+        int newPanelW = (int) Math.round(Math.sqrt(area * ratio));
+        int newPanelH = (int) Math.round(newPanelW / ratio);
+
+        // everything that isn't the device screen (title bar, status bar, borders)
+        int chromeW = getWidth() - panelW;
+        int chromeH = getHeight() - panelH;
+
+        // shrink to fit the screen this window is on
+        Rectangle screen = getScreenBounds();
+        double scale = Math.min(1.0, Math.min(
+            (double) (screen.width - chromeW) / newPanelW,
+            (double) (screen.height - chromeH) / newPanelH));
+        newPanelW = (int) (newPanelW * scale);
+        newPanelH = (int) (newPanelH * scale);
+
+        int w = newPanelW + chromeW;
+        int h = newPanelH + chromeH;
+        int x = Math.max(screen.x, Math.min(getX(), screen.x + screen.width - w));
+        int y = Math.max(screen.y, Math.min(getY(), screen.y + screen.height - h));
+        log.debug("fitWindowToDevice: device:{}x{}, window:{}x{}", deviceWidth, deviceHeight, w, h);
+        setBounds(x, y, w, h);
+        validate();
+        fittedRatio = ratio;
+    }
+
+    /**
+     * usable bounds (minus menu bar / taskbar) of the screen this window is on
+     */
+    private Rectangle getScreenBounds() {
+        GraphicsConfiguration gc = getGraphicsConfiguration();
+        if (gc == null) return new Rectangle(0, 0, Utils.getScreenWidth(), Utils.getScreenHeight());
+        Rectangle bounds = gc.getBounds();
+        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+        return new Rectangle(bounds.x + insets.left, bounds.y + insets.top,
+            bounds.width - insets.left - insets.right,
+            bounds.height - insets.top - insets.bottom);
     }
 
     private void updateFpsDisplay() {
@@ -178,21 +235,20 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
 
     private void cleanup() {
         log.trace("cleanup");
-        if (remoteConnection != null) {
-            remoteConnection.stopScreenStream(device.serial);
-        }
-        if (reconnectTimer != null) {
-            reconnectTimer.stop();
-            reconnectTimer = null;
-        }
+        // send any pending text before the source shuts down
         if (textBatchTimer != null) {
             textBatchTimer.stop();
             flushTextBuffer();
         }
+        screenSource.stop();
+        if (reconnectTimer != null) {
+            reconnectTimer.stop();
+            reconnectTimer = null;
+        }
     }
 
     // ========================================================================
-    // ScreenStreamListener Implementation
+    // ScreenMirrorSource.Listener Implementation
     // ========================================================================
 
     @Override
@@ -205,6 +261,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             currentImage = image;
             deviceWidth = width;
             deviceHeight = height;
+            fitWindowToDevice();
             screenPanel.repaint();
 
             // update FPS
@@ -467,7 +524,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             Point devicePoint = screenToDeviceCoordinates(screenPoint);
             if (devicePoint != null) {
                 log.debug("handleTap: screen={}, device={}", screenPoint, devicePoint);
-                remoteConnection.sendScreenInputTap(device.serial, devicePoint.x, devicePoint.y);
+                screenSource.sendTap(devicePoint.x, devicePoint.y);
                 addTapAnimation(screenPoint);
             }
         }
@@ -478,8 +535,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             Point deviceEnd = screenToDeviceCoordinates(screenEnd);
             if (deviceStart != null && deviceEnd != null) {
                 log.debug("handleSwipe: screen={}→{}, device={}→{}", screenStart, screenEnd, deviceStart, deviceEnd);
-                remoteConnection.sendScreenInputSwipe(device.serial,
-                    deviceStart.x, deviceStart.y, deviceEnd.x, deviceEnd.y, 300);
+                screenSource.sendSwipe(deviceStart.x, deviceStart.y, deviceEnd.x, deviceEnd.y, 300);
                 addSwipeAnimation(screenStart, screenEnd);
             }
         }
@@ -518,8 +574,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             if (devicePoint != null) {
                 log.debug("handleLongPress: screen={}, device={}", screenPoint, devicePoint);
                 // simulate long press using swipe with same coords and longer duration
-                remoteConnection.sendScreenInputSwipe(device.serial,
-                    devicePoint.x, devicePoint.y,
+                screenSource.sendSwipe(devicePoint.x, devicePoint.y,
                     devicePoint.x, devicePoint.y,
                     LONG_PRESS_DURATION_MS);
                 addLongPressAnimation(screenPoint);
@@ -595,7 +650,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 // flush any pending text first
                 flushTextBuffer();
                 // send keyevent
-                remoteConnection.sendScreenInputKeyEvent(device.serial, androidKeyCode);
+                screenSource.sendKeyEvent(androidKeyCode);
                 addKeyAnimation(KeyEvent.getKeyText(keyCode));
                 e.consume();
             }
@@ -637,8 +692,8 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 return;
             }
 
-            // calculate swipe direction based on accumulated rotation
-            int direction = swipeAccumulatedRotation < 0 ? -1 : 1;
+            // invert rotation so a top->down trackpad swipe scrolls the device screen up
+            int direction = swipeAccumulatedRotation < 0 ? 1 : -1;
             int deltaX = swipeIsHorizontal ? direction * FIXED_SWIPE_DISTANCE : 0;
             int deltaY = swipeIsHorizontal ? 0 : direction * FIXED_SWIPE_DISTANCE;
 
@@ -654,8 +709,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
                 swipeAccumulatedRotation, swipeIsHorizontal, startPoint, endPoint);
 
             // send swipe command to device
-            remoteConnection.sendScreenInputSwipe(device.serial,
-                startPoint.x, startPoint.y,
+            screenSource.sendSwipe(startPoint.x, startPoint.y,
                 endPoint.x, endPoint.y,
                 200);
 
@@ -701,11 +755,12 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             // create file chooser
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setDialogTitle("Save Screenshot");
+            fileChooser.setCurrentDirectory(new File(Utils.getScreenshotFolder()));
 
             // set default filename with timestamp
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
             String defaultName = device.getDisplayName().replaceAll("[^a-zA-Z0-9.-]", "_") + "_" + sdf.format(new Date()) + ".png";
-            fileChooser.setSelectedFile(new File(defaultName));
+            fileChooser.setSelectedFile(new File(fileChooser.getCurrentDirectory(), defaultName));
 
             // set file filter
             FileNameExtensionFilter filter = new FileNameExtensionFilter("PNG Images (*.png)", "png");
@@ -746,7 +801,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             }
 
             log.debug("pasteTextToDevice: pasting: {}", pasteText);
-            remoteConnection.sendScreenInputText(device.serial, pasteText);
+            screenSource.sendText(pasteText);
             statusBar.setCenterLabel("Pasted text");
 
             // show animation
@@ -764,9 +819,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             }
 
             addKeyAnimation("run command");
-            Utils.runBackground(() -> {
-                DeviceManager.ShellResult result = remoteConnection.executeCommand(device.serial, command);
-            });
+            Utils.runBackground(() -> screenSource.executeCommand(command));
         }
 
         /**
@@ -934,7 +987,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
             JMenuItem item = UiUtils.addPopupMenuItem(popup, label, icn, evt -> {
                 activePopup = null;
                 if (isInputAllowed()) {
-                    remoteConnection.sendScreenInputKeyEvent(device.serial, keycode);
+                    screenSource.sendKeyEvent(keycode);
                     addIconAnimation(UiUtils.getImage(icn, 64));
                 }
             });
@@ -946,7 +999,7 @@ public class RemoteScreenWindow extends BaseScreen implements RemoteConnection.S
         if (!textBuffer.isEmpty()) {
             String text = textBuffer.toString();
             //log.debug("flushTextBuffer: sending {} chars", text.length());
-            remoteConnection.sendScreenInputText(device.serial, text);
+            screenSource.sendText(text);
             textBuffer.setLength(0);
         }
     }
