@@ -974,6 +974,22 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     }
 
     /**
+     * @return true if scrcpy is configured or found on this system
+     */
+    public boolean isScrcpyInstalled() {
+        return getScrcpyPath() != null;
+    }
+
+    /**
+     * @return scrcpy path (user-selected or found on this system) or null if not installed
+     */
+    public String getScrcpyPath() {
+        String scrcpy = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SCRCPY_PATH);
+        if (TextUtils.notEmpty(scrcpy) && new File(scrcpy).exists()) return scrcpy;
+        return findApp(APP_SCRCPY);
+    }
+
+    /**
      * mirror device - either in the built-in mirror window or with scrcpy
      * NOTE: scrcpy isn't an option for remote devices; they always use the built-in window
      */
@@ -988,8 +1004,8 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         }
         commandExecutorService.submit(() -> {
             // check if scrcpy dialog needs to be displayed
-            String scrcpy = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_SCRCPY_PATH);
-            if (TextUtils.isEmpty(scrcpy) || !new File(scrcpy).exists() || (!skipDialogCheck && !ScrcpyOptionsDialog.isDoNotShowAgain())) {
+            String scrcpy = getScrcpyPath();
+            if (scrcpy == null || (!skipDialogCheck && !ScrcpyOptionsDialog.isDoNotShowAgain())) {
                 SwingUtilities.invokeLater(() -> {
                     boolean isOk = ScrcpyOptionsDialog.showRemoteServerDialog(null);
                     if (isOk) {

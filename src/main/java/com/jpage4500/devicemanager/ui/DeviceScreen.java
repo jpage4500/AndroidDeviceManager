@@ -239,29 +239,8 @@ public class DeviceScreen extends BaseScreen {
 
         table.setDoubleClickListener((row, column, e) -> {
             log.trace("table.setDoubleClickListener: row: {}, column: {}", row, column);
-            DeviceTableModel.Columns columnType = model.getColumnType(column);
-            if (columnType == DeviceTableModel.Columns.NAME) {
-                // edit device name
-                handleSetDeviceName();
-                return;
-            } else if (columnType == DeviceTableModel.Columns.CUSTOM1) {
-                // edit custom 1 field
-                handleSetProperty(Device.CUSTOM_PROP_X + 1, DeviceTableModel.Columns.CUSTOM1.toString());
-                return;
-            } else if (columnType == DeviceTableModel.Columns.CUSTOM2) {
-                // edit custom 2 field
-                handleSetProperty(Device.CUSTOM_PROP_X + 2, DeviceTableModel.Columns.CUSTOM2.toString());
-                return;
-            } else if (columnType == DeviceTableModel.Columns.PHONE) {
-                Device device = getFirstSelectedDevice();
-                if (device != null && TextUtils.isEmpty(device.phone)) {
-                    // edit phone number field
-                    handleSetProperty(Device.CUST_PROP_PHONE, "Device Phone Number");
-                    return;
-                }
-            }
-            // default double-click action
-            handleMirrorCommand(false);
+            // mirror device - use scrcpy when it's installed
+            handleMirrorCommand(DeviceManager.getInstance().isScrcpyInstalled());
         });
 
         // support drag and drop of files IN TO deviceView
