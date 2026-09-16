@@ -351,12 +351,10 @@ public class DeviceScreen extends BaseScreen {
             UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.BROWSE.label, actionEvent -> app.showFileBrowser(device));
             UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.LOGS.label, actionEvent -> app.showLogs(device));
             UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.MIRROR.label, actionEvent -> handleMirrorCommand(false));
+            UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.SCRCPY.label, actionEvent -> handleMirrorCommand(true));
 
             // secondary options under "More"
             JMenu moreMenu = new JMenu("More");
-            JMenuItem scrcpyItem = new JMenuItem(ToolbarButton.SCRCPY.label, UiUtils.getImageIcon(ToolbarButton.SCRCPY.image, UiUtils.IMG_SIZE_SMALL));
-            scrcpyItem.addActionListener(e -> handleMirrorCommand(true));
-            moreMenu.add(scrcpyItem);
 
             JMenuItem recordItem = new JMenuItem(ToolbarButton.RECORD.label, UiUtils.getImageIcon(ToolbarButton.RECORD.image, UiUtils.IMG_SIZE_SMALL));
             recordItem.addActionListener(e -> handleRecordCommand());

@@ -41,11 +41,11 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     // adb commands
     public static final String COMMAND_DEVICE_NICKNAME = "settings get global device_name";
+    public static final String COMMAND_SET_DEVICE_NICKNAME = "settings put global device_name";
     public static final String COMMAND_GET_STAY_AWAKE = "settings get global stay_on_while_plugged_in";
     public static final String COMMAND_SET_STAY_AWAKE = "settings put global stay_on_while_plugged_in ";
     // stay on while plugged into AC, USB or wireless power (1|2|4)
     public static final String STAY_AWAKE_ALL = "7";
-    public static final String COMMAND_SET_DEVICE_NICKNAME = "settings put global device_name";
     public static final String COMMAND_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 com.android.shell";
     public static final String COMMAND_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
     public static final String COMMAND_SERVICE_IMEI = "service call iphonesubinfo 1 s16 com.android.shell";
