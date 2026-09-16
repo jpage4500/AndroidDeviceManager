@@ -41,6 +41,10 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     // adb commands
     public static final String COMMAND_DEVICE_NICKNAME = "settings get global device_name";
+    public static final String COMMAND_GET_STAY_AWAKE = "settings get global stay_on_while_plugged_in";
+    public static final String COMMAND_SET_STAY_AWAKE = "settings put global stay_on_while_plugged_in ";
+    // stay on while plugged into AC, USB or wireless power (1|2|4)
+    public static final String STAY_AWAKE_ALL = "7";
     public static final String COMMAND_SET_DEVICE_NICKNAME = "settings put global device_name";
     public static final String COMMAND_SERVICE_PHONE1 = "service call iphonesubinfo 15 s16 com.android.shell";
     public static final String COMMAND_SERVICE_PHONE2 = "service call iphonesubinfo 12 s16 com.android.shell";
@@ -104,6 +108,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     private final Map<String, AtomicBoolean> loggingStateMap = new HashMap<>();
     private final Map<String, InputStream> loggingStreamMap = new HashMap<>();
     private final List<String> queuedDetailList = new ArrayList<>();
+
+    // serial -> stay_on_while_plugged_in value to restore when the screen is allowed to sleep again
+    private final Map<String, String> stayAwakeMap = new HashMap<>();
 
     private static final int MAX_STATUS_EVENTS = 50;
     private final LinkedList<StatusEvent> statusEvents = new LinkedList<>();
@@ -2582,6 +2589,30 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
         // fallback: keep screen on while AC or USB (1|2 = 3)
         // runShell(device, "settings put global stay_on_while_plugged_in 3");
+    }
+
+    /**
+     * keep a device's screen on while plugged in - restores the previous setting when disabled
+     */
+    public void setStayAwake(Device device, boolean stayAwake) {
+        synchronized (stayAwakeMap) {
+            if (stayAwake) {
+                // already holding the screen on for this device
+                if (stayAwakeMap.containsKey(device.serial)) return;
+                ShellResult result = runShell(device, COMMAND_GET_STAY_AWAKE);
+                String prevValue = result.isSuccess ? result.getResult(0) : null;
+                // "settings get" prints "null" when the value was never set
+                if (TextUtils.isEmpty(prevValue) || TextUtils.equals(prevValue, "null")) prevValue = "0";
+                stayAwakeMap.put(device.serial, prevValue);
+                log.debug("setStayAwake: {}, prev:{}", device.serial, prevValue);
+                runShell(device, COMMAND_SET_STAY_AWAKE + STAY_AWAKE_ALL);
+            } else {
+                String prevValue = stayAwakeMap.remove(device.serial);
+                if (prevValue == null) return;
+                log.debug("setStayAwake: {}, restore:{}", device.serial, prevValue);
+                runShell(device, COMMAND_SET_STAY_AWAKE + prevValue);
+            }
+        }
     }
 
     /**
