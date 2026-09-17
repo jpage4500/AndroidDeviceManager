@@ -774,7 +774,11 @@ public class DeviceScreen extends BaseScreen {
         }
 
         DeviceManager.getInstance().connectDevice(ip, port, (isSuccess, error) -> {
-            if (!isSuccess) {
+            if (isSuccess) return;
+            // device may just be waiting on the user to allow this computer
+            if (DeviceManager.isAuthError(error)) {
+                DialogHelper.showDialog(this, null, "Check " + ip + " for a confirmation dialog to allow this computer");
+            } else {
                 DialogHelper.showDialog(this, null, "Unable to connect!");
             }
         });

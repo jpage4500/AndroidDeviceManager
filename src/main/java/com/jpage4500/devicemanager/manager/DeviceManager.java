@@ -1891,6 +1891,13 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
         });
     }
 
+    /**
+     * true if an adb error means the device was reached but hasn't accepted this computer yet
+     */
+    public static boolean isAuthError(String error) {
+        return TextUtils.containsAny(error, true, "failed to authenticate", "unauthorized", "still authorizing");
+    }
+
     public void connectDevice(String ip, int port, TaskListener listener) {
         commandExecutorService.submit(() -> {
             try {
