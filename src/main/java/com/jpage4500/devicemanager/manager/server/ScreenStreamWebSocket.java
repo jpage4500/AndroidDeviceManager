@@ -83,8 +83,9 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
     protected void onOpen() {
         log.info("onOpen: device: {}", device.serial);
 
-        // wake device screen before starting
+        // wake device screen before starting and keep it on
         deviceManager.wakeDevice(device);
+        deviceManager.setStayAwake(device, true);
 
         // send initial connection message
         sendStatusMessage("connected", "Screen stream started");
@@ -546,8 +547,8 @@ public class ScreenStreamWebSocket extends NanoWSD.WebSocket {
             Thread.currentThread().interrupt();
         }
 
-        // reset screen stay-on setting
-        deviceManager.runShell(device, "svc power stayon false");
+        // let the screen sleep again
+        deviceManager.setStayAwake(device, false);
     }
 
     private <T> T getValue(Map<String, Object> message, String key, Class<T> classOfT) {

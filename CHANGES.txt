@@ -18,3 +18,8 @@
 - show the server connection string as a QR code from the Share Devices dialog
 - show which network each IP belongs to (Wi-Fi, VPN) in the Share Devices dialog
 - document the server API for anyone building their own client
+09/16
+- double-click any device in the list to mirror it
+- double-click opens scrcpy if installed, otherwise the built-in mirror window
+- Mirror: fixed right-click tapping the device instead of opening the menu
+- Mirror: keep the device screen on while mirroring and let it sleep again after

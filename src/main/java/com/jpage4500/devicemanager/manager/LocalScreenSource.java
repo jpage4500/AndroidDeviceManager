@@ -48,7 +48,10 @@ public class LocalScreenSource implements ScreenMirrorSource {
         this.captureErrors = 0;
         log.debug("start: {}, intervalMs:{}", device.serial, intervalMs);
 
-        inputExecutor.submit(() -> deviceManager.wakeDevice(device));
+        inputExecutor.submit(() -> {
+            deviceManager.wakeDevice(device);
+            deviceManager.setStayAwake(device, true);
+        });
         listener.onStatus("connected", "Screen stream started");
         captureTask = scheduler.scheduleWithFixedDelay(this::captureFrame, 0, intervalMs, TimeUnit.MILLISECONDS);
     }
@@ -58,6 +61,7 @@ public class LocalScreenSource implements ScreenMirrorSource {
         log.debug("stop: {}", device.serial);
         stopCaptureTask();
         scheduler.shutdownNow();
+        if (!inputExecutor.isShutdown()) inputExecutor.submit(() -> deviceManager.setStayAwake(device, false));
         inputExecutor.shutdown();
     }
 

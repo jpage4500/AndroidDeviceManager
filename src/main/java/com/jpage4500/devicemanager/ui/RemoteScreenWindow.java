@@ -335,6 +335,7 @@ public class RemoteScreenWindow extends BaseScreen implements ScreenMirrorSource
         private static final int FIXED_SWIPE_DISTANCE = 300; // fixed swipe distance in device pixels
 
         private JPopupMenu activePopup;
+        private boolean popupTriggerHandled;
 
         public ScreenPanel() {
             setBackground(Color.BLACK);
@@ -345,7 +346,8 @@ public class RemoteScreenWindow extends BaseScreen implements ScreenMirrorSource
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
-                    if (e.isPopupTrigger()) {
+                    if (isPopupTrigger(e)) {
+                        popupTriggerHandled = true;
                         showContextMenu(e);
                         return;
                     } else if (activePopup != null) {
@@ -353,8 +355,11 @@ public class RemoteScreenWindow extends BaseScreen implements ScreenMirrorSource
                         closePopup();
                         e.consume();
                         return;
+                    } else if (!SwingUtilities.isLeftMouseButton(e)) {
+                        return;
                     }
 
+                    popupTriggerHandled = false;
                     requestFocusInWindow();
                     dragStart = e.getPoint();
                     pressStartPoint = e.getPoint();
@@ -367,6 +372,17 @@ public class RemoteScreenWindow extends BaseScreen implements ScreenMirrorSource
                 public void mouseReleased(MouseEvent e) {
                     // stop long press timer
                     stopLongPressTimer();
+
+                    // popup trigger is flagged on press on some platforms and on release on others
+                    if (popupTriggerHandled || isPopupTrigger(e)) {
+                        // re-open if swing dismissed the popup when the button came back up
+                        if (!popupTriggerHandled || !isPopupVisible()) showContextMenu(e);
+                        popupTriggerHandled = false;
+                        isDragging = false;
+                        dragStart = null;
+                        pressStartPoint = null;
+                        return;
+                    }
 
                     if (longPressTriggered) {
                         // long press already handled; ignore further tap/swipe logic
@@ -432,6 +448,11 @@ public class RemoteScreenWindow extends BaseScreen implements ScreenMirrorSource
 
         private boolean isInputAllowed() {
             return connected;
+        }
+
+        // right-click (or ctrl-click); mac trackpad taps don't always set the popup trigger flag
+        private boolean isPopupTrigger(MouseEvent e) {
+            return e.isPopupTrigger() || SwingUtilities.isRightMouseButton(e);
         }
 
         private boolean isPopupVisible() {
