@@ -75,12 +75,16 @@ public class MainApplication {
             argFile.delete();
         }
 
-        // if run in a headless session this method will throw an exception..
-        try {
-            registerFileHandler();
-        } catch (Exception e) {
-            log.info("registerFileHandler: running in headless environment.. starting in server mode");
+        // no display available (ubuntu server, ssh session) - server mode is the only thing that can run
+        if (GraphicsEnvironment.isHeadless()) {
+            log.info("headless environment detected.. starting in server mode");
             serverMode = true;
+        } else {
+            try {
+                registerFileHandler();
+            } catch (Exception e) {
+                log.error("registerFileHandler: {}", e.getMessage());
+            }
         }
 
         if (serverMode) SwingUtilities.invokeLater(() -> runServerMode(args));

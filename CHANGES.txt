@@ -25,3 +25,5 @@
 - Mirror: keep the device screen on while mirroring and let it sleep again after
 09/17
 - Connect: wait for the device to allow the connection instead of showing an error
+09/21
+- Server: fixed the app failing to start on a machine with no display
