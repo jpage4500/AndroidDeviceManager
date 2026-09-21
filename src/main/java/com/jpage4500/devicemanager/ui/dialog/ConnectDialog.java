@@ -30,6 +30,7 @@ public class ConnectDialog extends JPanel {
     private static final String STATUS_DISCONNECTED = "Disconnected";
     private static final String STATUS_CONNECTING = "Connecting...";
     private static final String STATUS_DISCONNECTING = "Disconnecting...";
+    private static final String STATUS_AUTHORIZING = "Authorizing...";
 
     // default values
     private static final int DEFAULT_PORT = 5555;
@@ -37,6 +38,11 @@ public class ConnectDialog extends JPanel {
     private static final int REFRESH_DELAY_MS = 2000;
     private static final int DEVICE_NAME_POLL_INTERVAL_MS = 1000; // Poll every 1 second
     private static final int DEVICE_NAME_POLL_MAX_ATTEMPTS = 30; // Max 30 seconds
+    private static final int AUTH_POLL_INTERVAL_MS = 1000;
+    private static final int AUTH_POLL_MAX_ATTEMPTS = 60; // Max 60 seconds
+
+    private static final Color COLOR_CONNECTED = new Color(0, 150, 0);
+    private static final Color COLOR_PENDING = new Color(255, 140, 0);
 
     // table column widths
     private static final int COL_WIDTH_CHECKBOX = 40;
@@ -55,6 +61,7 @@ public class ConnectDialog extends JPanel {
     private JButton connectButton;
     private JTable deviceTable;
     private DeviceTableModel tableModel;
+    private JLabel statusLabel;
 
     // used to persist the most recent X wireless devices
     private static class WirelessDevice {
@@ -177,6 +184,10 @@ public class ConnectDialog extends JPanel {
 
         add(manualPanel, "growx, wrap");
 
+        statusLabel = new JLabel(" ");
+        statusLabel.setForeground(COLOR_PENDING);
+        add(statusLabel, "growx, wrap, gaptop 5");
+
         // bottom button row: 'Connect Remote Server' (left) and 'Pair with QR Code' (right)
         JPanel bottomPanel = new JPanel(new MigLayout("fillx, insets 0"));
 
@@ -288,6 +299,9 @@ public class ConnectDialog extends JPanel {
                     refreshTable();
                     startDeviceNamePolling();
                 });
+            } else if (DeviceManager.isAuthError(result)) {
+                log.debug("handleManualConnect: waiting for authorization: {}:{}", ip, port);
+                SwingUtilities.invokeLater(() -> startAuthPolling(ip + ":" + port));
             } else {
                 log.error("handleManualConnect: Failed to connect to {}:{}, {}", ip, port, result);
                 SwingUtilities.invokeLater(() -> DialogHelper.showDialog(this, "Connect Device", getConnectError(ip + ":" + port, result), true));
@@ -319,8 +333,9 @@ public class ConnectDialog extends JPanel {
                 wd.serial = device.serial;
                 wd.model = device.model;
                 wd.nickname = device.nickname;
-                wd.isConnected = true;
-                wd.connectionStatus = STATUS_CONNECTED;
+                wd.isConnected = device.isOnline;
+                if (device.isOnline) wd.connectionStatus = STATUS_CONNECTED;
+                else wd.connectionStatus = DeviceManager.isAuthError(device.status) ? STATUS_AUTHORIZING : STATUS_DISCONNECTED;
                 displayDeviceList.add(wd);
             }
         }
@@ -362,6 +377,46 @@ public class ConnectDialog extends JPanel {
      */
     private boolean hasDeviceName(WirelessDevice device) {
         return TextUtils.notEmpty(device.nickname) || TextUtils.notEmpty(device.model);
+    }
+
+    /**
+     * device was reached but hasn't accepted this computer yet - wait for the user to tap "Allow" on the device
+     */
+    private void startAuthPolling(String serial) {
+        setStatusText("Tap 'Allow' on " + getIpFromSerial(serial) + " to accept this computer");
+        refreshTable();
+
+        final int[] attemptCount = {0};
+        Timer pollTimer = new Timer(AUTH_POLL_INTERVAL_MS, null);
+        pollTimer.addActionListener(e -> {
+            attemptCount[0]++;
+            Device device = DeviceManager.getInstance().getDevice(serial);
+            if (device != null && device.isOnline) {
+                pollTimer.stop();
+                log.debug("startAuthPolling: AUTHORIZED: {}", serial);
+                setStatusText(null);
+                refreshTable();
+                startDeviceNamePolling(serial);
+            } else if (attemptCount[0] > AUTH_POLL_MAX_ATTEMPTS) {
+                pollTimer.stop();
+                log.debug("startAuthPolling: TIMEOUT: {}", serial);
+                setStatusText(null);
+                refreshTable();
+                DialogHelper.showDialog(this, "Connect Device", serial + " didn't accept this computer.\nCheck the device for a confirmation dialog and connect again.", true);
+            } else {
+                refreshTable();
+            }
+        });
+        pollTimer.setRepeats(true);
+        pollTimer.start();
+        log.trace("startAuthPolling: start polling: {}", serial);
+    }
+
+    /**
+     * show a message below the IP/port fields (null to clear it)
+     */
+    private void setStatusText(String text) {
+        statusLabel.setText(TextUtils.notEmpty(text) ? text : " ");
     }
 
     /**
@@ -534,7 +589,7 @@ public class ConnectDialog extends JPanel {
             // disable checkbox while connecting or disconnecting
             WirelessDevice device = devices.get(rowIndex);
             String status = device.connectionStatus;
-            return !STATUS_CONNECTING.equals(status) && !STATUS_DISCONNECTING.equals(status);
+            return !STATUS_CONNECTING.equals(status) && !STATUS_DISCONNECTING.equals(status) && !STATUS_AUTHORIZING.equals(status);
         }
 
         @Override
@@ -570,6 +625,13 @@ public class ConnectDialog extends JPanel {
                         fireTableRowsUpdated(rowIndex, rowIndex);
                         refreshTable();
                         startDeviceNamePolling(device.serial);
+                    });
+                } else if (DeviceManager.isAuthError(result)) {
+                    device.connectionStatus = STATUS_AUTHORIZING;
+                    log.debug("handleConnect: waiting for authorization: {}", device);
+                    SwingUtilities.invokeLater(() -> {
+                        fireTableRowsUpdated(rowIndex, rowIndex);
+                        startAuthPolling(device.serial);
                     });
                 } else {
                     device.connectionStatus = STATUS_DISCONNECTED;
@@ -618,11 +680,11 @@ public class ConnectDialog extends JPanel {
             if (!isSelectedAndFocused) {
                 String status = (String) value;
                 if (STATUS_CONNECTED.equals(status)) {
-                    setForeground(new Color(0, 150, 0)); // Green
+                    setForeground(COLOR_CONNECTED);
                 } else if (STATUS_DISCONNECTED.equals(status)) {
                     setForeground(Color.RED);
-                } else if (STATUS_CONNECTING.equals(status) || STATUS_DISCONNECTING.equals(status)) {
-                    setForeground(new Color(255, 140, 0)); // Orange
+                } else if (STATUS_CONNECTING.equals(status) || STATUS_DISCONNECTING.equals(status) || STATUS_AUTHORIZING.equals(status)) {
+                    setForeground(COLOR_PENDING);
                 } else {
                     setForeground(Color.GRAY);
                 }
