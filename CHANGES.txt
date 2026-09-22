@@ -27,3 +27,4 @@
 - Connect: wait for the device to allow the connection instead of showing an error
 09/21
 - Server: fixed the app failing to start on a machine with no display
+- Server: --log-level sets how much detail goes to the log file
