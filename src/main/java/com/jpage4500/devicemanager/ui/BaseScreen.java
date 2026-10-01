@@ -10,6 +10,7 @@ import com.jpage4500.devicemanager.utils.GsonHelper;
 import com.jpage4500.devicemanager.utils.PreferenceUtils;
 import com.jpage4500.devicemanager.utils.TextUtils;
 import com.jpage4500.devicemanager.utils.UiUtils;
+import com.jpage4500.devicemanager.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +25,7 @@ import java.util.prefs.Preferences;
  */
 public abstract class BaseScreen extends JFrame {
     private static final Logger log = LoggerFactory.getLogger(BaseScreen.class);
+    private static final String URL_REPO = "https://github.com/jpage4500/AndroidDeviceManager";
 
     private String prefKey;
     private String titleBackup;
@@ -278,6 +280,21 @@ public abstract class BaseScreen extends JFrame {
         });
         menu.add(onTopItem);
 
+        return menu;
+    }
+
+    /**
+     * every screen's menu bar ends with the Help menu
+     */
+    @Override
+    public void setJMenuBar(JMenuBar menubar) {
+        if (menubar != null) menubar.add(buildHelpMenu());
+        super.setJMenuBar(menubar);
+    }
+
+    private JMenu buildHelpMenu() {
+        JMenu menu = new JMenu("Help");
+        createMenuItem(menu, "GitHub Page", null, e -> Utils.openBrowser(URL_REPO));
         return menu;
     }
 

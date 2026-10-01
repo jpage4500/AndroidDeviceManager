@@ -84,6 +84,8 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     public static final int LOG_INTERVAL_MS = 100;
     // how frequently to refresh device list
     public static final int DEVICE_REFRESH_MINS = 60;
+    // max logcat history pulled when logging starts
+    public static final int MAX_LOG_HISTORY_MINS = 10;
 
     public static final String CUSTOM_KEY_VERSION = "VER";
     public static final String CUSTOM_KEY_PROP = "PROP";
@@ -2074,8 +2076,33 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      * @param lastLogTime - last log entry (if logging had started previously) - 10-16 11:34:17.824
      *                   - if null, defaults to 10 mins ago
      */
+    /**
+     * logcat start time (MM-dd HH:mm:ss[.SSS]); never more than MAX_LOG_HISTORY_MINS ago
+     */
+    private static String clampLogStartTime(String lastLogTime) {
+        SimpleDateFormat sdf = new SimpleDateFormat("MM-dd HH:mm:ss.SSS");
+        long minTime = System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(MAX_LOG_HISTORY_MINS);
+        if (lastLogTime != null) {
+            try {
+                Calendar now = Calendar.getInstance();
+                Calendar last = Calendar.getInstance();
+                last.setTime(new SimpleDateFormat(lastLogTime.contains(".") ? "MM-dd HH:mm:ss.SSS" : "MM-dd HH:mm:ss").parse(lastLogTime));
+                last.set(Calendar.YEAR, now.get(Calendar.YEAR));
+                // entry from last year (Dec -> Jan rollover)
+                if (last.after(now) && last.getTimeInMillis() - now.getTimeInMillis() > TimeUnit.DAYS.toMillis(1)) {
+                    last.add(Calendar.YEAR, -1);
+                }
+                if (last.getTimeInMillis() >= minTime) return lastLogTime;
+            } catch (Exception e) {
+                log.debug("clampLogStartTime: {}, {}", lastLogTime, e.getMessage());
+            }
+        }
+        return sdf.format(new Date(minTime));
+    }
+
     public void startLogging(Device device, String lastLogTime, String filterText, DeviceLogListener listener) {
         stopLogging(device);
+        lastLogTime = clampLogStartTime(lastLogTime);
         notifyStatusEvent("Started logging " + device.getDisplayName());
 
         // handle remote device via WebSocket
@@ -2087,11 +2114,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
         // local device - existing implementation
         final String logStartTime;
-        if (lastLogTime == null) {
-            // default to 10 mins ago
-            SimpleDateFormat sdf = new SimpleDateFormat("MM-dd HH:mm:ss.SSS");
-            logStartTime = sdf.format(new Date(System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(10)));
-        } else if (!lastLogTime.contains(".")) {
+        if (!lastLogTime.contains(".")) {
             // logcat -T expects MM-dd HH:mm:ss.SSS
             logStartTime = lastLogTime + ".000";
         } else {

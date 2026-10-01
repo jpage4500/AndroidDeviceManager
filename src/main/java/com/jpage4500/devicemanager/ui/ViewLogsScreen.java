@@ -533,6 +533,14 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
             }
         });
 
+        // CMD+C -> copy line (default JTable copy repeats the entry once per column)
+        table.getActionMap().put(TransferHandler.getCopyAction().getValue(Action.NAME), new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleCopyClicked();
+            }
+        });
+
         table.getSelectionModel().addListSelectionListener(event -> {
             // disable auto-scroll the moment selection changes — even mid-drag — so
             // newly-arriving logs don't scroll the viewport out from under the user's drag
@@ -1626,10 +1634,25 @@ public class ViewLogsScreen extends BaseScreen implements DeviceManager.DeviceLo
                 writer.write(logEntry.toString());
                 writer.write(System.lineSeparator());
             }
-            DialogHelper.showDialog(this, "Logs Saved", "Successfully saved " + logEntries.size() + " log entries to:\n" + file.getAbsolutePath());
         } catch (IOException e) {
             log.error("saveLogs: IOException: {}", e.getMessage());
             DialogHelper.showDialog(this, "Save Error", "Error saving logs: " + e.getMessage());
+            return;
+        }
+        showLogsSaved(file, logEntries.size());
+    }
+
+    private void showLogsSaved(File file, int count) {
+        String folderLabel = Utils.isMac() ? "Show in Finder" : Utils.isWindows() ? "Show in Explorer" : "Show in Folder";
+        String[] options = {"Open", folderLabel, "Close"};
+        String msg = "Successfully saved " + count + " log entries to:\n" + file.getAbsolutePath();
+        int rc = JOptionPane.showOptionDialog(this, msg, "Logs Saved", JOptionPane.DEFAULT_OPTION,
+            JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
+        if (rc == 0) {
+            Utils.editFile(file);
+        } else if (rc == 1) {
+            // fall back to opening the parent folder where selecting the file isn't supported
+            if (!Utils.openFolder(file)) Utils.openFile(file.getParentFile());
         }
     }
 

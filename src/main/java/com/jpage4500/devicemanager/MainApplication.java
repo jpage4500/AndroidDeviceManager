@@ -47,12 +47,15 @@ public class MainApplication {
 
         // handle command-line args
         boolean serverMode = false;
-        for (String arg : args) {
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
             if (TextUtils.equalsIgnoreCase(arg, "--server")) {
                 serverMode = true;
             } else if (TextUtils.equalsIgnoreCaseAny(arg, "logs", "--logs", "--logs-only")) {
                 log.debug("- logs mode");
                 launchMode = LaunchMode.LOGS_ONLY;
+            } else if (TextUtils.equalsIgnoreCase(arg, "--log-level") && i + 1 < args.length) {
+                setFileLogLevel(args[++i]);
             }
         }
 
@@ -179,6 +182,29 @@ public class MainApplication {
         } else {
             System.out.println("ERROR: no logger found: " + iLoggerFactory.getClass().getSimpleName());
         }
+    }
+
+    /**
+     * set how much detail is written to the log file: verbose, debug, info, warn or error
+     */
+    private void setFileLogLevel(String name) {
+        int level = switch (name.toLowerCase()) {
+            case "verbose", "trace", "v" -> Log.VERBOSE;
+            case "debug", "d" -> Log.DEBUG;
+            case "info", "i" -> Log.INFO;
+            case "warn", "w" -> Log.WARN;
+            case "error", "e" -> Log.ERROR;
+            default -> -1;
+        };
+        if (level < 0) {
+            log.error("setFileLogLevel: unknown level: {}", name);
+            return;
+        }
+        PreferenceUtils.setPreference(PreferenceUtils.PrefInt.PREF_LOG_LEVEL, level);
+        if (LoggerFactory.getILoggerFactory() instanceof AppLoggerFactory logger) {
+            logger.setFileLogLevel(level);
+        }
+        log.info("setFileLogLevel: {}", name);
     }
 
     private void initializeUI(String[] args) {

@@ -27,3 +27,12 @@
 - Connect: wait for the device to allow the connection instead of showing an error
 09/21
 - Server: fixed the app failing to start on a machine with no display
+- Server: --log-level sets how much detail goes to the log file
+09/22
+- Logs: open the saved log file or show it in Finder right after saving
+09/28
+- Logs: fixed Cmd+C copying each selected line several times
+10/01
+- Settings: Files tab icon now matches the other tabs
+- Logs: starting logging pulls at most the last 10 minutes of history
+- Added a Help menu to every window
