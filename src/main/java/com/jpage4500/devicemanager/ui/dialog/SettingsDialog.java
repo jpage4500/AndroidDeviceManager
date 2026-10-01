@@ -54,7 +54,7 @@ public class SettingsDialog extends JPanel {
     private void initalizeUi() {
         tabbedPane = new JTabbedPane();
         addTab("General", Icons.SETTINGS, createGeneralTab());
-        addTab("Files", Icons.FOLDER, createFilesTab());
+        addTab("Files", Icons.BROWSE, createFilesTab());
         scrcpyPanel = new ScrcpyOptionsDialog();
         addTab("scrcpy", Icons.SCRCPY, scrcpyPanel);
         addTab("Remote", Icons.SERVER, createRemoteTab());

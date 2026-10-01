@@ -32,3 +32,7 @@
 - Logs: open the saved log file or show it in Finder right after saving
 09/28
 - Logs: fixed Cmd+C copying each selected line several times
+10/01
+- Settings: Files tab icon now matches the other tabs
+- Logs: starting logging pulls at most the last 10 minutes of history
+- Added a Help menu to every window
