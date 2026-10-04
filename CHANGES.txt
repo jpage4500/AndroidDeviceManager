@@ -36,3 +36,5 @@
 - Settings: Files tab icon now matches the other tabs
 - Logs: starting logging pulls at most the last 10 minutes of history
 - Added a Help menu to every window
+10/04
+- Devices: fixed devices still showing as connected after adb reports them offline

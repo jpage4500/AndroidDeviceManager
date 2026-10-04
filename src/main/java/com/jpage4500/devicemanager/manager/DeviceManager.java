@@ -289,6 +289,12 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             String serial = jadbDevice.getSerial();
             // -- does this device already exist? --
             Device device = getDevice(serial);
+            JadbDevice.State listedState = jadbDevice.getListedState();
+            if (device != null && !device.isOnline && listedState != JadbDevice.State.Device
+                && TextUtils.equals(device.status, listedState.name())) {
+                // -- still not ready, nothing changed --
+                continue;
+            }
             if (device == null || !device.isOnline) {
                 // -- ADD DEVICE --
                 if (device == null) {
@@ -301,6 +307,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 device.serial = serial;
                 device.jadbDevice = jadbDevice;
                 addedDeviceList.add(device);
+            } else if (device.remoteConnection == null && jadbDevice.getListedState() != JadbDevice.State.Device) {
+                // -- still listed but no longer usable (offline, unauthorized, etc) --
+                setDeviceOffline(device, jadbDevice.getListedState().name());
             }
         }
 
@@ -336,7 +345,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             for (Device addedDevice : addedDeviceList) {
                 // fetch more details for these devices
                 try {
-                    JadbDevice.State state = addedDevice.jadbDevice.getState();
+                    JadbDevice.State state = addedDevice.jadbDevice.getListedState();
                     if (state == JadbDevice.State.Device) {
                         log.trace("handleDeviceUpdate: ONLINE: {}", addedDevice.serial);
                         addedDevice.isOnline = true;
@@ -369,6 +378,31 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             if (deviceRefreshRuture == null) {
                 updateRefreshTime();
             }
+        }
+    }
+
+    /**
+     * mark a device that adb still lists as offline
+     */
+    private void setDeviceOffline(Device device, String status) {
+        synchronized (device) {
+            if (!device.isOnline) return;
+            device.isOnline = false;
+        }
+        log.debug("setDeviceOffline: {} -> {}", device.serial, status);
+        device.status = status;
+        device.lastUpdateMs = System.currentTimeMillis();
+        notifyStatusEvent(device.getDisplayName() + " offline");
+        notifyDeviceUpdated(device);
+    }
+
+    /**
+     * a failed command can be the first sign that a device went offline
+     */
+    private void checkDeviceOffline(Device device, Exception e) {
+        if (device.remoteConnection != null) return;
+        if (TextUtils.containsIgnoreCase(e.getMessage(), "device offline")) {
+            setDeviceOffline(device, JadbDevice.State.Offline.name());
         }
     }
 
@@ -436,6 +470,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     device.parseProperties(propMap);
                 } catch (Exception e) {
                     log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
+                    checkDeviceOffline(device, e);
                 }
 
                 // -- device nickname --
@@ -850,6 +885,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             //log.trace("runShell: cmd:{}, {}", command, GsonHelper.toJson(result.resultList));
         } catch (Exception e) {
             log.error("runShell: cmd:{}, Exception: {}", command, e.getMessage());
+            checkDeviceOffline(device, e);
             result.isSuccess = false;
         } finally {
             if (inputStream != null) {
@@ -888,6 +924,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             result.isSuccess = true;
         } catch (Exception e) {
             log.error("runShellPipeline: cmd:{}, Exception: {}", pipeline, e.getMessage());
+            checkDeviceOffline(device, e);
             result.isSuccess = false;
         } finally {
             if (inputStream != null) {
@@ -1571,6 +1608,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             return new PropertyManager(device.jadbDevice).getprop();
         } catch (Exception e) {
             log.error("fetchDevicePropertiesInternal: PROP Exception:{}", e.getMessage());
+            checkDeviceOffline(device, e);
             return null;
         }
     }
@@ -2161,6 +2199,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 if (loggingState.get()) {
                     log.error("startLogging: Exception:{}", e.getMessage());
                     listener.handleError("Error: " + e.getMessage());
+                    checkDeviceOffline(device, e);
                 }
             } finally {
                 synchronized (loggingStreamMap) {

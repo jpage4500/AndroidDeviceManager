@@ -28,10 +28,21 @@ public class JadbDevice {
     private final String serial;
     private final ITransportFactory transportFactory;
     private static final int DEFAULT_TCPIP_PORT = 5555;
+    // state reported by the device list this came from
+    private State listedState = State.Unknown;
 
     JadbDevice(String serial, ITransportFactory tFactory) {
         this.serial = serial;
         this.transportFactory = tFactory;
+    }
+
+    JadbDevice(String serial, String type, ITransportFactory tFactory) {
+        this(serial, tFactory);
+        this.listedState = convertState(type.trim());
+    }
+
+    public State getListedState() {
+        return listedState;
     }
 
     static JadbDevice createAny(JadbConnection connection) {
