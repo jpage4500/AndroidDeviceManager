@@ -35,6 +35,17 @@ public class JadbConnection implements ITransportFactory {
         }
     }
 
+    /**
+     * mDNS services adb has discovered, one per line: "name\ttype\tip:port"
+     */
+    public String getMdnsServices() throws IOException, JadbException {
+        try (Transport transport = createTransport()) {
+            transport.send("host:mdns:services");
+            transport.verifyResponse();
+            return transport.readString();
+        }
+    }
+
     public InetSocketAddress connectToTcpDevice(InetSocketAddress inetSocketAddress)
             throws IOException, JadbException, ConnectionToRemoteDeviceException {
         try (Transport transport = createTransport()) {
@@ -96,7 +107,7 @@ public class JadbConnection implements ITransportFactory {
         for (String line : lines) {
             String[] parts = line.split("\t");
             if (parts.length > 1) {
-                devices.add(new JadbDevice(parts[0], this)); // parts[1] is type
+                devices.add(new JadbDevice(parts[0], parts[1], this));
             }
         }
         return devices;

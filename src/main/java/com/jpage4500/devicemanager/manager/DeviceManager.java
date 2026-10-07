@@ -84,6 +84,10 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     public static final int LOG_INTERVAL_MS = 100;
     // how frequently to refresh device list
     public static final int DEVICE_REFRESH_MINS = 60;
+
+    // mDNS suffix of a wireless debugging serial (ie: "adb-XXXX._adb-tls-connect._tcp")
+    private static final String MDNS_TLS_CONNECT = "._adb-tls-connect._tcp";
+    private static final int PAIR_CONNECT_ATTEMPTS = 3;
     // max logcat history pulled when logging starts
     public static final int MAX_LOG_HISTORY_MINS = 10;
 
@@ -289,6 +293,12 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             String serial = jadbDevice.getSerial();
             // -- does this device already exist? --
             Device device = getDevice(serial);
+            JadbDevice.State listedState = jadbDevice.getListedState();
+            if (device != null && !device.isOnline && listedState != JadbDevice.State.Device
+                && TextUtils.equals(device.status, listedState.name())) {
+                // -- still not ready, nothing changed --
+                continue;
+            }
             if (device == null || !device.isOnline) {
                 // -- ADD DEVICE --
                 if (device == null) {
@@ -301,6 +311,9 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 device.serial = serial;
                 device.jadbDevice = jadbDevice;
                 addedDeviceList.add(device);
+            } else if (device.remoteConnection == null && jadbDevice.getListedState() != JadbDevice.State.Device) {
+                // -- still listed but no longer usable (offline, unauthorized, etc) --
+                setDeviceOffline(device, jadbDevice.getListedState().name());
             }
         }
 
@@ -336,7 +349,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             for (Device addedDevice : addedDeviceList) {
                 // fetch more details for these devices
                 try {
-                    JadbDevice.State state = addedDevice.jadbDevice.getState();
+                    JadbDevice.State state = addedDevice.jadbDevice.getListedState();
                     if (state == JadbDevice.State.Device) {
                         log.trace("handleDeviceUpdate: ONLINE: {}", addedDevice.serial);
                         addedDevice.isOnline = true;
@@ -369,6 +382,31 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             if (deviceRefreshRuture == null) {
                 updateRefreshTime();
             }
+        }
+    }
+
+    /**
+     * mark a device that adb still lists as offline
+     */
+    private void setDeviceOffline(Device device, String status) {
+        synchronized (device) {
+            if (!device.isOnline) return;
+            device.isOnline = false;
+        }
+        log.debug("setDeviceOffline: {} -> {}", device.serial, status);
+        device.status = status;
+        device.lastUpdateMs = System.currentTimeMillis();
+        notifyStatusEvent(device.getDisplayName() + " offline");
+        notifyDeviceUpdated(device);
+    }
+
+    /**
+     * a failed command can be the first sign that a device went offline
+     */
+    private void checkDeviceOffline(Device device, Exception e) {
+        if (device.remoteConnection != null) return;
+        if (TextUtils.containsIgnoreCase(e.getMessage(), "device offline")) {
+            setDeviceOffline(device, JadbDevice.State.Offline.name());
         }
     }
 
@@ -436,6 +474,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     device.parseProperties(propMap);
                 } catch (Exception e) {
                     log.error("fetchDeviceDetails: PROP Exception:{}", e.getMessage());
+                    checkDeviceOffline(device, e);
                 }
 
                 // -- device nickname --
@@ -850,6 +889,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             //log.trace("runShell: cmd:{}, {}", command, GsonHelper.toJson(result.resultList));
         } catch (Exception e) {
             log.error("runShell: cmd:{}, Exception: {}", command, e.getMessage());
+            checkDeviceOffline(device, e);
             result.isSuccess = false;
         } finally {
             if (inputStream != null) {
@@ -888,6 +928,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             result.isSuccess = true;
         } catch (Exception e) {
             log.error("runShellPipeline: cmd:{}, Exception: {}", pipeline, e.getMessage());
+            checkDeviceOffline(device, e);
             result.isSuccess = false;
         } finally {
             if (inputStream != null) {
@@ -1571,6 +1612,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
             return new PropertyManager(device.jadbDevice).getprop();
         } catch (Exception e) {
             log.error("fetchDevicePropertiesInternal: PROP Exception:{}", e.getMessage());
+            checkDeviceOffline(device, e);
             return null;
         }
     }
@@ -1935,9 +1977,68 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 listener.onTaskComplete(true, null);
             } catch (Exception e) {
                 log.error("connectDevice: {}, Exception:{}", serial, e.getMessage());
-                listener.onTaskComplete(false, e.getMessage());
+                // adb may have resolved the name to an old address
+                String name = serial.replace(MDNS_TLS_CONNECT, "");
+                if (!isAuthError(e.getMessage()) && connectWirelessDebug(null, name)) {
+                    listener.onTaskComplete(true, null);
+                } else {
+                    listener.onTaskComplete(false, e.getMessage());
+                }
             }
         });
+    }
+
+    /**
+     * connect to a device that was just paired - pairing only gives the pairing port, so look up the connect port
+     */
+    public void connectPairedDevice(String ip, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            for (int attempt = 1; attempt <= PAIR_CONNECT_ATTEMPTS; attempt++) {
+                log.debug("connectPairedDevice: {}, attempt:{}", ip, attempt);
+                if (connectWirelessDebug(ip, null)) {
+                    listener.onTaskComplete(true, null);
+                    return;
+                }
+                Utils.sleep(1000);
+            }
+            listener.onTaskComplete(false, "wireless debugging port not found for " + ip);
+        });
+    }
+
+    /**
+     * try every wireless debugging address adb has discovered for an IP or mDNS name
+     */
+    private boolean connectWirelessDebug(String ip, String name) {
+        try {
+            Set<String> serialSet = new HashSet<>();
+            for (JadbDevice jadbDevice : connection.getDevices()) {
+                serialSet.add(jadbDevice.getSerial());
+            }
+            String body = connection.getMdnsServices();
+            // each line: "<name>\t<type>\t<ip>:<port>"
+            for (String line : body.split("\n")) {
+                String[] parts = line.split("\t");
+                if (parts.length < 3 || !MDNS_TLS_CONNECT.equals("." + parts[1])) continue;
+                int pos = parts[2].lastIndexOf(':');
+                if (pos <= 0) continue;
+                String serviceIp = parts[2].substring(0, pos);
+                boolean isMatch = ip != null ? ip.equals(serviceIp) : (parts[0].equals(name) || parts[0].startsWith(name + " ("));
+                if (!isMatch) continue;
+                // adb already connected to this one by itself
+                if (serialSet.contains(parts[0] + MDNS_TLS_CONNECT) || serialSet.contains(parts[2])) return true;
+                try {
+                    int port = Integer.parseInt(parts[2].substring(pos + 1));
+                    connection.connectToTcpDevice(new InetSocketAddress(serviceIp, port));
+                    log.debug("connectWirelessDebug: connected to {} ({})", parts[2], parts[0]);
+                    return true;
+                } catch (Exception e) {
+                    log.debug("connectWirelessDebug: {} ({}), Exception:{}", parts[2], parts[0], e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.error("connectWirelessDebug: Exception:{}", e.getMessage());
+        }
+        return false;
     }
 
     public void disconnectDevice(String serial, TaskListener listener) {
@@ -2161,6 +2262,7 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 if (loggingState.get()) {
                     log.error("startLogging: Exception:{}", e.getMessage());
                     listener.handleError("Error: " + e.getMessage());
+                    checkDeviceOffline(device, e);
                 }
             } finally {
                 synchronized (loggingStreamMap) {

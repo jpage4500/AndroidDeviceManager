@@ -36,3 +36,17 @@
 - Settings: Files tab icon now matches the other tabs
 - Logs: starting logging pulls at most the last 10 minutes of history
 - Added a Help menu to every window
+10/04
+- Devices: fixed devices still showing as connected after adb reports them offline
+10/06
+- Connect: pairing by QR code now connects the device, not just pairs it
+- Connect: fixed "Connection refused" reconnecting a wireless device whose port changed
+10/07
+- Devices: Cmd+C opens the connect dialog
+- Devices: Device Details is now Cmd+D and Cmd+I opens the input window
+- Devices: right-click menu shows the Device Details and Input shortcuts
+- Input: text field is focused when the window opens
+- Input: Esc closes the window
+- Input: fixed recent text not being remembered after closing the window
+- Input: delete recent entries with the Delete key or right-click
+- Input: Password checkbox hides the text as you type and in the recent list
