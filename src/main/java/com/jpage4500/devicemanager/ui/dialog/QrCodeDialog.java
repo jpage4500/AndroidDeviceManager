@@ -114,7 +114,7 @@ public class QrCodeDialog extends JPanel {
         add(statusLabel, "wrap, gapbottom 10");
 
         // note
-        JLabel noteLabel = new JLabel("<html><i>Note: After scanning the QR code, pairing will happen automatically.</i></html>");
+        JLabel noteLabel = new JLabel("<html><i>Note: After scanning the QR code, the device is paired and connected automatically.</i></html>");
         noteLabel.setFont(noteLabel.getFont().deriveFont(11f));
         noteLabel.setForeground(Color.GRAY);
         add(noteLabel, "wrap");
@@ -241,21 +241,30 @@ public class QrCodeDialog extends JPanel {
         DeviceManager.getInstance().pairDevice(address, port, password, (isSuccess, result) -> {
             if (isSuccess) {
                 log.info("pairWithDevice: successfully paired with device at {}:{}", address, port);
-                updateStatus("✓ Pairing successful!", new Color(0, 153, 0));
+                updateStatus("✓ Paired! Connecting...", new Color(0, 153, 0));
 
                 // stop discovery to prevent further pairing attempts
                 stopDiscovery();
 
-                // show success notification and close dialog
-                SwingUtilities.invokeLater(() -> {
-                    String msg = String.format("Successfully paired with device at %s:%d", address, port);
-                    DialogHelper.showDialog(QrCodeDialog.this, "Pairing Successful", msg);
+                // pairing doesn't connect the device
+                DeviceManager.getInstance().connectPairedDevice(address, (isConnected, error) -> {
+                    log.info("pairWithDevice: connect to {}: {}, {}", address, isConnected, error);
+                    // show result and close dialog
+                    SwingUtilities.invokeLater(() -> {
+                        if (isConnected) {
+                            DialogHelper.showDialog(QrCodeDialog.this, "Pairing Successful", "Paired and connected to " + address);
+                        } else {
+                            String msg = "Paired with " + address + " but couldn't connect to it.\n"
+                                + "Turn 'Wireless debugging' off and on again, then connect using the IP and port it shows.";
+                            DialogHelper.showDialog(QrCodeDialog.this, "Pairing Successful", msg);
+                        }
 
-                    // close the QR code dialog window
-                    Window window = SwingUtilities.getWindowAncestor(QrCodeDialog.this);
-                    if (window != null) {
-                        window.dispose();
-                    }
+                        // close the QR code dialog window
+                        Window window = SwingUtilities.getWindowAncestor(QrCodeDialog.this);
+                        if (window != null) {
+                            window.dispose();
+                        }
+                    });
                 });
             } else {
                 log.error("pairWithDevice: failed to pair with device at {}:{}, error: {}", address, port, result);

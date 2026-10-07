@@ -197,7 +197,10 @@ public class ConnectDialog extends JPanel {
 
         JButton qrButton = new JButton("Pair with QR Code", UiUtils.getImageIcon(Icons.QR_CODE, UiUtils.IMG_SIZE_ICON));
         qrButton.addActionListener(e -> {
-            QrCodeDialog.showQrCodeDialog(this, this::refreshTable);
+            QrCodeDialog.showQrCodeDialog(this, () -> {
+                refreshTable();
+                startDeviceNamePolling();
+            });
         });
         bottomPanel.add(qrButton, "pushx, align right");
 

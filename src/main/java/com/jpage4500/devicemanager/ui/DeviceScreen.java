@@ -48,6 +48,12 @@ public class DeviceScreen extends BaseScreen {
     public static final String PREF_KEY_DEVICES = "devices";
     // [CMD/CTRL + S] = screenshot
     private static final KeyStroke SCREENSHOT_KEY = KeyStroke.getKeyStroke(KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+    // [CMD/CTRL + C] = connect device
+    private static final KeyStroke CONNECT_KEY = KeyStroke.getKeyStroke(KeyEvent.VK_C, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+    // [CMD/CTRL + D] = device details
+    private static final KeyStroke DETAILS_KEY = KeyStroke.getKeyStroke(KeyEvent.VK_D, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+    // [CMD/CTRL + I] = input text
+    private static final KeyStroke INPUT_KEY = KeyStroke.getKeyStroke(KeyEvent.VK_I, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
 
     public CustomTable table;
     public DeviceTableModel model;
@@ -173,14 +179,17 @@ public class DeviceScreen extends BaseScreen {
         // [CMD + F] = focus search box
         createCmdMenuItem(deviceMenu, "Filter", KeyEvent.VK_F, e -> filterTextField.requestFocus());
 
-        // [CMD + N] = connect device
-        createCmdMenuItem(deviceMenu, "Connect Device", KeyEvent.VK_N, e -> handleConnectDevice());
+        // [CMD + C] = connect device
+        createMenuItem(deviceMenu, "Connect Device", CONNECT_KEY, e -> handleConnectDevice());
 
-        // [CMD + I] = details for the selected device
-        createCmdMenuItem(deviceMenu, "Device Details", KeyEvent.VK_I, e -> {
+        // [CMD + D] = details for the selected device
+        createMenuItem(deviceMenu, "Device Details", DETAILS_KEY, e -> {
             List<Device> selectedDeviceList = getSelectedDevices(true);
             if (!selectedDeviceList.isEmpty()) app.showDeviceInfo(selectedDeviceList.get(0));
         });
+
+        // [CMD + I] = input text on the selected device
+        createMenuItem(deviceMenu, ToolbarButton.INPUT.label, INPUT_KEY, e -> handleInputCommand());
 
         // [CMD + G] = battery/storage history for every device
         createCmdMenuItem(deviceMenu, "Device Stats", KeyEvent.VK_G, e -> app.showStats());
@@ -247,6 +256,9 @@ public class DeviceScreen extends BaseScreen {
         new DropTarget(table, new FileDragAndDropListener(table, this::handleFilesDropped));
 
         table.setPopupMenuListener((row, column) -> getPopupMenu(row, column));
+
+        // table's own copy would swallow CMD+C before the menu sees it
+        table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(CONNECT_KEY, "none");
 
         table.setTooltipListener((row, col) -> {
             int modelCol = table.convertColumnIndexToModel(col);
@@ -345,7 +357,8 @@ public class DeviceScreen extends BaseScreen {
             UiUtils.addPopupMenuItem(popupMenu, "Copy Field to Clipboard", actionEvent -> handleCopyClipboardFieldCommand());
             UiUtils.addPopupMenuItem(popupMenu, "Copy Line to Clipboard", actionEvent -> handleCopyClipboardCommand());
             popupMenu.addSeparator();
-            UiUtils.addPopupMenuItem(popupMenu, "Device Details", actionEvent -> app.showDeviceInfo(device));
+            JMenuItem detailsItem = UiUtils.addPopupMenuItem(popupMenu, "Device Details", actionEvent -> app.showDeviceInfo(device));
+            detailsItem.setAccelerator(DETAILS_KEY);
 
             // primary options
             UiUtils.addPopupMenuItem(popupMenu, ToolbarButton.BROWSE.label, actionEvent -> app.showFileBrowser(device));
@@ -367,6 +380,7 @@ public class DeviceScreen extends BaseScreen {
 
             JMenuItem inputItem = new JMenuItem(ToolbarButton.INPUT.label, UiUtils.getImageIcon(ToolbarButton.INPUT.image, UiUtils.IMG_SIZE_SMALL));
             inputItem.addActionListener(e -> handleInputCommand());
+            inputItem.setAccelerator(INPUT_KEY);
             moreMenu.add(inputItem);
 
             JMenuItem installItem = new JMenuItem(ToolbarButton.INSTALL.label, UiUtils.getImageIcon(ToolbarButton.INSTALL.image, UiUtils.IMG_SIZE_SMALL));

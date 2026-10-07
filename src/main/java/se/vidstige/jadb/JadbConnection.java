@@ -35,6 +35,17 @@ public class JadbConnection implements ITransportFactory {
         }
     }
 
+    /**
+     * mDNS services adb has discovered, one per line: "name\ttype\tip:port"
+     */
+    public String getMdnsServices() throws IOException, JadbException {
+        try (Transport transport = createTransport()) {
+            transport.send("host:mdns:services");
+            transport.verifyResponse();
+            return transport.readString();
+        }
+    }
+
     public InetSocketAddress connectToTcpDevice(InetSocketAddress inetSocketAddress)
             throws IOException, JadbException, ConnectionToRemoteDeviceException {
         try (Transport transport = createTransport()) {
