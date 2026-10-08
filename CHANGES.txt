@@ -50,3 +50,8 @@
 - Input: fixed recent text not being remembered after closing the window
 - Input: delete recent entries with the Delete key or right-click
 - Input: Password checkbox hides the text as you type and in the recent list
+10/08
+- Connect: pair a wireless device by entering the pairing code it shows
+- Connect: device list shows when each device was last connected
+- Connect: fixed a reconnected device showing its model instead of its name
+- Connect: unchecking a device asks before disconnecting it

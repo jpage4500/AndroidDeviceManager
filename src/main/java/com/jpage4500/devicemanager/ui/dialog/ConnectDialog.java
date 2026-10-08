@@ -19,7 +19,9 @@ import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 public class ConnectDialog extends JPanel {
@@ -50,7 +52,8 @@ public class ConnectDialog extends JPanel {
     private static final int COL_WIDTH_IP = 120;
     private static final int COL_WIDTH_PORT = 60;
     private static final int COL_WIDTH_STATUS = 100;
-    private static final int TABLE_WIDTH = 550;
+    private static final int COL_WIDTH_LAST_CONNECTED = 130;
+    private static final int TABLE_WIDTH = 680;
     private static final int TABLE_HEIGHT = 200;
     private static final int TABLE_ROW_HEIGHT = 30;
 
@@ -58,6 +61,7 @@ public class ConnectDialog extends JPanel {
 
     private JTextField serverField;
     private JTextField portField;
+    private JTextField codeField;
     private JButton connectButton;
     private JTable deviceTable;
     private DeviceTableModel tableModel;
@@ -68,6 +72,7 @@ public class ConnectDialog extends JPanel {
         String serial;
         String model;
         String nickname;
+        long lastConnectedMs;
         boolean isConnected;
         String connectionStatus = STATUS_DISCONNECTED;
 
@@ -99,6 +104,7 @@ public class ConnectDialog extends JPanel {
         deviceTable.getColumnModel().getColumn(DeviceColumn.IP.ordinal()).setPreferredWidth(COL_WIDTH_IP);
         deviceTable.getColumnModel().getColumn(DeviceColumn.PORT.ordinal()).setPreferredWidth(COL_WIDTH_PORT);
         deviceTable.getColumnModel().getColumn(DeviceColumn.STATUS.ordinal()).setPreferredWidth(COL_WIDTH_STATUS);
+        deviceTable.getColumnModel().getColumn(DeviceColumn.LAST_CONNECTED.ordinal()).setPreferredWidth(COL_WIDTH_LAST_CONNECTED);
 
         // custom renderer for checkbox column
         deviceTable.getColumnModel().getColumn(DeviceColumn.CONNECTED.ordinal()).setCellRenderer(new CheckboxCellRenderer());
@@ -128,7 +134,7 @@ public class ConnectDialog extends JPanel {
         // manual connect section
         String lastIp = PreferenceUtils.getPreference(PreferenceUtils.Pref.PREF_LAST_DEVICE_IP, DEFAULT_HOST);
 
-        JPanel manualPanel = new JPanel(new MigLayout("fillx, insets 0", "[][grow][][grow][]"));
+        JPanel manualPanel = new JPanel(new MigLayout("fillx, insets 0", "[][grow][][grow][][grow][]"));
 
         manualPanel.add(new JLabel("IP:"), "");
 
@@ -177,6 +183,17 @@ public class ConnectDialog extends JPanel {
         portField.addActionListener(e -> handleEnterKey());
         addTextListener(portField);
         manualPanel.add(portField, "growx");
+
+        manualPanel.add(new JLabel("Code:"), "gapleft 10");
+
+        // pairing code is only needed the first time a device is connected to this computer
+        codeField = new JTextField();
+        codeField.putClientProperty("JTextField.placeholderText", "optional");
+        codeField.setToolTipText("<html>Pairing code, for a device that hasn't been paired with this computer:<br>"
+            + "Developer options → Wireless debugging → Pair device with pairing code</html>");
+        codeField.addActionListener(e -> handleEnterKey());
+        addTextListener(codeField);
+        manualPanel.add(codeField, "growx, wmin 70");
 
         connectButton = new JButton("Connect");
         connectButton.addActionListener(e -> handleManualConnect());
@@ -234,8 +251,11 @@ public class ConnectDialog extends JPanel {
         if (connectButton == null || serverField == null || portField == null) return;
         String ip = serverField.getText().trim();
         String port = portField.getText().trim();
-        boolean isEnabled = (!TextUtils.isEmptyAny(ip, port));
-        if (isEnabled) {
+        // with a pairing code the port is optional (it's looked up from the device)
+        boolean isPairing = codeField != null && TextUtils.notEmpty(codeField.getText().trim());
+        connectButton.setText(isPairing ? "Pair" : "Connect");
+        boolean isEnabled = isPairing ? TextUtils.notEmpty(ip) : (!TextUtils.isEmptyAny(ip, port));
+        if (isEnabled && TextUtils.notEmpty(port)) {
             try {
                 Integer.parseInt(port);
             } catch (NumberFormatException e) {
@@ -272,6 +292,11 @@ public class ConnectDialog extends JPanel {
     private void handleManualConnect() {
         String ip = serverField.getText().trim();
         String portStr = portField.getText().trim();
+        String code = codeField.getText().trim();
+        if (TextUtils.notEmpty(code)) {
+            handlePairCode(ip, TextUtils.isEmpty(portStr) ? 0 : Integer.parseInt(portStr), code);
+            return;
+        }
         int port;
         try {
             port = Integer.parseInt(portStr);
@@ -313,6 +338,47 @@ public class ConnectDialog extends JPanel {
     }
 
     /**
+     * pair with a device using the code it's showing, then connect to it
+     */
+    private void handlePairCode(String ip, int port, String code) {
+        PreferenceUtils.setPreference(PreferenceUtils.Pref.PREF_LAST_DEVICE_IP, ip);
+        connectButton.setEnabled(false);
+        setStatusText("Pairing with " + ip + "...");
+        log.trace("handlePairCode: pairing with: {}, {}", ip, port);
+        DeviceManager deviceManager = DeviceManager.getInstance();
+        deviceManager.pairDeviceWithCode(ip, port, code, (isPaired, pairResult) -> {
+            if (!isPaired) {
+                log.error("handlePairCode: Failed to pair with {}, {}", ip, pairResult);
+                SwingUtilities.invokeLater(() -> {
+                    setStatusText(null);
+                    updateConnectButton();
+                    String msg = "Failed to pair with " + ip + ". " + pairResult
+                        + "\nKeep the pairing code showing on the device and enter the IP, port and code from it.";
+                    DialogHelper.showDialog(this, "Pair Device", msg, true);
+                });
+                return;
+            }
+            SwingUtilities.invokeLater(() -> setStatusText("Paired with " + ip + ", connecting..."));
+            deviceManager.connectPairedDevice(ip, (isConnected, error) -> SwingUtilities.invokeLater(() -> {
+                log.debug("handlePairCode: connect to {}: {}, {}", ip, isConnected, error);
+                setStatusText(null);
+                // code is single use
+                codeField.setText("");
+                updateConnectButton();
+                refreshTable();
+                if (isConnected) {
+                    startDeviceNamePolling();
+                } else {
+                    portField.setText("");
+                    String msg = "Paired with " + ip + " but couldn't connect to it."
+                        + "\nEnter the port shown on the device's Wireless debugging screen and connect.";
+                    DialogHelper.showDialog(this, "Pair Device", msg, true);
+                }
+            }));
+        });
+    }
+
+    /**
      * build error message for a failed connect
      */
     private String getConnectError(String serial, String result) {
@@ -336,6 +402,15 @@ public class ConnectDialog extends JPanel {
                 wd.serial = device.serial;
                 wd.model = device.model;
                 wd.nickname = device.nickname;
+                for (WirelessDevice recentDevice : recentDeviceList) {
+                    if (TextUtils.equals(recentDevice.serial, device.serial)) {
+                        wd.lastConnectedMs = recentDevice.lastConnectedMs;
+                        // nickname is fetched a few seconds after the model
+                        if (TextUtils.isEmpty(wd.nickname)) wd.nickname = recentDevice.nickname;
+                        if (TextUtils.isEmpty(wd.model)) wd.model = recentDevice.model;
+                        break;
+                    }
+                }
                 wd.isConnected = device.isOnline;
                 if (device.isOnline) wd.connectionStatus = STATUS_CONNECTED;
                 else wd.connectionStatus = DeviceManager.isAuthError(device.status) ? STATUS_AUTHORIZING : STATUS_DISCONNECTED;
@@ -485,6 +560,7 @@ public class ConnectDialog extends JPanel {
         wd.serial = device.serial;
         wd.model = device.model;
         wd.nickname = device.nickname;
+        wd.lastConnectedMs = System.currentTimeMillis();
         // add to top of list
         deviceList.add(0, wd);
 
@@ -521,7 +597,8 @@ public class ConnectDialog extends JPanel {
         NAME("Name"),
         IP("IP"),
         PORT("Port"),
-        STATUS("Status");
+        STATUS("Status"),
+        LAST_CONNECTED("Last Connected");
 
         final String label;
 
@@ -536,6 +613,7 @@ public class ConnectDialog extends JPanel {
     private class DeviceTableModel extends AbstractTableModel {
         private final DeviceColumn[] columns = DeviceColumn.values();
         private List<WirelessDevice> devices = new ArrayList<>();
+        private final SimpleDateFormat dateFormat = new SimpleDateFormat("M/d @ h:mm aa");
 
         public void setDevices(List<WirelessDevice> devices) {
             this.devices = devices != null ? devices : new ArrayList<>();
@@ -574,6 +652,7 @@ public class ConnectDialog extends JPanel {
                 case IP -> getIpFromSerial(device.serial);
                 case PORT -> getPortFromSerial(device.serial);
                 case STATUS -> device.connectionStatus;
+                case LAST_CONNECTED -> device.lastConnectedMs > 0 ? dateFormat.format(new Date(device.lastConnectedMs)) : "";
             };
         }
 
@@ -604,7 +683,10 @@ public class ConnectDialog extends JPanel {
                 if (shouldBeConnected && !device.isConnected) {
                     handleConnect(device, rowIndex);
                 } else if (!shouldBeConnected && device.isConnected) {
-                    handleDisconnect(device, rowIndex);
+                    String message = "Disconnect '" + device.getName() + "' (" + device.serial + ")?";
+                    if (DialogHelper.showConfirmDialog(ConnectDialog.this, "Confirm Disconnect", message)) {
+                        handleDisconnect(device, rowIndex);
+                    }
                 }
             }
         }
