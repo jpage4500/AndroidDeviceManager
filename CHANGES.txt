@@ -55,3 +55,5 @@
 - Connect: device list shows when each device was last connected
 - Connect: fixed a reconnected device showing its model instead of its name
 - Connect: unchecking a device asks before disconnecting it
+10/14
+- Connect: pairing failures show the reason adb gave instead of "Invalid pairing response"
