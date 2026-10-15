@@ -46,7 +46,9 @@ class HostPairWithRemoteTcpDevice {
 
     private void verifyProtocolLevel() throws IOException, ConnectionToRemoteDeviceException {
         try {
-            String status = transport.readString();
+            // failures come back as "FAIL" + length-prefixed message
+            String header = transport.readString(4);
+            String status = "FAIL".equals(header) ? transport.readString() : transport.readString(Integer.parseInt(header, 16));
             if (!checkIfPairedSuccessfully(status)) {
                 throw new ConnectionToRemoteDeviceException(extractError(status));
             }

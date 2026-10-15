@@ -88,6 +88,8 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
     // mDNS suffix of a wireless debugging serial (ie: "adb-XXXX._adb-tls-connect._tcp")
     private static final String MDNS_TLS_CONNECT = "._adb-tls-connect._tcp";
     private static final int PAIR_CONNECT_ATTEMPTS = 3;
+    private static final int ADB_AUTO_CONNECT_MS = 2000;
+    private static final String MDNS_TLS_PAIRING = "_adb-tls-pairing._tcp";
     // max logcat history pulled when logging starts
     public static final int MAX_LOG_HISTORY_MINS = 10;
 
@@ -1990,8 +1992,10 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     /**
      * connect to a device that was just paired - pairing only gives the pairing port, so look up the connect port
+     *
+     * @param portList connect ports to try if the device isn't advertising one
      */
-    public void connectPairedDevice(String ip, TaskListener listener) {
+    public void connectPairedDevice(String ip, List<Integer> portList, TaskListener listener) {
         commandExecutorService.submit(() -> {
             for (int attempt = 1; attempt <= PAIR_CONNECT_ATTEMPTS; attempt++) {
                 log.debug("connectPairedDevice: {}, attempt:{}", ip, attempt);
@@ -2001,8 +2005,29 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 }
                 Utils.sleep(1000);
             }
+            // some devices advertise the pairing port but not the connect port
+            for (int port : portList) {
+                try {
+                    connection.connectToTcpDevice(new InetSocketAddress(ip, port));
+                    log.debug("connectPairedDevice: connected to {}:{}", ip, port);
+                    listener.onTaskComplete(true, null);
+                    return;
+                } catch (Exception e) {
+                    log.debug("connectPairedDevice: {}:{}, Exception:{}", ip, port, e.getMessage());
+                }
+            }
             listener.onTaskComplete(false, "wireless debugging port not found for " + ip);
         });
+    }
+
+    /**
+     * true if adb lists a device with this serial
+     */
+    private boolean isAdbDevice(String serial) throws IOException, JadbException {
+        for (JadbDevice jadbDevice : connection.getDevices()) {
+            if (TextUtils.equals(jadbDevice.getSerial(), serial)) return true;
+        }
+        return false;
     }
 
     /**
@@ -2010,10 +2035,6 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
      */
     private boolean connectWirelessDebug(String ip, String name) {
         try {
-            Set<String> serialSet = new HashSet<>();
-            for (JadbDevice jadbDevice : connection.getDevices()) {
-                serialSet.add(jadbDevice.getSerial());
-            }
             String body = connection.getMdnsServices();
             // each line: "<name>\t<type>\t<ip>:<port>"
             for (String line : body.split("\n")) {
@@ -2025,11 +2046,19 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 boolean isMatch = ip != null ? ip.equals(serviceIp) : (parts[0].equals(name) || parts[0].startsWith(name + " ("));
                 if (!isMatch) continue;
                 // adb already connected to this one by itself
-                if (serialSet.contains(parts[0] + MDNS_TLS_CONNECT) || serialSet.contains(parts[2])) return true;
+                String mdnsSerial = parts[0] + MDNS_TLS_CONNECT;
+                if (isAdbDevice(mdnsSerial) || isAdbDevice(parts[2])) return true;
+                // adb connects a newly paired device on its own a moment after discovering it
+                if (ip != null) {
+                    Utils.sleep(ADB_AUTO_CONNECT_MS);
+                    if (isAdbDevice(mdnsSerial)) return true;
+                }
                 try {
-                    int port = Integer.parseInt(parts[2].substring(pos + 1));
-                    connection.connectToTcpDevice(new InetSocketAddress(serviceIp, port));
+                    InetSocketAddress address = new InetSocketAddress(serviceIp, Integer.parseInt(parts[2].substring(pos + 1)));
+                    connection.connectToTcpDevice(address);
                     log.debug("connectWirelessDebug: connected to {} ({})", parts[2], parts[0]);
+                    // adb connected at the same time - keep its entry
+                    if (isAdbDevice(mdnsSerial)) connection.disconnectFromTcpDevice(address);
                     return true;
                 } catch (Exception e) {
                     log.debug("connectWirelessDebug: {} ({}), Exception:{}", parts[2], parts[0], e.getMessage());
@@ -2121,6 +2150,44 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                 listener.onTaskComplete(false, e.getMessage());
             }
         });
+    }
+
+    /**
+     * pair using the code shown on the device - the pairing port is looked up when the device is advertising it
+     *
+     * @param port pairing port to use if the device isn't advertising one
+     */
+    public void pairDeviceWithCode(String ip, int port, String pairingCode, TaskListener listener) {
+        commandExecutorService.submit(() -> {
+            int pairingPort = findPairingPort(ip);
+            log.debug("pairDeviceWithCode: {}, port:{}, discovered:{}", ip, port, pairingPort);
+            if (pairingPort <= 0) pairingPort = port;
+            if (pairingPort <= 0) {
+                listener.onTaskComplete(false, "Pairing port not found.");
+                return;
+            }
+            pairDevice(ip, pairingPort, pairingCode, listener);
+        });
+    }
+
+    /**
+     * @return port the device at this IP is waiting to be paired on, or -1 if adb hasn't discovered one
+     */
+    private int findPairingPort(String ip) {
+        try {
+            // each line: "<name>\t<type>\t<ip>:<port>"
+            for (String line : connection.getMdnsServices().split("\n")) {
+                String[] parts = line.split("\t");
+                if (parts.length < 3 || !MDNS_TLS_PAIRING.equals(parts[1])) continue;
+                int pos = parts[2].lastIndexOf(':');
+                if (pos > 0 && ip.equals(parts[2].substring(0, pos))) {
+                    return Integer.parseInt(parts[2].substring(pos + 1));
+                }
+            }
+        } catch (Exception e) {
+            log.error("findPairingPort: {}, Exception:{}", ip, e.getMessage());
+        }
+        return -1;
     }
 
     public void sendInputText(Device device, String text, TaskListener listener) {
