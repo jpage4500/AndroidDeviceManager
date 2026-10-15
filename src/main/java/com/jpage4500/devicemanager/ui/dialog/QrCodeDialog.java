@@ -247,7 +247,7 @@ public class QrCodeDialog extends JPanel {
                 stopDiscovery();
 
                 // pairing doesn't connect the device
-                DeviceManager.getInstance().connectPairedDevice(address, (isConnected, error) -> {
+                DeviceManager.getInstance().connectPairedDevice(address, List.of(), (isConnected, error) -> {
                     log.info("pairWithDevice: connect to {}: {}, {}", address, isConnected, error);
                     // show result and close dialog
                     SwingUtilities.invokeLater(() -> {

@@ -359,7 +359,7 @@ public class ConnectDialog extends JPanel {
                 return;
             }
             SwingUtilities.invokeLater(() -> setStatusText("Paired with " + ip + ", connecting..."));
-            deviceManager.connectPairedDevice(ip, (isConnected, error) -> SwingUtilities.invokeLater(() -> {
+            deviceManager.connectPairedDevice(ip, getConnectPorts(ip, port), (isConnected, error) -> SwingUtilities.invokeLater(() -> {
                 log.debug("handlePairCode: connect to {}: {}, {}", ip, isConnected, error);
                 setStatusText(null);
                 // code is single use
@@ -376,6 +376,24 @@ public class ConnectDialog extends JPanel {
                 }
             }));
         });
+    }
+
+    /**
+     * entered port followed by the ports this IP last connected on
+     */
+    private static List<Integer> getConnectPorts(String ip, int port) {
+        List<Integer> portList = new ArrayList<>();
+        if (port > 0) portList.add(port);
+        for (WirelessDevice device : getRecentWirelessDevices()) {
+            int pos = device.serial.lastIndexOf(':');
+            if (pos <= 0 || !ip.equals(device.serial.substring(0, pos))) continue;
+            try {
+                int recentPort = Integer.parseInt(device.serial.substring(pos + 1));
+                if (!portList.contains(recentPort)) portList.add(recentPort);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return portList;
     }
 
     /**

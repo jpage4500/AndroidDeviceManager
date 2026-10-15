@@ -57,3 +57,4 @@
 - Connect: unchecking a device asks before disconnecting it
 10/14
 - Connect: pairing failures show the reason adb gave instead of "Invalid pairing response"
+- Connect: fixed a device paired by code not connecting when it hides its connect port

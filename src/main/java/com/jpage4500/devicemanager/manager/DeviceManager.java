@@ -1992,8 +1992,10 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
 
     /**
      * connect to a device that was just paired - pairing only gives the pairing port, so look up the connect port
+     *
+     * @param portList connect ports to try if the device isn't advertising one
      */
-    public void connectPairedDevice(String ip, TaskListener listener) {
+    public void connectPairedDevice(String ip, List<Integer> portList, TaskListener listener) {
         commandExecutorService.submit(() -> {
             for (int attempt = 1; attempt <= PAIR_CONNECT_ATTEMPTS; attempt++) {
                 log.debug("connectPairedDevice: {}, attempt:{}", ip, attempt);
@@ -2002,6 +2004,17 @@ public class DeviceManager implements RemoteConnectionManager.RemoteConnectionLi
                     return;
                 }
                 Utils.sleep(1000);
+            }
+            // some devices advertise the pairing port but not the connect port
+            for (int port : portList) {
+                try {
+                    connection.connectToTcpDevice(new InetSocketAddress(ip, port));
+                    log.debug("connectPairedDevice: connected to {}:{}", ip, port);
+                    listener.onTaskComplete(true, null);
+                    return;
+                } catch (Exception e) {
+                    log.debug("connectPairedDevice: {}:{}, Exception:{}", ip, port, e.getMessage());
+                }
             }
             listener.onTaskComplete(false, "wireless debugging port not found for " + ip);
         });
