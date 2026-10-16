@@ -315,6 +315,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
         }
         if (deviceScreen == null) return;
         SwingUtilities.invokeLater(() -> {
+            Utils.setDockIconVisible(true);
             deviceScreen.setVisible(true);
             deviceScreen.toFront();
         });
@@ -507,6 +508,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
         if (deviceScreen != null) deviceScreen.setVisible(false);
         if (!forceQuit && exitToTray) {
             log.trace("exit: exit-to-tray preference active -> keeping process running");
+            Utils.setDockIconVisible(false);
             return;
         }
 
@@ -846,6 +848,7 @@ public class AppController implements App, DeviceManager.DeviceListener {
         JFrame target = frame;
         SwingUtilities.invokeLater(() -> {
             if (!target.isVisible()) {
+                Utils.setDockIconVisible(true);
                 target.setVisible(true);
                 target.setState(JFrame.NORMAL);
                 return;

@@ -1,6 +1,10 @@
 package com.jpage4500.devicemanager.utils;
 
 import com.jpage4500.devicemanager.data.Icons;
+import com.sun.jna.Callback;
+import com.sun.jna.Function;
+import com.sun.jna.NativeLibrary;
+import com.sun.jna.Pointer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +31,42 @@ public class Utils {
 
     public static boolean isMac() {
         return TextUtils.containsIgnoreCase(System.getProperty("os.name"), "mac");
+    }
+
+    // held for the app's lifetime so the main queue never calls a GC'd callback
+    private static Callback dockCallback;
+    private static volatile boolean isDockVisible = true;
+
+    /**
+     * show/hide the macOS dock icon (NSApplication activation policy: 0=regular, 1=accessory)
+     */
+    public static synchronized void setDockIconVisible(boolean isVisible) {
+        if (!isMac()) return;
+        isDockVisible = isVisible;
+        try {
+            if (dockCallback == null) {
+                Function msgSend = Function.getFunction("objc", "objc_msgSend");
+                Function selector = Function.getFunction("objc", "sel_registerName");
+                Pointer appClass = (Pointer) Function.getFunction("objc", "objc_getClass").invoke(Pointer.class, new Object[]{"NSApplication"});
+                Pointer app = (Pointer) msgSend.invoke(Pointer.class, new Object[]{appClass, selector.invoke(Pointer.class, new Object[]{"sharedApplication"})});
+                Pointer setPolicy = (Pointer) selector.invoke(Pointer.class, new Object[]{"setActivationPolicy:"});
+                Pointer activate = (Pointer) selector.invoke(Pointer.class, new Object[]{"activateIgnoringOtherApps:"});
+                dockCallback = new Callback() {
+                    @SuppressWarnings("unused")
+                    public void callback(Pointer context) {
+                        boolean show = isDockVisible;
+                        msgSend.invoke(Void.class, new Object[]{app, setPolicy, show ? 0L : 1L});
+                        if (show) msgSend.invoke(Void.class, new Object[]{app, activate, Boolean.TRUE});
+                    }
+                };
+            }
+            // AppKit must be called on the main thread
+            NativeLibrary system = NativeLibrary.getInstance("System");
+            Pointer mainQueue = system.getGlobalVariableAddress("_dispatch_main_q");
+            system.getFunction("dispatch_async_f").invoke(Void.class, new Object[]{mainQueue, null, dockCallback});
+        } catch (Throwable e) {
+            log.error("setDockIconVisible: {}", e.getMessage());
+        }
     }
 
     public static boolean isLinux() {
